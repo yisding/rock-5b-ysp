@@ -190,7 +190,7 @@ Everything **except** the 10-bit legs is green:
    luma agreement band (40–52 dB).
 4. **Fatal-signature scan widened — in all three copies, and de-noised.**
    `SUITE_DMESG_FATAL_RE` gained `Page fault at`, `bus error`, and an optional
-   `(intr|read|write)` word in the `iommu` alternative; `kasan-scan.sh` switched
+   `(intr|read|write)` word in the `iommu` alternative; `sanitizer-scan.sh` switched
    from `grep -E` to `grep -aiE` to match `suite-common.sh`. `rga_job_err` /
    "submit failed" were deliberately **excluded** so fail-closed rejects do not
    read as faults.
@@ -233,7 +233,7 @@ Everything **except** the 10-bit legs is green:
    fixtures of real captured fault lines and real benign lines: 8 must match,
    8 must not. It tests behaviour rather than spelling, so a reword passes but a
    reintroduced blind spot or false positive fails; a third case pins
-   `kasan-scan.sh`'s case-insensitive grep. **Mutation-verified** — restoring
+   `sanitizer-scan.sh`'s case-insensitive grep. **Mutation-verified** — restoring
    the pre-fix `iommu` alternative and bare `Oops` makes it fail with 5 errors,
    naming both the missed faults and the `ramoops` false positive.
 

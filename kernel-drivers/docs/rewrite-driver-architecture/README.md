@@ -61,7 +61,7 @@ Mutable qualification state deliberately lives outside this teaching guide:
 | Which exact source/package and accumulated results support that boundary? | [`rewrite-drivers.md` §6](../rewrite-drivers.md#6-status--citable-location) |
 | Which immutable snapshots make citations reproducible? | [source map §8](../../../docs/source-trees.md#8-rewrite-driver-tree) |
 | What must be proven before production use? | [rewrite validation plan](../rewrite-validation-plan.md) |
-| How are build, KUnit, consumer, differential, and hostile gates run? | [rewrite conformance entry](../../tests/rewrite-conformance.md) |
+| How are build, KUnit, consumer, differential, and hostile gates run? | [rewrite conformance entry](../../tests/conformance.md) |
 
 The source-level model in these chapters uses four primary implementation
 files:

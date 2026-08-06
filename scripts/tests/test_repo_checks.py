@@ -1585,7 +1585,7 @@ FATAL_SCAN_MUST_NOT_MATCH = (
 class FatalSignatureScanTests(unittest.TestCase):
     """The kernel-log fatal scans are duplicated; pin their BEHAVIOUR.
 
-    `suite-common.sh` (sourced by the conformance suites and `kasan-scan.sh`)
+    `suite-common.sh` (sourced by the conformance suites and `sanitizer-scan.sh`)
     and `run-root-gates.sh` (deliberately standalone, so it can run as root
     without sourcing the suite helpers) carry separate copies of the signature
     set.  They are not byte-identical by design and never can be, so this tests
@@ -1742,11 +1742,99 @@ class FatalSignatureScanTests(unittest.TestCase):
         )
 
     def test_kasan_scan_matches_suite_common_case_insensitivity(self) -> None:
-        # kasan-scan.sh reuses SUITE_DMESG_FATAL_RE, whose set contains
+        # sanitizer-scan.sh reuses SUITE_DMESG_FATAL_RE, whose set contains
         # case-varying signatures ("IOMMU"/"iommu"); a case-SENSITIVE grep here
         # silently dropped them.
-        source = (self.tests_dir / "kasan-scan.sh").read_text(encoding="utf-8")
+        source = (self.tests_dir / "sanitizer-scan.sh").read_text(encoding="utf-8")
         self.assertIn('grep -aiE "$SUITE_DMESG_FATAL_RE"', source)
+
+
+class ConformanceHarnessPlanTests(unittest.TestCase):
+    """Pin target/configuration selection without touching board hardware."""
+
+    runner = REPO_ROOT / "kernel-drivers/tests/run-conformance.sh"
+
+    def run_plan(self, *arguments: str, env: dict[str, str] | None = None):
+        command_env = os.environ.copy()
+        command_env.pop("PROFILE", None)
+        if env:
+            command_env.update(env)
+        return subprocess.run(
+            ["bash", str(self.runner), *arguments, "--plan"],
+            cwd=REPO_ROOT,
+            env=command_env,
+            capture_output=True,
+            text=True,
+        )
+
+    @staticmethod
+    def selections(output: str) -> dict[str, str]:
+        rows: dict[str, str] = {}
+        in_tests = False
+        for line in output.splitlines():
+            if line == "test\tgroup\tdefault\tselection\tdescription":
+                in_tests = True
+                continue
+            if in_tests:
+                fields = line.split("\t")
+                rows[fields[0]] = fields[3]
+        return rows
+
+    def test_standard_set_is_shared_by_bsp_and_rewrite(self) -> None:
+        bsp = self.run_plan("--target", "bsp", "--configuration", "production")
+        rewrite = self.run_plan(
+            "--target", "rewrite", "--configuration", "production"
+        )
+        self.assertEqual(bsp.returncode, 0, bsp.stderr)
+        self.assertEqual(rewrite.returncode, 0, rewrite.stderr)
+        bsp_rows = self.selections(bsp.stdout)
+        rewrite_rows = self.selections(rewrite.stdout)
+        for test_id in (
+            "system-info",
+            "matrix-identity",
+            "abi",
+            "mpp",
+            "librga",
+            "gstreamer",
+            "ffmpeg",
+        ):
+            self.assertEqual(bsp_rows[test_id], "selected")
+            self.assertEqual(rewrite_rows[test_id], "selected")
+        self.assertEqual(bsp_rows["kunit"], "incompatible")
+        self.assertEqual(rewrite_rows["kunit"], "selected")
+
+    def test_configuration_specific_tests_are_selected_explicitly(self) -> None:
+        result = self.run_plan(
+            "--target",
+            "forward-port",
+            "--configuration",
+            "kasan",
+            "--include",
+            "reset-session-kasan,ioctl-fuzz-kasan",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = self.selections(result.stdout)
+        self.assertEqual(rows["reset-session-kasan"], "selected")
+        self.assertEqual(rows["ioctl-fuzz-kasan"], "selected")
+        self.assertEqual(rows["reset-contention"], "incompatible")
+
+    def test_incompatible_explicit_test_fails_closed(self) -> None:
+        result = self.run_plan(
+            "--target",
+            "bsp",
+            "--configuration",
+            "production",
+            "--only",
+            "reset-session-kasan",
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("is incompatible", result.stderr)
+
+    def test_legacy_profile_resolves_both_axes(self) -> None:
+        result = self.run_plan(env={"PROFILE": "rewrite-kcsan"})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("profile\trewrite-kcsan\n", result.stdout)
+        self.assertIn("configuration\tkcsan\t", result.stdout)
 
 
 class RewriteKunitSourceAuditTests(unittest.TestCase):

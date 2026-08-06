@@ -81,7 +81,7 @@ continued after userspace failures, and was enclosed by privileged before/after
 ```sh
 PROFILE=forward-port FFMPEG_REQUIRE_AV1=1 RUN_CONTINUE_ON_FAIL=1 \
 RUN_ID=20260804-203002 SUITE_DMESG_SCAN=0 SUITE_REQUIRE_DMESG=0 \
-  bash kernel-drivers/tests/rewrite-conformance-run.sh
+  bash kernel-drivers/tests/run-conformance.sh
 ```
 
 Results:

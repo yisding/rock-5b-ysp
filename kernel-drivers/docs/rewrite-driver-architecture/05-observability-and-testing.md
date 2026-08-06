@@ -83,7 +83,7 @@ The evidence levels must not be collapsed:
 | Differential conformance | Compare outputs and behavior with the forward port | Compatibility across real applications and data paths | Exhaustive recovery/security behavior |
 | Fault/race/soak gates | KASAN, KCSAN, failure injection, close/unbind stress, long runs | Evidence for rare lifetime and recovery paths | A mathematical proof that no defect remains |
 
-The [rewrite conformance entry](../../tests/rewrite-conformance.md) owns build
+The [rewrite conformance entry](../../tests/conformance.md) owns build
 profiles, commands, exact result fields, and interpretation. A release-quality
 record correlates source/configuration, package and boot identity, the exact
 manifest, full kernel-log interval, suite commands/environment, counters,

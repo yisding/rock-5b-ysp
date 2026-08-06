@@ -1,24 +1,24 @@
 # shellcheck shell=bash
 # SPDX-FileCopyrightText: 2026 Yi Ding
 # SPDX-License-Identifier: GPL-2.0-only
-# Shared helper: run a workload on the KASAN/ramoops debug kernel and scan the
+# Shared helper: run a workload on an instrumented debug kernel and scan the
 # kernel log emitted during it for sanitizer/crash signatures. Sourced by the
-# kasan-*.sh runners. Uses journalctl (no sudo/dmesg-cap needed) with a cursor
+# configuration-specific safety tests. Uses journalctl (no sudo/dmesg-cap needed) with a cursor
 # so the scan window is exactly the workload, and reuses suite-common.sh's
 # SUITE_DMESG_FATAL_RE so the fatal-signature set stays in one place.
 #
 # Usage:
-#   source kasan-scan.sh
-#   kasan_scan_begin "$OUT"        # records cursor + uname + boot id
+#   source sanitizer-scan.sh
+#   sanitizer_scan_begin "$OUT"    # records cursor + uname + boot id
 #   ...run the workload...
-#   kasan_scan_end   "$OUT"        # writes kernel-log-{during,flags}.txt; prints count
+#   sanitizer_scan_end "$OUT"      # writes kernel-log-{during,flags}.txt; prints count
 #                                  # returns non-zero if any fatal signature matched
 
 # shellcheck source=suite-common.sh disable=SC1091
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/suite-common.sh"
 : "${SUITE_DMESG_FATAL_RE:?suite-common.sh did not load; the kernel-log fatal scan would be silently blind}"
 
-kasan_scan_begin()
+sanitizer_scan_begin()
 {
 	local out=$1
 
@@ -31,7 +31,7 @@ kasan_scan_begin()
 }
 
 # Echoes the number of matched (flagged) lines; returns 0 if clean, 1 if any.
-kasan_scan_end()
+sanitizer_scan_end()
 {
 	local out=$1
 	local cursor
@@ -48,11 +48,12 @@ kasan_scan_end()
 		# pre-existing boot-time WARNING or iommu-fault line into a flag for a
 		# workload that was actually clean -- it over-fails rather than
 		# under-fails, but either way the scan no longer describes the workload.
-		echo "kasan-scan: WARNING no journal cursor was recorded; scanning the last" \
+		echo "sanitizer-scan: WARNING no journal cursor was recorded; scanning the last" \
 			"4000 kernel lines instead of the workload window. Flags below may" \
 			"predate the workload." >&2
 		# The note goes in a SIDECAR, never into the scanned file. A banner
-		# containing the word "kasan-scan" matches KASAN in the fatal set, which
+		# containing the word "sanitizer-scan" matches the sanitizer name in the
+		# fatal set when the helper itself is named after that sanitizer, which
 		# is grepped case-insensitively -- so announcing the degraded window
 		# inside the window turned every clean no-cursor run into a hard FAIL.
 		# Same trap run-root-gates.sh documents for `de(bug:)` in gate markers.

@@ -3,7 +3,7 @@
 What it would take to move `mpp-rewrite` / `rga-rewrite` from source/build and
 partial older-tip boot evidence to a shippable replacement for the forward-port. This is
 the strategic companion to the operational
-[rewrite-conformance runbook](../tests/rewrite-conformance.md). The current
+[rewrite-conformance runbook](../tests/conformance.md). The current
 qualification verdict and next proof belong to
 [`status.md` track 4](../../status.md); this page owns the ordered risk model
 and definition of done.
@@ -38,14 +38,14 @@ rebuild it — extend it. The columns below are honest about the boundary.
 |---|---|---|
 | Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) provides `normal`, `test-disabled`, `memory` (KASAN/fault-injection), and `race` (KCSAN/lockdep) focused object-build profiles, opt-in-default config proof, fixture-debt audit, and ABI mutation check. At the current tips only `normal` and the audit were rerun. | reuse as the pre-merge gate; run the complete profile matrix for handoff, and remember sanitizer profiles are compile coverage only |
 | Non-submit ABI probe + log diff | ✅ [`kernel-drivers/tests/abi-probe.sh`](../tests/abi-probe.sh), [`kernel-drivers/tests/abi-replay.sh`](../tests/abi-replay.sh), including optional dma-heap-backed MPP translate/release, RGA dma-buf import/release, and raw RGA physical-address import observation with an opt-in rewrite reject assertion | reuse; extend to bit-exact output (below) |
-| Consumer conformance (MPP / librga / GStreamer / FFmpeg) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md), including opt-in GStreamer display/KMS-capture, AV1, and legacy advertised-decode diagnostic cases; `VALIDATE_ONLY=1` now also validates MPP/GStreamer case builders, validates FFmpeg case-list wiring, compile-checks the direct `librga-smoke.cpp` source used for maintained RGA artifacts, runs comparator and evidence-audit selftests, and attempts an optional `gstreamer-event-harness.c` build when GStreamer development headers are installed | reuse; wire the pass/fail gate |
+| Consumer conformance (MPP / librga / GStreamer / FFmpeg) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/conformance.md`](../tests/conformance.md), including the target × configuration catalog and opt-in GStreamer display/KMS-capture, AV1, legacy advertised-decode, sanitizer, and race cases; `run-conformance.sh --validate` also validates MPP/GStreamer case builders, FFmpeg case-list wiring, the direct `librga-smoke.cpp` source, comparators, and evidence-audit rejection paths | reuse; wire the pass/fail gate |
 | Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode, FFmpeg transcode, MPP official-test media outputs, and the maintained direct RGA smoke paths, including RKNN/RKNPU-style preprocessing plus AFBC16x16 and tile8x8 round-trips, now have `artifacts.tsv` byte-count/SHA-256 comparison paths; broad official librga sample binaries still mostly report pass/fail/timing | extend artifact capture only where official sample outputs matter for remaining gaps |
 | Paired evidence audit | ⚠️ [`kernel-drivers/tests/rewrite-evidence-audit.sh`](../tests/rewrite-evidence-audit.sh) now has a device-free selftest and a normal mode that requires paired forward-port/rewrite required-case passes, artifact manifests, counter deltas, and comparator-clean results | use as the §7 evidence gate; normal mode should fail until booted rewrite logs exist |
 | Per-core scheduler / timing counters and MPP job diagnostics | ✅ debugfs `rk_mpp_rewrite/`, `rk_rga_rewrite/` plus [`debugfs-counter-check.sh`](../tests/debugfs-counter-check.sh); MPP additionally exposes a correlated live `state`, 64-entry `events` journal, opt-in `trace_mask`, completion/failure/IRQ counters, and [`mpp-debug-capture.sh`](../tests/mpp-debug-capture.sh) for one-reproduction bundles | reuse as assertion hooks throughout; attach the focused bundle to every MPP failure |
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
 | **KCSAN race kernel** | ⚠️ compile-only `race` profile exists in [`rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh); KCSAN is deliberately **off** in `debug-kernel.md` | **add** — a separate booted build (§3) |
-| **Fault injection & recovery** | ⚠️ [`../tests/rewrite-recovery-stress.sh`](../tests/rewrite-recovery-stress.sh) now orchestrates kill/close, reset-opener, and opt-in unbind/rebind loops around real workloads, and `VALIDATE_ONLY=1` checks its config; [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh) now has an opt-in `/proc/self/fail-nth` mode for syscall-local allocation/usercopy failures in non-submit ioctls; synthetic hardware timeout/IOMMU fault injection has not run | finish the recovery matrix (§4) |
-| **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), including debug-kernel `IOCTL_FUZZ_FAIL_NTH_MAX` sweeps; a draft syzlang description plus its ABI-constant and `make descriptions` compile checks exist for parser/import/version paths but are kept in the private `rock-5b-security` repository; the RGA3 userptr-IOMMU fuzzer now sweeps all 64 cache-line offsets, protects inactive bytes with guards, and checks shadow-copy/leak/failure counters when the rewrite exports them; `VALIDATE_ONLY=1` checks its build, but neither fuzzer has been run under KCOV/KASAN | finish §5 |
+| **Fault injection & recovery** | ⚠️ [`../tests/rewrite-recovery-stress.sh`](../tests/rewrite-recovery-stress.sh) now orchestrates kill/close, reset-opener, and opt-in unbind/rebind loops around real workloads, and `run-conformance.sh --validate` checks its config; [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh) now has an opt-in `/proc/self/fail-nth` mode for syscall-local allocation/usercopy failures in non-submit ioctls; synthetic hardware timeout/IOMMU fault injection has not run | finish the recovery matrix (§4) |
+| **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), including debug-kernel `IOCTL_FUZZ_FAIL_NTH_MAX` sweeps; a draft syzlang description plus its ABI-constant and `make descriptions` compile checks exist for parser/import/version paths but are kept in the private `rock-5b-security` repository; the RGA3 userptr-IOMMU fuzzer now sweeps all 64 cache-line offsets, protects inactive bytes with guards, and checks shadow-copy/leak/failure counters when the rewrite exports them; `run-conformance.sh --validate` checks its build, but neither fuzzer has been run under KCOV/KASAN | finish §5 |
 | **Rewrite-specific security/ABI audit** | ⚠️ focused MPP/RGA hardening through 2026-07-17 fixed the RK3588 VDPU381/VDPU383 CCU mismatch plus broad topology, DMA/IOMMU, reset, fd/fence, watchdog, fault-attribution, and removal races; the follow-up also adapted the five applicable RGA 5.10 reliability/cache-safety lessons and audited the forward-port MPP/RGA lifetime findings for structural equivalents | run the remaining booted hardware/KASAN matrix (§4/§6) |
 | Production-readiness gate / definition of done | ❌ | **add** (§7) |
 
@@ -83,7 +83,7 @@ forward-port is the golden reference** — the single strongest technique for a
 rewrite. Kconfig makes the two tracks mutually exclusive per device node
 (`rewrite-drivers.md` head), so A/B in one kernel is impossible: use the existing
 `PROFILE=rewrite` / `PROFILE=forward-port` **dual-boot** flow
-([`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md) "Expanded conformance bundle"), keeping
+([`kernel-drivers/tests/conformance.md`](../tests/conformance.md) "Expanded conformance bundle"), keeping
 `assets/` and command lines identical across the two boots.
 
 The maintained
@@ -217,7 +217,7 @@ It can run kill/close, reset-opener, and explicit platform unbind/rebind loops
 around a busy MPP/RGA workload, then run a liveness probe, scan fresh dmesg
 lines for fatal signatures, and snapshot MPP/RGA debugfs counter deltas.
 `RECOVERY_VALIDATE_ONLY=1` is part of the device-free
-`rewrite-conformance-run.sh` validation gate, but it only proves the harness
+`run-conformance.sh` validation gate, but it only proves the harness
 configuration. It still needs a booted RK3588 rewrite run, and it does not yet
 induce synthetic hardware timeout or synthetic IOMMU faults. Submit-path
 allocation failures remain open beyond the non-submit fail-nth smoke below.
@@ -295,7 +295,7 @@ checks, and `IOCTL_FUZZ_REQUIRE_DMESG=1` makes unreadable dmesg a failure.
 It still needs to be run on a booted rewrite kernel, ideally under Kernel A
 with KASAN/KCOV. Device-free validation
 now compiles the mutator through `IOCTL_FUZZ_VALIDATE_BUILD=1` in
-`VALIDATE_ONLY=1 ../tests/rewrite-conformance-run.sh`, but that only catches
+`../tests/run-conformance.sh --validate`, but that only catches
 build rot; it still needs real booted rewrite runs, including fail-nth sweeps,
 and should later be replaced or augmented by a proper libFuzzer/AFL in-process
 harness plus syzkaller.
@@ -650,7 +650,7 @@ Ship only when **all** hold, each with a dated record in
    with `PROFILE=rewrite RUN_COUNTER_CHECKS=1`; every unsupported profile
    returns `-EOPNOTSUPP` with no warning/hang/leak, and the default positive
    hardware-start/busy-time plus timeout/fault/error counter gates pass (the
-   `tests/rewrite-conformance.md` "expected rewrite result" rule, gated).
+   `tests/conformance.md` "expected rewrite result" rule, gated).
    `tests/rewrite-evidence-audit.sh` must also pass in normal mode with
    default artifact, counter-delta, clean dmesg, booted-KUnit, representative
    official-MPP core-case, and comparator requirements against paired
@@ -674,11 +674,13 @@ Until 1–7 hold, the hardware-validated stack stays the forward-port.
 This child scope improves the public harness without changing the risk order or
 satisfying any production-readiness gate. Qualification work always takes
 precedence, and each cleanup must preserve the command and evidence contracts
-in [`../tests/rewrite-conformance.md`](../tests/rewrite-conformance.md).
+in [`../tests/conformance.md`](../tests/conformance.md).
 
-- Replace the five thin `*-suite-compare.sh` variants with one parameterized
-  comparator interface while preserving suite-specific required-artifact
-  policy and stable wrapper entry points.
+The comparator-duplication item is closed: the five licensed
+`*-suite-compare.sh` entry points are now thin launchers over the parameterized
+`suite-compare.sh` engine, preserving suite-specific artifact policy and stable
+commands.
+
 - Give the remaining public single-purpose C/C++ probes a small manifest or
   runner so their coverage and privilege boundary are explicit. Destructive or
   memory-corruption triggers remain in the sibling `rock-5b-security`
@@ -692,7 +694,7 @@ in [`../tests/rewrite-conformance.md`](../tests/rewrite-conformance.md).
 Cross-references: [rewrite-driver track](./rewrite-drivers.md) (what the drivers
 implement, §2/§3 ABI ledgers, §6 pins), [`debug-kernel.md`](./debug-kernel.md)
 (Kernel A / ramoops), [`kernel-drivers/tests/README.md`](../tests/README.md) (the smoke on-ramp)
-and [`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md) (the rewrite
+and [`kernel-drivers/tests/conformance.md`](../tests/conformance.md) (the rewrite
 build gate + `../rock-5b/build/rockchip-conformance` bundle), [`bsp-audit.md`](./bsp-audit.md)
 (audit method), [`multicore-scheduling.md`](../mpp/docs/multicore-scheduling.md) (the
 scheduling behaviour P4 exercises), [`rewrite-hard-ccu-finding.md`](../iommu/docs/rewrite-hard-ccu-finding.md)

@@ -280,7 +280,7 @@ qualification reads the live boot ring. `KUNIT_REQUIRE_LOCKDEP=0` exists only
 for diagnostic kernels built without lockdep and is not a production
 qualification setting.
 
-[`rewrite-conformance-run.sh`](../tests/rewrite-conformance-run.sh) enables the
+[`run-conformance.sh`](../tests/run-conformance.sh) enables the
 KUnit checker by default for rewrite profiles and writes a
 `<RUN_ID>-kunit.tsv` report plus the correlated journal/fatal/scan artifacts
 before moving on to ABI, MPP, librga, GStreamer, FFmpeg, comparator, counter,
@@ -320,7 +320,7 @@ It does not establish:
 
 Those claims require the hardware, differential, fault-injection, race, and
 soak gates indexed by the [validation guide](validation-index.md) and
-[rewrite conformance procedure](../tests/rewrite-conformance.md).
+[rewrite conformance procedure](../tests/conformance.md).
 
 The lifecycle-repaired `P3138-Cad24` boot did complete all 85 MPP + 148 RGA
 cases and restore both runtimes, but it did not pass the compound gate: MPP

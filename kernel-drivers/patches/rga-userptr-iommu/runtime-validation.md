@@ -235,13 +235,10 @@ sudo PROFILE=rewrite \
   RGA_REQUIRED_CASES='ysp_librga_smoke rga_copy_demo rga_resize_rect_demo rga_transform_rotate_demo' \
   bash kernel-drivers/tests/librga-suite.sh
 
-sudo PROFILE=rewrite \
-  RUN_SYSTEM_INFO=0 RUN_ABI_REPLAY=0 RUN_MPP_SUITE=0 \
-  RUN_GSTREAMER_SUITE=0 RUN_FFMPEG_SUITE=0 RUN_LIBRGA_SUITE=1 \
-  RUN_COUNTER_CHECKS=1 \
+sudo \
   LIBRGA_FORCE_RGA_USERPTR_IOMMU=1 \
   RGA_REQUIRED_CASES='ysp_librga_smoke rga_copy_demo rga_resize_rect_demo rga_transform_rotate_demo' \
-  bash kernel-drivers/tests/rewrite-conformance-run.sh
+  bash kernel-drivers/tests/run-conformance.sh --target rewrite --only librga
 ```
 
 Pass criteria:

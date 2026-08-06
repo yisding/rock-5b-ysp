@@ -81,7 +81,7 @@ Environment:
                           allow missing or non-clean dmesg-scan.tsv records
   REQUIRE_KUNIT_EVIDENCE=0
                           allow a rewrite candidate without a persisted green
-                          booted-KUnit report from rewrite-conformance-run.sh
+                          booted-KUnit report from run-conformance.sh
   KUNIT_EXPECTED_SOURCE_COMMIT
                           require the KUnit source commit to match this prefix
   KUNIT_EXPECTED_CONFIG_SHA256

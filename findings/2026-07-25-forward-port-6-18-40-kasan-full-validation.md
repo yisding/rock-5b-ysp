@@ -44,7 +44,7 @@ Full forward-port conformance ran as `RUN_ID=20260725-194940`:
 
 ```bash
 PROFILE=forward-port FFMPEG_REQUIRE_AV1=1 RUN_CONTINUE_ON_FAIL=1 \
-  kernel-drivers/tests/rewrite-conformance-run.sh
+  kernel-drivers/tests/run-conformance.sh
 ```
 
 The broad suite results were:

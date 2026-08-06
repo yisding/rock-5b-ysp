@@ -14,18 +14,18 @@ set -uo pipefail
 
 TEST_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
-# shellcheck source=kasan-scan.sh disable=SC1091
-source "$TEST_DIR/kasan-scan.sh"
+# shellcheck source=sanitizer-scan.sh disable=SC1091
+source "$TEST_DIR/sanitizer-scan.sh"
 
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
 CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/build/rockchip-conformance"}
-PROFILE=${PROFILE:-"$(uname -r)"}
+PROFILE=${PROFILE:-forward-port-kasan}
 TS=$(date +%Y%m%d-%H%M%S)
-OUT=${OUT:-"$CONFORMANCE_ROOT/logs/forward-port/$TS-kasan-narrowed"}
+OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$TS-reset-session-kasan"}
 
 log() { printf '%s %s\n' "$(date +%T)" "$*"; }
 
-kasan_scan_begin "$OUT"
+sanitizer_scan_begin "$OUT"
 
 log "phase=abi-replay start"
 set +e
@@ -46,7 +46,7 @@ find /proc/mpp_service -maxdepth 2 -type f 2>/dev/null | sort | while IFS= read 
 done
 log "phase=procfs-snapshot done"
 
-flags=$(kasan_scan_end "$OUT") && clean=1 || clean=0
+flags=$(sanitizer_scan_end "$OUT") && clean=1 || clean=0
 log "phase=scan done flagged_kernel_lines=$flags clean=$clean"
 echo "RESULT abi_status=$abi_status flagged_kernel_lines=$flags clean=$clean out=$OUT"
 

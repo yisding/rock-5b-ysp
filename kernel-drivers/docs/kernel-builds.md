@@ -181,7 +181,7 @@ but two builds of identical source no longer produce a byte-identical vmlinux.
 
 - Local production kernel: [`kernel-validation-runbook.md`](./kernel-validation-runbook.md).
 - Debug kernels: [`debug-kernel.md`](./debug-kernel.md) §4–§7 (crash capture, install, rollback).
-- Rewrite kernels: [`rewrite-conformance.md`](../tests/rewrite-conformance.md) and the
+- Rewrite kernels: [`conformance.md`](../tests/conformance.md) and the
   [conformance-gap audit](./rewrite-conformance-gap-audit.md) hardware gates
   (244-case booted KUnit report, paired suites).
 - PPA packages: per-package READMEs above; publication state in

@@ -8,7 +8,7 @@ rewrite drivers claimed? It records the 2026-07-17 inspection plus the bounded
 > **Frozen record.** This document no longer receives source-tip, package, test
 > result, or open-gap updates. Its durable gate designs were incorporated into
 > the [rewrite validation plan](./rewrite-validation-plan.md) and
-> [operational conformance entry point](../tests/rewrite-conformance.md). Read
+> [operational conformance entry point](../tests/conformance.md). Read
 > [status track 4](../../status.md#dashboard) and
 > [rewrite-drivers.md §6](./rewrite-drivers.md#6-status--citable-location) for
 > the current public boundary and accumulated evidence.

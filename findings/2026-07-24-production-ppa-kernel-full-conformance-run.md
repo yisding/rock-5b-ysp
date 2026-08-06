@@ -103,7 +103,7 @@ faults on RGA3; fix direction and verification gate recorded there).
 
 > **All four fixed in-tree later on 2026-07-24**: `mpp-suite.sh` now defaults
 > its media inputs from the tracked assets and selects the standard 12-case
-> matrix when they resolve; `rewrite-conformance-run.sh` gained
+> matrix when they resolve; `run-conformance.sh` gained
 > `RUN_CONTINUE_ON_FAIL=1`; `test-decode.sh` regenerates its software clips
 > via the first available libx264/libx265 ffmpeg when `CLIP_DIR` is absent;
 > and the VP9 gate writes under the caller's `OUT` (root-gates co-locates it)
@@ -115,7 +115,7 @@ faults on RGA3; fix direction and verification gate recorded there).
   12-case matrix silently records `missing-env` (`20260724-042944-mpp-suite`).
   The runner's canonical `PROFILE=forward-port` invocation therefore does
   **not** exercise MPP media cases on its own.
-- `rewrite-conformance-run.sh` aborts on the first failing suite (only exit 77
+- `run-conformance.sh` aborts on the first failing suite (only exit 77
   skips continue), so the always-red librga demo matrix and the GStreamer
   failures each blocked the FFmpeg suite; suites had to be resumed/run
   individually.

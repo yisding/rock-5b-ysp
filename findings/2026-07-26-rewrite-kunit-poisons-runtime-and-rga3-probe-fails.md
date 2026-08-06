@@ -178,7 +178,7 @@ sudo env \
     PROFILE=rewrite \
     RUN_COUNTER_CHECKS=1 \
     RUN_CONTINUE_ON_FAIL=1 \
-    bash kernel-drivers/tests/rewrite-conformance-run.sh
+    bash kernel-drivers/tests/run-conformance.sh
 ```
 
 The raw captures remain outside git under

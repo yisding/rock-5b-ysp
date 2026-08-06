@@ -3782,7 +3782,7 @@ int main(void)
 		 * Confirmed against logs/forward-port/20260724-184309: the smoke
 		 * log ends at this line and artifacts.tsv has no
 		 * async_fence_chain / imresize_rgba / imfill_rgba rows, while
-		 * rewrite-conformance.md, rewrite-validation-plan.md and
+		 * conformance.md, rewrite-validation-plan.md and
 		 * tests/README.md all claim that coverage. Skip past this case
 		 * only. (The gauss skip a few hundred lines up looks identical
 		 * but is inside a function, so its `goto out` is local cleanup.)

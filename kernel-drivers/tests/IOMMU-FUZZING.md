@@ -129,7 +129,7 @@ Phases:
 `IOMMU_FUZZ_VALIDATE_BUILD=1` compiles `rga-iommu-fuzz.cpp` to an object with
 the staged librga headers and exits before any device, debugfs, dmesg, or target
 librga shared-library access. It is also part of
-`VALIDATE_ONLY=1 rewrite-conformance-run.sh`, so normal device-free maintenance
+`run-conformance.sh --validate`, so normal device-free maintenance
 catches source/header drift in the RGA userptr-IOMMU fallback fuzzer. It is not hardware evidence.
 
 `IOMMU_FUZZ_REQUIRE_RGA_USERPTR_IOMMU_COUNTERS=1` is for debug-capable RGA

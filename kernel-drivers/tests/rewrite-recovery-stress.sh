@@ -20,6 +20,8 @@ source "$TEST_DIR/debugfs-counters.sh"
 
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
 CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/build/rockchip-conformance"}
+CONFORMANCE_TARGET=${CONFORMANCE_TARGET:-rewrite}
+CONFORMANCE_CONFIGURATION=${CONFORMANCE_CONFIGURATION:-production}
 PROFILE=${PROFILE:-rewrite}
 RUN_ID=${RUN_ID:-$(date +%Y%m%d-%H%M%S)}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$RUN_ID-recovery-stress"}
@@ -31,7 +33,7 @@ RECOVERY_TERM_GRACE_S=${RECOVERY_TERM_GRACE_S:-2}
 RECOVERY_CASE_TIMEOUT=${RECOVERY_CASE_TIMEOUT:-300}
 # Expand PROFILE/TEST_DIR inside the child bash that runs each configured command.
 # shellcheck disable=SC2016
-RECOVERY_WORKLOAD_CMD=${RECOVERY_WORKLOAD_CMD:-'PROFILE="$PROFILE" RUN_SYSTEM_INFO=0 RUN_ABI_REPLAY=0 RUN_COMPARE=0 bash "$TEST_DIR/rewrite-conformance-run.sh"'}
+RECOVERY_WORKLOAD_CMD=${RECOVERY_WORKLOAD_CMD:-'bash "$TEST_DIR/run-conformance.sh" --target "$CONFORMANCE_TARGET" --configuration "$CONFORMANCE_CONFIGURATION" --only mpp,librga --continue'}
 # shellcheck disable=SC2016
 RECOVERY_RECHECK_CMD=${RECOVERY_RECHECK_CMD:-'bash "$TEST_DIR/abi-probe.sh"'}
 # shellcheck disable=SC2016
@@ -45,6 +47,7 @@ RECOVERY_LIST_BINDINGS=${RECOVERY_LIST_BINDINGS:-0}
 RECOVERY_DMESG_FATAL_RE=${RECOVERY_DMESG_FATAL_RE:-$SUITE_DMESG_FATAL_RE}
 
 export TEST_DIR REPO_ROOT CONFORMANCE_ROOT PROFILE
+export CONFORMANCE_TARGET CONFORMANCE_CONFIGURATION
 
 usage()
 {
@@ -62,7 +65,7 @@ Environment:
   OUT=...                        log directory
 
 Examples:
-  RECOVERY_WORKLOAD_CMD='PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash "$TEST_DIR/rewrite-conformance-run.sh"' bash $0
+  RECOVERY_WORKLOAD_CMD='bash "$TEST_DIR/run-conformance.sh" --target rewrite --only mpp,librga' bash $0
   RECOVERY_CASES='list-bindings' bash $0
   RECOVERY_CASES='unbind' RECOVERY_UNBIND_TARGETS='rockchip-rga-rewrite:fdb70000.rga' bash $0
 EOF
@@ -254,7 +257,7 @@ run_kill_case()
 	# The discriminator is whether the workload was still running when the kill
 	# arrived -- NOT its exit code. Only rc=0 used to be treated as "exited
 	# early", so every other early exit fell through to the catch-all and
-	# returned 0. The default workload (rewrite-conformance-run.sh) exits 2 on a
+	# returned 0. The default workload (run-conformance.sh) exits 2 on a
 	# missing MPP build dir and 77 when a suite skips: both mean the hardware was
 	# never busy, so no reset/recovery boundary was exercised, and both reported
 	# the case as passed.

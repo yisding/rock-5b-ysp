@@ -1,8 +1,8 @@
-# tests/rewrite-conformance.md — rewrite build gate & conformance suites
+# tests/conformance.md — driver conformance harness and rewrite qualification
 
 The expert half of [`kernel-drivers/tests/README.md`](./README.md). The user-facing on-ramp (decode,
 encode, transcode smoke tests) leads in [`README.md`](./README.md); this page
-owns the rewrite clean-build gate, the tracked
+owns the cross-kernel conformance harness, the rewrite clean-build gate, the tracked
 [`conformance/`](conformance/README.md) seed for the external
 `../rock-5b/build/rockchip-conformance` runtime bundle, and the full per-suite reference (MPP /
 librga / GStreamer / ffmpeg-rockchip) with its env-var matrices, privileges, and
@@ -11,9 +11,23 @@ would take to ship the rewrite" plan is
 [`../docs/rewrite-validation-plan.md`](../docs/rewrite-validation-plan.md); this
 page is the operational how-to-run counterpart it leans on.
 
-All suites assume the combined kernel booted, `/dev/mpp_service` + `/dev/rga`
-present, and (for rewrite parity work) the ability to dual-boot the forward-port
-and rewrite kernels.
+The standard catalog runs on BSP, forward-port, and rewrite targets, under
+production, KASAN, or KCSAN configurations. All hardware suites assume the
+combined kernel booted and `/dev/mpp_service` + `/dev/rga` present. Differential
+work additionally needs the two compared profiles booted in turn with identical
+userspace and assets.
+
+Keep the two matrix axes distinct:
+
+| Axis | Answers | Defined by |
+|------|---------|------------|
+| Target | Which driver implementation owns the devices? | [`conformance/targets/`](conformance/targets/) — `bsp`, `forward-port`, `rewrite` |
+| Configuration | Which instrumentation/build shape is booted? | [`conformance/configurations/`](conformance/configurations/) — `production`, `kasan`, `kcsan` |
+| Test selector | Which standard or focused behavior is exercised? | [`conformance/TESTS.tsv`](conformance/TESTS.tsv) |
+
+Use `run-conformance.sh --plan` before a board run. It shows standard tests,
+compatible opt-ins, and rejected matrix-specific cases without touching
+hardware.
 
 ## Fast re-entry: the evidence ladder
 
@@ -144,9 +158,9 @@ removes its scratch tree after success. Set `REWRITE_BUILD_TMP_ROOT` to a
 task-specific directory under `../rock-5b/build/`; use the sole shared ccache
 at `~/Code/.ccache` and do not create another cache in the build workspace. The
 same maintenance path also runs
-`VALIDATE_ONLY=1 kernel-drivers/tests/rewrite-conformance-run.sh` and
-`VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 kernel-drivers/tests/rewrite-conformance-run.sh`,
-plus the same counter-default validation with `LIBRGA_FORCE_RGA_USERPTR_IOMMU=1`; all
+`kernel-drivers/tests/run-conformance.sh --target rewrite --validate`, plus the
+same device-free counter-default validation with
+`LIBRGA_FORCE_RGA_USERPTR_IOMMU=1`; all
 passed, including the forced RGA userptr-IOMMU fallback counter-default wiring
 and the cache-line boundary-fuzzer build check.
 
@@ -181,21 +195,36 @@ Then copy or mount the populated bundle where the suite expects it, or set
 in place. This section records why each piece matters and what we learned to
 test.
 
-Run it the same way under both kernels. The normal path is the profile runner:
+The standard catalog is intentionally identical across driver implementations:
 
 ```bash
-# Boot the BSP-derived forward-port kernel first.
-PROFILE=forward-port ../rock-5b-ysp/kernel-drivers/tests/rewrite-conformance-run.sh
+# Inspect the matrix cell first.
+../rock-5b-ysp/kernel-drivers/tests/run-conformance.sh \
+  --target forward-port --configuration production --plan
 
-# Then boot the rewrite kernel and compare against the saved forward-port logs.
-PROFILE=rewrite RUN_COMPARE=1 ../rock-5b-ysp/kernel-drivers/tests/rewrite-conformance-run.sh
+# Boot and test vendor BSP, forward-port, and rewrite kernels in turn.
+sudo ../rock-5b-ysp/kernel-drivers/tests/run-conformance.sh --target bsp
+sudo ../rock-5b-ysp/kernel-drivers/tests/run-conformance.sh --target forward-port
+sudo ../rock-5b-ysp/kernel-drivers/tests/run-conformance.sh --target rewrite \
+  --compare-to forward-port
+
+# Instrumentation is orthogonal; focused tests opt in by catalog ID.
+sudo ../rock-5b-ysp/kernel-drivers/tests/run-conformance.sh \
+  --target forward-port --configuration kasan \
+  --include reset-session-kasan,ioctl-fuzz-kasan
+sudo ../rock-5b-ysp/kernel-drivers/tests/run-conformance.sh \
+  --target rewrite --configuration kcsan \
+  --include iommu-stress,recovery-stress,reset-contention
 ```
 
-`rewrite-conformance-run.sh` sequences system-info collection, normalized ABI
-replay, MPP, librga, GStreamer, and ffmpeg-rockchip suites for one booted
-profile. Set `RUN_*_SUITE=0` to narrow a run, `RUN_COMPARE=1` to compare latest
-saved summaries against `COMPARE_BASELINE=forward-port`, and
-`VALIDATE_ONLY=1` for the device-free runner, ioctl-fuzzer build, direct
+`run-conformance.sh` resolves [`conformance/TESTS.tsv`](conformance/TESTS.tsv),
+then sequences system-info collection, normalized ABI replay, MPP, librga,
+GStreamer, and ffmpeg-rockchip for every target/configuration cell. Rewrite
+rows add KUnit and counter requirements; sanitizer-specific safety tests remain
+explicit opt-ins. Use `--only` for a focused run, `--skip` for a documented
+temporary omission, `--include rkmppenc` for the optional application suite,
+`--compare-to PROFILE` for comparators, and `--validate` for the device-free
+runner, ioctl-fuzzer build, direct
 `librga` smoke build, optional GStreamer event-harness build, RGA IOMMU
 scatter-fuzzer build, recovery stress harness config validation,
 MPP/GStreamer case-builder validation, FFmpeg case-list validation, comparator
@@ -933,7 +962,7 @@ logs.
 |------|-------|
 | `build-mpp-tests.sh` | optional legacy-comparison builder; no device access and writes staged MPP library/tests under `../rock-5b/build/rockchip-conformance/out/mpp` |
 | `build-gstreamer-rockchip.sh` | no device access; needs installed MPP, librga, and GStreamer development `.pc` files by default; explicit `MPP_PREFIX`/`PKG_SHIM` values select a staged comparison. It also builds `gstreamer-event-harness` into the GStreamer prefix. `GST_EVENT_HARNESS_VALIDATE_BUILD=1` compiles only the event harness and returns `77` when the GStreamer development `.pc` files are absent. |
-| `rewrite-conformance-run.sh` | same device and dependency access as the selected suites; sequences booted KUnit verification, system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, optional `rkmppenc`, optional debugfs counter checks, and optional comparator steps. Rewrite profiles default `RUN_KUNIT_CHECK=1`, persist exact 89-MPP/150-RGA KTAP plus correlated full-interval/fatal-scan/lockdep evidence, and require readable before/after dmesg for every suite. `VALIDATE_ONLY=1` additionally checks the KUnit parser, shared dmesg gate, all 31 MPP case builders, and the existing build/parser/comparator/audit helpers. With `RUN_COUNTER_CHECKS=1`, it requires expected hardware/fence-path deltas, zero idle gauges, and present safety counters with no positive delta; per-suite prefix variables still support multicore-spread requirements. |
+| `run-conformance.sh` | same device and dependency access as the selected catalog rows. `--target` selects BSP, forward-port, or rewrite drivers; `--configuration` independently selects production, KASAN, or KCSAN. The standard set is system-info, ABI, MPP, librga, GStreamer, and FFmpeg on every target. Rewrite adds KUnit and counter gates automatically. `--include` adds compatible focused tests, `--only` narrows by ID, `--plan` is board-free, and `--validate` checks catalog, parser, builder, comparator, and audit wiring. |
 | `rewrite-kunit-log-check.sh` | runtime mode reads `/sys/kernel/debug/kunit/{rk_mpp_rewrite,rockchip-rga-rewrite}/results`, requires exactly 84 + 148 cases with no fail/skip, extracts and scans the complete boot KUnit interval with the shared fatal regex, requires live lockdep, and optionally writes the correlated `KUNIT_REPORT` artifact set; `--selftest` is device-free. |
 | `rewrite-kunit-source-audit.py` | device-free lexical audit of both embedded KUnit regions; the checked TSV baselines existing singleton, FD/raw-allocation, stack-async, manual-list, and fatal-before-cleanup signals, while any new signal or cross-tree mismatch fails. `rewrite-build-gate.sh` runs it before every profile. |
 | `suite-common-selftest.sh` | device-free good/fatal/ring-wrap/unavailable fixtures for the common before/after dmesg gate used by all suite wrappers. |
@@ -942,6 +971,7 @@ logs.
 | `mpp-suite.sh` | device access for `/dev/mpp_service`, `/dev/dma_heap/*`, readable MPP procfs/debugfs, and readable dmesg for full logs; root is the simplest mode. Pre/post state capture reads an explicit compatibility/state/event allowlist once, never recursively walks all generated MPP files, and fails closed on a read error such as rewrite `state` returning `EBUSY`. `MPP_VALIDATE_CASES=1` is the device-free maintenance mode and only validates selected case-builder wiring. |
 | `mpp-debug-capture.sh` | root strongly preferred for runtime mode; needs readable rewrite `state`/`events`, and normally writable `events`/`trace_mask` plus readable dmesg for the focused bundle. It preserves the wrapped workload's exit code and uses exit `77` when the rewrite journal is absent. `MPP_DEBUG_VALIDATE_ONLY=1` is a device-free failure-path/trace-restore selftest. |
 | `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rock-5b/build/rockchip-conformance/logs/` |
+| `suite-compare.sh` | shared no-device result/artifact comparison engine used by all five thin `*-suite-compare.sh` launchers; it is not invoked directly because each launcher supplies its suite name and artifact policy |
 | `librga-suite.sh` | device access for `/dev/rga`, `/dev/dma_heap/*`, optional DRM render nodes, readable debugfs/dmesg for full logs, and the installed `librga-dev` package for the in-repo `ysp_librga_smoke` artifact case; root is the simplest mode. `LIBRGA_LIBDIR` selects an explicit staged or legacy runtime. `LIBRGA_SUITE_VALIDATE_LOG_PARSER=1` and `LIBRGA_SUITE_VALIDATE_CASES=1` are device-free selftests for fatal-log precedence, explicit-success/status-one normalization, and default/opt-in case lists. |
 | `librga-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rock-5b/build/rockchip-conformance/logs/` |
 | `gstreamer-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, staged JeffyCN plugin under `../rock-5b/build/rockchip-conformance/out/gstreamer-rockchip`, software `ffmpeg`/`libx265` via `GST_GENERATOR` for generated H.265 Main10 inputs, optional `libaom-av1` support in `GST_GENERATOR` for opt-in AV1 diagnostics, ffmpeg H.263/MPEG encoder support for opt-in legacy decode diagnostics, and readable debugfs/dmesg for full logs; root is the simplest mode. Opt-in `GST_ENABLE_VIDEOFLIP_RGA_CASES=1` cases additionally need a GStreamer `videoflip` element carrying the Rockchip `GST_VIDEO_FLIP_USE_RGA=1` path if the run is meant to prove hardware use rather than generic CPU `videoflip` compatibility. Opt-in `GST_ENABLE_RGACONVERT_CASES=1` cases need the standalone `gstreamer-rga` converter element named by `GST_RGACONVERT_ELEMENT` (`rgavideoconvert` by default). Opt-in display/KMS cases also need staged `rkximage`/`kmssrc` plugins, an active DRM/KMS framebuffer, and access to the DRM device. `GST_VALIDATE_CASES=1` is the device-free maintenance mode and only validates case-builder/runner wiring. |
@@ -957,7 +987,7 @@ logs.
 
 | Test | Exercises | Pass criterion |
 |------|-----------|----------------|
-| `rewrite-conformance-run.sh` | **full profile conformance orchestration** | On rewrite profiles, first requires and persists 244 green booted KUnit results (92 MPP + 152 RGA), then runs system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, and opt-in `rkmppenc`. Every suite brackets its workload with a required-readable dmesg fatal scan. Optional counter gates now prove hardware/fence traversal, idle cleanup, and both presence and non-increment of safety counters. `VALIDATE_ONLY=1` remains device-free and includes bad-fixture selftests for KUnit, dmesg, counters, comparators, ABI replay, and evidence plus comprehensive case-builder/build checks. |
+| `run-conformance.sh` | **target × configuration conformance orchestration** | Resolves the checked `TESTS.tsv` catalog, runs the same broad standard consumer set across BSP/forward-port/rewrite and production/KASAN/KCSAN cells, then adds only compatible target/configuration-specific gates. It records the resolved plan with the run. Rewrite rows require KUnit and debugfs counters; sanitizer rows require readable fatal scans and never get production timing defaults. `--validate` is device-free and includes bad-fixture selftests plus case-builder/build checks. |
 | `rewrite-evidence-audit.sh` | **paired forward-port/rewrite evidence gate** | Requires paired required-case passes, artifacts, counter deltas, clean dmesg evidence, the rewrite candidate's exact green KUnit report, a representative official-MPP core set including AVS2 and low-delay slice polling, and comparator-clean timing/artifact results. Named diagnostic promotion remains available. Normal mode is the final “enough evidence to claim parity?” check and is expected to fail before board logs exist; `--selftest` only proves rejection logic. |
 | `ioctl-fuzz-smoke.sh` | **non-submit ioctl parser/import fault smoke** | Mutates safe MPP/RGA parser, query, import/release, and request-lifetime ioctls without submitting register jobs or RGA blits. Raw physical generation is opt-in. Fail-nth mode targets syscall-local allocation/usercopy unwind paths; persisted runs can bracket dmesg and fail on fatal signatures. |
 | `abi-replay.sh` | **non-submit kernel ABI replay** | Saves raw/normalized/comparable/contract logs for safe MPP/RGA ABI behavior. Raw physical import is disabled on ordinary/forward profiles; `PROFILE=*rewrite*` explicitly enables it and requires `EOPNOTSUPP`. Comparable and contract logs prune both the result and disabled marker. See [the 2026-07-16 crash note](../rga/docs/raw-physical-import-crash.md). |
@@ -978,20 +1008,19 @@ logs.
 ## Running the suites and comparators
 
 ```bash
-VALIDATE_ONLY=1 bash rewrite-conformance-run.sh  # device-free runner/debug-capture/ioctl-fuzz/librga-smoke/gstreamer-harness/iommu-fuzz/recovery/case/comparator/abi-replay/evidence wiring check
+bash run-conformance.sh --target rewrite --validate  # device-free catalog/runner/build/parser/comparator/audit wiring check
 MPP_DEBUG_VALIDATE_ONLY=1 bash mpp-debug-capture.sh  # device-free focused capture failure/restore selftest
-sudo bash mpp-debug-capture.sh -o /tmp/mpp-decode -- mpi_dec_test -i input.h264 -t 7  # one reproduction with state/events/counters/dmesg
-VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash rewrite-conformance-run.sh  # also validate rewrite counter-default wiring
-VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 LIBRGA_FORCE_RGA_USERPTR_IOMMU=1 bash rewrite-conformance-run.sh  # also validate RGA userptr-IOMMU fallback counter-default wiring
+sudo bash mpp-debug-capture.sh -o ../rock-5b/build/rockchip-conformance/logs/mpp-decode -- mpi_dec_test -i input.h264 -t 7  # one reproduction with state/events/counters/dmesg
+LIBRGA_FORCE_RGA_USERPTR_IOMMU=1 bash run-conformance.sh --target rewrite --validate  # also validate forced userptr-IOMMU counter wiring
 IOCTL_FUZZ_VALIDATE_BUILD=1 bash ioctl-fuzz-smoke.sh  # device-free mutator build check
 sudo IOCTL_FUZZ_OUT=../rock-5b/build/rockchip-conformance/logs/rewrite/ioctl-failnth IOCTL_FUZZ_DMESG_SCAN=1 IOCTL_FUZZ_FAIL_NTH_MAX=4 IOCTL_FUZZ_ITERS=32 bash ioctl-fuzz-smoke.sh  # debug-kernel fail-nth allocation/usercopy sweep
-PROFILE=rewrite bash rewrite-conformance-run.sh  # run all suites for the booted rewrite profile
-PROFILE=rewrite RUN_COMPARE=1 bash rewrite-conformance-run.sh  # run and compare latest summaries
-PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash rewrite-conformance-run.sh  # add default rewrite hardware counter gates
-PROFILE=rewrite RUN_COUNTER_CHECKS=1 LIBRGA_FORCE_RGA_USERPTR_IOMMU=1 RUN_SYSTEM_INFO=0 RUN_ABI_REPLAY=0 RUN_MPP_SUITE=0 RUN_GSTREAMER_SUITE=0 RUN_FFMPEG_SUITE=0 RUN_LIBRGA_SUITE=1 bash rewrite-conformance-run.sh  # focused RGA userptr-IOMMU fallback attribution gate
+bash run-conformance.sh --target rewrite --plan  # print standard and compatible opt-in rows
+sudo bash run-conformance.sh --target rewrite  # standard rewrite set with KUnit and counters
+sudo bash run-conformance.sh --target rewrite --compare-to forward-port  # run and compare latest production summaries
+sudo LIBRGA_FORCE_RGA_USERPTR_IOMMU=1 bash run-conformance.sh --target rewrite --only librga  # focused RGA userptr-IOMMU attribution gate
 RKMPPENC_VALIDATE_CASES=1 bash rkmppenc-suite.sh  # device-free optional rkmppenc case-list validation
-PROFILE=rewrite RUN_RKMPPENC_SUITE=1 RUN_COUNTER_CHECKS=1 bash rewrite-conformance-run.sh  # opt-in rkmppenc app-level MPP/RGA gate
-PROFILE=rewrite RUN_RKMPPENC_SUITE=1 RUN_COMPARE=1 bash rewrite-conformance-run.sh  # run and compare latest opt-in rkmppenc summaries too
+sudo bash run-conformance.sh --target rewrite --include rkmppenc  # opt-in app-level MPP/RGA gate
+sudo bash run-conformance.sh --target rewrite --include rkmppenc --compare-to forward-port  # compare it too
 bash mpp-suite.sh                     # official MPP test conformance
 MPP_VALIDATE_CASES=1 bash mpp-suite.sh  # device-free MPP official-test case-builder validation
 bash mpp-suite-compare.sh             # compare latest forward-port/rewrite MPP summaries
@@ -1018,7 +1047,7 @@ SUITES="gstreamer rkmppenc" REQUIRE_DIAGNOSTIC_PASS=1 AUDIT_REQUIRED_CASES="gstr
 PERF_MAX_RATIO=0 bash rewrite-evidence-audit.sh  # exploratory paired audit without the default 1.25x slowdown ceiling
 AUDIT_COUNTER_CHECKS=0 bash rewrite-evidence-audit.sh  # exploratory paired audit without candidate hardware-counter content checks
 RECOVERY_VALIDATE_ONLY=1 bash rewrite-recovery-stress.sh  # device-free recovery stress harness config check
-sudo RECOVERY_WORKLOAD_CMD='PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash "$TEST_DIR/rewrite-conformance-run.sh"' RECOVERY_CASES="kill reset" bash rewrite-recovery-stress.sh
+sudo RECOVERY_WORKLOAD_CMD='bash "$TEST_DIR/run-conformance.sh" --target rewrite --only mpp,librga' RECOVERY_CASES="kill reset" bash rewrite-recovery-stress.sh
 sudo RECOVERY_CASES=list-bindings bash rewrite-recovery-stress.sh  # discover opt-in unbind targets
 ```
 
@@ -1079,7 +1108,7 @@ outside every active source and destination range.
 
 For rewrite runs with selected hardware cases, also gate the captured debugfs
 counter deltas so a userspace pass cannot hide a missing hardware submission or
-timer path. `rewrite-conformance-run.sh` can run those checks automatically with
+timer path. `run-conformance.sh` can run those checks automatically with
 `RUN_COUNTER_CHECKS=1`; it always points the selected suite wrappers at known
 `$CONFORMANCE_ROOT/logs/$PROFILE/$RUN_ID-*-suite/` directories so the matching
 counter files are unambiguous. For `PROFILE=*rewrite*`, the profile runner also
@@ -1088,7 +1117,7 @@ hardware-start and busy-time counters; it adds positive MPP counters only when
 `MPP_REQUIRED_CASES` explicitly selects media cases because the direct default
 `mpp_info_test` does not submit hardware. It also requires the MPP queue/import
 and RGA import/boundary-shadow/userptr-IOMMU gauges to settle to zero. Set
-`REWRITE_COUNTER_DEFAULTS=0` to disable those automatic requirements for a
+`CONFORMANCE_COUNTER_DEFAULTS=0` to disable those automatic requirements for a
 narrow diagnostic pass. The checker defaults to failing positive
 timeout/fault/recovery/spurious/config/shadow-setup counters when the delta file
 exists. To prove multicore spread, set
@@ -1124,7 +1153,7 @@ bash debugfs-counter-check.sh
 ```
 
 Maintenance gate: `shellcheck *.sh` in this directory and
-`VALIDATE_ONLY=1 bash rewrite-conformance-run.sh` are expected to pass; they
+`bash run-conformance.sh --validate` is expected to pass; it
 now include the
 `IOCTL_FUZZ_VALIDATE_BUILD=1` ioctl-mutator compile check,
 `LIBRGA_SMOKE_VALIDATE_BUILD=1` direct `librga` smoke compile check, and
@@ -1140,7 +1169,7 @@ added to the RGA IOMMU fuzzer. Earlier maintenance additions include the
 ioctl-fuzz build, direct `librga`
 smoke build, optional GStreamer event-harness build, IOMMU-fuzzer build,
 recovery stress config check, and MPP case-builder validation
-steps were wired into `rewrite-conformance-run.sh` — the syzlang ABI-marker and
+steps were wired into `run-conformance.sh` — the syzlang ABI-marker and
 `SYZKALLER_DIR`/Go description-compile steps were wired in at the same time and
 have since moved to the private `rock-5b-security` repository — after the
 evidence-audit
@@ -1226,7 +1255,7 @@ hardware-unverified RKMPP AV1 backend; and after
 opt-in generated VP8/H.263/MPEG diagnostics were added for advertised legacy
 decoder caps outside the RK3588 rewrite gate; and after `debugfs-counter-check.sh`
 was added to gate selected rewrite hardware-start/busy-time counter deltas and
-default timeout/fault/error counters; after `rewrite-conformance-run.sh`
+default timeout/fault/error counters; after `run-conformance.sh`
 started defaulting those positive hardware-start/busy-time requirements for
 rewrite profile runs with `RUN_COUNTER_CHECKS=1`; and after required GStreamer
 encoder/decoder RGA rotation cases were extended to cover the remaining
@@ -1303,7 +1332,7 @@ After the smoke passes, run the expanded rewrite profile with hardware counter
 assertions:
 
 ```bash
-sudo PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash kernel-drivers/tests/rewrite-conformance-run.sh
+sudo bash kernel-drivers/tests/run-conformance.sh --target rewrite
 ```
 
 The counter checks prove that the required workloads reached MPP/RGA hardware,
@@ -1316,9 +1345,9 @@ profile first, then reboot into the rewrite and compare against it:
 
 ```bash
 sudo PROFILE=forward-port \
-  bash kernel-drivers/tests/rewrite-conformance-run.sh
+  bash kernel-drivers/tests/run-conformance.sh
 sudo PROFILE=rewrite RUN_COUNTER_CHECKS=1 RUN_COMPARE=1 \
-  bash kernel-drivers/tests/rewrite-conformance-run.sh
+  bash kernel-drivers/tests/run-conformance.sh
 ```
 
 ## Raw ABI replay comparisons

@@ -23,7 +23,7 @@ checkout and build-directory layout.
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 |
 | 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | dated source and package-composite snapshots in §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | rewrite-driver comparison | `rk3588-rewrite-mainline@180ee72a9a80` |
-| 10 | Expanded Rockchip conformance bundle | [rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) | tracked manifest and five immutable third-party pins |
+| 10 | Expanded Rockchip conformance bundle | [rewrite-conformance](../kernel-drivers/tests/conformance.md) | tracked manifest and five immutable third-party pins |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md) | `a81feb1e2971`, `839de47fcda2`, and `b4ef083dc0c3` |
 | 12 | Mesa MR !43161 benchmark | [validation scorecard](../video-libraries/mesa/docs/validation.md#depth-bias-workaround-validation) | Mesa `647256dc2ae` + tracked override; equivalent local `6000414f9ea` |
 | 13 | 2026-07-30 codec audit | [driver quality comparison](../kernel-drivers/docs/driver-architecture-comparison.md#12-current-mainline-and-maxline-rockchip-codec-audit-2026-07-30) | audit and prepared-fix pins in §13 |
@@ -240,7 +240,7 @@ Its `MANIFEST.tsv` records the five third-party snapshots; its
 | Android RKMediaCodecDemo | `sources/rkmediacodec-demo` | `c-xh/RKMediaCodecDemo.git` `master@38b85b3c160bf58f2237d5f49b601c1636d484a5` |
 
 The manifest and bootstrap script own source intent. The
-[rewrite-conformance runbook](../kernel-drivers/tests/rewrite-conformance.md)
+[rewrite-conformance runbook](../kernel-drivers/tests/conformance.md)
 owns suite composition, commands, results, and future priorities. Generated
 sources, assets, logs, and comparator outputs remain external build artifacts.
 

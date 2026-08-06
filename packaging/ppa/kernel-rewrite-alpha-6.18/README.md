@@ -69,7 +69,7 @@ and counter deltas after reboot.
 
 The exact preflight, quick smoke command for the maintained sibling-worktree
 layout, standalone full suite, and forward-port-vs-rewrite comparison are in
-[`rewrite-conformance.md`](../../../kernel-drivers/tests/rewrite-conformance.md#rewrite-acceptance-one-command).
+[`conformance.md`](../../../kernel-drivers/tests/conformance.md#rewrite-acceptance-one-command).
 Keep the existing Armbian or forward-port kernel available as the recovery boot
 until this checklist passes.
 

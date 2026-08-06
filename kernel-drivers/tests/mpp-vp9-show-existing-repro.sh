@@ -29,8 +29,8 @@ source "$TEST_DIR/suite-common.sh"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
 CONFORMANCE_ROOT="${CONFORMANCE_ROOT:-$ROCK5B_WORKSPACE/build/rockchip-conformance}"
-# shellcheck source=kasan-scan.sh disable=SC1091
-source "$TEST_DIR/kasan-scan.sh"
+# shellcheck source=sanitizer-scan.sh disable=SC1091
+source "$TEST_DIR/sanitizer-scan.sh"
 
 # The show_existing_frame conformance vector is tracked under the conformance
 # assets; override with IVF=... to point at another copy.
@@ -53,7 +53,7 @@ mkdir -p "$OUT"
 decoder_ok=0
 decoder_fail=0
 decoder_pids=()
-kasan_scan_begin "$OUT"
+sanitizer_scan_begin "$OUT"
 echo "capture start -> $OUT  (loops=$LOOPS concurrency=$CONCURRENCY)"
 
 for i in $(seq 1 "$LOOPS"); do
@@ -97,7 +97,7 @@ for s in $(seq 1 60); do
 	sleep 1
 done
 
-flags=$(kasan_scan_end "$OUT") && clean=1 || clean=0
+flags=$(sanitizer_scan_end "$OUT") && clean=1 || clean=0
 echo "RESULT flagged_kernel_lines=$flags clean=$clean out=$OUT"
 echo "===== captured fault trace (if any) ====="
 awk '/Unable to handle kernel|KASAN|BUG:|Oops|rk_vcodec/{p=1} p' "$OUT/kernel-log-during.txt" 2>/dev/null | head -120

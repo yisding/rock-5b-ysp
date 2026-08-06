@@ -44,7 +44,7 @@ SUITE_DMESG_FATAL_RE=${SUITE_DMESG_FATAL_RE:-'KASAN|KCSAN|UBSAN|KFENCE|\bBUG:|ke
 # panic, ramoops, or disk survivors, so the terminal scrollback is the only
 # record of how far a suite got.  Every hardware-touching step announces
 # itself on stdout first.  Shared here because both the MPP and librga
-# phases of rewrite-conformance-run.sh have wedged the board silently.
+# phases of run-conformance.sh have wedged the board silently.
 suite_progress()
 {
 	printf 'PROGRESS %s %s\n' "$(date +%T)" "$*"

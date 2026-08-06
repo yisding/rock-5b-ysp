@@ -10,7 +10,7 @@ rung it has passed **with recorded evidence**.
 
 Deep references this runbook composes (it links rather than duplicates):
 [`../tests/README.md`](../tests/README.md) (gate-by-gate details and env
-tables), [`../tests/rewrite-conformance.md`](../tests/rewrite-conformance.md)
+tables), [`../tests/conformance.md`](../tests/conformance.md)
 (conformance suites), [`debug-kernel.md`](./debug-kernel.md) (KASAN build),
 [`rewrite-validation-plan.md`](./rewrite-validation-plan.md) (rewrite-specific
 plan), [`../../packaging/ppa/kernel-maxline/README.md`](../../packaging/ppa/kernel-maxline/README.md)
@@ -136,15 +136,16 @@ does not close conformance, concurrency, or lifetime gates.
 Run on the KASAN/lockdep/DMA-debug build of the same patch tail
 ([`debug-kernel.md`](./debug-kernel.md)); "clean" everywhere means the shared
 fatal-signature scan (`SUITE_DMESG_FATAL_RE` in `suite-common.sh` /
-`kasan-scan.sh`) matched **zero** lines over exactly the workload window:
+`sanitizer-scan.sh`) matched **zero** lines over exactly the workload window:
 
-- `kasan-mpp-suite.sh` — the required 12-case MPP codec matrix under KASAN,
-  every case green **and** an empty flag file.
-- KASAN ABI replay (`abi-replay.sh` via the debug flow) — `abi_status=0`
-  with a clean scan.
+- `sudo bash ../tests/run-conformance.sh --target <bsp|forward-port|rewrite>
+  --configuration kasan` — the same full standard ABI/MPP/librga/GStreamer/
+  FFmpeg set used on production kernels, with every bounded dmesg window
+  required readable and clean. This supersedes the old KASAN-only wrapper that
+  duplicated a 12-case subset of `mpp-suite.sh`.
 - Targeted reproducers for every previously fixed memory-safety bug that a
   patch-tail or flavor regression could reopen. The one that lives here is
-  `kasan-narrowed-repro.sh` (RESET_SESSION double-free, `0041`). Two more are
+  `reset-session-kasan.sh` (RESET_SESSION double-free, `0041`). Two more are
   still part of the gate but are memory-corruption proof-of-concept programs
   and are kept in the private `rock-5b-security` repository rather than in this
   tree. Clone it as a sibling of this checkout and run them from there: it
@@ -157,8 +158,10 @@ fatal-signature scan (`SUITE_DMESG_FATAL_RE` in `suite-common.sh` /
   Run those two from that repository against the same debug kernel. Expected
   result on a fixed kernel, for all three: clean errno (`-EINVAL` where
   applicable), board stays up, zero flagged lines.
-- Optional depth: `ioctl-fuzz-smoke.sh` with `fail-nth` fault injection,
-  `iommu-machinery-fuzz.sh` (both debug-kernel-only modes).
+- Optional depth is selected by catalog ID, for example
+  `--include reset-session-kasan,ioctl-fuzz-kasan` on a forward-port KASAN
+  boot, or `--include iommu-stress,recovery-stress` on a compatible rewrite
+  sanitizer boot. The harness rejects these IDs on incompatible matrix cells.
 - A whole-session journal sweep at the end of the boot
   (`journalctl -k | grep -E "$SUITE_DMESG_FATAL_RE"`-equivalent) so a fault
   outside a scan window cannot slip through.
@@ -168,8 +171,9 @@ step **open** and must say so in the status row.
 
 ## Step 5 — conformance suites (any kernel flavor)
 
-Driver: `sudo PROFILE=<forward-port|rewrite> bash
-../tests/rewrite-conformance-run.sh` (or the individual suites). Logs land in
+Driver: `sudo bash ../tests/run-conformance.sh --target
+<bsp|forward-port|rewrite> --configuration <production|kasan|kcsan>` (or the
+individual suites). Use `--plan` first and `--only` for a focused run. Logs land in
 `rockchip-conformance/logs/$PROFILE/<RUN_ID>-<suite>-suite/` with
 `RUN_ID=YYYYMMDD-HHMMSS`; every suite brackets its workload with the dmesg
 fatal scan and records `summary.tsv` + `artifacts.tsv` (byte counts +
@@ -178,6 +182,11 @@ read `summary.tsv`, not folklore): MPP matrix 12/12 (KASAN set; ~30 full),
 FFmpeg 24 cases with AV1 promoted (bit-exact PSNR `inf` for
 H.264/H.265/VP9/AV1, Main10→P010 RGA), GStreamer ~102 required, librga suite
 47, librga im2d smoke 28 with `LIBRGA_SMOKE_10BIT=1`.
+
+Production profile IDs are the target names. Instrumented profiles append the
+configuration (`forward-port-kasan`, `rewrite-kcsan`), preventing sanitizer
+timings from being mistaken for production evidence. Every run also writes
+`<RUN_ID>-conformance-plan.tsv`, which is the exact selected/omitted test list.
 
 For a kernel replacing a validated one, finish with the comparators
 (`*-suite-compare.sh`) against the last validated run: any required

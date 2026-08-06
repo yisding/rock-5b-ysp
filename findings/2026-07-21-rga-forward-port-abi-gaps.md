@@ -52,7 +52,7 @@ kernel was rebuilt as `Pb999-C4ad2` (same `C4ad2` debug config as the prior
 `Ped06` build; Armbian's pinned `KBUILD_BUILD_TIMESTAMP` keeps the July 4 date
 string, so the discriminators are the `#2` build counter, `CONFIG_KASAN=y`,
 and an md5-verified `/boot/vmlinuz` against the deb), installed, and booted.
-`kasan-narrowed-repro.sh` run `20260721-034716-kasan-narrowed` then met every
+`reset-session-kasan.sh` run `20260721-034716-kasan-narrowed` then met every
 gate condition:
 
 - `RGA2_GET_RESULT` returns 0 (previously `EINVAL`);

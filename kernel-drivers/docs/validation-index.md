@@ -4,9 +4,10 @@ Router for “how are these drivers tested, what evidence class answers my
 question, and where is the current verdict?” This page intentionally carries no
 moving commit, package, case-count, result matrix, or gap ladder.
 
-The forward-port and rewrite tracks share much of the harness, but they have
-different qualification boundaries. Follow the concern map below instead of
-inferring one track's state from the other.
+The BSP, forward-port, and rewrite targets share one standard catalog, but they
+have different qualification boundaries. KASAN/KCSAN are configurations of a
+target, not additional driver tracks. Follow the concern map below instead of
+inferring one target's state from another.
 
 ## Source-of-truth map (don't re-derive these elsewhere)
 
@@ -14,7 +15,8 @@ inferring one track's state from the other.
 |---------|------------------|
 | Current public verdict and one next proof | [`status.md` tracks 1, 2, and 4](../../status.md#dashboard) |
 | Rewrite risk-ordered plan and definition of done | [`rewrite-validation-plan.md`](./rewrite-validation-plan.md) |
-| Rewrite build/conformance commands and result interpretation | [`tests/rewrite-conformance.md`](../tests/rewrite-conformance.md) |
+| Rewrite build/conformance commands and result interpretation | [`tests/conformance.md`](../tests/conformance.md) |
+| Target/configuration matrix and ordered test selection | [`tests/conformance/TESTS.tsv`](../tests/conformance/TESTS.tsv) and its [extension contract](../tests/conformance/README.md) |
 | Generic kernel install, recovery, smoke, safety, stress, and evidence ladder | [`kernel-validation-runbook.md`](./kernel-validation-runbook.md) |
 | Forward-port capability/evidence basis | [`forward-port-status.md`](./forward-port-status.md) |
 | Rewrite capability/evidence basis | [`rewrite-drivers.md`](./rewrite-drivers.md) |
@@ -48,11 +50,11 @@ Choose the evidence owner by proof class:
 
 | Proof class | Operational owner | Result/evidence owner |
 |-------------|-------------------|-----------------------|
-| Source/config/build identity | [rewrite conformance build gate](../tests/rewrite-conformance.md#rewrite-clean-build-gate) | rewrite or forward-port project document; fresh run may remain a finding |
+| Source/config/build identity | [rewrite conformance build gate](../tests/conformance.md#rewrite-clean-build-gate) | rewrite or forward-port project document; fresh run may remain a finding |
 | Boot identity, rollback, smoke, and sanitizer gates | [kernel validation runbook](./kernel-validation-runbook.md) | track project document plus compact status boundary |
-| Exact rewrite KUnit execution | [rewrite post-reboot preflight](../tests/rewrite-conformance.md#post-reboot-identity-and-ownership-preflight) | rewrite project document |
-| ABI replay and consumer suites | [rewrite conformance runbook](../tests/rewrite-conformance.md) | track project document; artifact/log bundle remains external |
-| Forward-port ↔ rewrite differential comparison | [suite comparators](../tests/rewrite-conformance.md#running-the-suites-and-comparators) | rewrite project document |
+| Exact rewrite KUnit execution | [rewrite post-reboot preflight](../tests/conformance.md#post-reboot-identity-and-ownership-preflight) | rewrite project document |
+| ABI replay and consumer suites | [rewrite conformance runbook](../tests/conformance.md) | track project document; artifact/log bundle remains external |
+| Forward-port ↔ rewrite differential comparison | [suite comparators](../tests/conformance.md#running-the-suites-and-comparators) | rewrite project document |
 | Fault, close/reset/unbind, fuzz, and memory safety | public runbook plus the sibling private-security scope named above | project document records bounded result without importing private triggers |
 | Soak and production performance | [kernel validation runbook](./kernel-validation-runbook.md#step-8-soak) and rewrite acceptance policy | project document and status only if the public boundary changes |
 
@@ -78,7 +80,7 @@ Current gaps are deliberately not restated here:
 
 Start at [`rewrite-validation-plan.md`](./rewrite-validation-plan.md). It owns
 the risk order, fault/fuzz scope, and ship/no-ship definition. Execute the
-selected phase through [`tests/rewrite-conformance.md`](../tests/rewrite-conformance.md),
+selected phase through [`tests/conformance.md`](../tests/conformance.md),
 which delegates generic install/recovery/safety work to the
 [kernel validation runbook](./kernel-validation-runbook.md) and identifies the
 private-security prerequisites where needed.

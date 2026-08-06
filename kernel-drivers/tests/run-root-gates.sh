@@ -136,7 +136,7 @@ run_gate() {
 	[ "$ec" -eq 137 ] && echo "  (gate hit GATE_TIMEOUT=${GATE_TIMEOUT:-900}s and was killed; a D-state kernel hang may persist until reboot)"
 
 	# Settle before reading: a fault printed as the gate exits can otherwise miss
-	# the window (kasan-scan.sh syncs, encode-test-tiny sleeps 1).
+	# the window (sanitizer-scan.sh syncs, encode-test-tiny sleeps 1).
 	sync
 	journalctl -k --after-cursor "$cur" --no-pager >"$klog" 2>/dev/null
 	# The window must contain our marker. A well-formed but unresolvable cursor

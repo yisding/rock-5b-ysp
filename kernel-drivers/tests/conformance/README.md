@@ -1,19 +1,55 @@
-# Rockchip rewrite conformance bundle
+# Rockchip driver conformance bundle
 
-This directory is the tracked seed for the assets, sample/plugin sources, and
-logs used to compare the rewrite kernel against the BSP forward-port kernel.
-The conformance suites default to the installed MPP binaries/libraries and
-installed librga. Pinned MPP/librga copies remain reconstructible for explicit
-legacy-compatibility comparisons, but they are not the default runtime.
+This directory is the tracked definition of the reusable RK3588 driver test
+matrix. The same standard cases run against vendor BSP, forward-port, and
+rewrite targets; instrumentation such as KASAN or KCSAN is a separate axis.
+Target- or configuration-specific safety tests are declared explicitly instead
+of being hidden in profile-name conditionals.
 
-The test method is:
+[`TESTS.tsv`](TESTS.tsv) is the ordered test catalog. [`targets/`](targets/)
+defines driver implementations and [`configurations/`](configurations/)
+defines build instrumentation. The first-class entry point is
+[`../run-conformance.sh`](../run-conformance.sh):
 
-1. Boot the rewrite kernel and run the suite with `PROFILE=rewrite`.
-2. Boot the forward-port kernel and run the same suite with `PROFILE=forward-port`.
-3. Compare the logs under `logs/rewrite/` and `logs/forward-port/`.
+```bash
+# Inspect exactly what would run; this does not touch the board.
+bash kernel-drivers/tests/run-conformance.sh \
+  --target bsp --configuration production --plan
 
-The bundle is not tied to either kernel tree. It should be copied or mounted on
-the target RK3588 system and run from there.
+# Run the same standard set on every implementation.
+sudo bash kernel-drivers/tests/run-conformance.sh --target bsp
+sudo bash kernel-drivers/tests/run-conformance.sh --target forward-port
+sudo bash kernel-drivers/tests/run-conformance.sh --target rewrite
+
+# The standard set still runs under sanitizers; add compatible focused tests.
+sudo bash kernel-drivers/tests/run-conformance.sh \
+  --target forward-port --configuration kasan \
+  --include reset-session-kasan,ioctl-fuzz-kasan
+sudo bash kernel-drivers/tests/run-conformance.sh \
+  --target rewrite --configuration kcsan \
+  --include iommu-stress,recovery-stress,reset-contention
+```
+
+Production profile IDs retain the target name (`bsp`, `forward-port`,
+`rewrite`). Instrumented runs append the configuration
+(`forward-port-kasan`, `rewrite-kcsan`) so results never overwrite or get used
+as production performance evidence. `--only` is the focused-debugging path;
+the harness fails closed when a requested test is incompatible with the chosen
+matrix cell. `--compare-to PROFILE` compares every selected catalog row marked
+comparable. Sanitizer configurations disable timing thresholds unless the
+caller deliberately sets `PERF_MAX_RATIO`.
+
+The standard `matrix-identity` row reads `/boot/config-$(uname -r)` (override
+with `CONFORMANCE_KERNEL_CONFIG`) and requires the declared vendor/rewrite plus
+KASAN/KCSAN symbols while rejecting mutually exclusive symbols. BSP and
+forward-port share the vendor driver symbols, so their distinction comes from
+the package/boot identity captured by `system-info`; it cannot be inferred from
+Kconfig alone.
+
+The bundle also owns pinned external sources, assets, and generated logs. The
+suite defaults use installed MPP and librga; pinned copies remain reconstructible
+for explicit legacy comparisons. It is independent of any one kernel tree and
+can be copied or mounted on the RK3588 target.
 
 ## Bootstrap
 
@@ -32,6 +68,20 @@ checkouts. The generated `sources/`, `assets/`, `build/`, `out/`, and `logs/`
 directories stay untracked by policy.
 
 ## Directory layout
+
+`TESTS.tsv`
+: Ordered registry of standard and opt-in tests, their target/configuration
+  selectors, execution type, comparator eligibility, and purpose. Add a row
+  here when a maintained test joins the harness.
+
+`targets/*.env`
+: One descriptor per driver implementation. A target may set policy such as
+  rewrite counter requirements, but it does not encode sanitizer state.
+
+`configurations/*.env`
+: One descriptor per instrumentation shape. Configuration suffixes create
+  distinct profile/log identities and declare whether performance comparison is
+  meaningful.
 
 `sources/jeffycn-gstreamer-rockchip`
 : JeffyCN's `gstreamer-rockchip` branch from `JeffyCN/mirrors`. This is the
@@ -64,7 +114,9 @@ directories stay untracked by policy.
 : Put input media here. Use the same files for both kernel profiles.
 
 `logs/`
-: Per-profile logs created by the helper scripts.
+: Per-profile logs created by the helper scripts. Each harness run writes a
+  timestamped `conformance-plan.tsv` alongside the suite result directories so
+  the exact selection can be reconstructed.
 
 `build/` and `out/`
 : Created by build scripts. `build/` holds CMake/Meson build directories;

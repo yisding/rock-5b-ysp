@@ -59,10 +59,10 @@ memory-safety** only — no performance/soak claims (runbook principle 2).
     correctly rejected. 10-bit P010 case **skipped**: the staged
     `airockchip-librga` (`v1.10.6_[3]`) is not the P010-patched ysp fork
     (`format 0x4000(unknown)` in *userspace*, before the kernel).
-- **Memory-safety (step 4, journal-scanned via `kasan-scan.sh`):**
+- **Memory-safety (step 4, journal-scanned via `sanitizer-scan.sh`):**
   - `kasan-mpp-suite.sh` (`20260723-104152`) → 12/12 required cases pass,
     `flagged_kernel_lines=0 clean=1`.
-  - `kasan-narrowed-repro.sh` (`20260723-104210`) → `abi_status=0 flagged=0`
+  - `reset-session-kasan.sh` (`20260723-104210`) → `abi_status=0 flagged=0`
     (RESET_SESSION double-free `0042`).
   - The next three reproducers have since moved to the private
     `rock-5b-security` repository and are no longer in this tree; the results

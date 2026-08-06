@@ -1,0 +1,15 @@
+id	group	targets	configurations	default	runner	argument	compare	description
+kunit	boot	rewrite	all	yes	builtin	kunit	no	Require the complete booted rewrite KUnit manifest and clean boot interval
+system-info	identity	all	all	yes	builtin	system-info	no	Capture the exact boot kernel packages devices and driver ownership
+matrix-identity	identity	all	all	yes	builtin	matrix-identity	no	Require the booted kernel config to match the declared target and instrumentation
+abi	compatibility	all	all	yes	builtin	abi	yes	Replay and normalize the safe MPP and RGA ioctl contract
+mpp	functional	all	all	yes	suite	mpp	yes	Run the official MPP decode encode multi-instance and rate-control matrix
+librga	functional	all	all	yes	suite	librga	yes	Run the official librga samples plus the maintained deterministic smoke matrix
+gstreamer	integration	all	all	yes	suite	gstreamer	yes	Run GStreamer MPP and RGA state buffer-pool and pipeline cases
+ffmpeg	integration	all	all	yes	suite	ffmpeg	yes	Run the ffmpeg-rockchip codec correctness and transcode matrix
+rkmppenc	integration	all	all	no	suite	rkmppenc	yes	Run the optional application-level MPP and RGA matrix
+reset-session-kasan	safety	forward-port	kasan	no	script	reset-session-kasan.sh	no	Exercise the forward-port reset-session lifetime regression under KASAN
+ioctl-fuzz-kasan	safety	all	kasan	no	script	ioctl-fuzz-smoke.sh	no	Run the bounded non-submit ioctl parser and allocation-unwind fuzzer
+iommu-stress	safety	forward-port,rewrite	kasan,kcsan	no	script	iommu-machinery-fuzz.sh	no	Stress both RK3588 IOMMU providers with correctness and leak oracles
+recovery-stress	safety	rewrite	kasan,kcsan	no	script	rewrite-recovery-stress.sh	no	Exercise close reset and recovery boundaries around live rewrite workloads
+reset-contention	safety	rewrite	kcsan	no	script	rewrite-reset-contention.sh	no	Measure sibling-core reset contention under the race-oriented configuration

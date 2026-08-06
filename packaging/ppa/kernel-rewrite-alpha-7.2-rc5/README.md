@@ -70,7 +70,7 @@ co-installable package does not prove that this release is running.
 
 Use the package-identity, debugfs-owner, boot-log, smoke, full-suite, and paired
 comparison checklist in
-[`rewrite-conformance.md`](../../../kernel-drivers/tests/rewrite-conformance.md#rewrite-acceptance-one-command),
+[`conformance.md`](../../../kernel-drivers/tests/conformance.md#rewrite-acceptance-one-command),
 and retain a known-good recovery kernel until the runtime gate passes.
 
 The Debian helpers

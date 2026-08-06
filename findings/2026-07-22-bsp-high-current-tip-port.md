@@ -149,7 +149,7 @@ scratchpad). Board stayed up throughout (`uptime` continuous, no reboot).
 |------|-----|--------|
 | foreign-fd (`ABI_PROBE_ENABLE_MPP_FOREIGN_FD=1`) | `0060` | batch returns `-EBADF` (`-9`) as required; no crash |
 | raw physical import | `0039` | safely rejected `-EINVAL`; no crash. (Probe reported FAIL only because this run mis-set the *rewrite*-profile `EXPECT_RGA_PHYSICAL_REJECT=EOPNOTSUPP`; forward-port `0039` rejects with `EINVAL` by design.) |
-| RESET_SESSION double-free | `0042` | `kasan-narrowed-repro.sh` clean, `flagged_kernel_lines=0` |
+| RESET_SESSION double-free | `0042` | `reset-session-kasan.sh` clean, `flagged_kernel_lines=0` |
 | clientless `RELEASE_FD` | `0058` | ioctl returns `-1`/`-EINVAL`, board up ("kernel is NOT vulnerable") |
 | cross-session request/job UAF | `0052`/`0057` | `cross`: iters=2000, **async_submits=64000**, submit_fail=0, **0 KASAN flags** — strongest result; the race window genuinely opened (below-4G CMA) and stayed clean |
 | ioctl fuzz smoke | — | exits PASS, but surfaced a **new** unprivileged list-corruption WARN (below) |
