@@ -13,7 +13,7 @@ source lives in the sibling `mpp-rockchip` tree.
 | Owns | The MPP library docs under [`docs/`](docs/mpp-library-architecture.md), this front door, and [`keywords.md`](keywords.md). |
 | Depends on | The classic MPP userspace API/headers and a compatible [`../../kernel-drivers/mpp/`](../../kernel-drivers/mpp/README.md) service for runtime validation. |
 | Code lives in | `mpp-rockchip` (`mpp/`, HAL, `mpp_service` client). |
-| Current boundary | [`status.md`](../../status.md#dashboard) owns the public package/runtime verdict and [W05](../../status.md#watch-w05) owns the dated Launchpad observation. The maintained [VP9 presentation-event explanation and evidence basis](docs/mpp-library-architecture.md#vp9-presentation-event-ownership) records what the repair establishes without duplicating those moving states here. |
+| Evidence boundary | [`status.md`](../../status.md#dashboard) owns the public package/runtime verdict and [W05](../../status.md#watch-w05) owns the dated Launchpad observation. The maintained [VP9 presentation-event explanation and evidence basis](docs/mpp-library-architecture.md#vp9-presentation-event-ownership) records what the repair establishes without duplicating those moving states here. |
 
 ## Scoped docs
 

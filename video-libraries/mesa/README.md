@@ -14,6 +14,7 @@ routes here for the shared mechanism, probes, and validation.
 | User outcome | Understand the Panfrost transfer path, its correctness boundary, and why improving software readback does not replace hardware encode. |
 | Developer focus | The varying-interpolation erratum, exact TXF coordinate design, AFBC constraint, transfer performance, validation, reproducible probes, and maintained review conclusions. |
 | Owns | Causal model ([`blit-precision.md`](docs/blit-precision.md)), teaching guide ([`fix-walkthrough.md`](docs/fix-walkthrough.md)), accumulated tests ([`validation.md`](docs/validation.md)), review conclusions ([`mr-review-findings.md`](docs/mr-review-findings.md)), and probes ([`reproducers/`](reproducers/README.md)). |
+| Depends on | Mali-G610 hardware, a Mesa build with the transfer path under test, and the kernel/DRM display stack for execution. |
 | Does not own | Live MR heads, mergeability, review, or CI state ([W06](../../status.md#watch-w06)); public support verdict and next proof ([status track 8](../../status.md)). |
 | Hardware basis | RK3588 / Mali-G610 MC4; immutable source and run identities remain in the evidence owners. |
 

@@ -15,8 +15,8 @@ Project vocabulary (including the canonical `main`, `ffmpeg-80`, and
 | Developer focus | Understand how FFmpeg packets, frames, DRM PRIME descriptors, rkmpp codecs, and rkrga filters map onto `librockchip_mpp`, `librga`, and the kernel devices. |
 | Owns | The FFmpeg build recipe, companion docs in [`docs/`](docs/how-ffmpeg-works.md), pkg-config examples, and exported patch series in [`patches/`](patches/README.md). |
 | Depends on | Working kernel nodes from [`kernel-drivers/README.md`](../../kernel-drivers/README.md), staged or packaged libraries from [`vendor-libraries/README.md`](../../vendor-libraries/README.md), and the codec udev rule for non-root use. |
-| Validation owner | [`docs/validation.md`](docs/validation.md) separates source, compile, hardware, package, installed-runtime, and application evidence. |
-| Mutable state | [W04](../../status.md#watch-w04) owns Ubuntu version drift, [W07](../../status.md#watch-w07) branch heads, [W05](../../status.md#watch-w05) publication, and [status track 5](../../status.md) the public verdict/next proof. |
+| Evidence boundary | [`docs/validation.md`](docs/validation.md) separates source, compile, hardware, package, installed-runtime, and application evidence; [status track 5](../../status.md) and [W05](../../status.md#watch-w05) own the live public verdict and publication. |
+| Mutable state | [W04](../../status.md#watch-w04) owns Ubuntu version drift, [W07](../../status.md#watch-w07) branch heads, and [W05](../../status.md#watch-w05) publication. |
 
 ## Files
 

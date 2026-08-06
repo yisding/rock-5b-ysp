@@ -9,6 +9,7 @@ MPP/RGA operations on RK3588.
 | Field | Contents |
 |-------|----------|
 | Purpose | Expose the vendor `/dev/mpp_service` codec stack through standard VA-API without patching each desktop application into RKMPP wrapper codecs. |
+| Developer focus | Bridge policy, VA-API surface mapping to MPP/RGA, import/upload contracts, 10-bit layout handling, and consumer qualification. |
 | Owns | Durable capability policy and evidence routes. |
 | Does not own | Architecture mechanism ([guide](docs/architecture.md)), accumulated results ([scorecard](docs/validation.md)), application compatibility ([app map](../../docs/app-enablement.md)), publication ([W05](../../status.md#watch-w05)), remote tips ([W18](../../status.md#watch-w18)), or the dated browser/package verdict ([status track 14](../../status.md)). |
 | Depends on | A compatible MPP/RGA kernel and userspace pair, libva, device permissions, and application-specific display or sandbox access. |

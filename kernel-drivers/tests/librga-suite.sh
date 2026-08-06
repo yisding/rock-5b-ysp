@@ -210,7 +210,6 @@ rga_alpha_demo
 rga_alpha_3channel_demo
 rga_alpha_yuv_demo
 rga_alpha_colorkey_demo
-rga_alpha_rgba5551_demo
 rga_alpha_global_alpha_demo
 rga_transform_rotate_demo
 rga_transform_flip_demo
@@ -222,7 +221,6 @@ rga_config_thread_core_demo
 rga_allocator_malloc_demo
 rga_allocator_dma_cache_demo
 rga_allocator_drm_demo
-rga_mosaic_demo
 rga_rop_demo
 rga_palette_demo
 "
@@ -244,6 +242,14 @@ rga_allocator_dma32_demo
 rga_padding_demo
 rga_gauss_demo
 rga_gauss_matrix_demo
+"
+
+# Rockchip librga 1.10.6_[3] rejects these RK3588 operations in its own
+# capability check before submitting an ioctl. They therefore cannot measure
+# either the BSP or rewrite kernel and do not belong in the conformance matrix.
+rockchip_gated_cases_default="
+rga_alpha_rgba5551_demo
+rga_mosaic_demo
 "
 
 diagnostic_cases_default="
@@ -279,6 +285,17 @@ validate_librga_case_lists()
 {
 	local case_name
 	local found
+	local listed_cases
+
+	listed_cases="$required_cases_default
+$diagnostic_cases_default"
+	for case_name in $rockchip_gated_cases_default; do
+		if printf '%s\n' "$listed_cases" | grep -qx -- "$case_name"; then
+			printf 'FAIL: Rockchip-gated case leaked into defaults: %s\n' \
+				"$case_name" >&2
+			return 1
+		fi
+	done
 
 	for case_name in $vendor_heap_cases_default; do
 		found=0
