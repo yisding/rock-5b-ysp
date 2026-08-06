@@ -1,13 +1,11 @@
 # gnome-remote-desktop release patches
 
-> **OUTDATED — this directory is not what the package builds, and it is a
-> release behind.** These patches target **50.1**; the shipped package is
-> **50.2**, built directly from the clean source selected by
+> **Portable replay, not package input.** These patches target **50.1**. The
+> package is built directly from the clean source selected by
 > [`build-source-packages.sh`](../../../packaging/ppa/build-source-packages.sh)
-> with **no source delta applied**. [W10](../../../status.md#watch-w10) owns the
-> dated remote-branch head.
-> Parts of the replay are now actively wrong against the current base: upstream
-> 50.2 already contains the reconnect revert that patch `0009` exists to apply.
+> with no delta from this directory; [W10](../../../status.md#watch-w10) owns
+> the dated remote-branch head. Applying `0009` to a base that already contains
+> the GNOME reconnect revert is incorrect.
 >
 > Editing anything here changes nothing about the package. Keep it for porting
 > the work to another base and for reading what the delta *was*. To change what
@@ -19,14 +17,6 @@
 This directory contains the portable **16-patch 50.1 replay** for the RK3588
 FFmpeg/rkmpp backend, RDP handover/reconnect fixes, and the two bounded runtime
 recoveries retained after hardware validation.
-
-The current package source is the public `release/50.2-rkmpp` line: 17
-authored release commits on GNOME 50 stable. That base is upstream 50.2 plus
-one Norwegian Bokmål translation update and already contains the reconnect
-revert represented by replay patch `0009`, so the package archives the branch
-directly and does not apply this directory. The two additional 50.2-only tips
-signal full-range BT.709 in the AVC VUI and narrowly retain a reassigned user
-display after a reconnect handover timeout.
 
 The series applies to upstream gnome-remote-desktop commit
 `c14e09ef67e916ae83a4eddee6a56591078e78e0` (`50.1` plus 16 commits). It does
@@ -104,10 +94,11 @@ GNOME's 50.2 protocol revert in `0009` and coalesces duplicates only while a
 socket is awaiting `TakeClient` in `0013`. Consuming the socket clears pending
 state, so the routing token remains reusable for the legitimate next leg.
 
-The current 50.2 branch adds one carefully bounded piece of the June timeout
-idea after a live 2026-07-29 failure exposed the missing subscription: only a
-remote display explicitly reassigned during the two-leg flow may survive an
-abort, and only while its session still matches the destination handover.
-Initial greeter failures are removed normally. This keeps the persistent user
-display's `RemoteId` listener alive for the next reconnect without restoring
-the old global `client_taken` state or broad preserve-any-display rule.
+The later release design retained one bounded part of the timeout idea: only a
+display explicitly reassigned during the two-leg flow may survive an abort,
+and only while its session still matches the destination handover. Initial
+greeter failures are removed normally. This keeps the persistent user display's
+`RemoteId` listener alive without restoring the old global `client_taken`
+state or broad preserve-any-display rule. The
+[validation scorecard](../docs/validation.md) owns the conclusion; W10 owns the
+moving release head.

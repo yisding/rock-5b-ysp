@@ -1,5 +1,10 @@
 # Profiling the hardware path — 60 fps, and where the time goes
 
+> **Dated evidence owner.** These measurements retain their exact stack and
+> signal boundaries. [`validation.md`](validation.md) owns accumulated
+> conclusions; [status track 7](../../../status.md) owns the installed verdict
+> and next proof.
+
 [`baseline.md`](baseline.md) measures the software path (the ~20 ms
 `glReadPixels`). This is the **after**: per-stage profiling of the working
 hardware AVC420 pipeline (Vulkan RGB→NV12 on panvk → FFmpeg `h264_rkmpp` →

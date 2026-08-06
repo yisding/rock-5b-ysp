@@ -142,7 +142,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-32 | VA-API validation and application route | VA-API README owns capability policy; architecture owns mechanism; app map owns consumer compatibility; status owns browser/package verdict. Promote fresh evidence, preserve superseded-plan anchors. | VA-API/app READMEs, status track 14/W18, findings, closure plans, package docs. Security: not expected; recheck if kernel safety enters. | CLOSED 2026-08-05 — policy/mechanism/consumer/live-state owners separated, closure-plan anchors preserved, and full handoff gate passed. |
 | ORG-33 | Mesa validation and MR state | Remote service is MR authority; W06 is dated cache; validation/review docs own conclusions; README routes. | Mesa README/docs, W06, status track 8, findings; preserve MR links. Security: upstream destination is public fact, but submission planning remains private. | CLOSED 2026-08-05 — router, accumulated validation, tip-pinned review, W06/status ownership, and full handoff gate complete. |
 | ORG-34 | FFmpeg validation and branch state | Remote owns moving tip; build script owns intended package input; immutable comparison pins stay in source map; project docs own measured conclusions; status/W05 own verdict/publication. | FFmpeg README/docs/findings, W04/W05/W07/W21, status track 5, PPA installer/build/checker. Security: review public fix inventory versus private submission plan. | CLOSED 2026-08-05 — evidence scorecard, frozen audits/replays, mutable-state routing, and full handoff gate complete. |
-| ORG-35 | GNOME Remote Desktop validation and branch state | Remote owns branch tip; build script owns package input; project docs own design/test conclusions; status/W05 own verdict/publication. | GRD README/docs/findings, status track 7, W05/W10, PPA and GRD pin checker. Security: review public fix inventory versus private submission plan. | ACTIVE 2026-08-05 — source/package ownership migrated; validation consolidation pending. |
+| ORG-35 | GNOME Remote Desktop validation and branch state | Remote owns branch tip; build script owns package input; project docs own design/test conclusions; status/W05 own verdict/publication. | GRD README/docs/findings, status track 7, W05/W10, PPA and GRD pin checker. Security: review public fix inventory versus private submission plan. | CLOSED 2026-08-05 — application scorecard, compact front door, frozen replay, mutable-state routes, and full handoff gate complete. |
 | ORG-40 | Project front doors, runbooks, plans, audits, and coverage | Each project README routes stable scope/boundary/model/operation; deep docs own mechanism; runbooks own commands; plans own future ladder; coverage owns scope/first missing evidence. | Activate one project/README at a time; preserve all headings/inbound links and nearest-README completeness. Security review when the project scope requires it. | PLANNED after owner consolidation. |
 | ORG-41 | Findings inbox promotion | Existing project/runbook/test/catalog/package owners absorb useful evidence; findings index retains deposit guidance and views of live intake only. No tombstones or permanent `findings/evidence/` archive. | Exact inbound links, generated chronology, curated topic row/count, status citations; update findings checks atomically. Security review for every kernel safety/upstream finding. | PLANNED; promote in small owner-based batches. |
 | ORG-50 | Root and work-package navigation | Root README owns short task router; `work-packages.md` owns taxonomy/reading paths; project READMEs own local routes. | Root/category/project links and representative journeys; Markdown link/anchor and nearest-README checks. Security: not applicable unless content moves. | PLANNED after canonical owners stabilize. |
@@ -684,3 +684,37 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   `bash scripts/check-repo.sh` handoff gate passed on 2026-08-05 across 436
   Markdown files, 3,771 local links, 449 anchors, all 62 regression tests,
   ShellCheck, documentation consistency, and whitespace.
+
+### ORG-35 — GRD application validation and branch-state route
+
+- **Owner map:** `docs/validation.md` owns accumulated application
+  conclusions and failure classification; design/capture docs own mechanism;
+  profiling owns dated measurements; testing owns safe operations; the build
+  script owns intended package source; W10 owns branch heads, W05 publication,
+  and status track 7 the installed verdict/next proof.
+- **Front-door disposition:** replaced a 406-line mixed runtime/status and
+  investigation narrative with a compact integration model, evidence router,
+  durable four-issue lessons, patch/package roles, and provenance. Every prior
+  H2/H3 heading remains at the same stable path.
+- **Scorecard:** separates build, smoke, live-RDP, sustained-session,
+  installed-stack, and recovery/handover evidence. It promotes capability
+  conclusions for hardware encode, panvk conversion, throughput/quality, IDR,
+  backpressure, greeter ACL, cached readback, and frame-ACK recovery.
+- **Design correction:** replaced the stale “VA-API may become a comparison
+  gate” statement with the maintained packed-slice-header incompatibility:
+  GRD authors headers that MPP cannot accept or splice safely.
+- **Run/patch disposition:** profiling and testing explicitly identify dated
+  evidence versus operation; audio identifies its archived probe boundary.
+  The 50.1 patch README is mechanical reconstruction material and routes the
+  package source/head to the build input and W10.
+- **Evidence disposition:** exact GRD run findings remain intake for later
+  ORG-41 owner batches. Stable conclusions are already promoted without
+  deleting run-level evidence prematurely.
+- **Public/private review:** public behavior, patch identities, architecture,
+  and validation remain. No private upstream destination/order,
+  send/withhold decision, disclosure/CVE coordination, or hostile reproducer
+  entered the public tree.
+- **Validation:** the full `bash scripts/check-repo.sh` gate passed before
+  ledger closure on 2026-08-05 across 437 Markdown files, 3,783 local links,
+  453 anchors, all 62 regression tests, ShellCheck, documentation consistency,
+  and whitespace.

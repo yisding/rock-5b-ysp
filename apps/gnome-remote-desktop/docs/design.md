@@ -26,7 +26,7 @@ which is the difference between a few-percent-CPU desktop and this one.
 
 | Route | What it is | Verdict |
 |-------|-----------|---------|
-| **VA-API** (GRD's main HW path) | GRD already has `GrdEncodeSessionVaapi`, so a VEPU-backed VA driver can reuse the existing session | ⚠️ **Unavailable when this backend was chosen:** the 2026-06 baseline loaded no RK3588 encode driver and fell back. As of 2026-07-26, [`rockchip-vaapi`](../../../video-libraries/vaapi/README.md) has opt-in H.264/HEVC encode evidence, but it has not been installed or validated through GRD. Treat it as a new comparison gate, not retroactive proof or a reason to discard the hardware-validated FFmpeg backend. |
+| **VA-API** (GRD's main HW path) | GRD already has `GrdEncodeSessionVaapi` | ❌ Incompatible with the MPP-backed driver: GRD requires application-authored packed slice headers and MPP emits each complete slice NAL as an inseparable unit. |
 | **Mainline V4L2 stateful encoder** | The kernel-standard encode API | ❌ mainline RK3588 encoder support is JPEG-only — no H.264 — and GRD has no V4L2 encode backend anyway. The V4L2/JPEG-only rationale (with the Collabora mainline-status citation) is owned by [`kernel-versions/docs/vanilla-kernel.md`](../../../kernel-versions/docs/vanilla-kernel.md). |
 | **Direct `librockchip_mpp`** | A new GRD encode session calling MPP directly | ⚠️ full control, but reinvents everything FFmpeg's `h264_rkmpp` already does (MPP setup, DRM-PRIME import, 1-in-1-out packet handling) and couples GRD to the MPP API. More code, more to maintain. |
 | **GStreamer Rockchip MPP** | A new GRD encode session around `appsrc -> rockchipmpp H.264 encoder -> appsink` | ⚠️ plausible as a second backend, especially for testing and GNOME-adjacent review, but not shorter for this repo: we would still keep GRD's PipeWire capture, Vulkan RGB→NV12 view-creator, RDPGFX pacing, packet handling, and fail-closed smoke test. The hard part becomes proving low-latency zero-copy dmabuf caps/allocator negotiation through the pipeline. |
@@ -82,18 +82,19 @@ backend if it beats the FFmpeg route on reliability, latency, or upstreamability
 
 ### VA-API status, rechecked 2026-07-02
 
-VA-API remains the canonical upstream-friendly GRD shape in principle, but not a
-working RK3588 encode route today. Mesa exposes Panfrost/PanVK as the Mali GPU
-OpenGL ES/Vulkan driver, while Mesa's VA-API frontend is separate plumbing; there
-is no Panfrost/PanVK video-encode backend for the VEPU580. Rockchip MPP's public
-docs still show `libva` as a conceptual layer above MPP, but the maintained paths
-we can actually use are MPP consumers such as FFmpeg, GStreamer plugins, and
-direct libmpp tests.
+The heading preserves the dated investigation anchor, but the durable
+conclusion is stronger now. A maintained MPP-backed VA-API driver exists and
+can encode through ordinary `VAEntrypointEncSlice` clients. GRD is not an
+ordinary client: it requires `SEQUENCE`, `PICTURE`, `SLICE`, and `RAW_DATA`
+packed-header support together and authors the slice header itself. MPP accepts
+no external slice header and exposes no separable entropy-coded payload to
+splice safely.
 
-A real VA-API solution would need either a maintained `rkvaapi_drv_video.so`
-implemented over MPP, or a mainline V4L2 H.264/H.265 encoder stack plus a VA-API
-V4L2 backend that GRD can use. We did not find evidence that either is close
-enough to plan this project around.
+Advertising a partial contract would make GRD attach and silently lose required
+state. Therefore the native VA-API backend is not a pending comparison gate on
+this MPP implementation. The
+[VA-API capability policy](../../../video-libraries/vaapi/README.md#encode-surface-contract)
+owns the permanent wall.
 
 ### The upstream-vs-fork sub-decision
 

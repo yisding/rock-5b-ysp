@@ -1,5 +1,10 @@
 # Testing & benchmarking GRD on this box — the playbook
 
+> **Operational owner.** The commands below are tied to the identities named in
+> each section. Resolve the current public gate through
+> [status track 7](../../../status.md#next-gates) and record new conclusions in
+> [`validation.md`](validation.md), not as a second live-status block here.
+
 Hard-won operational knowledge from benchmarking and prototyping GRD on the
 ROCK 5B. Most of these cost us a broken session, a killed shell, or an hour of
 "why is it idle" before we understood them. Read this before touching a live

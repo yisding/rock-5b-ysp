@@ -1,10 +1,11 @@
 # RDP audio redirection: protocol, GRD, and the PipeWire graph
 
-> **Release boundary:** the format dumps, playback trace, temporary Opus
-> suppression, and legacy-format environment probe described below are archived
-> investigation tools. The release branch contains none of them and restores
-> GRD's normal AAC/Opus/PCM offer. The observations and deferred A-law plan are
-> retained here as evidence and future work.
+> **Recorded release boundary:** the format dumps, playback trace, temporary
+> Opus suppression, and legacy-format probe are archived investigation tools,
+> not package input. The intended package source is selected by
+> [`build-source-packages.sh`](../../../packaging/ppa/build-source-packages.sh)
+> and its remote head is cached by [W10](../../../status.md#watch-w10). The
+> observations and deferred A-law plan remain evidence and future work.
 
 This ROCK 5B does not hit an RDP audio protocol limitation. After completing
 the PipeWire desktop-audio migration and rebooting, the Microsoft macOS client
