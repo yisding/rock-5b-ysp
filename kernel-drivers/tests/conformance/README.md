@@ -1,344 +1,265 @@
-# Rockchip driver conformance bundle
+# RK3588 driver conformance harness
 
-This directory is the tracked definition of the reusable RK3588 driver test
-matrix. The same standard cases run against vendor BSP, forward-port, and
-rewrite targets; instrumentation such as KASAN or KCSAN is a separate axis.
-Target- or configuration-specific safety tests are declared explicitly instead
-of being hidden in profile-name conditionals.
+Use this harness to run the same broad driver tests against the Rockchip BSP,
+the maintained forward port, and the clean-room rewrite. KASAN and KCSAN are
+separate configuration choices, so the standard functional coverage can run on
+instrumented kernels too.
 
-[`TESTS.tsv`](TESTS.tsv) is the ordered test catalog. [`targets/`](targets/)
-defines driver implementations and [`configurations/`](configurations/)
-defines build instrumentation. The first-class entry point is
-[`../run-conformance.sh`](../run-conformance.sh):
+The entry point is [`../run-conformance.sh`](../run-conformance.sh). This page
+explains how to run it and what its results mean. The detailed per-suite command,
+environment-variable, and acceptance reference remains in
+[`../conformance.md`](../conformance.md).
+
+## Quick start
+
+Run these commands from the repository root on the ROCK 5B.
 
 ```bash
-# On the board, autodetect both axes and run the standard set.
+# Resolve the booted kernel and show the test selection. No workload is run.
+sudo bash kernel-drivers/tests/run-conformance.sh --plan
+
+# Run the standard conformance set.
 sudo bash kernel-drivers/tests/run-conformance.sh
+```
 
-# Inspect exactly what would run; this does not touch the board.
+The harness normally detects both the driver target and kernel configuration.
+The plan should show the expected `target`, `configuration`, and `profile`
+before you start a long run.
+
+The runner tests the kernel that is currently booted; it does not install or
+reboot kernels. To cover the full matrix, boot each BSP, forward-port, rewrite,
+KASAN, and KCSAN image in turn and repeat the same two commands. The shared
+standard set stays the same, while compatible target-specific rows are resolved
+for that boot.
+
+Use explicit selectors when planning off-board, testing detection itself, or
+pinning a CI job to one matrix cell:
+
+```bash
 bash kernel-drivers/tests/run-conformance.sh \
-  --target bsp --configuration production --plan
+  --target forward-port --configuration production --plan
 
-# Run the same standard set on every implementation.
-sudo bash kernel-drivers/tests/run-conformance.sh --target bsp
-sudo bash kernel-drivers/tests/run-conformance.sh --target forward-port
-sudo bash kernel-drivers/tests/run-conformance.sh --target rewrite
+sudo bash kernel-drivers/tests/run-conformance.sh \
+  --target rewrite --configuration kcsan
+```
 
-# The standard set still runs under sanitizers; add compatible focused tests.
+Valid targets are `bsp`, `forward-port`, and `rewrite`. Valid configurations
+are `production`, `kasan`, and `kcsan`. `auto` may be passed explicitly for
+either axis.
+
+## What the standard run tests
+
+The standard set favors tests that can run unchanged across every kernel. It
+adds rewrite-only boot checks automatically, but leaves long or destructive
+stress tests as explicit opt-ins.
+
+| Test | What it exercises | What a pass establishes |
+|------|-------------------|--------------------------|
+| `kunit` | Complete booted MPP and RGA rewrite KUnit manifests and their boot-log interval. Rewrite only. | The expected kernel-side lifecycle cases ran without a KUnit failure, skip, fatal boot signature, or disabled lockdep. It does not exercise real media hardware. |
+| `system-info` | Running kernel, packages, device nodes, driver ownership, boot artifacts, and relevant board state. | The result is tied to a reconstructible boot and userspace identity. Discovery alone is not a functional pass. |
+| `matrix-identity` | Vendor-versus-rewrite Kconfig, kernel series, and KASAN/KCSAN state. | The booted kernel matches the profile under which its logs will be stored. |
+| `abi` | Safe MPP and RGA query, import/release, parser, and request-boundary ioctls. | The normalized userspace-visible contract matches the selected driver without submitting arbitrary hardware work. |
+| `mpp` | Official MPP information, H.264/H.265/VP9/AVS2 decode, H.264/H.265 encode, multi-thread, multi-instance, slice-polling, rate-control, and legacy API cases when their inputs are available. | Required cases complete, produced artifacts are recorded, and the bounded kernel-log/counter gates are clean. The exact media matrix depends on available assets. |
+| `librga` | Official librga copy, fill, resize, conversion, blending, transform, allocator, async/fence, tiled/FBC, and maintained deterministic smoke cases. | Required operations and output checks pass, hardware counters move where required, idle gauges settle, and fatal sample diagnostics cannot be hidden by misleading process statuses. |
+| `gstreamer` | MPP/RGA plugin discovery, encode/decode/transcode, buffer pools, DMABuf, caps changes, flush/EOS/restart loops, parallel pipelines, AFBC, and 10-bit paths. | Required pipelines survive real GStreamer state and allocator transitions with expected artifacts and clean bounded kernel evidence. |
+| `ffmpeg` | ffmpeg-rockchip RKMPP decode/encode, PSNR checks, RKRGA scale/vpp/overlay, and hardware transcodes. | Required codec/filter paths use the staged Rockchip FFmpeg build, meet correctness checks, record artifacts, and leave clean kernel evidence. |
+
+All rows come from [`TESTS.tsv`](TESTS.tsv). A suite-level pass is more than an
+exit code: depending on the target and configuration, the harness also checks
+required case results, artifact manifests, debugfs counter deltas, idle gauges,
+and a bounded dmesg window.
+
+## How target and configuration detection works
+
+The runner reads `/boot/config-$(uname -r)` before it creates the profile:
+
+| Observed identity | Selection |
+|-------------------|-----------|
+| Rewrite MPP and RGA Kconfig | `rewrite` |
+| Vendor MPP and RGA Kconfig on 5.10, 6.1, or 6.6 | `bsp` |
+| Vendor MPP and RGA Kconfig on any other kernel series | `forward-port` |
+| `CONFIG_KASAN=y` | `kasan` |
+| `CONFIG_KCSAN=y` | `kcsan` |
+| Neither sanitizer | `production` |
+
+Detection and runtime verification use the same predicates from
+[`targets/`](targets/) and [`configurations/`](configurations/). Missing,
+contradictory, or multiply matching identities fail instead of being guessed.
+Explicit selectors do not bypass `matrix-identity`; a mislabeled run fails
+before the consumer suites.
+
+For fixture or off-board plans, point detection at another artifact:
+
+```bash
+CONFORMANCE_KERNEL_CONFIG=/path/to/kernel.config \
+CONFORMANCE_KERNEL_RELEASE=6.18.38-ysp \
+bash kernel-drivers/tests/run-conformance.sh --plan
+```
+
+## Run more, fewer, or specific tests
+
+First inspect the catalog as resolved for the selected matrix:
+
+```bash
+sudo bash kernel-drivers/tests/run-conformance.sh --list
+```
+
+The selection options have distinct purposes:
+
+- `--include ID1,ID2` adds compatible opt-in tests to the standard set.
+- `--only ID1,ID2` runs only those compatible tests for focused debugging.
+- `--skip ID1,ID2` removes tests from the selected set; record why when using
+  this for evidence.
+- `--continue` runs the remaining selected tests after a failure, then returns
+  nonzero at the end.
+
+Examples:
+
+```bash
+# Add the optional application-level MPP/RGA consumer.
+sudo bash kernel-drivers/tests/run-conformance.sh --include rkmppenc
+
+# Re-run only ABI and MPP after a focused driver change.
+sudo bash kernel-drivers/tests/run-conformance.sh --only abi,mpp
+
+# Broad forward-port KASAN run, including compatible safety tests.
 sudo bash kernel-drivers/tests/run-conformance.sh \
   --target forward-port --configuration kasan \
-  --include reset-session-kasan,ioctl-fuzz-kasan
+  --include rkmppenc,reset-session-kasan,ioctl-fuzz-kasan,iommu-stress \
+  --continue
+
+# Broad rewrite KCSAN run, including race and recovery stress.
 sudo bash kernel-drivers/tests/run-conformance.sh \
   --target rewrite --configuration kcsan \
-  --include iommu-stress,recovery-stress,reset-contention
+  --include rkmppenc,iommu-stress,recovery-stress,reset-contention \
+  --continue
 ```
 
-Production profile IDs retain the target name (`bsp`, `forward-port`,
-`rewrite`). Instrumented runs append the configuration
-(`forward-port-kasan`, `rewrite-kcsan`) so results never overwrite or get used
-as production performance evidence. `--only` is the focused-debugging path;
-the harness fails closed when a requested test is incompatible with the chosen
-matrix cell. `--compare-to PROFILE` compares every selected catalog row marked
-comparable. Sanitizer configurations disable timing thresholds unless the
-caller deliberately sets `PERF_MAX_RATIO`.
+The opt-in catalog is:
 
-With neither selector supplied, the harness reads
-`/boot/config-$(uname -r)` and autodetects both axes. Rewrite Kconfig selects
-the rewrite target. For vendor-driver Kconfig, kernel series 5.10, 6.1, and 6.6
-select BSP; every other series selects forward-port. `CONFIG_KASAN=y` selects
-KASAN, `CONFIG_KCSAN=y` selects KCSAN, and neither selects production. The
-descriptors own these predicates so autodetection and the standard
-`matrix-identity` row cannot drift. Explicit selectors remain supported and
-are verified against the same predicates before consumer workloads run.
+| Test | Compatible matrix | Purpose |
+|------|-------------------|---------|
+| `rkmppenc` | All targets and configurations | Independent application-level MPP encode and MPP/RGA resize/transcode coverage. |
+| `reset-session-kasan` | Forward-port KASAN | Regression coverage for reset-session lifetime faults. |
+| `ioctl-fuzz-kasan` | All KASAN targets | Bounded non-submit ioctl mutation plus allocation/unwind fault injection. |
+| `iommu-stress` | Forward-port or rewrite under KASAN/KCSAN | Concurrent RGA scatter and decode work with IOMMU correctness and leak oracles. |
+| `recovery-stress` | Rewrite under KASAN/KCSAN | Kill/close, reset-opener, and recovery boundaries around live work. |
+| `reset-contention` | Rewrite KCSAN | Sibling-core reset contention and race-oriented evidence. |
 
-Set `CONFORMANCE_KERNEL_CONFIG` and `CONFORMANCE_KERNEL_RELEASE` to inspect a
-different boot artifact. `--target auto` and `--configuration auto` explicitly
-request detection of either axis. If a config is missing, contradictory, or
-matches more than one descriptor, the harness fails instead of guessing.
-Device-free `--validate` deliberately defaults to rewrite/production; an
-off-board `--plan` should provide both selectors or the two identity overrides.
+The harness rejects an explicitly requested test when its target or
+configuration is incompatible. This prevents a typo from silently producing a
+narrower run than requested.
 
-The bundle also owns pinned external sources, assets, and generated logs. The
-suite defaults use installed MPP and librga; pinned copies remain reconstructible
-for explicit legacy comparisons. It is independent of any one kernel tree and
-can be copied or mounted on the RK3588 target.
+## Compare two kernels
 
-## Bootstrap
-
-The tracked [`MANIFEST.tsv`](MANIFEST.tsv) pins every third-party source tree.
-Reconstruct the external `sources/` directory from a fresh clone with:
+Run the baseline and candidate with the same userspace, assets, and
+configuration. Results are stored by profile, so the two boots do not overwrite
+one another.
 
 ```bash
-cd kernel-drivers/tests/conformance
-bash scripts/bootstrap-sources.sh
-bash scripts/bootstrap-sources.sh verify
+# Boot the forward-port production kernel and collect its baseline.
+sudo bash kernel-drivers/tests/run-conformance.sh
+
+# Boot the rewrite production kernel, run it, then compare comparable suites.
+sudo bash kernel-drivers/tests/run-conformance.sh --compare-to forward-port
 ```
 
-`bootstrap-sources.sh` clones missing sources, checks out the manifest commits,
-and applies repo-owned patches from `patches/<name>/`. It refuses dirty existing
-checkouts. The generated `sources/`, `assets/`, `build/`, `out/`, and `logs/`
-directories stay untracked by policy.
+For sanitizer comparisons, name the matching baseline profile, such as
+`forward-port-kasan`. The comparators check shared required cases and, where the
+suite supports them, artifact sizes/checksums. Set `PERF_MAX_RATIO` only when a
+production timing threshold is meaningful; sanitizer configurations disable
+timing failures by default.
 
-## Directory layout
+## Results and pass criteria
 
-`TESTS.tsv`
-: Ordered registry of standard and opt-in tests, their target/configuration
-  selectors, execution type, comparator eligibility, and purpose. Add a row
-  here when a maintained test joins the harness.
+The default runtime root is
+`../rock-5b/build/rockchip-conformance`. Override it with `CONFORMANCE_ROOT`.
+Logs are written below:
 
-`targets/*.env`
-: One descriptor per driver implementation. A target may set policy such as
-  rewrite counter requirements and kernel-series identity, but it does not
-  encode sanitizer state.
+```text
+$CONFORMANCE_ROOT/logs/$PROFILE/
+  <run>-conformance-plan.tsv
+  <run>-system/
+  <run>-matrix-identity.tsv
+  <run>-mpp-suite/
+  <run>-librga-suite/
+  <run>-gstreamer-suite/
+  <run>-ffmpeg-suite/
+```
 
-`configurations/*.env`
-: One descriptor per instrumentation shape. Configuration suffixes create
-  distinct profile/log identities and declare whether performance comparison is
-  meaningful.
+Production profile names are `bsp`, `forward-port`, and `rewrite`. Instrumented
+profiles append the configuration, for example `forward-port-kasan` and
+`rewrite-kcsan`.
 
-`sources/jeffycn-gstreamer-rockchip`
-: JeffyCN's `gstreamer-rockchip` branch from `JeffyCN/mirrors`. This is the
-  most important extra integration target beyond FFmpeg because it exercises MPP
-  through GStreamer state changes, buffer pools, caps negotiation, dmabuf
-  passing, encoder/decoder elements, and optional RGA-backed conversions.
+A full run passes only when every selected required step passes. With
+`--continue`, failures are accumulated but the final status is still nonzero.
+When reviewing a run, check:
 
-`sources/rockchip-mpp`
-: Pinned Rockchip MPP source for an explicit legacy comparison. Normal
-  conformance uses the matching official test binaries installed under
-  `/usr/bin`.
+1. `conformance-plan.tsv` shows the intended matrix and no accidental skips.
+2. `matrix-identity.tsv` matches the booted release and Kconfig.
+3. Each selected suite's `summary.tsv` contains no failed required case.
+4. Required `artifacts.tsv`, counter-delta, and dmesg reports are present and
+   clean.
+5. A paired claim also has comparator-clean baseline and candidate results.
 
-`sources/airockchip-librga`
-: Official IM2D sample source plus a pinned prebuilt librga retained for an
-  explicit legacy comparison. Normal sample builds and runs use installed
-  librga.
-
-`sources/mpp-linux-cpp-demo`
-: Linux demo combining MPP decode, RGA conversion, DRM/KMS display, and
-  threading. This is useful because it chains the engines instead of testing
-  them as isolated ioctls.
-
-`sources/rkmediacodec-demo`
-: Android RKMediaCodecDemo. Use this only for Android-style validation or when
-  checking Android allocator/MediaCodec behavior. The user request called this
-  RKMediaCoreDemo; the public Rockchip demo referenced by MPP is
-  RKMediaCodecDemo.
-
-`assets/`
-: Put input media here. Use the same files for both kernel profiles.
-
-`logs/`
-: Per-profile logs created by the helper scripts. Each harness run writes a
-  timestamped `conformance-plan.tsv` alongside the suite result directories so
-  the exact selection can be reconstructed.
-
-`build/` and `out/`
-: Created by build scripts. `build/` holds CMake/Meson build directories;
-  `out/` holds locally installed binaries/libraries.
-
-`scripts/list-built-binaries.sh`
-: Prints the executable files currently staged under `out/`; use it to verify
-  which source builds actually produced runnable conformance tools.
-
-## What to test
-
-Run these in order. Stop on crashes, hangs, WARN/OOPS, refcount splats, IOMMU
-fault storms, or leaked fences.
-
-### 1. Driver and device preflight
-
-Run this first on each booted kernel:
+`--validate` is different: it runs device-free catalog, parser, builder,
+comparator, and evidence-audit selftests. It is the harness maintenance gate,
+not proof that a kernel works on RK3588 hardware:
 
 ```bash
-cd /path/to/rockchip-conformance
-PROFILE=rewrite ./scripts/collect-system-info.sh
-PROFILE=forward-port ./scripts/collect-system-info.sh
+PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+bash kernel-drivers/tests/run-conformance.sh --validate
 ```
 
-Use `OUT=/path/to/result` when a surrounding test run needs a deterministic
-destination. `./scripts/collect-system-info.sh --selftest` verifies the
-root/resume identifier redaction without reading board state or creating a log
-directory.
+## Prerequisites and runtime bundle
 
-The cross-project [`system baseline guide`](../../../docs/system-baseline.md)
-defines the captured fields, profile naming, privacy boundary, and which dated
-document owns each changing state claim. Its discovery sections also seed the
-whole-board [`support coverage inventory`](../../../docs/support-coverage.md):
-CPU/thermal, memory, storage, PCI/USB, address-free network state, DRM
-connectors, audio, and camera graphs are recorded when available. The boot
-identity section also records any U-Boot version exposed in the live DT, a hash
-of the live flattened device tree, resolved `/boot` artifact paths, and MTD/SPI
-device identity without reading firmware contents. Those signals can
-distinguish artifacts but cannot prove which medium BootROM selected; preserve
-UART output and the exact tested firmware image for that claim. Discovery is
-not a functional pass; use the inventory row's first-evidence guidance before
-changing its coverage state.
+Hardware runs normally need root access, `/dev/mpp_service`, `/dev/rga`, DMA
+heaps, readable debugfs/procfs state, and readable dmesg. The standard consumer
+suites additionally expect:
 
-Check that `/dev/mpp_service`, `/dev/rga`, dma-heaps, DRM/KMS nodes, RGA
-version paths, and MPP proc/debugfs paths look sane. Keep the collected dmesg
-tail with every test result.
+- installed matching MPP runtime, development, and official test packages;
+- installed `librga-dev` plus built official sample binaries;
+- the staged JeffyCN GStreamer Rockchip plugin and event harness;
+- a staged ffmpeg-rockchip `ffmpeg` and `ffprobe`;
+- shared input media under `$CONFORMANCE_ROOT/assets/` when a case cannot
+  generate its own input.
 
-### 2. MPP official tests
+The external runtime bundle deliberately lives outside this repository because
+it contains third-party checkouts and generated outputs. The workspace
+bootstrap is [`../../scripts/bootstrap-workspaces.sh`](../../scripts/bootstrap-workspaces.sh);
+the full build and asset requirements are documented in
+[`../conformance.md`](../conformance.md). Run `--plan` before hardware work, but
+remember that asset-dependent cases are resolved inside their suites: the
+resulting `summary.tsv` is the authoritative record of what actually ran.
 
-Install the YSP MPP runtime, development, and demo packages. The smoke and full
-suite then use `/usr/bin/{mpp_info_test,mpi_dec_test,...}` and the system
-dynamic-loader path by default:
+## Catalog and helper reference
 
-Smoke:
+The maintained harness definition is small:
 
-```bash
-PROFILE=rewrite ./scripts/run-mpp-smoke.sh
-```
+- [`TESTS.tsv`](TESTS.tsv) declares ordering, compatibility, default selection,
+  runner type, comparator eligibility, and purpose.
+- [`targets/`](targets/) describes BSP, forward-port, and rewrite identity plus
+  target-specific runtime policy.
+- [`configurations/`](configurations/) describes production, KASAN, and KCSAN
+  identity plus dmesg/performance policy.
+- [`MANIFEST.tsv`](MANIFEST.tsv) pins optional third-party source checkouts used
+  to reconstruct the external bundle.
 
-Then run codec-specific tests with known-good media from `assets/`. Suggested
-minimum matrix:
+The scripts in this directory are lower-level setup and diagnostic helpers;
+normal qualification should enter through `run-conformance.sh`:
 
-- H.264 decode, 1080p and 4K, short and long GOP.
-- H.265 decode, 1080p and 4K, short and long GOP.
-- VP9 or AV1 decode if your userspace stack asks MPP for it on this board.
-- H.264 encode from NV12, 1080p and 4K.
-- H.265 encode from NV12, 1080p and 4K.
-- Multi-instance decode with `mpi_dec_multi_test`.
-- Multi-thread encode/decode with `mpi_enc_mt_test` and `mpi_dec_mt_test`.
-- Legacy path with `vpu_api_test`.
-- Rate-control path with `mpi_rc2_test`.
+| Helper | Use |
+|--------|-----|
+| `scripts/bootstrap-sources.sh` | Clone and verify the source revisions in `MANIFEST.tsv`. |
+| `scripts/collect-system-info.sh` | Collect identity directly or selftest its boot-identifier redaction. The standard `system-info` row calls its deployed copy. |
+| `scripts/build-mpp.sh` | Build a pinned legacy MPP comparison, not the normal installed-runtime path. |
+| `scripts/build-librga-samples.sh` | Build the pinned official librga samples. |
+| `scripts/make-librga-pkgconfig.sh` | Generate the explicit pkg-config shim needed by that legacy librga source. |
+| `scripts/build-gstreamer-rockchip.sh` | Build the reduced portable plugin bundle; the maintained full builder is [`../build-gstreamer-rockchip.sh`](../build-gstreamer-rockchip.sh). |
+| `scripts/run-mpp-smoke.sh` | Direct narrow MPP smoke for setup debugging. |
+| `scripts/run-librga-smoke.sh` | Direct narrow official-sample smoke for setup debugging. |
+| `scripts/run-gstreamer-smoke.sh` | Direct narrow plugin smoke for setup debugging. |
+| `scripts/list-built-binaries.sh` | Show executable files staged under the bundle's `out/` directory. |
 
-Useful command shapes:
-
-```bash
-/usr/bin/mpi_dec_test -i assets/sample.h264 -t 7 -n 120 -o logs/rewrite/sample.yuv
-/usr/bin/mpi_dec_multi_test -i assets/sample.h265 -t 16777220 -n 120 -s 4
-/usr/bin/mpi_enc_test -i assets/nv12-1920x1080.yuv -w 1920 -h 1080 -f 0 -t 7 -n 120 -o logs/rewrite/out.h264
-/usr/bin/mpi_enc_mt_test -i assets/nv12-1920x1080.yuv -w 1920 -h 1080 -f 0 -t 16777220 -n 120 -s 4 -o logs/rewrite/out.h265
-```
-
-The exact numeric coding and pixel-format values come from MPP. If in doubt,
-run a binary with `--help`; it prints the supported formats.
-
-For a deliberate comparison with the pinned March MPP source, run
-`./scripts/build-mpp.sh`, then set `MPP_BIN_DIR="$PWD/out/mpp/bin"` and
-`MPP_LIBDIR="$PWD/out/mpp/lib"` explicitly.
-
-### 3. librga sample suite
-
-Build:
-
-```bash
-./scripts/build-librga-samples.sh
-```
-
-The build resolves `librga.pc` from the installed `librga-dev` package. Populate
-the directory named by `RGA_SAMPLE_DATA_DIR`; the patched sample utility no
-longer requires the Android-only `/data` path. The upstream samples expect files
-such as `in0w1280-h720-rgba8888.bin`; see
-`sources/airockchip-librga/samples/README.md`.
-
-For an explicit legacy build, `scripts/make-librga-pkgconfig.sh` can generate
-the old source tree's `librga.pc` shim under `out/pkgconfig`; pass that directory
-as `PKG_SHIM` instead of relying on it implicitly.
-
-Smoke:
-
-```bash
-PROFILE=rewrite ./scripts/run-librga-smoke.sh
-```
-
-The smoke default omits `rga_fill_demo` because that official sample hard-codes
-the vendor-only `system-uncached-dma32` heap. Set `RGA_CASES` explicitly to add
-it on a matching BSP kernel; the maintained `../librga-smoke.sh` covers fill
-through the portable allocator path used by the main conformance run.
-
-Prioritize these samples for the rewrite:
-
-- `copy_demo`: basic bitblit plus FBC/tile cases.
-- `resize_demo`: scaling and UV downsampling.
-- `cvtcolor_demo`: RGB/YUV conversion and CSC.
-- `fill_demo`: solid fills and rectangle-array batching.
-- `alpha_demo`: alpha blend, colorkey, OSD, RGBA/YUV composite cases.
-- `transform_demo`: rotate, flip, rotate+flip.
-- `async_demo`: request/fence handling.
-- `allocator_demo`: dma-heap, DRM, malloc/userptr, and physical-contiguous cases.
-- `rop_demo`, `mosaic_demo`, `padding_demo`: expected to expose current rewrite
-  feature gaps if not implemented.
-
-Run the same sample binaries under both kernels and compare outputs byte-for-byte
-where the sample writes deterministic files.
-
-### 4. JeffyCN GStreamer Rockchip plugins
-
-With installed `librockchip-mpp-dev`, `librga-dev`, and the GStreamer
-development packages, build only the out-of-tree plugin:
-
-```bash
-./scripts/build-gstreamer-rockchip.sh
-```
-
-> `scripts/build-gstreamer-rockchip.sh` here is the reduced, self-contained
-> variant this bundle needs when copied to the target board; it builds into
-> `build/jeffycn-gstreamer-rockchip` with every plugin feature left on `auto`.
-> The maintained one is
-> [`../build-gstreamer-rockchip.sh`](../build-gstreamer-rockchip.sh), which
-> builds into `…-mpp`, pins the feature set, adds the installed-package
-> pkg-config preflight, and also builds `gstreamer-event-harness`. They share a
-> basename but not a build tree — check which one a command means.
-
-Smoke:
-
-```bash
-PROFILE=rewrite ./scripts/run-gstreamer-smoke.sh
-```
-
-Then test real pipelines:
-
-- Decode H.264/H.265 to `fakesink`.
-- Decode H.264/H.265 to KMS/Wayland display if available.
-- Encode raw NV12 to H.264/H.265.
-- Transcode decode -> convert/scale -> encode.
-- Multi-stream decode and encode in parallel.
-- Stop, seek, EOS, restart, and caps renegotiation loops.
-- DMABuf zero-copy paths where the sink/source supports it.
-
-These tests are likely to catch bugs that plain FFmpeg misses because GStreamer
-changes pipeline state frequently and uses allocator/buffer-pool negotiation.
-
-### 5. Combined Linux demo
-
-Build `sources/mpp-linux-cpp-demo` after installing MPP/librga development files
-on the target. It is most useful as a manual display-path test:
-
-```bash
-cd sources/mpp-linux-cpp-demo
-cmake -S . -B build
-cmake --build build -j
-./build/mpp_linux_demo
-```
-
-Expect this to need local edits or environment setup for compiler paths and
-input media. Treat it as an integration smoke test, not as an automated
-pass/fail test.
-
-### 6. Android RKMediaCodecDemo
-
-Use this only on an Android image or Android userspace. It should be run once
-against each kernel if Android compatibility matters. It is lower priority for a
-Linux-only validation plan.
-
-## Result format
-
-For every test run, record:
-
-- Kernel profile: `rewrite` or `forward-port`.
-- Kernel commit or image name.
-- Installed MPP/librga package versions and checksums, plus the plugin/sample
-  source revisions from `MANIFEST.tsv`.
-- Exact command line.
-- Exit status.
-- Output file checksum if applicable.
-- `dmesg` tail after the run.
-- Any RGA/MPP debugfs or procfs counters that changed.
-
-The comparison target is not just "does it run". The rewrite should match the
-forward port for successful cases, fail cleanly for explicitly unsupported RGA
-features, and avoid kernel warnings, hangs, use-after-free reports, leaked
-fences, or IOMMU fault recovery regressions. Legacy/backend unsupported paths
-should normally surface `EOPNOTSUPP`; modern request config/submit failures
-match the BSP wrapper and surface `EFAULT` after request-check succeeds.
+Use the direct helpers to diagnose setup problems. Do not substitute their
+narrow green result for a catalog-driven conformance pass.
