@@ -271,7 +271,7 @@ against a silent-corruption case rather than fixing a specific commit's mistake.
 slice-FIFO fix. Provenance was subsequently checked: `0072` and `0074` repair
 forward-port regressions and restore the BSP kernel's byte-unit `vir_w`
 contract, so neither is a BSP backport candidate. They pair with the librga
-fork's im2d pixel-to-byte request translation ([W13](../../status.md#watch-w13)).
+fork's [im2d pixel-to-byte request translation](../../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md).
 `0073` is fail-closed RGA2 hardening; classify the independent `0075` slice-FIFO
 fix on its own evidence.
 

@@ -111,7 +111,9 @@ functional patch (reordering `add_all_hwdec_methods()` so
 `--hwdec=rkmpp` never registers), NV16/P010/P210 drmprime format additions
 (possibly upstream by now), and a shipped `/etc/mpv/mpv.conf` with
 `hwdec=rkmpp` and `vf-add=scale_rkrga=force_yuv=auto` as the 10-bit/HDR
-workaround — the same conversion layer as the RGA W13 work. Re-diff against
+workaround — the same conversion layer as the
+[librga 10-bit contract](../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md).
+Re-diff against
 current mpv (hwdec selection was reworked after 0.37) and re-evaluate their
 `gpu-context=x11egl` choice for a Wayland desktop.
 
@@ -321,8 +323,7 @@ and [browser landscape](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-de
 
 Zero-copy playback means DRM PRIME NV12/NV15 buffers imported into
 Panfrost/EGL or KMS planes. The recent RGA work (forward-port fixes
-`0046`–`0049`, the NV15/P010 10-bit conversion fixes tracked as
-[`status.md` W13](../status.md#watch-w13)) is exactly the layer 10-bit
+`0046`–`0049` and the NV15/P010 10-bit conversion fixes) is exactly the layer 10-bit
 HEVC/AV1 content hits when the GPU cannot sample NV15 directly. See the
 [conformance root-cause finding](../findings/2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md)
 and [librga 10-bit shipping guidance](../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md).

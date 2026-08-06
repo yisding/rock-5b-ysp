@@ -1156,6 +1156,9 @@ class SubstantiveDriftTests(unittest.TestCase):
                 "| W01 | [Paired](#watch-w01) | 2026-07-11 | Fine. |\n"
                 "| W02 | [No detail](#watch-w02) | 2026-07-11 | Missing detail. |\n\n"
                 "### W01 — Paired\n\n"
+                "- **Authority:** remote — example.invalid repository.\n"
+                "- **Recheck:** Fetch its advertised head.\n"
+                "- **Freshness:** Unknown after that head changes.\n"
                 "- **Last checked:** 2026-07-11\n"
                 "- **State 2026-07-11:** ok\n\n"
                 "### W03 — Orphan detail\n\n"
@@ -1181,6 +1184,9 @@ class SubstantiveDriftTests(unittest.TestCase):
                 "|----|------------|--------------|---------|\n"
                 "| W01 | [Live](#watch-w01) | 2026-07-11 | Fine. |\n\n"
                 "### W01 — Live\n\n"
+                "- **Authority:** service — example.invalid API.\n"
+                "- **Recheck:** Query the API.\n"
+                "- **Freshness:** Unknown after a failed query.\n"
                 "- **Last checked:** 2026-07-11\n"
                 "- **State 2026-07-11:** ok\n\n"
                 '<a id="watch-w02"></a>\n'
@@ -1209,6 +1215,28 @@ class SubstantiveDriftTests(unittest.TestCase):
             self.assertTrue(
                 any("retired detail still has a live index" in e for e in errors)
             )
+
+    def test_live_watchlist_requires_authority_recheck_and_freshness(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "status.md").write_text(
+                "## Watchlist — facts that go stale silently\n\n"
+                "| ID | Watch item | Last checked | Summary |\n"
+                "|----|------------|--------------|---------|\n"
+                "| W01 | [Live](#watch-w01) | 2026-07-11 | Fine. |\n\n"
+                "### W01 — Live\n\n"
+                "- **Last checked:** 2026-07-11\n"
+                "- **State 2026-07-11:** ok\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_watchlist_pairing(root, errors)
+
+            reported = "\n".join(errors)
+            self.assertIn("'**Authority:**'", reported)
+            self.assertIn("'**Recheck:**'", reported)
+            self.assertIn("'**Freshness:**'", reported)
 
     def test_status_ledger_tracks_must_match_the_dashboard(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -162,11 +162,12 @@ in the watchlist rather than burying them in project prose.
 
 Watchlist entries use stable `W##` IDs. Add or update both the compact index row
 and its detail block, keeping the item name and last-checked date identical —
-this pairing is mechanically enforced. Every detail records **Why recheck**,
-**Last checked**, and a dated **State** block; date each state rather than
-writing a bare "State then", so an entry that gains a newer state keeps the
-older one correctly attributed. Do not renumber the remaining items when one is
-retired.
+this pairing is mechanically enforced. Every live detail records **Authority**
+with one of `remote`, `service`, `host`, or `board`, an executable **Recheck**
+route, a **Freshness** rule, **Why recheck**, **Last checked**, and a dated
+**State** block. Date each state rather than writing a bare "State then"; replace
+routine same-result observations instead of retaining a recheck diary. Do not
+renumber the remaining items when one is retired.
 
 Retire an item when it no longer describes remote, service, host, or board
 state that can change without a repository commit. Remove its live index row,
@@ -191,8 +192,9 @@ checks substantive drift and completeness only:
   does not exist — the topic index is curated, so only its coverage is checked,
   never which group a finding belongs to;
 - each live `W##` watchlist entry has both halves agreeing on item name and
-  last-checked date, while each retired ID has no live index row and retains a
-  dated disposition behind its stable detail anchor;
+  last-checked date plus recognized authority, recheck, and freshness fields,
+  while each retired ID has no live index row and retains a dated disposition
+  behind its stable detail anchor;
 - every optional status-ledger row has a dashboard track under the same number
   and name, and numbered dashboard, next-gate, and ledger rows stay in one
   rendered table;

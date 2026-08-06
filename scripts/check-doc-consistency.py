@@ -7,8 +7,9 @@ Deliberately excludes documentation-formatting pedantry (finding headers,
 dashboard/ledger date-matching, support-coverage schema, project-brief fields,
 terminology). It reports only things that break navigation or ship wrong bits:
 files no README names, unlinked/dangling findings, a findings index that is not
-newest-first, live watchlist halves that are missing or disagree on
-name/last-checked date, retired watchlist details without a disposition,
+newest-first, live watchlist halves that are missing, lack an external
+authority/recheck/freshness contract, or disagree on name/last-checked date,
+retired watchlist details without a disposition,
 ledger tracks missing from or named differently than the dashboard, status
 tables split by blank lines or prose, drifted
 packaging version pins, out-of-sync kernel package helpers, misplaced
@@ -48,6 +49,11 @@ WATCH_ID_RE = re.compile(r"^W\d{2}$")
 WATCH_HEADING_RE = re.compile(r"^### (W\d{2}) — (.+?)\s*$")
 WATCH_INDEX_NAME_RE = re.compile(r"^\[(.+)\]\(#watch-w\d{2}\)$")
 WATCH_LAST_CHECKED_RE = re.compile(r"^-\s+\*\*Last checked:\*\*\s*(\d{4}-\d{2}-\d{2})")
+WATCH_AUTHORITY_RE = re.compile(
+    r"^-\s+\*\*Authority:\*\*\s*(remote|service|host|board)\s+—\s+\S"
+)
+WATCH_RECHECK_RE = re.compile(r"^-\s+\*\*Recheck:\*\*\s+\S")
+WATCH_FRESHNESS_RE = re.compile(r"^-\s+\*\*Freshness:\*\*\s+\S")
 WATCH_RETIRED_RE = re.compile(
     r"^-\s+\*\*Disposition:\*\*\s*Retired\s+(\d{4}-\d{2}-\d{2})(?:\s|[.—-])"
 )
@@ -314,12 +320,22 @@ def check_watchlist_pairing(root: Path, errors: list[str]) -> None:
             details[current] = {
                 "name": str(detail.group(2)),
                 "last_checked": None,
+                "authority": None,
+                "recheck": None,
+                "freshness": None,
                 "retired": None,
             }
         elif current is not None:
             checked = WATCH_LAST_CHECKED_RE.match(line)
             if checked:
                 details[current]["last_checked"] = checked.group(1)
+            authority = WATCH_AUTHORITY_RE.match(line)
+            if authority:
+                details[current]["authority"] = authority.group(1)
+            if WATCH_RECHECK_RE.match(line):
+                details[current]["recheck"] = "present"
+            if WATCH_FRESHNESS_RE.match(line):
+                details[current]["freshness"] = "present"
             retired = WATCH_RETIRED_RE.match(line)
             if retired:
                 details[current]["retired"] = retired.group(1)
@@ -342,6 +358,12 @@ def check_watchlist_pairing(root: Path, errors: list[str]) -> None:
                 f"status.md watchlist {watch_id}: retired detail still has a live "
                 "index row; remove the row and preserve only the stable anchor"
             )
+        for field in ("authority", "recheck", "freshness"):
+            if details[watch_id][field] is None:
+                errors.append(
+                    f"status.md watchlist {watch_id}: live detail has no recognized "
+                    f"'**{field.capitalize()}:**' field"
+                )
         if index_name != detail_name:
             errors.append(
                 f"status.md watchlist {watch_id}: name differs between halves "

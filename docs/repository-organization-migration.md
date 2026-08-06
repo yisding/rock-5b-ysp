@@ -133,7 +133,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-01 | MPP vertical pilot across build input, artifact, publication, runtime, and status | Build script owns intended pin; standard metadata owns actual artifact; Launchpad/W05 own live/datestamped publication; existing MPP/package owner absorbs closure evidence; status track 9 owns public rollup. Promote the useful closure evidence and remove its intake finding only after all inbound links move. | Track 9, W05, W25, MPP package/source docs, PPA docs/history, `findings/README.md`, direct finding links, ledger row 9; status-ledger/findings checks. Security: required because MPP/kernel logs and private reproducer boundary are adjacent; no reproducer or disclosure plan may move. | CLOSED 2026-08-05 — owners, reconstruction, negative control, link migration, intake removal, checker changes, and full handoff gate pass. |
 | ORG-02 | Adopt the pilot-tested contract and add small templates | `CONTRIBUTING.md` becomes normative owner; templates illustrate README, explanation, runbook, live-plan, and audit interfaces. Proposal/ledger do not remain contracts. | Root/docs routes, nearest-README rule, all pilot compatibility findings. Security fields stay mandatory in ledger workflow. | CLOSED 2026-08-05 — normative contract and five shared interfaces are linked, complete, and handoff-gated. |
 | ORG-10 | Dashboard and optional cross-project ledger | `status.md` owns compact verdict/next proof; only irreducible synthesis remains in `status-ledger.md`; project/finding owners receive exact identity and evidence. | Every numbered dashboard/next-gate/ledger row and inbound ledger link; replace mandatory-pair checker atomically. Security review per kernel/upstream row. | CLOSED 2026-08-05 — all rows route directly to existing owners; ledger retired, routes/checker valid, full gate green. |
-| ORG-11 | Watchlist cache | Remote/service/host/board is authoritative; live W-item owns dated cache/recheck/freshness only. Promote stable knowledge/internal work and retain retired anchors. | Every W01–W25 index/detail anchor and inbound W-link; pairing checker plus authority/retired-anchor report. Security review required for W19 and any memory-safety item. | PLANNED; classify every W-ID before activation. |
+| ORG-11 | Watchlist cache | Remote/service/host/board is authoritative; live W-item owns dated cache/recheck/freshness only. Promote stable knowledge/internal work and retain retired anchors. | Every W01–W25 index/detail anchor and inbound W-link; pairing checker plus authority/retired-anchor report. Security review required for W19 and any memory-safety item. | CLOSED 2026-08-05 — all IDs classified, successor routes/checker valid, full handoff gate green. |
 | ORG-20 | `source-trees.md` source map | Immutable documentation/comparison pins and reconstruction only; scripts/manifests own intended inputs, project docs own mechanism/results. | All source-tree section links and file/line citations; FFmpeg/GRD checks migrate only with owning package slices. Security review for kernel source/fix material. | PLANNED; split by source family. |
 | ORG-21 | PPA topology, package provenance, publication, and history | Package scripts own intended inputs; standard metadata owns artifacts; Launchpad/W05 own service state; runbooks own upload/sign/recovery; retain only incident/otherwise-unavailable history. | PPA/newcomer/package READMEs, installer, changelogs, W05, history links; FFmpeg/GRD pin tests and package helper checks. Security: public fix versus private submission/disclosure boundary. | PLANNED; activate one source package at a time after pilot. |
 | ORG-22 | Userspace patch and public technical-fix inventories | Project catalogs own behavior, public patch identity/provenance, dependencies, validation; scripts own pins. Promote useful public maintenance facts and remove publication/upstream-submission copies. | `packaging/userspace-patches.md`, package/source-delta catalogs, project READMEs. Security review mandatory; private destinations/order/send-withhold/disclosure remain private. | PLANNED; split by package. |
@@ -259,3 +259,43 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   file. The full `bash scripts/check-repo.sh` handoff gate passed on 2026-08-05
   across 435 Markdown files, 3,793 local links, 398 anchors, all 59 regression
   tests, ShellCheck, documentation consistency, and whitespace.
+
+### ORG-11 — watchlist cache
+
+- **Classification:** W01/W02/W06/W07/W10/W17/W18/W22/W24 survive as remote
+  caches, W04/W05 survive as service caches, and W16/W20/W23 survive as board
+  caches. No current item needs a host authority. W03/W08/W09/W11/W12/W13/
+  W14/W15/W19/W21/W25 are retired because their contents are resolved or
+  stable knowledge, repository-controlled work, or a package/project verdict
+  already owned elsewhere.
+- **Successor ownership:** W03 routes codec-udev policy to its package README;
+  W08 routes FFmpeg results to track 5 and its evidence; W09 routes Kodi work
+  to track 11 and the project runbook; W11 routes policy to `LICENSE.md` and
+  track 10; W12 routes workspace state to `packaging/external-workspaces.md`
+  and the contribution contract; W13 routes the paired RGA ABI to the librga
+  P010/P210 contract and KASAN finding; W14 routes the builder boundary to the
+  kernel-build owner and builder finding; W15 routes regeneration debt to the
+  patch catalog, resync guide, and session-close finding; W19 routes the fixed
+  MPP behavior to the public patch catalog and root-cause finding; W21 routes
+  the FFmpeg backpressure fix to the fix catalog and validation finding; W25
+  remains owned by the MPP architecture from ORG-01.
+- **Live interface and compatibility:** every live index/detail pair keeps the
+  same ID, name, and date and now declares `Authority`, `Recheck`, and
+  `Freshness`. Retired details keep their stable `#watch-wNN` anchors and a
+  dated disposition. Active front doors route directly to W13/W14 successor
+  owners; dated findings may retain the retired anchors as useful historical
+  compatibility routes.
+- **Public/private review:** W19's public stub names only the affected behavior,
+  guard, public patch/evidence owners, and validation boundary. The working
+  memory-corruption reproducer remains private and is neither linked nor
+  reproduced. W13/W15/W16/W21/W25 add no private harness, disclosure/CVE,
+  upstream destination/order, or send/withhold material.
+- **Checker disposition:** pairing remains strict for live items; live details
+  additionally require a recognized remote/service/host/board authority plus
+  non-empty recheck and freshness fields. Retired IDs continue to require a
+  dated disposition without being reintroduced into the live index.
+- **Validation:** exact-anchor search leaves only intentional dated-finding
+  links to retired W13/W14/W19. The full `bash scripts/check-repo.sh` handoff
+  gate passed on 2026-08-05 across 435 Markdown files, 3,781 local links, 387
+  anchors, all 60 regression tests, ShellCheck, documentation consistency, and
+  whitespace.

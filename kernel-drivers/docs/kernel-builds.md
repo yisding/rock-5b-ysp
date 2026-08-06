@@ -78,7 +78,7 @@ Not flavors of this entry point, but part of the same delivery picture:
   out-of-tree modules for a stock kernel; **mutually exclusive** with the
   built-in local flavors on one installed kernel.
 - **YSP Armbian builder VM** — exact-production image rebuilds
-  ([builder finding](../../findings/2026-07-08-armbian-builder-setup.md), watchlist W14).
+  ([builder finding](../../findings/2026-07-08-armbian-builder-setup.md)).
 
 ## Modes and knobs (local flavors)
 
