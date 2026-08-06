@@ -117,7 +117,8 @@ Confirm hardware decode in `~/.kodi/temp/kodi.log`:
   MPP therefore parsed the four-byte `av1C` header as an OBU and reported
   `No sequence header available`. The forward port now calls
   `mpp_packet_set_extra_data()` before queueing it; the build passes, but the
-  RK3588 MP4/MKV playback re-test is still pending. See the
-  [finding](../../../findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) §3.
+  RK3588 MP4/MKV playback re-test is still pending. The
+  [FFmpeg scorecard](../../../video-libraries/ffmpeg/docs/validation.md)
+  distinguishes that application gate from compile and package proof.
 - 10-bit (NV15) and AFBC plane routing on RK3588 can need attention (dynamic DRM
   plane selection); validate per-content on the board.

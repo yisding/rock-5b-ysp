@@ -842,3 +842,28 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 - **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
   2026-08-06 across 407 Markdown files, 3,588 local links, 451 anchors, all 62
   regression tests, ShellCheck, documentation consistency, and whitespace.
+
+#### FFmpeg/MPP/Kodi owner batch
+
+- **Promotion:** moved the two fixed HEVC parser/HAL cases into the libmpp
+  architecture owner, the unused-following-reference and historical package
+  proofs into the FFmpeg validation scorecard, the frei0r FATE proof into the
+  baseline package README, and the three frozen Debian corrections into the
+  PPA reconstruction guide. Kodi's decoder analysis and build runbook retain
+  decoder selection, AV1 extradata behavior, and the pending playback gate.
+- **Removal:** deleted the four mature 2026-07-09, 2026-07-11, 2026-07-27, and
+  2026-07-29 intake files. The curated topic group now contains only the live
+  2026-07-30 asynchronous-frame-lifetime investigation; the generated
+  chronology was regenerated and every maintained inbound route was repointed.
+- **Evidence boundary:** immutable commits, package correction mechanisms,
+  exact focused frame/test signals, trust, and negative boundaries remain in
+  maintained project/package docs. Current branch, publication, installed
+  state, consumer playback, and broader conformance remain with W05/W07,
+  `status.md`, Kodi's runbook, or the surviving live finding as appropriate.
+- **Public/private review:** this batch retains public codec conformance,
+  parser/HAL behavior, build, and application-integration evidence. It adds no
+  memory-corruption trigger, private harness, disclosure/CVE coordination,
+  upstream destination/order, or send/withhold decision.
+- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
+  2026-08-06 across 403 Markdown files, 3,583 local links, 457 anchors, all 62
+  regression tests, ShellCheck, documentation consistency, and whitespace.

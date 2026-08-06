@@ -424,7 +424,7 @@ finish" failure mode.
 - **The `_50MS`/`_100MS` macro names should be corrected to their cycle counts**
   or to measured values. They are BSP-inherited and misleading; any future
   timeout tuning that trusts them starts 22 % off.
-- Relates to [`2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md`](2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md)
+- Relates to the [MPP HEVC parser-state repair evidence](../vendor-libraries/mpp/docs/mpp-library-architecture.md#hevc-parser-state-must-follow-syntax-identity-not-poc-or-numeric-id-alone)
   and [`2026-07-28-vaapi-decode-readiness-and-remaining-work.md`](2026-07-28-vaapi-decode-readiness-and-remaining-work.md).
 
 ## Historical incidence

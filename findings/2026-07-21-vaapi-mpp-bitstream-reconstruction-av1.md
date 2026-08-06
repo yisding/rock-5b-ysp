@@ -82,7 +82,7 @@ AV1 in hardware.** Through ffmpeg's `av1_rkmpp` path, MPP gets a real OBU
 bitstream straight from the MP4/MKV container and `rkvdec2` decodes it —
 hardware-validated bit-exact on the av1-fwport build (2026-07-04,
 `decode-differential.sh`; needs that variant's `mpp_av1dec.c`; see the
-[Kodi/ffmpeg hwaccel finding](2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md)).
+[Kodi/FFmpeg operation boundary](../apps/kodi/docs/build-hwaccel.md#6-known-limits)).
 Same hardware, same MPP. The VA-API bridge fails on AV1 *only because VA-API
 already tore the OBUs apart* and the bridge would have to rebuild them.
 

@@ -286,8 +286,9 @@ state observed on its last-checked date.
 
 - **Disposition:** Retired 2026-08-05 — this is an internal validation gate, not
   silent external drift. [Status track 5](#dashboard) owns the one next proof;
-  the [Kodi/FFmpeg finding](findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md)
-  retains the `av1C` fix and evidence boundary.
+  the [Kodi runbook](apps/kodi/docs/build-hwaccel.md#6-known-limits) retains the
+  `av1C` mechanism and the [FFmpeg scorecard](video-libraries/ffmpeg/docs/validation.md)
+  retains its evidence boundary.
 
 <a id="watch-w09"></a>
 ### W09 — Kodi build and tty1 playback

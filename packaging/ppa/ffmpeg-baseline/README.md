@@ -22,6 +22,23 @@ Local delta on top of the recovered tree (version `7:8.1.2-1+rk2`):
   `distort0r.so` at runtime; with only `frei0r-plugins-dev` installed the
   arm64 test suite fails (Launchpad build 33366878).
 
+## Local package validation boundary
+
+A regenerated `7:8.1.2-1+rk2` source package and fresh `.dsc` extraction built
+successfully on the ROCK 5B. `fate-source`,
+`filter-frei0r-filter`, and `filter-frei0r-filter-unaligned` passed, the log
+contained no missing-`distort0r` failure, and the build emitted 32 binary/debug
+packages plus its arm64 build metadata. The result proves that the runtime
+plugin dependency fixes the focused FATE failure in a source-package-accurate
+build.
+
+It was not a clean Launchpad chroot reproduction: the live host consumed an
+extracted `frei0r-plugins` payload through `FREI0R_PATH`. A build beneath an
+enclosing Git checkout also needs `GIT_CEILING_DIRECTORIES` set to its isolated
+workspace so FFmpeg's source check does not inspect the wrong repository. The
+later published archive state is a separate observation, not implied by this
+local proof.
+
 To rebuild the source package: overlay this `debian/` onto the extracted
 `ffmpeg_8.1.2.orig.tar.xz` (sha256
 `464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c`), reusing

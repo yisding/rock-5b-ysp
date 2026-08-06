@@ -169,6 +169,24 @@ The snapshot itself owns its source commit, version, and ABI package names.
 For a Debian-revision retry, obtain and reuse the accepted orig tarball; that
 older helper predates the current automatic source-tree comparison.
 
+<a id="ffmpeg81-package-lessons"></a>
+#### Frozen FFmpeg 8.1 package lessons
+
+The historical forward-port package needed three mechanical corrections before
+its full local arch+indep build, FATE run, and Launchpad arm64 build passed:
+
+- drop the RKMPP decoder's static `pix_fmts` metadata because
+  `libavcodec-avcodec` rejects it for a hardware decoder; the separate
+  DRM PRIME `AVCodecHWConfig` used by Kodi remains intact;
+- stop installing the absent upstream `RELEASE_NOTES` file; and
+- publish the generated Doxygen `ffmpeg-doc` payload as `Architecture: all`,
+  because it is built in the architecture-independent pass.
+
+These are reconstruction rules for that frozen FFmpeg 8.1 package, not current
+branch or archive state. The [FFmpeg validation scorecard](../../video-libraries/ffmpeg/docs/validation.md)
+owns the evidence classification, and the [Kodi decoder analysis](../../apps/kodi/docs/decoder-selection.md)
+owns why the metadata change does not alter decoder selection.
+
 ## Upload Order
 
 Respect build dependencies, and wait for each wave's development packages to

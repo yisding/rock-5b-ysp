@@ -323,15 +323,11 @@ libavcodec VA-API consumers without per-application RKMPP codec patches.
 - [`2026-07-21`](2026-07-21-ubuntu-rockchip-piggyback-survey.md) — ubuntu-rockchip (Joshua Riek) survey: a working Chromium V4L2-stateful-over-MPP bridge exists, the project is archived, and per-app reuse is now mapped
 - [`2026-07-21`](2026-07-21-rockchip-vaapi-driver-review.md) — rockchip-vaapi review: a working PoC VA-API-over-MPP driver exists; strategic architecture is right, two load-bearing shortcuts must be replaced; recommend fork-and-renovate
 
-### FFmpeg, MPP userspace, and Kodi (5)
+### FFmpeg, MPP userspace, and Kodi (1)
 
 The userspace codec libraries and the media applications that consume them.
 
 - [`2026-07-30`](2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md) — FFmpeg RKMPP async-frame lifetime fix clears reset/close double release
-- [`2026-07-29`](2026-07-29-hevc-nut-radl-and-unused-rps-reference-fixes.md) — HEVC NUT failures split into MPP RADL suppression and FFmpeg unused-RPS handling
-- [`2026-07-27`](2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md) — Rockchip MPP HEVC TILES failure: same-ID PPS changes never reach the HAL
-- [`2026-07-11`](2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) — Kodi 22 hardware video on RK3588 via ffmpeg-rockchip-81: MPP runtime, three fork-packaging bugs, and zero-patch decoder selection
-- [`2026-07-09`](2026-07-09-ffmpeg-baseline-rk2-local-build-validation.md) — FFmpeg baseline `-1+rk2` local source-package build validates frei0r fix
 
 ### Build, packaging, and provenance (8)
 
@@ -421,7 +417,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-29-rdp-black-screen-gsd-power-one-shot-wake-watch-wedge.md`](2026-07-29-rdp-black-screen-gsd-power-one-shot-wake-watch-wedge.md) — RDP session wedges black after idle lock: gsd-power's one-shot wake watch is unrecoverable
 - [`2026-07-29-production-6-18-40-orig-is-rewrite-composite-snapshot.md`](2026-07-29-production-6-18-40-orig-is-rewrite-composite-snapshot.md) — The production 6.18.40 `20260725` orig is a rewrite-composite worktree snapshot, not the validated forward-port series
 - [`2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md`](2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md) — MPP job-ISR IOMMU fault-handler clear takes sleeping locks and panicked the idle task
-- [`2026-07-29-hevc-nut-radl-and-unused-rps-reference-fixes.md`](2026-07-29-hevc-nut-radl-and-unused-rps-reference-fixes.md) — HEVC NUT failures split into MPP RADL suppression and FFmpeg unused-RPS handling
 - [`2026-07-29-grd-fullrange-bt709-fixes-muted-colors.md`](2026-07-29-grd-fullrange-bt709-fixes-muted-colors.md) — Full-range BT.709 signaling fixes the muted GRD AVC colors after a clean reboot
 - [`2026-07-29-forward-port-warn-oops-audit-and-fixes.md`](2026-07-29-forward-port-warn-oops-audit-and-fixes.md) — Forward-port MPP/RGA WARN/oops audit: 18 defects found and fixed
 - [`2026-07-29-av1-rewrite-branch-hardening-gap-and-backport.md`](2026-07-29-av1-rewrite-branch-hardening-gap-and-backport.md) — rk3588-rewrite-av1-6.18 forked before 19 hardening commits; KUnit isolation and the ISR fault-handler panic fix are absent
@@ -435,7 +430,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-28-grd-avc-fullrange-bt709-handover-boundary.md`](2026-07-28-grd-avc-fullrange-bt709-handover-boundary.md) — GRD AVC full-range BT.709 is package-verified; the live A/B stopped at handover
 - [`2026-07-28-dmabuf-debug-upstream-provenance-and-fix-options.md`](2026-07-28-dmabuf-debug-upstream-provenance-and-fix-options.md) — The DMABUF_DEBUG scatterlist defect is 100% upstream code, reported since 2022, and blocked on an unresolved dma-buf design argument
 - [`2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md`](2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md) — CONFIG_DMABUF_DEBUG's mangle_sg_table() is the system-heap page_link writer, and the dma-heap CPU-access sync dereferences it
-- [`2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md`](2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md) — Rockchip MPP HEVC TILES failure: same-ID PPS changes never reach the HAL
 - [`2026-07-27-rk3588-spl-ramoops-binary-audit.md`](2026-07-27-rk3588-spl-ramoops-binary-audit.md) — Exact SPL audit closes the ordinary CPU zero-writer, not the DDR mechanism
 - [`2026-07-27-rk3588-ramoops-next-experiment-plan.md`](2026-07-27-rk3588-ramoops-next-experiment-plan.md) — Ramoops next experiments: find the first boot stage that changes the bytes
 - [`2026-07-27-rk3588-pvtm-volt-sel-measured.md`](2026-07-27-rk3588-pvtm-volt-sel-measured.md) — This ROCK 5B's BSP voltage-select index measured: L5 little / L7 both big clusters
@@ -516,9 +510,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-17-forward-port-conformance-preflight-oops.md`](2026-07-17-forward-port-conformance-preflight-oops.md) — Forward-port conformance preflight Oopsed before the first MPP case
 - [`2026-07-16-rockchip-bsp-driver-quality.md`](2026-07-16-rockchip-bsp-driver-quality.md) — Rockchip BSP driver quality is feature-strong but below mature mainline robustness
 - [`2026-07-13-rock5b-u-boot-fit-dtb-race.md`](2026-07-13-rock5b-u-boot-fit-dtb-race.md) — ROCK 5B zero-DTB race: controlled proof, Noble `cp`, and KSpace amplification
-- [`2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md`](2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) — Kodi 22 hardware video on RK3588 via ffmpeg-rockchip-81: MPP runtime, three fork-packaging bugs, and zero-patch decoder selection
 - [`2026-07-09-rock5b-armbian-sd-boot-investigation.md`](2026-07-09-rock5b-armbian-sd-boot-investigation.md) — ROCK 5B Armbian SD boot investigation summary
-- [`2026-07-09-ffmpeg-baseline-rk2-local-build-validation.md`](2026-07-09-ffmpeg-baseline-rk2-local-build-validation.md) — FFmpeg baseline `-1+rk2` local source-package build validates frei0r fix
 - [`2026-07-08-armbian-builder-setup.md`](2026-07-08-armbian-builder-setup.md) — ROCK 5B Armbian builder: native host, branch/release map, and remote-cache behavior
 - [`2026-07-08-armbian-26.2.1-bl31-handoff-hang.md`](2026-07-08-armbian-26.2.1-bl31-handoff-hang.md) — Armbian 26.2.1 ROCK 5B raw bootloader hangs after BL31 handoff
 - [`2026-07-07-rock5b-spi-sd-boot-chain.md`](2026-07-07-rock5b-spi-sd-boot-chain.md) — ROCK 5B SPI U-Boot changes how Radxa SD images boot

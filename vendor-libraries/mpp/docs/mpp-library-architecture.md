@@ -415,6 +415,36 @@ owned by FFmpeg, VA-API, Kodi, and GNOME Remote Desktop. The raw logs and build
 products are disposable external build state, reconstructible under
 `../rock-5b/build/`; they are not repository content.
 
+### HEVC parser state must follow syntax identity, not POC or numeric ID alone
+
+Two fixed conformance failures establish a durable parser-to-HAL rule: syntax
+identity is richer than either picture order count or parameter-set ID.
+
+- **Random-access leading pictures:** at `mpp@d8c6b88a`, the H.265 parser's
+  explicit RASL test correctly suppressed two non-output pictures in the
+  byte-identical `NUT_A_ericsson_4/5` vector, but a second broad
+  `poc < max_ra && !IS_IRAP(type)` test also discarded seven valid RADL
+  pictures. Commit `3381fd2c` removed the broad test while retaining the RASL
+  rule. Direct MPP decode changed from 27 to the conformant 34 clean frames;
+  the packaged repair is recorded in
+  [`packaging/ppa/mpp/debian/changelog`](../../../packaging/ppa/mpp/debian/changelog).
+- **Same-ID PPS replacement:** the refactored parser set
+  `pps_update_mask` when PPS contents changed, but the slice path only dirtied
+  hardware state when the numeric PPS ID or referenced SPS changed. A second
+  picture that reused PPS ID 0 with a different 5x5 tile layout therefore ran
+  against the first picture's hardware table. Commit `d8c6b88a` makes the
+  first slice selecting a changed PPS consume its bitmap bit and set
+  `ps_need_upate`. The direct two-picture reduction, all 100 frames of
+  `TILES_A_Cisco_2`, and the eight-vector VA-API HEVC Main matrix then passed;
+  the package record is in the same changelog.
+
+Both results were source-inspected, board-reproduced, compile-verified, and
+runtime-verified at the named commits. The same-ID PPS result was also verified
+through the Debian package; the NUT repair's source packages built and
+published before installed archive identity was separately qualified. These
+cases prove the focused parser/HAL repairs, not every HEVC conformance vector or
+consumer integration path.
+
 ### Normal Decoder Threads
 
 For most codecs, `mpp_dec_start_normal()` starts:
