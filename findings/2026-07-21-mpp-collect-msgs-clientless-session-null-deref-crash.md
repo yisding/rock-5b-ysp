@@ -17,8 +17,8 @@ below. Title/filename kept for link stability.)*
 > `18657949` is Published, arm64 build `33468629` succeeded, and the exact
 > package is installed. Installed-package replay also keeps all four 30-frame
 > codec differentials bit-exact and passes the official suite 12/12 with clean
-> bounded kernel-journal scans. See the
-> [dedicated finding and validation record](./2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md#installed-ppa-package-closure).
+> bounded kernel-journal scans. See the maintained
+> [MPP presentation-event explanation and evidence basis](../vendor-libraries/mpp/docs/mpp-library-architecture.md#vp9-presentation-event-ownership).
 
 > ## 2026-08-04 USERSPACE LEG 2 ROOT-CAUSED
 >
@@ -33,8 +33,8 @@ below. Title/filename kept for link stability.)*
 > cleans a leaked buffer. The old `-n 16` crash reproducer hid the output loss
 > by rewinding the under-producing input until it reached 16 outputs. Current
 > Rockchip `develop@df4864bd` remains affected and has no matching public
-> issue/PR. See the
-> [dedicated root-cause finding](./2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md).
+> issue/PR. See the maintained
+> [MPP presentation-event explanation and evidence basis](../vendor-libraries/mpp/docs/mpp-library-architecture.md#vp9-presentation-event-ownership).
 
 > ## 2026-07-23 GATE VERIFIED on `Pc1f8-C9fc5` (carries `0058`)
 >

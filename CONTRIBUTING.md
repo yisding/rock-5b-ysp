@@ -23,7 +23,7 @@ build products and external checkouts out of this repository.
 | A patch, test, reproducer, package recipe, or operational script | The project directory that owns the affected layer. |
 | A cross-project map, source pin, or global trap | [`docs/`](docs/README.md). |
 | A board subsystem with no or only narrow repo evidence | The stable row in [`docs/support-coverage.md`](docs/support-coverage.md), plus a dated finding when runtime evidence is gathered. |
-| A user-visible support state or the next proof needed | [`status.md`](status.md), with the matching audit row in [`docs/status-ledger.md`](docs/status-ledger.md). |
+| A user-visible support state or the next proof needed | [`status.md`](status.md). Use [`docs/status-ledger.md`](docs/status-ledger.md) only for irreducible cross-project current synthesis that has no direct project/finding owner. |
 | An external fact that can change without a repository edit | The [`status.md` watchlist](status.md#watchlist--facts-that-go-stale-silently). |
 | A shared term | [`glossary.md`](glossary.md); project-only terms stay in the project's `keywords.md`. |
 | A source checkout, build directory, log bundle, binary, or board backup | An external workspace or ignored local path; document its reconstruction or disposition instead. |
@@ -96,9 +96,9 @@ flowchart LR
   finding -->|matures| project["Owning project doc"]
   finding -->|changes public state| status["status.md<br/>state + next gate + date"]
   project -->|changes public state| status
-  status --> ledger["status ledger<br/>longer dated audit note"]
+  status --> ledger["optional status ledger<br/>irreducible cross-project synthesis"]
   volatile["External state can drift"] --> watchlist["status watchlist"]
-  finding -->|promoted| tombstone["Finding tombstone"]
+  finding -->|promote useful evidence + repoint links| removed["intake removed"]
 ```
 
 Use [`findings/TEMPLATE.md`](findings/TEMPLATE.md) for the low-ceremony capture
@@ -114,9 +114,14 @@ under the layer that owns it. That index is hand-curated — a machine cannot te
 that a dma-buf oops first seen through GRD is really a memory-plumbing finding —
 so only its coverage is mechanically enforced, not its judgement.
 
-Promote a mature finding into the owning project documentation. Replace the
-original finding with a short `promoted → ...` tombstone so links and history
-survive; do not leave two competing canonical explanations.
+Promote a mature finding by incorporating its useful identity, method, signal,
+trust classification, boundary, and reconstruction route into the existing
+project explanation, runbook/test contract, patch catalog, package
+documentation, necessary dated audit, or status route that owns them. Repoint
+every maintained repository link, regenerate both findings indexes, and remove
+the intake file without a tombstone. Git history retains the discarded intake;
+the ordinary reader should reach the durable owner rather than a second
+chronology.
 
 ## Updating project status
 
@@ -129,8 +134,10 @@ When an existing track changes:
    materially advances the track and a working **Action path** to its runbook,
    exact evidence owner, or decision boundary.
 3. Change the verification date only when the state was actually rechecked.
-4. Update the matching ledger row with the same number, track name, and date.
-5. Link the project document or finding that owns the evidence.
+4. Link the project document or live finding that owns the evidence.
+5. If an optional ledger row owns irreducible cross-project synthesis affected
+   by the change, update that row under the same number and track name. Do not
+   create a row merely to duplicate the dashboard or direct owner.
 
 Keep each dashboard state to the latest proven capability plus its material
 boundary. Incident chronology, build fingerprints, per-case results, and
@@ -139,10 +146,12 @@ dated finding. Likewise, a next-gate row names the next proof rather than
 retelling the proofs already closed. Keep every numbered row contiguous with
 the table above it; a blank line ends a Markdown table.
 
-When adding a track, add it to both files with a new stable number. Do not create
-a dashboard row for every finding: use a row when the subject is a user-visible
-support area or a sustained workstream. Put volatile package, upstream-review,
-and distro facts in the watchlist rather than burying them in project prose.
+When adding a track, give it a new stable dashboard number. Add an optional
+ledger row under that number only when it has necessary cross-project synthesis
+that direct owner links cannot express. Do not create a dashboard row for every
+finding: use a row when the subject is a user-visible support area or a
+sustained workstream. Put volatile package, upstream-review, and distro facts
+in the watchlist rather than burying them in project prose.
 
 Watchlist entries use stable `W##` IDs. Add or update both the compact index row
 and its detail block, keeping the item name and last-checked date identical —
@@ -151,6 +160,13 @@ this pairing is mechanically enforced. Every detail records **Why recheck**,
 writing a bare "State then", so an entry that gains a newer state keeps the
 older one correctly attributed. Do not renumber the remaining items when one is
 retired.
+
+Retire an item when it no longer describes remote, service, host, or board
+state that can change without a repository commit. Remove its live index row,
+keep the stable `#watch-wNN` detail anchor, and replace the old cache/history
+with one `**Disposition:** Retired YYYY-MM-DD — ...` line that links the durable
+owner or successor. Promote any useful mechanism or evidence before compacting
+the old detail.
 
 Dashboard, next-gate, ledger, and coverage **prose** is maintained by hand — it
 is convention, not mechanically enforced. `scripts/check-doc-consistency.py`
@@ -167,11 +183,12 @@ checks substantive drift and completeness only:
   stated count matches its rows, and no group lists a tombstone or a file that
   does not exist — the topic index is curated, so only its coverage is checked,
   never which group a finding belongs to;
-- each `W##` watchlist entry has both halves, and they agree on item name and
-  last-checked date;
-- every `status.md` dashboard track has a ledger row under the same number and
-  name, no ledger row lacks a dashboard track, and numbered dashboard,
-  next-gate, and ledger rows stay in one rendered table;
+- each live `W##` watchlist entry has both halves agreeing on item name and
+  last-checked date, while each retired ID has no live index row and retains a
+  dated disposition behind its stable detail anchor;
+- every optional status-ledger row has a dashboard track under the same number
+  and name, and numbered dashboard, next-gate, and ledger rows stay in one
+  rendered table;
 - the kernel source packages' copied helpers stay identical;
 - packaging version pins (FFmpeg/GRD) have not drifted;
 - no operational script defaults to a personal home path;

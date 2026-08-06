@@ -7,9 +7,10 @@ Deliberately excludes documentation-formatting pedantry (finding headers,
 dashboard/ledger date-matching, support-coverage schema, project-brief fields,
 terminology). It reports only things that break navigation or ship wrong bits:
 files no README names, unlinked/dangling findings, a findings index that is not
-newest-first, watchlist halves that are missing or disagree on
-name/last-checked date, dashboard tracks missing from the ledger or named
-differently there, status tables split by blank lines or prose, drifted
+newest-first, live watchlist halves that are missing or disagree on
+name/last-checked date, retired watchlist details without a disposition,
+ledger tracks missing from or named differently than the dashboard, status
+tables split by blank lines or prose, drifted
 packaging version pins, out-of-sync kernel package helpers, misplaced
 root-level patch files, personal-home executable defaults, and shell files
 whose shebang and executable bit disagree about whether they are run or
@@ -47,6 +48,9 @@ WATCH_ID_RE = re.compile(r"^W\d{2}$")
 WATCH_HEADING_RE = re.compile(r"^### (W\d{2}) — (.+?)\s*$")
 WATCH_INDEX_NAME_RE = re.compile(r"^\[(.+)\]\(#watch-w\d{2}\)$")
 WATCH_LAST_CHECKED_RE = re.compile(r"^-\s+\*\*Last checked:\*\*\s*(\d{4}-\d{2}-\d{2})")
+WATCH_RETIRED_RE = re.compile(
+    r"^-\s+\*\*Disposition:\*\*\s*Retired\s+(\d{4}-\d{2}-\d{2})(?:\s|[.—-])"
+)
 ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TRACK_ROW_RE = re.compile(r"^\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|")
 MARKDOWN_LINK_RE = re.compile(r"!?\[[^\]\n]*(?:\][^\[\]\n]*)*\]\(([^\)\n]+)\)")
@@ -266,11 +270,13 @@ def check_findings_topic_coverage(root: Path, errors: list[str]) -> None:
 
 
 def check_watchlist_pairing(root: Path, errors: list[str]) -> None:
-    """Every watchlist W## entry has both halves, agreeing on name and date.
+    """Pair live W## entries and preserve retired IDs behind dated stubs.
 
-    The two halves are maintained by hand in one file and drifted seven ways in
-    under two weeks, so name and last-checked exactness is enforced rather than
-    left to convention. Ordering and prose are still not policed.
+    Live index/detail halves are maintained by hand in one file and drifted
+    seven ways in under two weeks, so name and last-checked exactness is
+    enforced rather than left to convention. A retired ID leaves the live index
+    but keeps its heading/anchor and an explicit dated disposition. Ordering and
+    prose are still not policed.
     """
     path = root / "status.md"
     if not path.is_file():
@@ -292,7 +298,7 @@ def check_watchlist_pairing(root: Path, errors: list[str]) -> None:
     section = lines[lines.index(heading) + 1 :]
 
     index: dict[str, tuple[str, str]] = {}
-    details: dict[str, tuple[str, str | None]] = {}
+    details: dict[str, dict[str, str | None]] = {}
     current: str | None = None
     for line in section:
         if line.startswith("## "):
@@ -305,20 +311,37 @@ def check_watchlist_pairing(root: Path, errors: list[str]) -> None:
         detail = WATCH_HEADING_RE.match(line)
         if detail:
             current = str(detail.group(1))
-            details[current] = (str(detail.group(2)), None)
-        elif current is not None and details[current][1] is None:
+            details[current] = {
+                "name": str(detail.group(2)),
+                "last_checked": None,
+                "retired": None,
+            }
+        elif current is not None:
             checked = WATCH_LAST_CHECKED_RE.match(line)
             if checked:
-                details[current] = (details[current][0], checked.group(1))
+                details[current]["last_checked"] = checked.group(1)
+            retired = WATCH_RETIRED_RE.match(line)
+            if retired:
+                details[current]["retired"] = retired.group(1)
 
     for watch_id in sorted(set(index) - set(details)):
         errors.append(f"status.md watchlist {watch_id}: index row has no detail block")
     for watch_id in sorted(set(details) - set(index)):
-        errors.append(f"status.md watchlist {watch_id}: detail block has no index row")
+        if details[watch_id]["retired"] is None:
+            errors.append(
+                f"status.md watchlist {watch_id}: detail block has no index row "
+                "or dated '**Disposition:** Retired YYYY-MM-DD' stub"
+            )
 
     for watch_id in sorted(set(index) & set(details)):
         index_name, index_date = index[watch_id]
-        detail_name, detail_date = details[watch_id]
+        detail_name = details[watch_id]["name"]
+        detail_date = details[watch_id]["last_checked"]
+        if details[watch_id]["retired"] is not None:
+            errors.append(
+                f"status.md watchlist {watch_id}: retired detail still has a live "
+                "index row; remove the row and preserve only the stable anchor"
+            )
         if index_name != detail_name:
             errors.append(
                 f"status.md watchlist {watch_id}: name differs between halves "
@@ -354,30 +377,33 @@ def _numbered_tracks(path: Path) -> dict[str, str]:
 
 
 def check_status_ledger_tracks(root: Path, errors: list[str]) -> None:
-    """The dashboard and its ledger carry the same track numbers and names.
+    """Every optional ledger row maps to one same-numbered dashboard track.
 
-    CONTRIBUTING.md requires a new track to be added to both files with one
-    stable number; track 14 reached only the dashboard, and two more disagreed
-    on capitalisation. Dated prose is still each file's own.
+    The ledger now exists only for irreducible cross-project synthesis. It may
+    therefore contain a subset of dashboard tracks or be retired entirely, but
+    a row that remains must not lose or rename its public dashboard owner.
     """
-    dashboard = _numbered_tracks(root / "status.md")
-    ledger = _numbered_tracks(root / "docs/status-ledger.md")
+    dashboard_path = root / "status.md"
+    ledger_path = root / "docs/status-ledger.md"
+    dashboard = _numbered_tracks(dashboard_path)
+    ledger = _numbered_tracks(ledger_path)
     # An empty parse used to disable the comparison silently, so a table that
     # stopped matching TRACK_ROW_RE looked identical to a table with no drift.
-    for label, tracks in (("status.md", dashboard), ("docs/status-ledger.md", ledger)):
-        if not tracks:
-            errors.append(
-                f"{label}: no numbered track rows parsed, so the dashboard/ledger "
-                "track comparison covered nothing"
-            )
-    if not dashboard or not ledger:
+    if not dashboard:
+        errors.append(
+            "status.md: no numbered track rows parsed, so the optional ledger "
+            "comparison covered nothing"
+        )
+        return
+    if not ledger_path.is_file():
+        return
+    if not ledger:
+        errors.append(
+            "docs/status-ledger.md: file exists but no numbered track rows "
+            "parsed; add an irreducible synthesis row or retire the file"
+        )
         return
 
-    for number in sorted(set(dashboard) - set(ledger), key=int):
-        errors.append(
-            f"docs/status-ledger.md: no row for status.md track {number} "
-            f"({dashboard[number]!r})"
-        )
     for number in sorted(set(ledger) - set(dashboard), key=int):
         errors.append(
             f"status.md: no dashboard row for ledger track {number} "

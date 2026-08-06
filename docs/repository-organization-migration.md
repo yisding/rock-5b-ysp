@@ -130,8 +130,8 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ID | Area and current role | Mutable assertion owner; observation disposition | Routes, checks, and security review | Status / unresolved |
 |----|-----------------------|-----------------------------------------------|-------------------------------------|---------------------|
 | ORG-00 | Phase 0 ledger and informational baseline | This ledger temporarily owns migration state; `report-doc-duplication.py` owns the reproducible signal definitions. No repository assertion moves. | `docs/README.md`, `scripts/README.md`; nearest-README, script-mode, regression tests. Security: not applicable; inventory only. | CLOSED 2026-08-05 — focused tests and full handoff gate pass. |
-| ORG-01 | MPP vertical pilot across build input, artifact, publication, runtime, and status | Build script owns intended pin; standard metadata owns actual artifact; Launchpad/W05 own live/datestamped publication; existing MPP/package owner absorbs closure evidence; status track 9 owns public rollup. Promote the useful closure evidence and remove its intake finding only after all inbound links move. | Track 9, W05, W25, MPP package/source docs, PPA docs/history, `findings/README.md`, direct finding links, ledger row 9; status-ledger/findings checks. Security: required because MPP/kernel logs and private reproducer boundary are adjacent; no reproducer or disclosure plan may move. | MAPPED — exact artifact reconstruction, durable evidence owner, inbound-link list, and VA-API negative control still open. |
-| ORG-02 | Adopt the pilot-tested contract and add small templates | `CONTRIBUTING.md` becomes normative owner; templates illustrate README, explanation, runbook, live-plan, and audit interfaces. Proposal/ledger do not remain contracts. | Root/docs routes, nearest-README rule, all pilot compatibility findings. Security fields stay mandatory in ledger workflow. | PLANNED after ORG-01. |
+| ORG-01 | MPP vertical pilot across build input, artifact, publication, runtime, and status | Build script owns intended pin; standard metadata owns actual artifact; Launchpad/W05 own live/datestamped publication; existing MPP/package owner absorbs closure evidence; status track 9 owns public rollup. Promote the useful closure evidence and remove its intake finding only after all inbound links move. | Track 9, W05, W25, MPP package/source docs, PPA docs/history, `findings/README.md`, direct finding links, ledger row 9; status-ledger/findings checks. Security: required because MPP/kernel logs and private reproducer boundary are adjacent; no reproducer or disclosure plan may move. | CLOSED 2026-08-05 — owners, reconstruction, negative control, link migration, intake removal, checker changes, and full handoff gate pass. |
+| ORG-02 | Adopt the pilot-tested contract and add small templates | `CONTRIBUTING.md` becomes normative owner; templates illustrate README, explanation, runbook, live-plan, and audit interfaces. Proposal/ledger do not remain contracts. | Root/docs routes, nearest-README rule, all pilot compatibility findings. Security fields stay mandatory in ledger workflow. | ACTIVE — the promotion, optional-ledger, and retired-watchlist contract is implemented; templates remain. |
 | ORG-10 | Dashboard and optional cross-project ledger | `status.md` owns compact verdict/next proof; only irreducible synthesis remains in `status-ledger.md`; project/finding owners receive exact identity and evidence. | Every numbered dashboard/next-gate/ledger row and inbound ledger link; replace mandatory-pair checker atomically. Security review per kernel/upstream row. | PLANNED; split by track before activation. |
 | ORG-11 | Watchlist cache | Remote/service/host/board is authoritative; live W-item owns dated cache/recheck/freshness only. Promote stable knowledge/internal work and retain retired anchors. | Every W01–W25 index/detail anchor and inbound W-link; pairing checker plus authority/retired-anchor report. Security review required for W19 and any memory-safety item. | PLANNED; classify every W-ID before activation. |
 | ORG-20 | `source-trees.md` source map | Immutable documentation/comparison pins and reconstruction only; scripts/manifests own intended inputs, project docs own mechanism/results. | All source-tree section links and file/line citations; FFmpeg/GRD checks migrate only with owning package slices. Security review for kernel source/fix material. | PLANNED; split by source family. |
@@ -168,35 +168,51 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 
 ### ORG-01 — MPP vertical pilot
 
-- **Current copies:** intended `a8b19653`/upstream version appear in the PPA
-  build script, package changelog/docs, PPA front door/history, status W05/W25,
-  ledger row 9, and the VP9 closure finding. Publication and runtime details are
-  repeated between track 9, W05, W25, ledger row 9, package docs, and the
-  finding.
-- **Proposed owner map:** the build script owns the default input; Debian and
-  Launchpad metadata own actual artifact identity; W05 owns the dated service
-  observation; the existing MPP or package validation documentation selected
-  during reconstruction will own the promoted runtime basis; track 9 remains a
-  compact public rollup. W25 is retired behind its stable anchor after its
-  resolved knowledge moves; ledger row 9 is removed if its cross-project
-  synthesis reduces to direct links.
-- **Observation awaiting promotion:**
-  `findings/2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md` contains
-  the source fix, installed-PPA closure, workloads, signals, and boundary. Do
-  not delete it until each maintained inbound link is repointed and the durable
-  owner retains the minimum decisive evidence.
-- **Known inbound routes:** status track 9, W05, W25, ledger row 9,
-  `findings/README.md` chronology/topic views, PPA/package/project READMEs, and
-  direct repository links found by exact-path search. Enumerate all before edit.
-- **Checker disposition:** no FFmpeg/GRD pin check changes belong in this pilot.
-  If row 9 is removed, change the status-ledger checker/tests in the same commit.
-  If the finding is removed, regenerate both findings views and keep all
-  findings checks green in that commit.
-- **Security review:** the public result may state the libmpp defect and fix,
-  but must not acquire a working memory-corruption reproducer, severity/CVE
-  discussion, disclosure coordination, or an upstream submission plan. Private
-  harness references remain plain, unlinked names where necessary.
-- **Validation still required:** prove artifact reconstruction, select the
-  durable evidence owner, replay the six reader lookups including the VA-API
-  same-version negative control, measure update fan-out, run the full gate, and
-  record the final disposition here.
+- **Owner map implemented:**
+  `packaging/ppa/build-source-packages.sh` owns intended input
+  `a8b19653`; Debian/Launchpad metadata and the PPA reconstruction section own
+  the actual source artifact; W05 owns the dated external publication state;
+  the MPP architecture owns mechanism, evidence, trust, and boundary; status
+  track 9 owns only the public rollup. W25 is retired behind its stable anchor,
+  and ledger row 9 was removed because it reduced to direct owner links.
+- **Artifact reconstruction:** source publication `18657949`, upload
+  `38936532`, and arm64 build `33468629` retain the standard source/build
+  records. The signed `.dsc` identifies orig SHA-256 `67d1921f...a59356c` and
+  Debian-tar SHA-256 `82fa7843...ca94a6e8`. Rebuilding with the maintained
+  default reproduced the published orig byte-for-byte; Git history explains
+  the sole current Debian-tar difference, a later SPDX comment.
+- **Promotion and inbound compatibility:** exact-path search identified two
+  findings-index routes plus status W25, source-tree inventory, status-ledger
+  row 9, the MPP project front door, two related findings, and this temporary
+  ledger. All maintained links now route to the architecture/package owners;
+  entries in both findings views and the superseded intake file are removed
+  together.
+- **Reader replay:** a maintainer finds the default in the build script, an
+  auditor finds exact payload hashes in the PPA reconstruction section, an
+  operator finds live state at W05, a developer finds the queue contract in the
+  MPP architecture, a dashboard reader finds the public verdict in track 9,
+  and a package consumer reaches all four without reading chronology. The
+  VA-API negative control remains explicit: the same-version local build is
+  installed/validated while the PPA-built binary is not installed or replayed,
+  so version equality is not artifact identity.
+- **Fan-out:** this slice changes the durable architecture, package owner,
+  source inventory, project route, dashboard/watchlist, two related findings,
+  optional ledger, generated/curated findings routes, contribution contract,
+  checker/docs/tests, and this ledger. Most edits retire old ownership rather
+  than duplicate the new fact; a future MPP runtime update should normally
+  touch the architecture, W05, and track 9, plus package metadata only when its
+  artifact changes.
+- **Public/private review:** the promoted public content states a userspace
+  event-ownership defect, fix, test shape, and bounded results. It adds no
+  working memory-corruption reproducer, CVE/severity claim, disclosure
+  coordination, or upstream-submission plan; private harness names and raw logs
+  were not imported.
+- **Checker disposition:** FFmpeg/GRD pin checks are unchanged. Ledger rows are
+  now optional but must map to same-number/same-name dashboard owners when they
+  exist; live watchlist pairs remain exact while retired IDs require a dated
+  disposition. Findings checks see only the live inbox after promotion.
+- **Validation:** all 59 repository-check regression tests pass, including the
+  new optional-ledger and retired-watchlist cases. The full
+  `bash scripts/check-repo.sh` handoff gate passed on 2026-08-05 with 430
+  Markdown files, 3,839 local links, 398 anchors, ShellCheck, documentation
+  consistency, and whitespace all green.

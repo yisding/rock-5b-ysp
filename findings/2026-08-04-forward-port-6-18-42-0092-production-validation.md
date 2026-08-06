@@ -144,8 +144,8 @@ both +2 usage charges, leaving the three twice-repeated references at
 buffer reference. A one-pass follow-up emits only 13 of the software
 decoder's 16 frames, proving that the three coalesced occurrences are dropped;
 the original `-n 16` stress rewinds the input until it reaches its requested
-count. This remains an open userspace MPP defect; see the
-[dedicated root-cause finding](2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md).
+count. That userspace defect was subsequently repaired and promoted into the
+maintained [MPP presentation-event explanation and evidence basis](../vendor-libraries/mpp/docs/mpp-library-architecture.md#vp9-presentation-event-ownership).
 
 ### RGA cancellation and reset
 

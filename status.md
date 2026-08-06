@@ -9,7 +9,7 @@ distro versions, un-pushed dev-box state) are concentrated in the
 [watchlist](#watchlist--facts-that-go-stale-silently) so routine maintenance
 means re-checking one list. Update rule: the
 [resyncing guide §6](./kernel-drivers/docs/resyncing.md) update-propagation table names this page
-whenever a gate changes. The canonical status/ledger procedure is in
+whenever a gate changes. The canonical status and optional-ledger procedure is in
 [`CONTRIBUTING.md`](CONTRIBUTING.md); keep dates honest (re-verify, don't
 re-date).
 
@@ -25,8 +25,9 @@ evidence in [`findings/`](findings/README.md) before adding a new status track.
 ## Dashboard
 
 This table answers **what is true as of the verification date**. Longer evidence
-stays in the linked detail and status ledger; the next proof is kept in the
-separate table below so both remain scannable.
+stays in the linked project or finding; the optional status ledger carries only
+irreducible cross-project synthesis. The next proof is kept in the separate
+table below so both remain scannable.
 
 | # | Track | Public state | Verified | Detail |
 |---|-------|--------------|----------|--------|
@@ -73,9 +74,10 @@ dashboard date and ledger row when public state changes.
 
 ## Status Ledger
 
-Longer dated audit notes now live in
-[`docs/status-ledger.md`](./docs/status-ledger.md). Keep this page as the compact
-dashboard, next-gate queue, and watchlist of facts that can change silently.
+Irreducible cross-project synthesis may live in the optional
+[`docs/status-ledger.md`](./docs/status-ledger.md); most evidence belongs
+directly in its project or finding. Keep this page as the compact dashboard,
+next-gate queue, and watchlist of facts that can change silently.
 
 <a id="watchlist--facts-that-go-stale-silently"></a>
 
@@ -111,7 +113,6 @@ last-checked date.
 | W22 | [RK3588 per-die voltage binning absent from mainline](#watch-w22) | 2026-07-27 | Rechecked three release candidates later at maxline `v7.2-rc5-252`: still absent, and `rk3588-opp.dtsi` is byte-identical between the 6.18 forward port and maxline, so one DT patch serves both. Mainline ships the BSP's unbinned worst-die column **exactly** (19/19 shared CPU OPPs) while the BSP's per-die columns reach 50–87 mV lower. This board is bin 0 and its BSP index is now **measured** — L5 little, L7 both big — so the entitlement is priced, not estimated. |
 | W23 | [Ramoops retention reversal & the 6.18.38 kernel A/B](#watch-w23) | 2026-07-28 | **Ramoops recovers records across warm reboots on every 6.18.40-era kernel** — ≥9 recoveries in the retained journal since 2026-07-26, same firmware stack — so the documented all-zero failure is scoped to the 6.18.38-era kernels and the firmware-phase hypothesis is retired. The four-reboot kernel A/B on the still-installed `6.18.38-current` is pending; the 2026-07-27 19:38 GRD-SG oops dump is archived in `/var/lib/systemd/pstore/`. |
 | W24 | [ROCK 5B stock-Ubuntu image inputs](#watch-w24) | 2026-08-01 | Ubuntu 26.04 arm64 images, Canonical's draft Image Cookbook/`ubuntu-image` 3.6.0 schema, Linux 6.18 LTS projection, and the inspected upstream U-Boot tip are recorded as design inputs. No successor image, clean kernel package, gadget, or upstream-U-Boot board boot exists yet. |
-| W25 | [libmpp VP9 repeated-reference output ownership](#watch-w25) | 2026-08-05 | Closed in source and the installed PPA package at `a8b19653`: source `18657949` is Published, arm64 build `33468629` succeeded, and the live archive version is installed. Installed sync/no-thread/multi-thread outputs are 16/16 and byte-identical, 120/120 stress decoders are teardown-clean, the four-codec differential is bit-exact, the official suite is 12/12, and bounded kernel-journal scans are clean. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -184,8 +185,9 @@ last-checked date.
   board. MPP source publication `18657949` is also `Published`, build
   `33468629` is `Successfully built`, and the live index selects
   `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1`. All four
-  installed MPP runtime/development/demo packages report that exact version,
-  and the installed-runtime closure is recorded under W25. This closes the
+  installed MPP runtime/development/demo packages report that exact version;
+  the maintained [MPP evidence basis](./vendor-libraries/mpp/docs/mpp-library-architecture.md#vp9-presentation-event-ownership)
+  owns the installed-runtime closure. This closes the
   forward-port publication/install/boot milestone. VA-API ysp13 source
   publication `18657954` is Published, arm64 build `33468630` succeeded, and
   live binary publications include the driver `247800963` and its
@@ -850,54 +852,9 @@ last-checked date.
 <a id="watch-w25"></a>
 ### W25 — libmpp VP9 repeated-reference output ownership
 
-- **Why recheck:** This userspace leg was separated from the July VA-API and
-  kernel crash fixes but never received its own status owner. The existing
-  reproducer gates decoder process success and a clean kernel journal, so it
-  reports PASS while retaining libmpp slot assertions and buffer cleanup in
-  every process log. Rockchip's userspace MPP source and issue tracker can
-  change independently of the kernel series.
-- **Last checked:** 2026-08-05
-- **State 2026-08-05:** Fixed in public `yisding/ysp/main@a8b19653` and closed
-  in the installed normal-PPA package. Generic slot
-  queues now store distinct occurrence nodes, and VP9 show-existing output
-  snapshots its presentation frame with one owned buffer reference. The new
-  base regression queues 40 events on one slot and recovers every distinct
-  PTS/DTS in order. `mpi_dec_test`, `mpi_dec_nt_test`, and `mpi_dec_mt_test`
-  each produce the full 16-image, 2,433,024-byte vector exactly matching the
-  software NV12 oracle. The original 30×4 stress has 120/120 successful
-  decoders, no slot/refcount/leak diagnostic, and no deferred kernel fault.
-  H.264/H.265/VP9/AV1 differential decode remains bit-exact for 30 frames each.
-  Official Launchpad API and APT-index checks now report source publication
-  `18657949` Published and arm64 build `33468629` successful. The live normal
-  PPA selects `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1`, and that exact
-  runtime, development library, VPU library, and demo set is installed.
-  Installed-package replay on rewrite KASAN boot `g19634f4eebba` reproduces
-  the three 16-frame/2,433,024-byte outputs at the software oracle SHA-256,
-  passes 120/120 concurrent stress decoders with zero ownership/leak
-  diagnostic, keeps all four 30-frame codec differentials bit-exact, and
-  passes the official MPP suite 12/12. The exact VP9, stress, differential,
-  and official-suite journal intervals contain zero fatal kernel line.
-  Detail:
-  [`findings/2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md`](./findings/2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md).
-- **State 2026-08-04:** Root-caused against installed package
-  `1.5.0+git20260730.ad325345+ds-0ubuntu1~rk1`. The retained vector's final
-  eight show-existing packets select `6,7,3,4,5,6,7,3`; the parser can enqueue
-  those events before the HAL thread drains output. `mpp_buf_slot_enqueue()`
-  has one intrusive list node per slot and unconditionally removes/re-adds it,
-  but charges every enqueue. The three repeated reference identities therefore
-  match the three physical slots left at `display=2`. Output uses a shallow
-  `mpp_frame_copy()` without acquiring a buffer ref for each repeated
-  presentation. In 30×4 direct-MPP runs: 120/120 processes exit 0, with 720
-  slot assertions, 240 non-positive buffer-ref reports, 120 three-frame pool
-  residues, and 120 leaked-buffer cleanup lines; the kernel window is clean.
-  Those runs request `-n 16`, so `mpi_dec_test` rewinds the under-producing
-  stream and partially decodes it again. A one-pass `-n 0` run proves the
-  visible consequence: libmpp outputs 13 image frames versus software's 16,
-  matching frames 0–7 and then retaining only software frames 11–15; the first
-  presentations of repeated identities `6`, `7`, and `3` are dropped.
-  A fresh fetch puts Rockchip `develop` at `df4864bd1e90` (2026-07-28), still
-  carrying the same VP9 and queue code; public issue/PR searches find no fix.
-  Next proof is a libmpp patch that queues distinct presentation events with
-  snapshotted PTS/DTS and one buffer ref per event, followed by count/order,
-  framehash, PTS, and teardown-clean regression on this vector. Detail:
-  [`findings/2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md`](./findings/2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md).
+- **Disposition:** Retired 2026-08-05 — the defect is resolved knowledge, not
+  an external fact that can go stale silently. The maintained
+  [MPP presentation-event model and evidence basis](./vendor-libraries/mpp/docs/mpp-library-architecture.md#vp9-presentation-event-ownership)
+  owns the mechanism, repair, validation result, trust, and boundary. [W05](#watch-w05)
+  remains the dated cache for Launchpad publication state, and dashboard track
+  9 remains the public package/runtime rollup.

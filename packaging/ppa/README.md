@@ -108,7 +108,7 @@ step-by-step provenance is retained in the
 |---------|----------------------|------------------|-------|
 | `plymouth` | `24.004.60+git20250831.4a3c171d-0ubuntu8.1~rk1` under [`plymouth/`](plymouth/README.md) | Source publication [`18636085`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18636085), successful arm64 build [`33428910`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33428910), and all nine binary publications are Published. | Exact Ubuntu Resolute `-0ubuntu8` source plus upstream `45655f12`, fixing the incomplete-CSI non-advancing loop that can hang `plymouthd` on serial-console input. `debdiff` contains only the changelog, one DEP-3 patch, and its series entry; source/binary lintian has no warning or error introduced by the backport. |
 | `rk3588-codec-udev` | `1.1` under [`codec-udev/`](codec-udev/README.md) | Source publication [`18620729`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18620729) and arm64-hosted `Architecture: all` build [`33399688`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33399688) are Published/successful. Version 1.0 is superseded. | Installs the canonical non-root MPP/RGA/DMA-heap access rule; `1.1` retriggers real sysfs devices and verifies the resulting permissions. Local source/binary builds, lintian, package installation, and live-device permission checks pass. |
-| `mpp` | `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1` | Signed source publication [`18657949`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18657949) is Published. Arm64 build [`33468629`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33468629) succeeded in 4m07s; its expected binaries are in the live normal-PPA index and the runtime, development, VPU, and demo packages are installed. The full source export, exact orig-content checks, clean `.dsc` extraction, all three signature checks, `dscverify`, Lintian error gate, and installed payload-integrity checks pass. | Fork tip `a8b19653` preserves every VP9 show-existing presentation occurrence, snapshots its metadata, and owns one buffer reference per event. Installed sync/no-thread/multi-thread one-pass decode returns all 16 frames byte-identically; 120/120 stress decoders, 30-frame H.264/H.265/VP9/AV1 differentials, and the 12/12 official MPP suite pass with clean bounded journal scans. The package also advances across the intervening IEP2 cache/mode and vproc signal-frame/field fixes. |
+| `mpp` | `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1` | Source publication [`18657949`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18657949) and arm64 build [`33468629`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33468629) identify the immutable source/build records; [W05](../../status.md#watch-w05) owns the dated observation of their external state. Standard Debian metadata is sufficient to reconstruct the artifact; see [below](#mpp-source-artifact-reconstruction). | The maintained [MPP presentation-event evidence basis](../../vendor-libraries/mpp/docs/mpp-library-architecture.md#vp9-presentation-event-ownership) owns the repair mechanism, focused and installed-package results, trust, and boundary. Broader application behavior remains with its consumer tracks. |
 | `librga` | `2.2.0+git20260725.26a50ef-0ubuntu1~rk1` | Source publication [`18641905`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18641905) is Published; arm64 build [`33440960`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33440960) succeeded in 6m02s, and binary publications [`247477790`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247477790) and [`247477791`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247477791) are Published. The exact packages are installed from the normal PPA. Client-side verification also passed the full local arm64 build and Lintian error gate, with SONAME unchanged at `librga.so.2`. | Extends the 10-bit `vir_w` byte-stride conversion to **TILE** (FBC stays on the pixel convention); also fixes the cmake `-DLINUX` hole and unchecked `fread()`s. **Must land with a kernel carrying the matching TILE plane-offset fix** — a mismatched pair is wrong by 20% on the 10-bit TILE path. Note the upstream date is `20260725` (commit is 2026-07-25 UTC): a same-date bump to a digit-leading hash sorts *below* `b8def3e` under dpkg comparison. |
 | `ffmpeg` | `7:8.0.3+rockchip+git20260730.c9428bedaa-0ubuntu1~rk1` | The successor source package builds and validates locally. Its `.dsc`, source `.buildinfo`, and `.changes` have good direct GPG signatures, and `dput` passed every client gate and transferred all five source artifacts to the normal PPA on 2026-08-05. Per the operator's stop point, Launchpad acceptance, arm64 build, and publication were not awaited or rechecked. Predecessor source [`18647960`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18647960), build [`33450629`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33450629), and all 29 binaries [`247606934`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247606934)–[`247606962`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247606962) are the last confirmed Published set. | Retains bounded RKMPP backpressure and the HEVC unused-following-reference fix, then fixes asynchronous input-frame ownership across encoder reset/close. Focused hardware gates pass 10/10 immediate-close and 10/10 flush/reuse iterations without the old libmpp refcount/pool diagnostics. The predecessor remains installed; candidate installation and repeated GRD fallback/recreation are pending. |
 | `rockchip-vaapi` | `1.0.11+ysp13-0ubuntu1~rk1` | Public release commit `70f26d9`; source publication [`18657954`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18657954), successful arm64 build [`33468630`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33468630), driver binary [`247800963`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247800963), and the config binary are Published. Fresh `.dsc` extraction matches every tracked release file byte-for-byte with no extra source file apart from generated `.pc` metadata. The PPA-built binary has not replaced the same-version local build. | Retains ysp12's 17/17 bit-exact interlaced-decode fix, then preserves driver-owned NV12/P010 surfaces exported before first decode. The same-version local package passes the retained-export worker/lifecycle/sanitizer, conformance, static-analysis, and zero-copy gates; Google Chrome 151 presents H.264 correctly instead of green and selects VA-API for 640×480 VP9. Browser automation and GPU sandbox proof remain open. |
@@ -398,6 +398,45 @@ The source delta lives as reviewable commits on the fork branch; there is no
 packaging-local quilt series. The packaging keeps unversioned linker symlinks
 in `-dev` and lists the upstream static archive in `debian/not-installed`
 rather than shipping it.
+
+<a id="mpp-source-artifact-reconstruction"></a>
+#### MPP source-artifact reconstruction
+
+The standard Launchpad/Debian records answer the actual-artifact question; no
+custom manifest is required. Source publication
+[`18657949`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18657949)
+routes to signed `.dsc` SHA-256
+`351eefa8606179bfccc3406e418251fc00c0ac5e95b24ce417ec0ef05caed98c`.
+That `.dsc` authenticates these source payloads:
+
+| Source payload | SHA-256 |
+|----------------|---------|
+| `mpp_1.5.0+git20260805.a8b19653+ds.orig.tar.gz` | `67d1921fd31c607a44db0fcabfbd708bc33df55cff6e9dc017a8699f0a59356c` |
+| `mpp_1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1.debian.tar.xz` | `82fa7843de6a26ce182c04dbb87bce1e19e5d94e6f5f51cbef943745ca94a6e8` |
+
+Launchpad upload `38936532` retains the source `.changes`, including those
+hashes and source-buildinfo hash. Build
+[`33468629`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33468629)
+retains the arm64 `.buildinfo`/`.changes`, toolchain and dependency versions,
+and SHA-256 for every output binary.
+
+A 2026-08-05 reconstruction with the maintained default:
+
+```bash
+PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+OUT=../rock-5b/build/mpp-source-recheck \
+FORCE_ORIG=1 \
+  bash packaging/ppa/build-source-packages.sh mpp
+```
+
+reproduced the published orig tarball byte-for-byte from
+`a8b19653af1a0b23754afafd7de72919fa8d0c0c`. The published Debian tarball is
+the checked-in packaging content used for the upload; today's regeneration
+differs only by the SPDX comment added to `debian/rules` later in repository
+commit `62c42ce`. The signed `.dsc` retains the exact 6,420-byte upload payload,
+and Git history explains the later non-functional 38-byte source change. Thus
+intended input, actual source artifact, external publication observation, and
+runtime qualification remain distinct and reconstructible.
 
 ### librga
 

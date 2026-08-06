@@ -321,6 +321,100 @@ When parser setup changes slot requirements, `mpp_buf_slot_is_changed()` becomes
 true. MPP then emits an info-change frame and waits until the application calls
 `MPP_DEC_SET_INFO_CHANGE_READY`, which ends in `mpp_buf_slot_ready()`.
 
+<a id="vp9-presentation-event-ownership"></a>
+### VP9 repeated presentations are queue events, not slot state
+
+The maintained `ysp/main` repair establishes a more precise slot-queue rule:
+one decoded slot may back several presentation events, but every event needs
+its own queue occurrence, timestamp snapshot, and buffer reference. A slot is
+DPB/storage identity; it is not output-event identity.
+
+#### Mechanism and rejected interpretation
+
+The affected VP9 `show_existing_frame` path mutated the reference slot's shared
+`MppFrame`, charged `SLOT_QUEUE_USE`, and enqueued the slot on
+`QUEUE_DISPLAY`. The old generic queue stored one intrusive `slot->list` node.
+Re-enqueueing a slot removed and re-added that node, coalescing the earlier
+occurrence while retaining both +2 usage charges. The output side then made a
+shallow `MppFrame` copy without acquiring one buffer reference for each repeat.
+
+The retained vector's final events select reference-map entries
+`6,7,3,4,5,6,7,3`. The repeated `6`, `7`, and `3` account exactly for the three
+lost presentations and the three slots left at `display=2`. Compensating the
+counter or refusing a duplicate enqueue would only hide teardown damage while
+still losing output and overwriting event PTS/DTS; the queue has to represent
+distinct events.
+
+Public commit `a8b19653af1a0b23754afafd7de72919fa8d0c0c` implements that
+contract:
+
+- slot queues allocate one entry per occurrence;
+- `mpp_buf_slot_enqueue_frame()` snapshots presentation metadata and acquires
+  one owned buffer reference while adding the queue holds;
+- dequeue transfers the snapshot to `mpp_dec_put_frame()` without another
+  shallow copy;
+- no-hardware-task parser returns publish ready entries while preserving the
+  ordering of entries still waiting on HAL completion; and
+- the focused base regression queues 40 snapshots of one slot, beyond the old
+  five-bit counter range, and verifies every distinct PTS/DTS in order.
+
+#### Evidence basis
+
+Evidence captured on 2026-08-04–05 uses the retained
+`vp9-show-existing.ivf` vector and the public fixed source above. Trust is
+**MEASURED** for output counts, hashes, stress, official-suite results, and
+bounded kernel logs; **SOURCE-CONFIRMED** for duplicate-node collapse, shared
+timestamp mutation, missing per-output buffer ownership, and the repaired
+event model. The exact final service-cleanup transition in the old code was not
+traced and remains **INFERRED**; it is not needed to establish the event-loss
+mechanism.
+
+| Evidence | Result and decisive signal |
+|----------|----------------------------|
+| Affected one-pass `mpi_dec_test -n 0` | 13 image frames / 1,976,832 bytes versus software's 16 / 2,433,024; frames 8–10, the first presentations of the three repeated identities, are absent. |
+| Affected 30-loop × 4-concurrent gate | 120/120 processes exit 0 but retain 720 slot assertions, 240 non-positive buffer-ref reports, 120 three-frame pool residues, and 120 leaked-buffer cleanup lines. This is a stress/lifetime signal, not a frame-count oracle, because `-n 16` rewinds the under-producing input. |
+| Fixed source build | Full CMake build and `mpp_buf_slot_test` pass, including 40 ordered occurrences of one slot. |
+| Fixed one-pass clients | `mpi_dec_test`, `mpi_dec_nt_test`, and `mpi_dec_mt_test` each return 16 frames / 2,433,024 bytes, byte-identical to software NV12 SHA-256 `0056282676abd243c2f36ab3ca13262f57a278a5129d204c88227651ac950098`, with no slot/refcount/leak diagnostic. |
+| Fixed teardown and codec regression | 120/120 stress processes are teardown-clean; H.264, H.265, VP9, and AV1 each produce 30 bit-exact 640×480 frames; bounded journal scans are clean. |
+| Installed package | The same three VP9 clients and stress/differential gates pass against the installed PPA runtime; the official MPP suite passes all 12 required decode/encode cases with a zero-fatal-line journal sidecar. |
+
+The canonical targeted operation remains
+[`mpp-vp9-show-existing-repro.sh`](../../../kernel-drivers/tests/mpp-vp9-show-existing-repro.sh),
+owned by the [kernel-driver test front door](../../../kernel-drivers/tests/README.md).
+For the historical stress shape:
+
+```bash
+LOOPS=30 CONCURRENCY=4 \
+  bash kernel-drivers/tests/mpp-vp9-show-existing-repro.sh
+```
+
+A pass for the repaired userspace requires the one-pass 16-frame/order/hash
+oracle as well as absence of `clear_slots_impl`, `non-positive ref_count`,
+`cleaning leaked buffer`, and `found * used buffer`. A clean kernel scan and
+process exit alone are insufficient.
+
+#### Identity, reconstruction, and boundary
+
+The intended package input is owned by
+[`build-source-packages.sh`](../../../packaging/ppa/build-source-packages.sh),
+not this explanation. The installed validation used source publication
+[`18657949`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18657949)
+and arm64 build
+[`33468629`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33468629);
+the exact source/build metadata and payload reconstruction live in the
+[MPP package section](../../../packaging/ppa/README.md#mpp-source-artifact-reconstruction).
+The public capability rollup remains in
+[`status.md`](../../../status.md#dashboard), while Launchpad's moving state is
+cached only under [W05](../../../status.md#watch-w05).
+
+Installed replay ran on rewrite KASAN kernel
+`6.18.42-video-rewrite-kasan-rockchip64 #2 g19634f4eebba`. It qualifies this
+userspace package against a compatible MPP service; it does not add evidence to
+the separate forward-port kernel tail. Application-specific behavior remains
+owned by FFmpeg, VA-API, Kodi, and GNOME Remote Desktop. The raw logs and build
+products are disposable external build state, reconstructible under
+`../rock-5b/build/`; they are not repository content.
+
 ### Normal Decoder Threads
 
 For most codecs, `mpp_dec_start_normal()` starts:

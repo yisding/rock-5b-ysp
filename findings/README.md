@@ -334,11 +334,10 @@ libavcodec VA-API consumers without per-application RKMPP codec patches.
 - [`2026-07-21`](2026-07-21-ubuntu-rockchip-piggyback-survey.md) — ubuntu-rockchip (Joshua Riek) survey: a working Chromium V4L2-stateful-over-MPP bridge exists, the project is archived, and per-app reuse is now mapped
 - [`2026-07-21`](2026-07-21-rockchip-vaapi-driver-review.md) — rockchip-vaapi review: a working PoC VA-API-over-MPP driver exists; strategic architecture is right, two load-bearing shortcuts must be replaced; recommend fork-and-renovate
 
-### FFmpeg, MPP userspace, and Kodi (6)
+### FFmpeg, MPP userspace, and Kodi (5)
 
 The userspace codec libraries and the media applications that consume them.
 
-- [`2026-08-04`](2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md) — libmpp VP9 `show_existing_frame` reuses a slot-keyed display node as an output event
 - [`2026-07-30`](2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md) — FFmpeg RKMPP async-frame lifetime fix clears reset/close double release
 - [`2026-07-29`](2026-07-29-hevc-nut-radl-and-unused-rps-reference-fixes.md) — HEVC NUT failures split into MPP RADL suppression and FFmpeg unused-RPS handling
 - [`2026-07-27`](2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md) — Rockchip MPP HEVC TILES failure: same-ID PPS changes never reach the HAL
@@ -399,7 +398,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-08-04-rkvenc-encoder-rcb-sram-scope.md`](2026-08-04-rkvenc-encoder-rcb-sram-scope.md) — RK3588 encoder RCB is reachable only by >4096-wide H.264, so the absent encoder SRAM costs almost nothing
 - [`2026-08-04-rewrite-kunit-request-rotation-repair.md`](2026-08-04-rewrite-kunit-request-rotation-repair.md) — Current rewrite tips repair request cleanup and rotation KUnit contracts
 - [`2026-08-04-rewrite-kernel-rebase-6-18-42-7-2-rc6.md`](2026-08-04-rewrite-kernel-rebase-6-18-42-7-2-rc6.md) — Rewrite kernels rebased cleanly onto v6.18.42 and v7.2-rc6
-- [`2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md`](2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md) — libmpp VP9 `show_existing_frame` reuses a slot-keyed display node as an output event
 - [`2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md`](2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md) — IEP2 field parity settled: the mode suffix selects the field and `dil_order` does nothing, so MPP's hardcoded I1O1T is wrong for BFF streams
 - [`2026-08-04-grd-vaapi-encode-blocked-by-packed-slice-headers.md`](2026-08-04-grd-vaapi-encode-blocked-by-packed-slice-headers.md) — GRD has a native VA-API encoder and does not need FFmpeg — but it demands packed slice headers, which MPP cannot serve
 - [`2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md`](2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md) — Installed ysp13 fixes Google Chrome's green H.264; VP9 selects VA-API above Chromium's software cutoff

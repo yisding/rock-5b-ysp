@@ -1172,6 +1172,44 @@ class SubstantiveDriftTests(unittest.TestCase):
             # The fully consistent W01 is silent.
             self.assertFalse(any("W01" in e for e in errors))
 
+    def test_retired_watchlist_id_keeps_a_dated_stub_outside_live_index(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "status.md").write_text(
+                "## Watchlist — facts that go stale silently\n\n"
+                "| ID | Watch item | Last checked | Summary |\n"
+                "|----|------------|--------------|---------|\n"
+                "| W01 | [Live](#watch-w01) | 2026-07-11 | Fine. |\n\n"
+                "### W01 — Live\n\n"
+                "- **Last checked:** 2026-07-11\n"
+                "- **State 2026-07-11:** ok\n\n"
+                '<a id="watch-w02"></a>\n'
+                "### W02 — Resolved item\n\n"
+                "- **Disposition:** Retired 2026-08-05 — resolved knowledge "
+                "moved to its project owner.\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_watchlist_pairing(root, errors)
+
+            self.assertEqual(errors, [])
+
+            text = (root / "status.md").read_text(encoding="utf-8")
+            (root / "status.md").write_text(
+                text.replace(
+                    "| W01 | [Live](#watch-w01) | 2026-07-11 | Fine. |",
+                    "| W01 | [Live](#watch-w01) | 2026-07-11 | Fine. |\n"
+                    "| W02 | [Resolved item](#watch-w02) | 2026-08-05 | old |",
+                ),
+                encoding="utf-8",
+            )
+            errors = []
+            DOC_CHECKER.check_watchlist_pairing(root, errors)
+            self.assertTrue(
+                any("retired detail still has a live index" in e for e in errors)
+            )
+
     def test_status_ledger_tracks_must_match_the_dashboard(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -1194,13 +1232,14 @@ class SubstantiveDriftTests(unittest.TestCase):
 
             DOC_CHECKER.check_status_ledger_tracks(root, errors)
 
-            self.assertTrue(any("no row for status.md track 3" in e for e in errors))
             self.assertTrue(any("no dashboard row for ledger track 4" in e for e in errors))
             self.assertTrue(
                 any("track 2: name differs from its ledger row" in e for e in errors)
             )
             # The matching track 1 is silent.
             self.assertFalse(any("track 1" in e for e in errors))
+            # Dashboard-only track 3 is valid: ledger rows are optional.
+            self.assertFalse(any("track 3" in e for e in errors))
 
     def test_status_table_rows_must_stay_contiguous(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

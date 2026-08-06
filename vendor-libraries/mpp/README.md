@@ -13,7 +13,7 @@ source lives in the sibling `mpp-rockchip` tree.
 | Owns | The MPP library docs under [`docs/`](docs/mpp-library-architecture.md), this front door, and [`keywords.md`](keywords.md). |
 | Depends on | The classic MPP userspace API/headers and a compatible [`../../kernel-drivers/mpp/`](../../kernel-drivers/mpp/README.md) service for runtime validation. |
 | Code lives in | `mpp-rockchip` (`mpp/`, HAL, `mpp_service` client). |
-| Current state | The VP9 repeated-reference presentation defect is [fixed, source-validated, Published, installed, and runtime-validated](../../findings/2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md#installed-ppa-package-closure) at `yisding/ysp/main@a8b19653` / PPA version `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1`. Installed sync/no-thread/multi-thread correctness, 120-process stress, four-codec differential, and 12/12 official-MPP gates pass. See [`../../status.md`](../../status.md#watch-w25). |
+| Current boundary | [`status.md`](../../status.md#dashboard) owns the public package/runtime verdict and [W05](../../status.md#watch-w05) owns the dated Launchpad observation. The maintained [VP9 presentation-event explanation and evidence basis](docs/mpp-library-architecture.md#vp9-presentation-event-ownership) records what the repair establishes without duplicating those moving states here. |
 
 ## Scoped docs
 
