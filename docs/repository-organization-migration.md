@@ -135,7 +135,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-10 | Dashboard and optional cross-project ledger | `status.md` owns compact verdict/next proof; only irreducible synthesis remains in `status-ledger.md`; project/finding owners receive exact identity and evidence. | Every numbered dashboard/next-gate/ledger row and inbound ledger link; replace mandatory-pair checker atomically. Security review per kernel/upstream row. | CLOSED 2026-08-05 — all rows route directly to existing owners; ledger retired, routes/checker valid, full gate green. |
 | ORG-11 | Watchlist cache | Remote/service/host/board is authoritative; live W-item owns dated cache/recheck/freshness only. Promote stable knowledge/internal work and retain retired anchors. | Every W01–W25 index/detail anchor and inbound W-link; pairing checker plus authority/retired-anchor report. Security review required for W19 and any memory-safety item. | CLOSED 2026-08-05 — all IDs classified, successor routes/checker valid, full handoff gate green. |
 | ORG-20 | `source-trees.md` source map | Immutable documentation/comparison pins and reconstruction only; scripts/manifests own intended inputs, project docs own mechanism/results. | All source-tree section links and file/line citations; FFmpeg/GRD checks migrate only with owning package slices. Security review for kernel source/fix material. | CLOSED 2026-08-05 — all 14 sections preserve immutable pins/reconstruction and route mutable assertions to their owners; full handoff gate passes. |
-| ORG-21 | PPA topology, package provenance, publication, and history | Package scripts own intended inputs; standard metadata owns artifacts; Launchpad/W05 own service state; runbooks own upload/sign/recovery; retain only incident/otherwise-unavailable history. | PPA/newcomer/package READMEs, installer, changelogs, W05, history links; FFmpeg/GRD pin tests and package helper checks. Security: public fix versus private submission/disclosure boundary. | ACTIVE 2026-08-05 — FFmpeg/GRD and history mapped; remaining packages/front-door simplification pending. |
+| ORG-21 | PPA topology, package provenance, publication, and history | Package scripts own intended inputs; standard metadata owns artifacts; Launchpad/W05 own service state; runbooks own upload/sign/recovery; retain only incident/otherwise-unavailable history. | PPA/newcomer/package READMEs, installer, changelogs, W05, history links; FFmpeg/GRD pin tests and package helper checks. Security: public fix versus private submission/disclosure boundary. | CLOSED 2026-08-05 — topology, identity boundaries, mechanics, reconstruction, recovery, and incident ownership handoff-gated. |
 | ORG-22 | Userspace patch and public technical-fix inventories | Project catalogs own behavior, public patch identity/provenance, dependencies, validation; scripts own pins. Promote useful public maintenance facts and remove publication/upstream-submission copies. | `packaging/userspace-patches.md`, package/source-delta catalogs, project READMEs. Security review mandatory; private destinations/order/send-withhold/disclosure remain private. | ACTIVE 2026-08-05 — FFmpeg/GRD pin and publication copies removed; remaining packages pending. |
 | ORG-30 | Rewrite validation workstream | `rewrite-validation-plan.md` owns the plan; `tests/rewrite-conformance.md` owns operations and delegates; existing project docs own accumulated result; validation index routes only. Freeze or remove audits after promotion. | Rewrite status/finding/plan/audit/index/runbook links and private-harness references; findings and nearest-README checks. Security review mandatory for fuzzing, destructive PoCs, and memory safety. | CLOSED 2026-08-05 — canonical plan/operation/evidence/verdict owners, router-only index, frozen audit, and state-free teaching guide handoff-gated. |
 | ORG-31 | Forward-port validation and state | Patch README owns order; patch catalog owns provenance/backport; project evidence owner owns capability; status owns public boundary; findings are intake. | `forward-port-status.md`, patch docs, status tracks 1/2, W16, runbooks/findings. Security review mandatory. | CLOSED 2026-08-05 — compact capability scorecard, mechanical series index, provenance/backport catalog, and status/W16 live owners handoff-gated. |
@@ -551,7 +551,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   covering Markdown links/anchors, all 62 regression tests, ShellCheck,
   documentation consistency, and whitespace. ORG-31 is closed.
 
-### ORG-21 — PPA history and recovery slice
+### ORG-21 — PPA topology, mechanics, and recovery
 
 - **Disposition:** the sole 2,471-line history file mixed routine upload
   chronology, publication polls, current-state summaries, package validation,
@@ -568,6 +568,20 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   accepted/rebuilt hashes and recovery, and (2) the ABI-driven six-archive
   split, holding-copy boundary, 46-minute name-reuse delay, restoration order,
   and archive-dependency cleanup. Git history preserves forensic chronology.
+- **Front-door disposition:** the PPA README now owns stable archive roles,
+  co-installability, build-dependency waves, source-package mechanics, signing,
+  upload, reconstruction method, and recovery. It no longer presents package
+  pins, publication IDs, validation chronology, or a timeless live matrix.
+- **Identity boundaries:** executable assignments in
+  `build-source-packages.sh` are the intended-input owner; signed `.dsc`,
+  `.changes`, `.buildinfo`, and output hashes identify actual artifacts;
+  Launchpad is the service authority; W05 is the dated cache; project evidence
+  owners qualify runtime behavior. The MPP, FFmpeg, and GRD reconstruction
+  anchors remain as method routes without copying live service records.
+- **Package notes:** retained durable Plymouth quilt mechanics, codec access,
+  MPP repacking, librga SONAME/kernel pairing, FFmpeg ABI separation, private
+  FFmpeg-tool co-installability, clean GRD export, and opt-in GDM ACL policy.
+  Package-specific behavior and validation route to their project owners.
 - **Routes:** the PPA/history front doors and packaging hub describe the compact
   role. The forward-port package keeps its exact kernel transitions locally and
   links the incident record only for cross-package recovery decisions. FFmpeg
@@ -576,9 +590,11 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   dated service incidents only. It contains no fix-submission destination/order,
   send/withhold choice, disclosure/CVE coordination, private harness, or
   memory-corruption reproducer.
-- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
-  2026-08-05 across 435 Markdown files, 3,788 local links, 390 anchors, all 62
-  regression tests, ShellCheck, documentation consistency, and whitespace.
+- **Validation:** the completed slice preserves every prior H2/H3 heading and
+  explicit reconstruction anchor. The full `bash scripts/check-repo.sh`
+  handoff gate passed on 2026-08-05 across 437 Markdown files, 3,758 local
+  links, 450 anchors, all 62 regression tests, ShellCheck, documentation
+  consistency, and whitespace.
 
 ### ORG-32 — VA-API policy, mechanism, and application route
 
