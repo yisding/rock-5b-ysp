@@ -1,655 +1,276 @@
 # Source trees — reconstructing every cited tree
 
-Reference appendix. Every `file:line` cite in `docs/` (and most in `video-libraries/ffmpeg/`,
-`apps/gnome-remote-desktop/`) resolves against a specific tree state. This doc pins
-each of those trees and gives the reconstruction recipe, so the anchors stay
-auditable without access to the original dev box. Dev-box paths
-(`/home/yi/Code/…`) appear below **only** as provenance records of where the
-work was done; every tree is reconstructible from public sources + this repo's
-patches unless explicitly marked otherwise. Current workspace layout belongs
-in the root [workspace guide](../README.md#local-workspace-layout), not in this
-source map.
+Reference appendix. Every `file:line` citation in maintained documentation
+resolves against a recorded tree state. This map owns immutable documentation
+and comparison pins plus the commands needed to reconstruct them. Moving
+branches, intended package inputs, publication state, installed-runtime results,
+and feature inventories belong to the linked project, package, status, or
+finding owners.
 
-| # | Tree | Anchors for | Pin |
-|---|------|-------------|-----|
-| 1 | Forward-port kernel tree | [kernel driver guide](../kernel-drivers/docs/how-the-drivers-work.md), [uAPI guide](../kernel-drivers/docs/dev-uapis.md), [forward-port guide](../kernel-versions/docs/vendor-forward-port.md), [vendor delta](../kernel-drivers/docs/vendor-delta.md), [device-tree guide](../kernel-drivers/docs/device-tree.md); DKMS `KSRC` | `v6.18` + `kernel-drivers/patches/rk3588-rkvenc2-01…` (+ `02` for DT) |
-| 2 | Audited tree (BSP audit) | [BSP audit](../kernel-drivers/docs/bsp-audit.md), `kernel-drivers/patches/cleanup-draft/` line numbers | parent of `56e403ede081` = `5614909e5803` |
-| 3 | `$OURS` / `$BSP` measurement pair + BSP 6.6 comparison | [vendor delta](../kernel-drivers/docs/vendor-delta.md) "Reproduce the count", [BSP 6.1/6.6 comparison](../kernel-drivers/docs/bsp-6.1-6.6-comparison.md), [RKNPU kernel architecture](../kernel-drivers/rknpu/docs/kernel-driver-architecture.md) | tree 1 vs `rockchip-linux/kernel` `develop-6.1@b4ef083dc0c3`; comparison `develop-6.6@1ba51b059f25` |
-| 4 | Userspace media trees | [userspace library guide](../vendor-libraries/docs/how-the-userspace-libs-work.md), FFmpeg docs, [`rockchip-vaapi`](../video-libraries/vaapi/README.md), Firefox RDD policy | table in §4 |
-| 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | immutable 50.1 replay and historical experiment pins remain in §5; W10 owns moving release/recovery heads |
-| 6 | Register recipes and RK3588 IEP2/VDPP identity | kernel/userspace driver docs, [IEP2 audit](../kernel-drivers/iep2/docs/rk3588-iep2-vdpp.md) | MPP HAL/vproc sources + RK3588 TRM Part 2 Rev 1.0 (§6) |
-| 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | immutable lineage and package-composite pins in §8; the rewrite project and status track 4 own moving heads and validation |
-| 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
-| 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | tracked seed under `kernel-drivers/tests/conformance/`; runtime bundle defaults to external `../rock-5b/build/rockchip-conformance`, see §10 |
-| 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../rock-5b/kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
-| 12 | Mesa MR !43161 benchmark tree | [fixed-clock benchmark finding](../findings/2026-07-28-mesa-blit-benchmark-timing-boundary.md), [Mesa reproducer runbook](../video-libraries/mesa/reproducers/README.md) | Mesa MR commit `647256dc2ae` + tracked benchmark override patch; local branch tip `6000414f9ea`, see §12 |
-| 13 | 2026-07-30 mainline/media-next/maxline codec audit | [driver quality comparison](../kernel-drivers/docs/driver-architecture-comparison.md#12-current-mainline-and-maxline-rockchip-codec-audit-2026-07-30) | Torvalds `3708dd948844`, prepared mainline fixes `c28b6586f74f`, media `next@a52e6f7923c1`, maxline public `f12fb0acf7bb`, maxline WIP `74b24e96da62`, and VDPU381 VP9 donor `6f0159ae61a89`; see §13 |
-| 14 | 2026-08-02 maxline refresh | [proposal/rebase finding](../findings/2026-08-02-rk3588-maxline-proposal-refresh.md), [maxline package source](../packaging/ppa/kernel-maxline/README.md) | Torvalds `075b74841bd0`, `next-20260731@415606a7be93`, public `e6951bc3f935`, WIP `73d29539f7bb`, public-next `0cae4ac66823`, and WIP-next `15a5179dc3b2`; see §14 |
+Dev-box paths (`/home/yi/Code/…`) appear only as provenance. Public sources and
+tracked patches reconstruct every tree unless a row explicitly says otherwise.
+The root [workspace guide](../README.md#local-workspace-layout) owns current
+checkout and build-directory layout.
+
+| # | Tree | Anchors for | Immutable pin or owner |
+|---|------|-------------|------------------------|
+| 1 | Forward-port kernel tree | [kernel driver guide](../kernel-drivers/docs/how-the-drivers-work.md), [uAPI guide](../kernel-drivers/docs/dev-uapis.md), [forward-port guide](../kernel-versions/docs/vendor-forward-port.md), [vendor delta](../kernel-drivers/docs/vendor-delta.md), [device-tree guide](../kernel-drivers/docs/device-tree.md) | `v6.18` + tracked driver patch 01; add DT patch 02 for DT anchors |
+| 2 | Audited tree | [BSP audit](../kernel-drivers/docs/bsp-audit.md), cleanup-draft line numbers | parent of `56e403ede081` = `5614909e5803` |
+| 3 | Vendor-delta comparison | [vendor delta](../kernel-drivers/docs/vendor-delta.md), [BSP 6.1/6.6 comparison](../kernel-drivers/docs/bsp-6.1-6.6-comparison.md) | tree 1 / `710e6ad12af6` vs BSP `b4ef083dc0c3`; BSP 6.6 `1ba51b059f25` |
+| 4 | Userspace media trees | userspace, FFmpeg, VA-API, and Firefox source citations | table in §4 |
+| 5 | GNOME Remote Desktop | capture-path anchors and historical patch replay | upstream `c14e09ef67e9` plus the pins in §5 |
+| 6 | Register recipes and IEP2/VDPP identity | kernel/userspace driver docs and [IEP2 audit](../kernel-drivers/iep2/docs/rk3588-iep2-vdpp.md) | MPP HAL/vproc sources and RK3588 TRM Part 2 Rev 1.0 |
+| 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | dated source and package-composite snapshots in §8 |
+| 9 | Upstream-style V4L2 RGA3 comparison | rewrite-driver comparison | `rk3588-rewrite-mainline@180ee72a9a80` |
+| 10 | Expanded Rockchip conformance bundle | [rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) | tracked manifest and five immutable third-party pins |
+| 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md) | `a81feb1e2971`, `839de47fcda2`, and `b4ef083dc0c3` |
+| 12 | Mesa MR !43161 benchmark | [benchmark finding](../findings/2026-07-28-mesa-blit-benchmark-timing-boundary.md) | Mesa `647256dc2ae` + tracked override; equivalent local `6000414f9ea` |
+| 13 | 2026-07-30 codec audit | [driver quality comparison](../kernel-drivers/docs/driver-architecture-comparison.md#12-current-mainline-and-maxline-rockchip-codec-audit-2026-07-30) | audit and prepared-fix pins in §13 |
+| 14 | 2026-08-02 maxline refresh | [refresh finding](../findings/2026-08-02-rk3588-maxline-proposal-refresh.md) | dated package and linux-next pins in §14 |
 
 ---
 
 ## 1. The forward-port tree (the primary anchor tree)
 
-Everything in the kernel-driver docs that cites `mpp_*.c:NNN`, `rga_*.c:NNN`, or a
-`compat/` header line resolves against **pristine mainline `v6.18` plus this
-repo's two patches**:
+Kernel-driver citations to `mpp_*.c`, `rga_*.c`, and `compat/` headers resolve
+against pristine mainline `v6.18` plus the tracked patches:
 
 ```bash
 git clone --branch v6.18 --depth 1 \
     https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git linux-6.18
 cd linux-6.18
 git am /path/to/rock-5b-ysp/kernel-drivers/patches/rk3588-rkvenc2-01-vcodec-rga-drivers.patch
-git am /path/to/rock-5b-ysp/kernel-drivers/patches/rk3588-rkvenc2-02-vcodec-rga-dt.patch   # DT anchors only
+git am /path/to/rock-5b-ysp/kernel-drivers/patches/rk3588-rkvenc2-02-vcodec-rga-dt.patch
 ```
 
-(`git am` works — both files are `git format-patch` output; `git apply` works
-too, see [`kernel-drivers/patches/README.md`](../kernel-drivers/patches/README.md).) Driver anchors need only
-patch 01; device-tree.md's DT anchors need patch 02. Note patch 02 *applies* to
-pristine `v6.18` at the git level (it was committed there), but the resulting
-DT only **compiles** on a tree that also carries Armbian's `media-0001` nodes —
-its `&vdec0`/`&vdec1` overrides reference labels vanilla 6.18 doesn't define
-([Armbian packaging guide](../packaging/docs/armbian-packaging.md), [vanilla-kernel guide](../kernel-versions/docs/vanilla-kernel.md)). For
-*anchoring* line cites that doesn't matter.
+Driver anchors need only patch 01. Device-tree anchors need patch 02. Patch 02
+applies to pristine `v6.18`, but the resulting DT compiles only with Armbian's
+`media-0001` labels because vanilla 6.18 does not define `vdec0`/`vdec1`. See
+the [patch catalog](../kernel-drivers/patches/README.md) and
+[Armbian packaging guide](../packaging/docs/armbian-packaging.md).
 
-> **Forward-port branch lineage.** The historical `rkvenc-fwport-6.18` line is
-> preserved publicly at `655d178191807`. The maintained `rk3588-video-6.18`
-> line rebases that work: 31 of the older branch's 32 commits have identical
-> patch-ids; the omitted `e059aad8d68b` is an unrelated libbpf tooling fix.
-> Sibling branches ending in `-iommu-debug-20260706`, `-rga-userptr-iommu`, or
-> `-route-b` are separate experiments. The
-> [patch catalog](../kernel-drivers/patches/README.md), [W16](../status.md#watch-w16),
-> [forward-port package record](../packaging/ppa/kernel-forward-port/README.md),
-> and status tracks 1–2 own the moving source, export, publication, and
-> validation state.
+The two patch origins are:
 
-Provenance: the patches were generated from the dev worktree
-`/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc` (then on branch `rkvenc-fwport-6.18`;
-see the lineage note above), commits
+| Patch | Origin commit |
+|-------|---------------|
+| Driver import | `924f4232546d` |
+| RK3588 device tree | `5614909e5803` |
 
-```
-924f4232546d  video: rockchip: RK3588 vendor MPP (rkvenc2/rkvdec2) + RGA3/RGA2 drivers  → patch 01
-5614909e5803  arm64: dts: rockchip: rk3588: VEPU580 encoder, rkvdec2 decoder, RGA3 nodes → patch 02
-```
+Repository commit `23cbe21` later changed nine
+`#ifdef CONFIG_PM_DEVFREQ` guards in patch 01 to the two-symbol OOT-safe guard.
+Each replacement is one line, so all recorded line numbers remain stable. This
+is the only deliberate source difference from `924f4232546d`.
 
-**One deliberate divergence from commit `924f4232546d`:** rock-5b-ysp commit
-`23cbe21` later folded the encoder **devfreq re-guard** directly into the
-validated patch file (9 one-line, 1:1 replacements in `mpp_rkvenc2.c`:
-`#ifdef CONFIG_PM_DEVFREQ` → `#if defined(CONFIG_PM_DEVFREQ) &&
-defined(CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ)`), enabling the OOT/DKMS build
-([`packaging/dkms/README.md`](../packaging/dkms/README.md),
-[forward-port guide](../kernel-versions/docs/vendor-forward-port.md) §B). Because every replacement is
-line-for-line, **all line numbers are unaffected** — a tree built from patch 01
-anchors identically to the pre-guard dev tree. (The trailing comment text on
-those 9 lines differs cosmetically between the patch — `/* governor.h: in-tree
-only */` — and the dev worktree — `/* DKMS: drop private governor.h dep */`;
-byte-level diffs of `mpp_rkvenc2.c` against the dev tree will show exactly
-those 9 lines.)
+The historical `rkvenc-fwport-6.18` line remains public at
+`655d178191807`. The maintained `rk3588-video-6.18` line rebases 31 of its 32
+commits with identical patch-ids; the omitted `e059aad8d68b` is an unrelated
+libbpf tooling fix. The [patch catalog](../kernel-drivers/patches/README.md),
+[W16](../status.md#watch-w16), [package record](../packaging/ppa/kernel-forward-port/README.md),
+and status tracks 1–2 own moving source, export, publication, and validation.
 
-For a DKMS build from this reconstruction, pass
+For DKMS, pass
 `KSRC=<reconstructed-tree>/drivers/video/rockchip` to
-[`packaging/dkms/build-deb.sh`](../packaging/dkms/build-deb.sh). The script owns
-its current default input.
+[`build-deb.sh`](../packaging/dkms/build-deb.sh); the script owns its current
+default input.
 
 ## 2. The audited tree (bsp-audit.md line-number pin)
 
-[BSP audit](../kernel-drivers/docs/bsp-audit.md) states its own pin: every `line:` number is
-against **the forward-port HEAD before any cleanup patch is applied — the
-parent of commit `56e403e`**. Concretely:
-
-- Audit-assembly commit: `56e403ede081` "WIP: BSP audit cleanup edits
-  (machine-generated, compile-tested)", sole commit on branch
-  `bsp-audit-cleanup` of the dev linux repo — the working source of both
-  [`kernel-drivers/patches/cleanup-split`](../kernel-drivers/patches/cleanup-split) and
-  [`kernel-drivers/patches/cleanup-draft`](../kernel-drivers/patches/cleanup-draft).
-- Its parent: `5614909e5803` — i.e. **exactly the forward-port tree of §1**
-  (driver files identical to `v6.18` + patch 01, modulo the 9 same-line
-  devfreq-guard rewrites noted above, which shift nothing).
-
-So to re-derive any bsp-audit.md or cleanup-draft line number: build the §1 tree and
-count there. After a cleanup patch lands in a file, later lines in that file
-drift (bsp-audit.md's own warning); the stable anchor is function name + nearby
-code.
+[BSP audit](../kernel-drivers/docs/bsp-audit.md) line numbers use the tree before
+cleanup commit `56e403ede081`. Its parent is `5614909e5803`, the §1 tree
+(modulo the nine same-line guard edits). The cleanup commit is the source of
+the tracked `cleanup-split/` and `cleanup-draft/` archives. Reconstruct §1 to
+re-derive the anchors; after applying cleanup patches, use function name and
+nearby code because later line numbers drift.
 
 ## 3. The vendor-delta.md `$OURS` / `$BSP` measurement pair
 
-[vendor delta](../kernel-drivers/docs/vendor-delta.md) "Reproduce the count" diffs two directories:
+| Variable | Tree | Pin |
+|----------|------|-----|
+| `$OURS` | §1 driver tree used for the recorded shipping comparison | `linux-6.18-rkvenc-av1-fwport@710e6ad12af6` |
+| `$BSP` | `rockchip-linux/kernel` `develop-6.1`, `drivers/video/rockchip/` | `b4ef083dc0c3` |
+| `$BSP66` | `rockchip-linux/kernel` `develop-6.6` | `1ba51b059f25` |
 
-| Var | Tree | Pin |
-|-----|------|-----|
-| `$OURS` | `<forward-port tree §1>/drivers/video/rockchip` | dev-box provenance: `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc/drivers/video/rockchip` |
-| `$BSP` | `rockchip-linux/kernel` branch `develop-6.1`, `drivers/video/rockchip/` | clean checkout, observed @ `b4ef083dc0c3` (2026-07-01) |
-| `$BSP66` | `rockchip-linux/kernel` branch `develop-6.6`, `drivers/video/rockchip/` | clean tree @ `1ba51b059f25`; official remote tip verified 2026-07-16 for the [6.1/6.6 comparison](../kernel-drivers/docs/bsp-6.1-6.6-comparison.md) |
-
-The BSP branches move, so reproduce the recorded count against
-`develop-6.1@b4ef083dc0c3` and
-`linux-6.18-rkvenc-av1-fwport@710e6ad12af6`. The measured values and their
-interpretation belong in [vendor delta](../kernel-drivers/docs/vendor-delta.md).
+The vendor branches move. Use these hashes to reproduce the recorded count;
+[vendor delta](../kernel-drivers/docs/vendor-delta.md) owns the measurements
+and interpretation.
 
 ## 4. Userspace pins — libmpp, librga, FFmpeg, rockchip-vaapi, Firefox
 
-| Component | Repo | Pin | Cited by |
-|-----------|------|-----|----------|
-| libmpp (v1.3.9 how-doc study tree) | `rockchip-linux/mpp` | **v1.3.9** (how-the-userspace-libs-work.md:9). Commit-level pin **unrecorded** — see note below | how-the-userspace-libs-work.md Part A, [`video-libraries/ffmpeg/README.md`](../video-libraries/ffmpeg/README.md) |
-| libmpp (KMPP-aware study tree) | `mpp-rockchip` | `1375813cbbae5ad6861b166475dd8fb672183220` — the KMPP-bearing tree the architecture/KMPP/Rust docs were read against; **distinct** from the v1.3.9 how-doc tree above | [`mpp-library-architecture.md`](../vendor-libraries/mpp/docs/mpp-library-architecture.md), [`mpp-kmpp-reverse-engineering.md`](../vendor-libraries/mpp/docs/mpp-kmpp-reverse-engineering.md), [`mpp-rust-rewrite-assessment.md`](../vendor-libraries/mpp/docs/mpp-rust-rewrite-assessment.md) |
-| libmpp AV1 design source | `github.com/yisding/mpp`, branch `ysp/main` | `3381fd2c9a0099135a94852c9434b47075458de1` (2026-07-29); private parsed-picture syntax, AV1 common/HAL state, VDPU383 job construction, and MPP-service transport inspected for the direct-backend design | [`direct AV1 backend design`](../video-libraries/vaapi/docs/av1-direct-mpp-service-backend.md) |
-| libmpp IEP2/VDPP audit source | `github.com/yisding/mpp`, branch `ysp/main` | `ad325345` — source inspected for vproc build defaults, IEP2/VDPP allocators, client types, and decoder orchestration | [`IEP2 audit`](../kernel-drivers/iep2/docs/rk3588-iep2-vdpp.md) |
-| libmpp VP9 presentation-event repair | `github.com/yisding/mpp`, branch `ysp/main` | `a8b19653af1a0b23754afafd7de72919fa8d0c0c` (2026-08-05); distinct slot-queue occurrences plus owned show-existing frame snapshots | [`VP9 presentation-event model`](../vendor-libraries/mpp/docs/mpp-library-architecture.md#vp9-presentation-event-ownership) |
-| libmpp PPA source snapshot | `github.com/yisding/mpp`, branch `ysp/main` | `a8b19653af1a0b23754afafd7de72919fa8d0c0c` (2026-08-05); exact export recipe and orig hash live with the package artifact | [MPP source-artifact reconstruction](../packaging/ppa/README.md#mpp-source-artifact-reconstruction) |
-| librga 10-bit evidence snapshot | `github.com/yisding/librga` | `26a50ef` (2026-07-25), including lineage `2cffdf6f332c` → `cc39281`/mirror `32c3bf1` → 10-bit stride changes `c80eea7`, `b8def3e`, and `4c26ddf` | [`librga P010/P210 note`](../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md), [gotchas](./gotchas.md) |
-| librga historical source base (study tree) | `tsukumijima/librga-rockchip` (JeffyCN `linux-rga-multi` lineage) | `2cffdf6f332c` (`v2.2.0`, the 2026-01-21 merge of `JeffyCN/mirrors:linux-rga-multi`); **recorded**, every librga file/function cite in how-the-userspace-libs-work.md re-verified against it 2026-07-01 (how-the-userspace-libs-work.md:11-14). Also the last open vendor-history tip used as the fixed-tree base above | how-the-userspace-libs-work.md Part B, [gotchas](./gotchas.md) |
-| librga prebuilt | `airockchip/librga` | `2b32edc` ("Update librga version to 1.10.6_[3]") | ffmpeg/README.md librga row |
-| ffmpeg-rockchip (documented build) | `nyanmisaka/ffmpeg-rockchip` | `40c412daccf0` (2026-04-23); preserved locally as branch `backup-pre-upgrade-master` | ffmpeg/README.md, [`video-libraries/ffmpeg/docs/implementation-comparison.md`](../video-libraries/ffmpeg/docs/implementation-comparison.md) |
-| Jellyfin FFmpeg Rockchip reference | `jellyfin/jellyfin-ffmpeg` | `jellyfin@455bfe539220` (`v8.1.2-1-13-g455bfe53`); effective comparison applied all 96 Debian patches in scratch worktree `/home/yi/Code/rock-5b/build/ffmpeg/jellyfin-ffmpeg-applied` | [`video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md`](../video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md), [`video-libraries/ffmpeg/docs/jellyfin-ffmpeg-patch-survey.md`](../video-libraries/ffmpeg/docs/jellyfin-ffmpeg-patch-survey.md) |
-| FFmpeg upstream release tags | `FFmpeg/FFmpeg` | `n8.1.2@38b88335f99e` and `n8.0.3@151b17dd2400`; historical comparison/package bases | `video-libraries/ffmpeg/docs/implementation-comparison.md`; the PPA/GRD ABI base |
-| FFmpeg upstream publication bases | `FFmpeg/FFmpeg` | `master@ceabc9b306f5`, `release/8.0@435ae0581deb`, and `release/8.1@94138f6973dd`, fetched 2026-07-16 | `video-libraries/ffmpeg/docs/rebase-notes.md` §7 |
-| rockchip-vaapi stable-export evidence | `github.com/yisding/rockchip-vaapi`, branch `main` | `70f26d950bcb` (2026-08-05), compared with upstream `woodyst/rockchip-vaapi@e8c64dd`; package and runtime state are owned outside this map | [`video-libraries/vaapi/README.md`](../video-libraries/vaapi/README.md), [stable-export finding](../findings/2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md) |
-| rockchip-vaapi AV1 design source | `github.com/yisding/rockchip-vaapi`, branch `main` | `docs/AV1_SUPPORT_PLAN.md` at its 2026-07-27 change `4d98eca2c76a007bc46523a26d39f3043d80ec52`; parsed-picture inventory and surface-keyed state source inspected for the direct-backend design | [`direct AV1 backend design`](../video-libraries/vaapi/docs/av1-direct-mpp-service-backend.md) |
-| Firefox RDD package audit snapshot | Mozilla Team PPA Resolute source `firefox` | signed `153.0+build1-0ubuntu0.26.04.1~mt1`, `.dsc` SHA-256 `5fb63a47f969bc97479bf19abecc4d8d790ad2bcb1d3e7b2adde26248d50c8ed`; package progress and install intent belong in the Firefox finding | [`Firefox RDD policy`](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md), [`package-build checkpoint`](../findings/2026-07-26-firefox-rdd-package-build-checkpoint.md) |
+| Component | Repository or artifact | Immutable pin | Citation owner |
+|-----------|------------------------|---------------|----------------|
+| libmpp v1.3.9 study | `rockchip-linux/mpp` | tag `v1.3.9`; commit was not recorded | [userspace library guide](../vendor-libraries/docs/how-the-userspace-libs-work.md) Part A |
+| libmpp KMPP study | `mpp-rockchip` | `1375813cbbae5ad6861b166475dd8fb672183220` | [MPP architecture](../vendor-libraries/mpp/docs/mpp-library-architecture.md) and KMPP/Rust notes |
+| libmpp AV1 design | `github.com/yisding/mpp` `ysp/main` | `3381fd2c9a0099135a94852c9434b47075458de1` | [direct AV1 design](../video-libraries/vaapi/docs/av1-direct-mpp-service-backend.md) |
+| libmpp IEP2/VDPP audit | same | `ad325345` | [IEP2 audit](../kernel-drivers/iep2/docs/rk3588-iep2-vdpp.md) |
+| libmpp VP9 repair / package snapshot | same | `a8b19653af1a0b23754afafd7de72919fa8d0c0c` | [VP9 ownership](../vendor-libraries/mpp/docs/mpp-library-architecture.md#vp9-presentation-event-ownership) and [artifact record](../packaging/ppa/README.md#mpp-source-artifact-reconstruction) |
+| librga 10-bit evidence | `github.com/yisding/librga` | `26a50ef`; lineage `2cffdf6f332c` → `cc39281`/mirror `32c3bf1` → `c80eea7`, `b8def3e`, `4c26ddf` | [P010/P210 note](../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md) |
+| librga historical study | `tsukumijima/librga-rockchip` | `2cffdf6f332c` (`v2.2.0`) | userspace library guide Part B |
+| librga prebuilt study | `airockchip/librga` | `2b32edc` | [FFmpeg guide](../video-libraries/ffmpeg/README.md) |
+| ffmpeg-rockchip documented build | `nyanmisaka/ffmpeg-rockchip` | `40c412daccf0` | FFmpeg guide and [implementation comparison](../video-libraries/ffmpeg/docs/implementation-comparison.md) |
+| Jellyfin FFmpeg comparison | `jellyfin/jellyfin-ffmpeg` | `455bfe539220` | [8.1.2 comparison](../video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md) |
+| FFmpeg release comparisons | `FFmpeg/FFmpeg` | `n8.1.2@38b88335f99e`; `n8.0.3@151b17dd2400` | FFmpeg comparison docs |
+| FFmpeg publication-base study | `FFmpeg/FFmpeg` | `master@ceabc9b306f5`; `release/8.0@435ae0581deb`; `release/8.1@94138f6973dd` | [rebase notes](../video-libraries/ffmpeg/docs/rebase-notes.md) §7 |
+| rockchip-vaapi stable-export evidence | `github.com/yisding/rockchip-vaapi` | `70f26d950bcb` vs upstream `woodyst/rockchip-vaapi@e8c64dd` | [VA-API project](../video-libraries/vaapi/README.md) and [finding](../findings/2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md) |
+| rockchip-vaapi AV1 design | same | `docs/AV1_SUPPORT_PLAN.md` change `4d98eca2c76a007bc46523a26d39f3043d80ec52` | direct AV1 design |
+| Firefox RDD package audit | Mozilla Team PPA Resolute source | `153.0+build1-0ubuntu0.26.04.1~mt1`; `.dsc` SHA-256 `5fb63a47f969bc97479bf19abecc4d8d790ad2bcb1d3e7b2adde26248d50c8ed` | [Firefox RDD finding](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md) |
 
-**Moving FFmpeg branches are not source-map pins.** `main`, `ffmpeg-80`, and
-`ffmpeg-81` follow FFmpeg master, release/8.0, and release/8.1 respectively.
-Their maintained topology belongs in
-[`rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md), and
-[W07](../status.md#watch-w07) owns the dated remote-head cache. This appendix
-retains only immutable study, comparison, and reconstruction snapshots.
-
-The libmpp v1.3.9 how-doc study commit was not recorded; do not substitute the
-different KMPP-aware `1375813cbbae` snapshot. Treat Part A anchors as
-v1.3.9-era and verify them against the checkout in use. Part B librga anchors
-were re-verified against `2cffdf6f332c`; use `26a50ef` only where a document
-explicitly names the fixed 10-bit evidence tree.
+The libmpp v1.3.9 study hash is unknown; do not substitute the different
+`1375813cbbae` tree. Librga Part B anchors were rechecked at `2cffdf6f332c`.
+Moving FFmpeg heads belong to [W07](../status.md#watch-w07) and the rebase notes;
+package intent belongs to the build script.
 
 ## 5. GNOME Remote Desktop base
 
-All `file:line` anchors in
-[`apps/gnome-remote-desktop/docs/capture-path.md`](../apps/gnome-remote-desktop/docs/capture-path.md)
-(and the complete patch series in `apps/gnome-remote-desktop/patches/`) resolve
-against **upstream GRD commit `c14e09ef67e916ae83a4eddee6a56591078e78e0`**
-(`50.1` + 16), *before* this repo's patches. Both the full series and the
-backend-only `0001`–`0008` subset require this base: `0003` needs upstream
-`cf250ed`, while `0009` reverts `5230bf3`. Pristine **tag `50.1` =
-`5ef1a2aa6bef`** is recorded for lineage but is not a valid replay base for the
-exported patches.
+Capture-path file/line anchors and root-level patches `0001`–`0016` use
+upstream `c14e09ef67e916ae83a4eddee6a56591078e78e0` (`50.1` + 16).
+Pristine tag `50.1@5ef1a2aa6bef` is lineage only: it cannot replay the complete
+series because patch `0003` needs upstream `cf250ed` and patch `0009` reverts
+`5230bf3`.
 
-The reconnect base remains
-[`rdp-handover-reconnect-v2`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/rdp-handover-reconnect-v2),
-tip `eb91daf476dc1c4ba23ccfdd8c077b8b83e84773`. It carries the backend,
-backpressure guard, GNOME 50.2's official `5230bf3` revert, and the corrected
-handover ownership/coalescing series. See
-`apps/gnome-remote-desktop/patches/README.md` and
-[`apps/gnome-remote-desktop/docs/profiling.md`](../apps/gnome-remote-desktop/docs/profiling.md).
+The historical reconnect base is
+`rdp-handover-reconnect-v2@eb91daf476dc1c4ba23ccfdd8c077b8b83e84773`.
+The moving release/recovery heads belong to [W10](../status.md#watch-w10);
+[`build-source-packages.sh`](../packaging/ppa/build-source-packages.sh) owns
+package intent; the [artifact record](../packaging/ppa/README.md#grd-source-artifact-reconstruction)
+owns exact Published-source reconstruction.
 
-The moving `release/50.2-rkmpp` and recovery heads are deliberately absent from
-this source map. [W10](../status.md#watch-w10) owns their dated remote state;
-[`build-source-packages.sh`](../packaging/ppa/build-source-packages.sh) owns the
-intended package source; the [GRD artifact record](../packaging/ppa/README.md#grd-source-artifact-reconstruction)
-owns Published-source reconstruction; and the
-[GRD project](../apps/gnome-remote-desktop/README.md) owns release behavior.
-The 16 root-level patches remain the immutable 50.1 reconstruction on
-`c14e09e`.
+| Historical experiment | Pin | Reconstruction |
+|-----------------------|-----|----------------|
+| Frame-starvation diagnostics | `1c870bc82d1920edfac1e1544b61bd7c7b9a1873` | public `debug/exp1-frame-starvation` |
+| Recovery source export | `2571326322c754de7608ef4afb1dff8e4d031cbd` | replay `0001`–`0015` on `c14e09e`; use the artifact record for byte-exact package recovery |
+| Cached-copy readback | `b3f0e20` | [pipeline archive](../apps/gnome-remote-desktop/patches/archive/pipeline-investigation/) |
+| Bounded acknowledgement resume | `7e958e6` | archived patch `0018` |
+| Corrected starvation baseline | `3e4480e066d30ba44015ae1b8cb3bbb92fe6414e` | public history plus archived patch `0019` |
 
-The historical experiment sources with recorded immutable commits are:
+Unpinned `exp8`–`exp10` states are represented by the
+[archive](../apps/gnome-remote-desktop/patches/archive/README.md), not by
+invented hashes.
 
-| Experiment | Pin | Reconstruction owner |
-|------------|-----|----------------------|
-| Frame-starvation diagnostics | `1c870bc82d1920edfac1e1544b61bd7c7b9a1873` | public `debug/exp1-frame-starvation` branch |
-| Recovery source export | `2571326322c754de7608ef4afb1dff8e4d031cbd` | replay patches `0001`–`0015` on `c14e09e`; the [artifact record](../packaging/ppa/README.md#grd-source-artifact-reconstruction) owns byte-exact package recovery |
-| Cached-copy readback candidate | `b3f0e20` | [pipeline investigation archive](../apps/gnome-remote-desktop/patches/archive/pipeline-investigation/) |
-| Bounded acknowledgement-resume candidate | `7e958e6` | patch `0018` in the archive |
-| Corrected starvation-baseline candidate | `3e4480e066d30ba44015ae1b8cb3bbb92fe6414e` | public fork history plus patch `0019` |
-
-Later unpinned `exp8`–`exp10` diagnostic states are documented by the
-[`patches/archive/`](../apps/gnome-remote-desktop/patches/archive/README.md)
-series. Their build and runtime results belong in the GRD project documents and
-findings, not in this reconstruction appendix.
-
-The historical `a59c904` dirty snapshot remains reconstructible: commit
-`a59c904c99088235eb4de31ca340747d334494f3` plus the delta at
-[`packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch`](../packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch).
-That legacy patch was generated from the worktree used for the
-`50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk1` source export and
-`git apply --check` passed against a clean archive of `a59c904c99088235eb4de31ca340747d334494f3`.
+The dirty package snapshot is `a59c904c99088235eb4de31ca340747d334494f3`
+plus
+[`dirty20260706-worktree.patch`](../packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch).
+`git apply --check` passed against a clean archive of that commit.
 
 ## 6. Where the register recipes live
 
-The kernel drivers never construct codec register values
-([kernel driver guide](../kernel-drivers/docs/how-the-drivers-work.md) §9 — "the userspace library knows the
-recipe"). The recipes live in:
+The kernel drivers consume register arrays; userspace constructs codec values.
+The cited recipes live in `rockchip-linux/mpp` under `mpp/hal/rkenc/` and
+`mpp/hal/rkdec/`, with register-layout headers beside each HAL.
 
-- **MPP HAL sources** — `rockchip-linux/mpp` `mpp/hal/rkenc/` +
-  `mpp/hal/rkdec/` (per-codec register builders `hal_h264e`, `hal_h265e`,
-  `hal_h264d`, `hal_h265d`; how-the-userspace-libs-work.md §A3). Register-layout headers sit next to
-  each HAL (VEPU580 / VDPU381 register structs).
-- **RK3588 TRM** — locally archived Parts 1 and 2. The IEP2 audit used **Part 2,
-  Revision 1.0, 2022-03-09** for the IEP2 feature/register chapter and searched
-  both parts for VDPP terminology. Extracted-text SHA-256 identities are Part 1
-  `fe16cd1e43596bf33cd94c7e50828b11102467b59fa7ccda109c789a7b0bb9af` and
-  Part 2
-  `f92ba6cedaa774411f299606c2470f45d758eb185487c405463aed91ddac4261`.
-  The earlier address-map use did not record its revision, so these hashes pin
-  the currently available artifacts without retroactively asserting that an
-  older investigation used the same copy.
+The IEP2 audit used RK3588 TRM Part 2, Revision 1.0, 2022-03-09. Extracted-text
+SHA-256 identities are:
+
+| Artifact | SHA-256 |
+|----------|---------|
+| TRM Part 1 | `fe16cd1e43596bf33cd94c7e50828b11102467b59fa7ccda109c789a7b0bb9af` |
+| TRM Part 2 | `f92ba6cedaa774411f299606c2470f45d758eb185487c405463aed91ddac4261` |
+
+The earlier address-map investigation did not record its revision; these hashes
+pin the available artifacts without retroactively claiming they were the
+copies used then.
 
 ## 7. Canonical uAPI headers (dev-uapis.md's definitions)
 
-Both headers are included **inside patch 01**, so the §1 reconstruction gives you the
-exact bytes dev-uapis.md documents:
+Patch 01 contains both documented headers:
 
-| Header | In-tree path (after patch 01) | Size in patch |
-|--------|-------------------------------|---------------|
-| MPP uAPI | `include/uapi/linux/rk-mpp.h` | +82 lines (`enum MPP_DEV_COMMAND_TYPE`, `struct mpp_request`, `MPP_IOC_CFG_V*`, `MPP_FLAGS_*`) |
-| RGA uAPI | `drivers/video/rockchip/rga3/include/rga.h` | +1007 lines (`rga_req`, `RGA_IOC_*`, image descriptors) |
+| Header | Reconstructed path | Size in patch |
+|--------|--------------------|---------------|
+| MPP | `include/uapi/linux/rk-mpp.h` | +82 lines |
+| RGA | `drivers/video/rockchip/rga3/include/rga.h` | +1007 lines |
 
 `MPP_CMD_SET_ERR_REF_HACK`, `MPP_FLAGS_REG_OFFSET_ALONE`, and
-`MPP_FLAGS_POLL_NON_BLOCK` are **not** in patch 01's `rk-mpp.h`. They are present
-in both the later AV1/IOMMU forward-port branch and the rewrite; their behavior
-and exact lineage are distinguished in the
-[6.1/6.6 comparison](../kernel-drivers/docs/bsp-6.1-6.6-comparison.md) and
-[uAPI guide](../kernel-drivers/docs/dev-uapis.md). The rewrite-specific ledger
-and validation behavior remain documented in
-[rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §4.
+`MPP_FLAGS_POLL_NON_BLOCK` are absent from patch 01. They occur in later
+forward-port and rewrite trees; the [BSP comparison](../kernel-drivers/docs/bsp-6.1-6.6-comparison.md),
+[uAPI guide](../kernel-drivers/docs/dev-uapis.md), and
+[rewrite project](../kernel-drivers/docs/rewrite-drivers.md) own their lineage
+and behavior.
 
 ## 8. Rewrite-driver tree
 
-The clean-room MPP/RGA rewrite ([rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md))
-is reconstructible from the committed local branch tips targeting
-`github.com/yisding/linux-rock5b`:
+This section records dated trees needed to reproduce source comparisons. The
+[rewrite project](../kernel-drivers/docs/rewrite-drivers.md) owns feature
+history, parity claims, build/runtime evidence, and moving heads; status track 4
+owns the public verdict.
 
-- branch `rk3588-rewrite-6.18`, commit `571e261b26f79` ("media: rockchip:
-  rga-rewrite: handle RGA2 bounce limits"), in the dev worktree
-  `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc`. It reroutes a DMA-BUF after
-  an RGA2 `-EIO` mapping failure when the task is valid on RGA3 and preserves
-  SWIOTLB page offsets for RGA2 USERPTR internal-MMU mappings. Parent
-  `67d4229c3d9ad` applies the fd-zero absent-fence sentinel to REQUEST submits;
-  earlier `df22eeef8757` caps USERPTR scatterlist entries to the selected DMA
-  backend's maximum mapping size, preserves the legacy-BLIT fd-zero convention,
-  and delays the RGA2 discontinuous-dma-buf diagnostic until internal-MMU
-  fallback also fails. Parent `19634f4eebba` repairs
-  non-terminal request-configuration cleanup and separates the supported
-  non-pattern rotation oracle from the rejected RGA3 pattern-blend case.
-  Parent `501a2b47f3503` removes the
-  [unreachable IOMMU-IRQ-mask fallback](../findings/2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md)
-  from `2f05724a20036` ("media: rockchip: harden rewrite driver contracts").
-  That hardening commit lands the 2026-08-02
-  [adversarial review](../kernel-drivers/docs/rewrite-driver-adversarial-review-2026-08-02.md)
-  fixes on audited parent `8042f13c5459`. Those identifiers describe the
-  pre-`v6.18.42` history. The current 389-commit local range is rebased onto
-  official kernel.org `v6.18.42@856a9b51680c`; the original range comparison
-  maps 384 old commits exactly and drops only a libbpf fix already upstream,
-  followed by five RGA compatibility/fixture commits. The pre-rebase
-  tip is preserved as
-  `ysp-backup/rk3588-rewrite-6.18-before-6.18.42-20260804@33c30ec6989e`.
-  The mainline mirror is at parity as of 2026-08-05:
-  `rk3588-rewrite-mainline@5db5ddf046825` carries the same
-  repair chain; the tracked rewrite sources, Kconfig, ABI ledgers, and UAPI are
-  byte-identical. Earlier `cd71f985a784c` lands the
-  2026-07-29
-  [review-round-2 fixes](../findings/2026-07-29-rewrite-driver-review-round-2.md):
-  legacy librga pre-swapped 90/270-degree destination windows now validate in
-  canvas orientation on both RGA backends (previously every genuine portrait
-  rotate failed `-EINVAL`), the hard-CCU per-core link-table relink that raced
-  the coordinator chain on the same DMA words is removed, abort idling a core
-  kicks the scheduler, shared production paths derive the service from the
-  bound core instead of the module singleton, every RGA release fence gets its
-  own dma_fence context plus a module reference, hard-handler MMIO is gated on
-  a regs-live count for the shared RGA3/IOMMU line, timed-out-but-finished
-  blits salvage their real result, the gauss path defaults source global alpha
-  opaque, legacy direct-address FBC/tile imports size from their rd_mode
-  layout, and the session-abort KUnit double free plus stale Kconfig help
-  texts are repaired. Parent `51ea9d1ca537` gives the KUnit fixtures local
-  services, removes runtime unbind/reprobe callbacks, makes resource cleanup
-  assertion-safe, and replaces polling with deterministic completion/race
-  synchronization. Parent `669697f23d3d` removes the runtime ABI-layout
-  case already covered by stronger compile-time assertions, reducing the live
-  gate to 84 MPP plus 148 RGA cases. Parent `0a2d7b9414f58` makes both
-  lifecycle suites explicitly opt-in instead of following `KUNIT_ALL_TESTS`.
-  Earlier `9af4a8816f25` initializes the reset/import
-  fixture's DCHS spinlock after booted `P91d6-Cad24` disproved the preceding
-  final-fixture claim. Parent `f6ebe28a3f66` initializes the sibling abort
-  fixture's DCHS spinlock and makes the observational MPP debug-state snapshot
-  return `-EBUSY` instead of waiting indefinitely on a contended service mutex.
-  Earlier `6b55e022ce49` initializes the session mutex in
-  the `SET_ERR_REF_HACK` fixture and gives KUnit assertion-safe deferred
-  ownership of the VP9 fixture's nested production binding allocation. Its
-  parent `db8251eec71a` repairs the boot-order mistake in `dbc36621b301`: boot
-  KUnit runs after every initcall, so the driver now
-  cleanly unregisters before the suite uses its singleton and restores before
-  initramfs instead of assuming `late_initcall_sync()` runs after the tests.
-  Earlier `835b19f81d2b` moves the large MPP batch fixture to heap storage;
-  earlier `3b41eca277c7` moves the
-  previously capped timeout-replacement fixture's delayed-work owner to
-  KUnit-managed heap storage. Earlier `6edc44f79a4d` reconciles both
-  ``ABI.rst`` ledgers with the
-  stable implementation and keeps them identical to the mainline copies.
-  Earlier `4273266a990e` follows the explicit RGA3 shared-IRQ match-data repair
-  and 148th RGA KUnit case, and moves the first six ordinary work/timer fixture
-  objects to KUnit-managed heap storage. The preceding published repair
-  `2241255f4cb2` separates both RGA3 core register windows from their IOMMU
-  resources. The fixture repair follows incomplete repair
-  `c5faabf9d00b`, whose boot passed only 84/85 MPP plus 139/147 RGA cases. The
-  underlying rewrite stack is the 2026-07-26 linear rebase onto the 6.18
-  forward-port oracle, branch `rk3588-video-6.18` at `12a7da02bea83`
-  ("video: rockchip: rkvenc2: reserve a slice fifo slot for the terminal
-  record"). The pre-rebase 6.18 rewrite tip is preserved locally as
-  `ysp-backup/rk3588-rewrite-6.18-before-fwport-20260726@40cf22629cf63`.
-- branch `rk3588-rewrite-mainline`, commit `5db5ddf046825` ("media: rockchip:
-  rga-rewrite: handle RGA2 bounce limits"). Parent `e3ddef3399077` carries the
-  REQUEST fd-zero sentinel and earlier `518f59c9f1f8` keeps KUnit fence fds off
-  descriptor zero. It carries the same maintained rewrite
-  implementation as 6.18. Parent `b296374b7520` contains the request/rotation
-  repair; earlier `7dcb4c3b5a981`
-  carries the byte-identical review-round-2 fixes. Parent
-  `03da898b03f1f` contains the
-  byte-identical fixture isolation. Parent `a49eb7575f436` drops the duplicate MPP
-  ABI case, and `aa18488c8642b` contains the
-  byte-identical opt-in Kconfig change. Earlier `fb5040f08d83` carries the
-  byte-identical reset/import fixture repair over sibling DCHS-fixture and nonblocking
-  debug-state fix `394d80552960`, mutex/nested-allocation fix `9aa6ef7e97b2`,
-  and lifecycle fix `fac707773158`; earlier
-  `948db1b44c63` contains the invalid
-  initcall-order assumption and `52d4dfa16825` carries the final capped-fixture
-  repair. The tip
-  keeps byte-identical tracked rewrite sources, Kconfig, ABI ledgers, and UAPI,
-  the same explicit
-  shared-IRQ policy, and the same KUnit/live-service isolation as the 6.18
-  tip, on the 314-commit rewrite series rebased onto official kernel.org
-  `v7.2-rc6@075b74841bd0` in the sibling worktree
-  `/home/yi/Code/rock-5b/kernel/linux`. The immediately preceding repaired tip is
-  preserved as `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc6-20260804@9e503f6b16df`;
-  the earlier replay tip is preserved as
-  `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc5-20260726@5bae68d8381c`;
-  the older pre-rc2 rebase backup remains preserved too.
+| Snapshot | Pin and base | Historical relationships |
+|----------|--------------|--------------------------|
+| 6.18 rewrite, 2026-08-05 | `rk3588-rewrite-6.18@571e261b26f79` on `v6.18.42@856a9b51680c` | pre-rebase backup `33c30ec6989e`; forward-port oracle `rk3588-video-6.18@12a7da02bea83`; pre-forward-port backup `40cf22629cf63` |
+| Mainline rewrite, 2026-08-05 | `rk3588-rewrite-mainline@5db5ddf046825` on `v7.2-rc6@075b74841bd0` | prior backups `9e503f6b16df` and `5bae68d8381c` |
+| Upstream-style RGA3 comparison | `rk3588-rewrite-mainline@180ee72a9a80` | detailed in §9 |
 
-The Debian packages use composite branches so the rewrite is not tested on a
-vanilla-only base:
+The two 2026-08-05 snapshots had byte-identical tracked MPP/RGA rewrite
+sources, Kconfig, ABI ledgers, and UAPI when recorded. Treat that as a dated
+comparison assertion, not a claim about later branch heads.
 
-- `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` starts from snapshot
-  `2ff6303a64ce`, the same patched Armbian current/forward-port Linux 6.18.38
-  source line used by the forward-port package, then applies the 6.18 rewrite
-  series through `563f329dd8c4`. It predates the 2026-07-17 RGA
-  reconciliation commit.
-- `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958` starts from official
-  `v7.2-rc3` (`a13c140cc289`), applies Armbian build checkout `5cbc1c59c`'s
-  `rockchip64-bleedingedge` archive plus generated driver patch payload, records
-  that snapshot as `2657f01c9b9a`, and applies the mainline rewrite series last.
-  It also predates the 2026-07-17 RGA reconciliation commit.
+The historical Debian composite trees remain reconstructible:
 
-Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
-`drivers/video/rockchip/rga-rewrite/`. The 6.18 tree is the line-count source
-for rewrite-drivers.md's current rewrite-size snapshot; the mainline tree is the
-post-6.18 DT/wiring state. The 6.18 pin also includes the Rock 5B DTB
-self-containment fix: disabled RK3588 `vdec0`/`vdec1` decoder nodes, decoder
-IOMMUs, and decoder SRAM pools in the base DTS, allowing the board include to
-retype them to RKMPP without an external Armbian media-label dependency. These
-pins include the large RGA feature-coverage
-push, RGA request-config staging and reconfiguration
-resource/acquire-fence/gauss replacement coverage, request-config ioctl
-acquire-fd ownership/no-release-fence-export coverage, configured request
-cancel/file-close cleanup, legacy async blit and modern request-submit
-acquire/release-fence coverage, legacy sync blit wait/no-fence ioctl coverage,
-RGA async close cleanup for jobs pending on
-acquire fences and jobs queued on hardware, last-hardware pending-acquire
-cleanup, RGA3 pattern-channel rotate rejection, mixed-task RGA3-to-RGA2
-core handoff/requeue coverage, the RK3588
-`im2d_slt` RGB/RGBA three-channel alpha-blend coverage, and the debugfs
-scheduler-core counters needed to check RGA2/RGA3 forced-core and
-load-balancing behaviour on hardware, followed by focused MPP coverage for
-selected-core removal races,
-`RELEASE_FD`, nonblocking poll, public `RESET_SESSION`/file-close cleanup,
-hardware-active reset cleanup, and
-CCU coordinator removal cleanup for queued and active dependent-core jobs, plus
-RGA2 packed-YUV422 color-fill coverage, packed-YUV420 fill emission, and
-Y4/Y8 dither-output coverage, BPP palette source coverage, current
-RGB-to-Y4/Y8 full-CSC dither-output coverage, AFBC-to-AFBC ffmpeg filter
-copy coverage, and `immakeBorder()` reflect/wrap top/bottom and left/right
-side-edge command coverage, plus RGA2 OSD external-flag, default-background,
-channel-invert, invert-calibration, and external-color register coverage for
-current `imosd` requests, plus MPP DT `rockchip,normal-rates` application
-through the public clock framework, plus RGA2 `IM_PRE_INTR` read/write line
-interrupt programming and line-only IRQ handling for current `librga` requests,
-plus aggregate and per-core MPP/RGA debugfs `hw_total_ns*` and `hw_max_ns*`
-counters plus the YSP `debugfs-counter-check.sh` gate for hardware busy-time
-evidence during rewrite-vs-forward-port runs,
-plus KUnit coverage for per-core timing-counter routing and warning-free RGA
-scheduler KUnit stack usage, plus RGA2 packed-YUV420 fill emission for all four
-packed orderings, plus named and matrix JeffyCN GStreamer legacy
-`c_RkRgaBlit()` conversion coverage for RGB-family/NV16/NV61-to-NV12,
-NV12/NV21/NV16/NV61/compact-10-bit decoder output to RGB-family, compact
-NV12_10LE40/NV16_10LE40 decoder output to scaled 8-bit NV12/NV16, and planar
-I420/YV12 RGA2 fallback profiles, plus explicit 8-bit decoder-output coverage
-for the GStreamer RGBA/BGRA/RGBx/BGRx diagnostic formats, plus GStreamer
-180/270-degree public rotation-value coverage, plus named RKNN/RKNPU RGA3
-preprocessing coverage for RGB888 resize, RGB888-to-NV12 resize/convert, and
-NV12/NV21-to-RGB resize/convert profiles, plus RGBA crop/letterbox resize
-coverage for the same public RKNN/RKNPU profile, plus direct `librga-smoke`
-coverage for an `rkmppenc`-shaped fd-backed crop/CSC/resize
-acquire-fence/release-fence chain, plus VP9 RKVDEC fd-to-IOVA register
-translation/validation KUnit coverage, plus
-`MPP_CMD_SET_ERR_REF_HACK` initialized-session copy/discard KUnit coverage for
-the current libmpp VDPU382 probe path, plus legacy RGA flush/result no-op ioctl
-dispatch KUnit coverage for current librga's post-blit compatibility path, plus
-dormant MPP batch-server wait-array recognition/rejection with `-EOPNOTSUPP`,
-RGA2-Pro RFBC64x4/AFBC32x8 source profiles now rejected with `-EOPNOTSUPP`
-instead of carrying an executable FBCIN path, plus RGA3 userptr RGA userptr-IOMMU fallback mapping
-through a driver-owned contiguous IOMMU IOVA while keeping dma-buf imports
-fail-closed unless they resolve to one 32-bit-safe segment, plus
-`rk_rga_rewrite/userptr_iommu/{attempt,ok,active,force_remap}` debugfs attribution
-for development/runtime validation, and the
-RKVDEC2 CCU-mode update that
-keeps HARD opt-in while the RK3588 DT selects BSP-style soft CCU, plus a named
-RGA direct-buffer classifier and KUnit coverage for current `librga`/GStreamer
-direct fd-vs-virtual-address encoding, plus Rockchip IOMMU `map_pages`/
-`unmap_pages` count handling for dma-buf mappings that cross a 4 MiB page-table
-boundary, plus zero-count RGA import/release buffer-pool KUnit coverage that
-preserves the BSP-style valid-pointer no-op and null-pointer `-EFAULT`
-boundary, plus RGA3 display-tail BGRA partial alpha-blend and RGB565
-180-degree command-emission coverage plus RGA2 XRGB 270-degree command-emission
-coverage for the opt-in public UI/display smoke shape, plus explicit invalid
-public scheduler-core mask rejection coverage for bitblit, fill, palette, and
-update-palette request shapes. The 6.18 branch also has the forward-port recovery cleanup that moves
-the Rockchip IOMMU hooks into `include/soc/rockchip/rockchip_iommu.h`, restores
-real fault masking/pagefault-done/reset hooks for the BSP-derived MPP driver,
-adds 32-bit `MPP_IOC_CFG_V1` compat parsing, propagates IOMMU-refresh failures
-through reset paths, and records minimal vendor DT bindings for the RKMPP/RGA
-nodes. The latest pins also route the rewrite MPP/RGA IOMMU fault handlers
-through the Rockchip provider-local public hook. MPP deliberately does not use
-the legacy generic `iommu_set_fault_handler` fallback because it is set-once
-and cannot be safely unregistered from the long-lived default DMA domain;
-MPP and RGA cores with an attached domain fail probe when the provider hook is
-unavailable. RGA now also requires an exact physical source match inside a
-shared domain and clears every core's provider callback independently; provider
-unregistration waits for callbacks already running in the IOMMU IRQ path. Its
-queue-on-hardware declaration is no longer hidden inside the KUnit-only block,
-so a mainline configuration with RGA KUnit disabled also compiles. RGA
-acquire-fence callbacks now use the fence-lock-held status helper instead of
-recursively locking from callback context. Abort also atomically transfers each
-waiter and delays completion until the pending count's callback-arming sentinel
-and callback shares drain, so last-core removal cannot release the shared work
-reference while submit is still registering callbacks.
-For HARD-CCU decoder faults, the forward port preserves the exact physical
-provider source but derives the software recovery owner from that source
-link's `CFG_ADDR` descriptor IOVA. If no active same-coordinator job matches,
-it schedules any active HARD-CCU peer so the CCU force-stop and dependent-job
-abort path still runs rather than targeting only an empty per-core job slot.
-The software owner is published with one-copy semantics and ordered ahead of
-the `CFG_DONE` start doorbell, closing the immediate descriptor-fault window.
-If that peer's run lock is contended, the abort path now queues immediate work
-holding the exact active-job and hardware references; the worker rechecks the
-target after taking the lock, avoiding both the ordinary 500 ms timeout delay
-and an abort of a replacement job. The target snapshot now precedes the failed
-lock attempt, and both immediate and deferred paths cancel the timeout only
-after claiming that exact job, so a stale abort cannot strip a replacement
-job's watchdog.
-MPP dma-buf translation also now proves that the mapped SG entries form one
-full-size byte-contiguous 32-bit DMA span and rejects cumulative embedded plus
-separate register offsets that leave the buffer before hardware submission.
-Cache lookup resolves the current dma-buf before matching, so integer-fd reuse cannot
-select an obsolete mapping; stale cache owners are dropped while job-held
-references remain valid. Session reset now also advances a per-session epoch,
-cancels earlier same-ioctl staged jobs, rejects stale import/admission, and
-publishes active plus scheduler ownership atomically. Staged work snapshots
-client type, translation table, codec info, and RCB state so later controls do
-not retroactively change it; initialized sessions reject encoder/decoder
-rebinding with `-EBUSY`. RKVENC2 slice overflow is now a one-shot poll error
-rather than a permanent head-job poison, and non-split/empty `POLL_HW_IRQ`
-selects its full-frame/`-EIO` result before interpreting slice-only memory. The
-active-job hardware pointer is also pinned/detached under the session lock, so
-reset/close abort cannot race completion plus platform removal into an
-unpinned devm-hardware use. The mainline branch carries the minimal
-`include/soc/rockchip/rockchip_iommu.h` hook to match the 6.18 provider. The
-support repo's
-`kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
-KUnit-enabled provider/rewrite/DTB build. On 2026-08-05 its warning-fatal
-clean-archive `normal` profile passed at 6.18 `571e261b26f79` and mainline
-`5db5ddf046825`, building Rockchip and VSI IOMMU support, both KUnit-enabled
-rewrite objects, and the ROCK 5B DTB. The source audit reported 306 known
-signals, zero new, and zero absent on both trees. Test-disabled, memory, and
-race results were not rerun at these tips. The exact-tip 6.18 `rewrite-debug`
-package build also completed on 2026-08-05 as `P49e6-Cad24`: its image embeds
-`g571e261b26f7`, all four packages are `arm64` Debian version
-`26.08.0-trunk`, and the packaged config SHA-256 is
-`18b72117c018604844b7cb74adb3a24ea25e0134cefe6eb1adf82aea8fc8502d`.
-The package remains uninstalled and unbooted; exact hashes and the runtime gate
-are in the
-[RGA2 bounce follow-up](../findings/2026-08-05-rewrite-rga2-dmabuf-userptr-bounce-followup.md#exact-tip-618-kasan-package).
-Historically, on 2026-07-15 its default `normal`
-profile completed warning-free for the then-current pins. On 2026-07-17 all
-three `normal`, `memory`, and `race` profiles completed warning-free for
-`../rock-5b/kernel/linux-6.18-rkvenc@0d71ded1690c` and
-`../rock-5b/kernel/linux@32696e87c9c7`, building `drivers/iommu/rockchip-iommu.o`, both
-rewrite objects, and `rockchip/rk3588-rock-5b.dtb`. The Published alpha packages
-remain reconstructible from the pre-hardening parents
-`../rock-5b/kernel/linux-6.18-rkvenc@d1d15a3d052a` and
-`../rock-5b/kernel/linux@083bdb98e715`; their source extraction/config coverage does not
-cover the July 15 heads or the July 17 reconciliation. The build gate removes each per-profile archive
-checkout after a passing profile unless `KEEP_TMP=1`; after that change, the combined
-`REWRITE_BUILD_PROFILES="normal memory race" kernel-drivers/tests/rewrite-build-gate.sh all`
-invocation completed all six profiles in one run and left no
-`rkcompat-rewrite-build.*` scratch directories under its repo-adjacent scratch
-root. `REWRITE_BUILD_TMP_ROOT` can select a different parent.
-`VALIDATE_ONLY=1
-kernel-drivers/tests/rewrite-conformance-run.sh` also passed the device-free
-case-builder and comparator validation, including 143 GStreamer case builders.
-That same run passed a syzlang ABI-marker check over 26 Rockchip markers; that
-check and the description it reads have since moved to the private
-`rock-5b-security` repository, so the runner here no longer performs it. The
-counter-enabled `VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1` mode
-plus the `LIBRGA_FORCE_RGA_USERPTR_IOMMU=1` variant passed the rewrite counter-default
-wiring checks. See rewrite-drivers.md §6.
-The older `180ee72a9a80` mainline pin is still used by §9 for the
-upstream-style V4L2 RGA3 comparison that was measured before the latest rewrite
-commits landed.
+| Composite | Base and layering |
+|-----------|-------------------|
+| `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` | Armbian snapshot `2ff6303a64ce`, then the 6.18 rewrite through `563f329dd8c4` |
+| `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958` | `v7.2-rc3@a13c140cc289` + Armbian build checkout `5cbc1c59c` / snapshot `2657f01c9b9a`, then the mainline rewrite |
+
+Both composites predate the later reconciliation and are package
+reconstruction pins, not current validation evidence. Fetch the public
+`yisding/linux-rock5b` branches and check out the hashes above. Package metadata
+and build scripts own any newer intended input.
 
 ## 9. Upstream-style V4L2 RGA3 comparison tree
 
-The upstream-style RGA comparison in rewrite-drivers.md §1 reads the media driver
-from `drivers/media/platform/rockchip/rga/` on branch
-`rk3588-rewrite-mainline` at commit `180ee72a9a80`. That commit is now reachable
-in the public `yisding/linux-rock5b` `rk3588-rewrite-mainline` history. The tree
-contains the mainline V4L2 mem2mem RGA driver plus local RK3588/RGA3 patches,
-including the RGA3 command path in `rga3-hw.c` and the temporary
-multicore-disable logic in `rga.c`. It measured 3,168 lines across `*.c`, `*.h`,
-`Kconfig`, and `Makefile` on 2026-07-02.
+The comparison in rewrite-drivers §1 uses
+`rk3588-rewrite-mainline@180ee72a9a80`,
+`drivers/media/platform/rockchip/rga/`. The public history contains the
+mainline V4L2 mem2mem driver plus local RK3588/RGA3 work, including
+`rga3-hw.c` and the then-present multicore-disable logic in `rga.c`. The
+rewrite project owns the measured line count and interpretation.
 
 ## 10. Expanded Rockchip conformance bundle
 
-The reproducible seed for the conformance bundle now lives in this repo under
+The tracked seed and authoritative reconstruction interface are
 [`kernel-drivers/tests/conformance/`](../kernel-drivers/tests/conformance/README.md).
-The generated runtime bundle still defaults to an external path,
-`../rock-5b/build/rockchip-conformance` (`/home/yi/Code/rock-5b/build/rockchip-conformance` on the dev box),
-because third-party source checkouts, build directories, logs, and test assets
-do not belong in git. The tracked seed's `MANIFEST.tsv` records the exact
-shallow checkouts staged on 2026-07-02 and
-`scripts/bootstrap-sources.sh` reconstructs the missing `sources/` trees:
+Its `MANIFEST.tsv` records the five third-party snapshots; its
+`scripts/bootstrap-sources.sh` reconstructs them beneath the disposable bundle.
 
-| Component | Path inside bundle | Pin |
-|-----------|--------------------|-----|
-| JeffyCN GStreamer Rockchip plugins | `sources/jeffycn-gstreamer-rockchip` | `JeffyCN/mirrors.git`, branch `gstreamer-rockchip`, commit `dcbcd6454ef892e385b3a782600369eb6c0719db` |
-| Rockchip MPP official library/tests | `sources/rockchip-mpp` | `rockchip-linux/mpp.git`, branch `develop`, commit `c2c1ee502b3a26efebcf843f7a0aeb4d172c6237` |
-| Official librga + IM2D samples | `sources/airockchip-librga` | `airockchip/librga.git`, branch `main`, commit `2b32edcb97b601b25683e2941d888c8515da6d55` |
-| Linux MPP/RGA/DRM demo | `sources/mpp-linux-cpp-demo` | `WainDing/mpp_linux_cpp.git`, branch `master`, commit `3d7cca63c4f5f0febacef0b0d0cdb36394fb5ca0` |
-| Android RKMediaCodecDemo | `sources/rkmediacodec-demo` | `c-xh/RKMediaCodecDemo.git`, branch `master`, commit `38b85b3c160bf58f2237d5f49b601c1636d484a5` |
+| Component | Bundle path | Pin |
+|-----------|-------------|-----|
+| JeffyCN GStreamer Rockchip | `sources/jeffycn-gstreamer-rockchip` | `JeffyCN/mirrors.git` `gstreamer-rockchip@dcbcd6454ef892e385b3a782600369eb6c0719db` |
+| Rockchip MPP library/tests | `sources/rockchip-mpp` | `rockchip-linux/mpp.git` `develop@c2c1ee502b3a26efebcf843f7a0aeb4d172c6237` |
+| Official librga/IM2D samples | `sources/airockchip-librga` | `airockchip/librga.git` `main@2b32edcb97b601b25683e2941d888c8515da6d55` |
+| Linux MPP/RGA/DRM demo | `sources/mpp-linux-cpp-demo` | `WainDing/mpp_linux_cpp.git` `master@3d7cca63c4f5f0febacef0b0d0cdb36394fb5ca0` |
+| Android RKMediaCodecDemo | `sources/rkmediacodec-demo` | `c-xh/RKMediaCodecDemo.git` `master@38b85b3c160bf58f2237d5f49b601c1636d484a5` |
 
-The MPP and librga pins above remain reproducible source/sample inputs for
-explicit legacy comparisons; normal conformance runs use the installed YSP MPP
-and librga packages. The tracked seed also carries optional helpers to build the
-pinned MPP and generate a local `librga.pc` shim, plus helpers that build the
-librga samples and JeffyCN's Meson-based GStreamer plugin against the installed
-development packages, collect system/device state, and write per-profile logs
-under `logs/rewrite/` and `logs/forward-port/`. The YSP-side
-`rewrite-conformance-run.sh` wrapper
-sequences those profile logs across ABI replay, MPP, librga, GStreamer, FFmpeg,
-and optional forward-port-vs-rewrite comparator steps. See
-[kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md)
-for the test matrix and pass/fail interpretation.
-
-A 2026-07-03 source review of the staged JeffyCN GStreamer plugin found no
-existing conformance logs yet.  Its rewrite-relevant hot paths are libmpp
-decode/encode lifecycle operations, MPP allocator import/export of dma-bufs,
-optional AFBC decode/encode negotiation, and legacy `c_RkRgaBlit()` scale,
-format-convert, and rotate operations between fd-backed MPP/GStreamer buffers.
-The kernel trees now have focused KUnit coverage for the highest-value legacy
-RGA conversion profiles, the broader GStreamer-visible format matrix, the
-remaining 180/270-degree public rotation values, and VP9 RKVDEC fd-to-IOVA
-register translation/validation. The
-support repo's direct `librga-smoke.sh` mirrors the public RKNN/RKNPU
-preprocessing shapes plus the `c_RkRgaBlit()` calls for encoder-side
-virtual-source conversion, decode-side fd-backed rotate/format conversion, and
-planar fallback, while `gstreamer-suite.sh` carries a diagnostic
-format matrix for advertised GStreamer encoder input formats, decoder output
-formats, the optional `GST_MPP_VP8ENC_FAKE_VP8ENC` VP8 alias, JPEG decoder
-explicit/default BGRx output selection, VP8 QP and JPEG quality-factor property
-setters, `GST_MPP_DEC_FBC_IS_RFBC=1` RFBC caps negotiation, RGA conversions,
-and opt-in display/DMABuf sink plus `KMSSINK_DISABLE_VSYNC=1`,
-`GST_RKXIMAGE_USE_COLORKEY=1`, and `GST_KMSSRC_DMA_FEATURE=1` KMS capture cases
-against JeffyCN's `rkximagesink` and `kmssrc`. The GStreamer wrapper now also
-caches generated H.264/H.265, VP9, opt-in AV1, opt-in legacy VP8/H.263/MPEG,
-and H.265 Main10 inputs under
-the shared conformance assets directory and records `artifacts.tsv` SHA-256s for generated
-decode/transcode
-outputs so the comparator can fail required forward-port vs rewrite pixel or
-bitstream mismatches. The FFmpeg wrapper now also validates current
-ffmpeg-rockchip decoder/encoder/RGA filter option discovery, decoder-option
-null-output paths, H.264/H.265 encoder-option encodes, `scale_rkrga`
-forced-core/async/AFBC-output transcodes, `vpp_rkrga` crop/transpose, and
-diagnostic decoder `afbc=rga` plus `overlay_rkrga` alpha composition.
-GStreamer and FFmpeg pipeline conformance on a booted rewrite
-kernel, including real display-plane and forward-port vs rewrite timing data,
-remain the next userspace-visible priorities before chasing diagnostic-only RGA
-sample profiles.
+The manifest and bootstrap script own source intent. The
+[rewrite-conformance runbook](../kernel-drivers/tests/rewrite-conformance.md)
+owns suite composition, commands, results, and future priorities. Generated
+sources, assets, logs, and comparator outputs remain external build artifacts.
 
 ## 11. RK3588 AV1 / VSI-IOMMU comparison trees
 
-The AV1 note was written from three local trees on 2026-07-02:
+The AV1 analysis used these dated 2026-07-02 snapshots:
 
-| Tree | Local path | Pin used for the observation | Relevant files |
-|------|------------|------------------------------|----------------|
-| Forward-port / rewrite 6.18 tree | `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc` | branch `rk3588-rewrite-6.18`, commit `a81feb1e2971`, 125 commits ahead of `linux-rock5b/rk3588-rewrite-6.18` | `drivers/video/rockchip/mpp/`, `drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_iommu.h`, `arch/arm64/boot/dts/rockchip/rk3588-base.dtsi` |
-| Upstream-style comparison tree | `/home/yi/Code/rock-5b/kernel/linux` | branch `rk3588-rewrite-mainline`, commit `839de47fcda2`, 125 commits ahead of `linux-rock5b/rk3588-rewrite-mainline` | `drivers/iommu/vsi-iommu.c`, `Documentation/devicetree/bindings/iommu/verisilicon,iommu.yaml`, `drivers/media/platform/verisilicon/`, `arch/arm64/boot/dts/rockchip/rk3588-base.dtsi` |
-| Rockchip BSP donor | `/home/yi/Code/rock-5b/kernel/rockchip-kernel` | `develop-6.1` commit `b4ef083dc0c3` | `drivers/video/rockchip/mpp/mpp_av1dec.c`, `drivers/iommu/rockchip-iommu-av1d.c`, `drivers/iommu/rockchip-iommu.c`, `arch/arm64/boot/dts/rockchip/rk3588s.dtsi` |
+| Tree | Pin | Relevant source |
+|------|-----|-----------------|
+| 6.18 rewrite/forward-port | `rk3588-rewrite-6.18@a81feb1e2971` | MPP, Rockchip-IOMMU compatibility, RK3588 DT |
+| Mainline comparison | `rk3588-rewrite-mainline@839de47fcda2` | VSI IOMMU, Hantro, RK3588 DT |
+| Rockchip BSP donor | `develop-6.1@b4ef083dc0c3` | AV1 MPP, Rockchip AV1 IOMMU, RK3588s DT |
 
-The upstream-style tree contains the AV1 IOMMU work as ordinary upstream commits:
+The mainline comparison contains this VSI-IOMMU sequence:
 
 | Commit | Subject |
 |--------|---------|
-| `90d50734815a` | `dt-bindings: iommu: verisilicon: Add binding for VSI IOMMU` |
-| `917ace84b770` | `iommu: Add verisilicon IOMMU driver` |
-| `6ddfbec80077` | `arm64: dts: rockchip: Add verisilicon IOMMU node on RK3588` |
-| `80b0d3546ce1` | `iommu: vsi: avoid -Wformat-security warning` |
-| `3040784f8721` | `iommu/vsi: Use list_for_each_entry()` |
+| `90d50734815a` | DT binding |
+| `917ace84b770` | VSI IOMMU driver |
+| `6ddfbec80077` | RK3588 VSI-IOMMU DT node |
+| `80b0d3546ce1` | format-security repair |
+| `3040784f8721` | list-iteration cleanup |
 
-Those commits are the likely source to reuse for any RKMPP AV1 forward-port
-experiment. The YSP repo does **not** vendor those files today; this section is
-a provenance record for the analysis in
-[`kernel-drivers/av1/docs/av1-rk3588.md`](../kernel-drivers/av1/docs/av1-rk3588.md).
+These files are not vendored here. The
+[AV1 note](../kernel-drivers/av1/docs/av1-rk3588.md) owns the design conclusion.
 
 ## 12. Mesa MR !43161 benchmark tree
 
-The decision-grade workaround benchmark used the external worktree
-`/home/yi/Code/rock-5b/fdo/mesa-mr43161-bench`, branch
-`benchmark/mr43161-all-blits`, at local commit `6000414f9ea`. Reconstruct its
-driver behavior from public Mesa MR !43161 commit `647256dc2ae`:
+Reconstruct the benchmark driver behavior from public Mesa MR commit
+`647256dc2ae` and the tracked override:
 
 ```bash
 git clone https://gitlab.freedesktop.org/mesa/mesa.git mesa-mr43161-bench
@@ -658,116 +279,73 @@ git checkout 647256dc2ae
 git apply /path/to/rock-5b-ysp/video-libraries/mesa/patches/mr43161-benchmark-override.patch
 ```
 
-The tracked patch removes the MR's temporary size/aspect gate for the tested
-all-V9–V10 policy and adds the static plus dynamic test-only controls. The
-local `6000414f9ea` commit contains the same resulting driver source. The
-benchmark executable and runner are tracked under
-[`video-libraries/mesa/reproducers/`](../video-libraries/mesa/reproducers/README.md);
-build directories and raw logs remain external artifacts as required by this
-repository's source/artifact policy.
+The external local snapshot `benchmark/mr43161-all-blits@6000414f9ea` contains
+the same driver source. The
+[reproducer runbook](../video-libraries/mesa/reproducers/README.md) owns build
+and execution; raw logs remain external.
 
 ## 13. Current mainline media and maxline codec audit trees
 
-The 2026-07-30 codec audit and mainline correction work in
-[`kernel-drivers/docs/driver-architecture-comparison.md`](../kernel-drivers/docs/driver-architecture-comparison.md#12-current-mainline-and-maxline-rockchip-codec-audit-2026-07-30)
-used one shared Linux object store and separate clean worktrees:
+The 2026-07-30 codec audit used these immutable pins:
 
 | Ref | Pin | Role |
 |-----|-----|------|
-| `origin/master` | `3708dd9488440e35a165aee2bb2a1a7b1d0d5777` | Torvalds mainline on 2026-07-30 |
-| `mainline-rkvdec-hantro-fixes-ready` | `c28b6586f74f7fb37c071174b66a445cf4ce0884` | seven prepared mainline-only RKVDEC/Hantro corrections |
-| `media/next` | `a52e6f7923c17a672135b485ffd96fbd72f46267` | Linux media integration cross-check on 2026-07-17 |
-| `rk3588-maxline-public` | `f12fb0acf7bb923c5958e9430edd0dae93400951` | public not-yet-merged RK3588 integration, including RKVDEC multicore |
-| `rk3588-maxline-wip` | `74b24e96da6245ef951ec34de481b7b8a2b91d34` | WIP integration, including VDPU381 VP9 |
-| VP9 donor | `6f0159ae61a89d4e4eee2e4f0170c351bf7543fa` | the 1,303-line VDPU381 VP9 change inspected separately |
+| Torvalds mainline | `3708dd9488440e35a165aee2bb2a1a7b1d0d5777` | audit base |
+| Prepared mainline fixes | `c28b6586f74f7fb37c071174b66a445cf4ce0884` | seven RKVDEC/Hantro corrections |
+| Media next | `a52e6f7923c17a672135b485ffd96fbd72f46267` | integration cross-check |
+| Maxline public | `f12fb0acf7bb923c5958e9430edd0dae93400951` | public RK3588 integration |
+| Maxline WIP | `74b24e96da6245ef951ec34de481b7b8a2b91d34` | WIP including VDPU381 VP9 |
+| VP9 donor | `6f0159ae61a89d4e4eee2e4f0170c351bf7543fa` | VDPU381 VP9 change |
 
-The clean maxline audit checkout is
-`/home/yi/Code/rock-5b/kernel/linux-maxline`, branch
-`rk3588-maxline-public`. Source contents are public and reconstructible without
-that path:
+Reconstruct the public audit tree:
 
 ```bash
 git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git linux
 cd linux
 git remote add linux-rock5b https://github.com/yisding/linux-rock5b.git
-git fetch origin master
 git fetch linux-rock5b rk3588-maxline-public rk3588-maxline-wip
-git fetch https://git.linuxtv.org/media.git \
-  next:refs/remotes/media/next
-git worktree add ../linux-maxline \
-  f12fb0acf7bb923c5958e9430edd0dae93400951
+git fetch https://git.linuxtv.org/media.git next:refs/remotes/media/next
+git worktree add ../linux-maxline f12fb0acf7bb923c5958e9430edd0dae93400951
 ```
 
-The prepared mainline correction checkout is
-`/home/yi/Code/rock-5b/kernel/linux-mainline-codec-fixes`. Its source contents
-are reconstructed from the recorded base and the repository's patch archive:
+Reconstruct prepared mainline corrections by checking out
+`3708dd9488440e35a165aee2bb2a1a7b1d0d5777` and applying
+`kernel-drivers/patches/mainline-codec-fixes/0*.patch`.
+
+The VSI-IOMMU correction series uses subsystem base
+`iommu/next@b4f6d7b19f3ae` and result `1240a1c2c6894`:
 
 ```bash
-git worktree add ../linux-mainline-codec-fixes \
-  3708dd9488440e35a165aee2bb2a1a7b1d0d5777
-git -C ../linux-mainline-codec-fixes am \
-  /path/to/rock-5b-ysp/kernel-drivers/patches/mainline-codec-fixes/0*.patch
-```
-
-The prepared `vsi-iommu` correction checkout is
-`/home/yi/Code/rock-5b/kernel/linux-iommu-vsi-fixes`, branch
-`iommu-vsi-probe-fixes` @ `1240a1c2c6894`. It is based on the **IOMMU subsystem
-tree**, not on Torvalds mainline, because that is where `drivers/iommu/`
-patches are reviewed:
-
-```bash
-git remote add iommu \
-  git://git.kernel.org/pub/scm/linux/kernel/git/iommu/linux.git
+git remote add iommu git://git.kernel.org/pub/scm/linux/kernel/git/iommu/linux.git
 git fetch iommu next
 git worktree add ../linux-iommu-vsi-fixes b4f6d7b19f3ae
 git -C ../linux-iommu-vsi-fixes am \
   /path/to/rock-5b-ysp/kernel-drivers/patches/iommu-vsi-probe-fixes/000[123]-*.patch
 ```
 
-| Ref | Pin | Role |
-|-----|-----|------|
-| `iommu/next` | `b4f6d7b19f3ae` | IOMMU subsystem integration on 2026-08-02; the `vsi-iommu` series base |
-| `iommu-vsi-probe-fixes` | `1240a1c2c6894` | three prepared `vsi_iommu_probe()` error-path fixes |
-
-`drivers/iommu/vsi-iommu.c` was byte-identical between `3708dd9488440` and
-`b4f6d7b19f3ae` when the series was prepared, so the audit's `vsi-iommu`
-findings hold against both. Re-check that before rebasing onto a newer base.
-
-Use the exact pins rather than moving branch names when reproducing the audit.
-The mainline findings anchor in
-`drivers/media/platform/rockchip/rkvdec/rkvdec.c`,
-`drivers/media/platform/verisilicon/hantro_drv.c`, and
-`drivers/media/platform/verisilicon/rockchip_vpu_hw.c`. The maxline multicore
-findings use the public branch's `rkvdec.c`; the VP9 scale and arithmetic
-findings use WIP file
-`drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-vp9.c`.
+`drivers/iommu/vsi-iommu.c` was byte-identical between
+`3708dd9488440` and `b4f6d7b19f3ae` when prepared. Recheck before rebasing.
+The driver-quality document owns findings and line-level interpretation.
 
 ## 14. 2026-08-02 maxline refresh trees
 
-The current package inputs and linux-next validation branches share the Linux
-object store at `/home/yi/Code/rock-5b/kernel/linux`. The absolute path records
-provenance only; the branches are public and the packaged Linus deltas are
-checked into this repository.
+The dated refresh captured:
 
 | Ref | Pin | Role |
 |-----|-----|------|
-| `origin/master` | `075b74841bd0065a3bda3440873c747938e69b68` | Torvalds base rechecked 2026-08-02; Linux 7.2-rc6 |
-| `linux-next/master` / `next-20260731` | `415606a7be939835db9b0d6b711887586646346d` | linux-next validation base |
-| `rk3588-maxline-public` | `e6951bc3f935427a24140421f780113a64b8a54c` | refreshed packaged public source |
-| `rk3588-maxline-wip` | `73d29539f7bba7d5865680d35a291ed48bb19cd5` | refreshed packaged FRL WIP source |
-| `rk3588-maxline-public-next` | `0cae4ac6682384151b7c94c5db7f614775e0eee6` | public stack replayed on linux-next |
-| `rk3588-maxline-wip-next` | `15a5179dc3b2318e6c56d300e2f4c74ef0a3fb7b` | FRL WIP replayed on public-next |
+| Torvalds base | `075b74841bd0065a3bda3440873c747938e69b68` | Linux 7.2-rc6 |
+| `next-20260731` | `415606a7be939835db9b0d6b711887586646346d` | linux-next base |
+| Maxline public | `e6951bc3f935427a24140421f780113a64b8a54c` | packaged public source |
+| Maxline WIP | `73d29539f7bba7d5865680d35a291ed48bb19cd5` | packaged FRL WIP source |
+| Public on linux-next | `0cae4ac6682384151b7c94c5db7f614775e0eee6` | validation replay |
+| WIP on linux-next | `15a5179dc3b2318e6c56d300e2f4c74ef0a3fb7b` | validation replay |
 
-Subsystem acceptance was checked at DRM misc
-`for-linux-next@bc47d5937f21`, media pending
-`next@31152f5b0f87`, PHY `next@ee6aa0f01d4e`, and USB
-`usb-next@5d5fd841c346`. Exact proposal message IDs and mailbox hashes are in
-[`public-series.tsv`](../packaging/ppa/kernel-maxline/public-series.tsv); the
-stable conflict and acceptance record is the
-[`refresh finding`](../findings/2026-08-02-rk3588-maxline-proposal-refresh.md).
+The [public-series manifest](../packaging/ppa/kernel-maxline/public-series.tsv)
+owns proposal identities and mailbox hashes. The refresh finding owns conflict
+and acceptance results.
 
-Reconstruct the packaged profiles without the external branches by archiving
-the manifest's exact Linus base and applying
-`patches/maxline-public.patch`, followed by `patches/maxline-wip.patch` for the
-WIP profile. Use the published branches when reproducing linux-next because
-those deltas are validation refs, not package inputs.
+To reconstruct package profiles without external branches, archive the
+manifest's exact Linus base and apply `patches/maxline-public.patch`, followed
+by `patches/maxline-wip.patch` for WIP. Use the exact published hashes above
+for the linux-next comparison; those refs are validation snapshots, not package
+inputs.

@@ -134,7 +134,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-02 | Adopt the pilot-tested contract and add small templates | `CONTRIBUTING.md` becomes normative owner; templates illustrate README, explanation, runbook, live-plan, and audit interfaces. Proposal/ledger do not remain contracts. | Root/docs routes, nearest-README rule, all pilot compatibility findings. Security fields stay mandatory in ledger workflow. | CLOSED 2026-08-05 — normative contract and five shared interfaces are linked, complete, and handoff-gated. |
 | ORG-10 | Dashboard and optional cross-project ledger | `status.md` owns compact verdict/next proof; only irreducible synthesis remains in `status-ledger.md`; project/finding owners receive exact identity and evidence. | Every numbered dashboard/next-gate/ledger row and inbound ledger link; replace mandatory-pair checker atomically. Security review per kernel/upstream row. | CLOSED 2026-08-05 — all rows route directly to existing owners; ledger retired, routes/checker valid, full gate green. |
 | ORG-11 | Watchlist cache | Remote/service/host/board is authoritative; live W-item owns dated cache/recheck/freshness only. Promote stable knowledge/internal work and retain retired anchors. | Every W01–W25 index/detail anchor and inbound W-link; pairing checker plus authority/retired-anchor report. Security review required for W19 and any memory-safety item. | CLOSED 2026-08-05 — all IDs classified, successor routes/checker valid, full handoff gate green. |
-| ORG-20 | `source-trees.md` source map | Immutable documentation/comparison pins and reconstruction only; scripts/manifests own intended inputs, project docs own mechanism/results. | All source-tree section links and file/line citations; FFmpeg/GRD checks migrate only with owning package slices. Security review for kernel source/fix material. | ACTIVE 2026-08-05 — FFmpeg/GRD plus source-map sections 1–5 mapped; sections 6–14 pending. |
+| ORG-20 | `source-trees.md` source map | Immutable documentation/comparison pins and reconstruction only; scripts/manifests own intended inputs, project docs own mechanism/results. | All source-tree section links and file/line citations; FFmpeg/GRD checks migrate only with owning package slices. Security review for kernel source/fix material. | CLOSED 2026-08-05 — all 14 sections preserve immutable pins/reconstruction and route mutable assertions to their owners; full handoff gate passes. |
 | ORG-21 | PPA topology, package provenance, publication, and history | Package scripts own intended inputs; standard metadata owns artifacts; Launchpad/W05 own service state; runbooks own upload/sign/recovery; retain only incident/otherwise-unavailable history. | PPA/newcomer/package READMEs, installer, changelogs, W05, history links; FFmpeg/GRD pin tests and package helper checks. Security: public fix versus private submission/disclosure boundary. | ACTIVE 2026-08-05 — FFmpeg/GRD and history mapped; remaining packages/front-door simplification pending. |
 | ORG-22 | Userspace patch and public technical-fix inventories | Project catalogs own behavior, public patch identity/provenance, dependencies, validation; scripts own pins. Promote useful public maintenance facts and remove publication/upstream-submission copies. | `packaging/userspace-patches.md`, package/source-delta catalogs, project READMEs. Security review mandatory; private destinations/order/send-withhold/disclosure remain private. | ACTIVE 2026-08-05 — FFmpeg/GRD pin and publication copies removed; remaining packages pending. |
 | ORG-30 | Rewrite validation workstream | `rewrite-validation-plan.md` owns the plan; `tests/rewrite-conformance.md` owns operations and delegates; existing project docs own accumulated result; validation index routes only. Freeze or remove audits after promotion. | Rewrite status/finding/plan/audit/index/runbook links and private-harness references; findings and nearest-README checks. Security review mandatory for fuzzing, destructive PoCs, and memory safety. | PLANNED. |
@@ -413,8 +413,40 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   material moved into the public repository.
 - **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
   2026-08-05, covering Markdown links/anchors, all 62 regression tests,
-  ShellCheck, documentation consistency, and whitespace. ORG-20 remains active
-  for sections 6–14.
+  ShellCheck, documentation consistency, and whitespace. At this checkpoint,
+  ORG-20 remained active for sections 6–14.
+
+### ORG-20 — rewrite, conformance, and audit source-map slice
+
+- **Classification:** sections 6–14 retain exact register/TRM identities,
+  canonical uAPI locations, dated rewrite/base/backup/package-composite pins,
+  the five-source conformance manifest, immutable AV1/Mesa/codec/maxline audit
+  snapshots, and the commands or tracked patches needed to reconstruct them.
+  Every numbered heading remains stable.
+- **Owner routing:** the rewrite project owns feature and commit history,
+  branch parity, source audits, packages, and runtime verdicts; status track 4
+  owns its public boundary. The conformance manifest/bootstrap script owns
+  third-party source intent, while the conformance runbook owns suites/results.
+  The AV1, Mesa, driver-quality, maxline package, public-series manifest, and
+  dated refresh finding retain their existing design, operation, artifact, and
+  result responsibilities.
+- **Keep/link/promote/remove:** replaced hundreds of lines of duplicated rewrite
+  feature/KUnit chronology and conformance test inventory with compact dated
+  pin tables and owner links. Removed moving-head wording, installed/package
+  results, future priorities, and subsystem-acceptance narrative. Kept the
+  historical Armbian composites because they are otherwise-needed package
+  reconstruction inputs, explicitly labeled as non-current evidence.
+- **Inbound compatibility:** the source map's stable path and all 14 numbered
+  headings survive. The repository link/anchor checker resolves every inbound
+  route; line-number documentation continues to reconstruct through the exact
+  primary/audit pins rather than through moving branch claims.
+- **Public/private review:** the compact map retains public commit and patch
+  identities only. It drops the old mention of the private security-runner
+  migration and adds no private harness, hostile reproducer, disclosure/CVE
+  coordination, submission destination/order, or send/withhold material.
+- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
+  2026-08-05, covering Markdown links/anchors, all 62 regression tests,
+  ShellCheck, documentation consistency, and whitespace. ORG-20 is closed.
 
 ### ORG-21 — PPA history and recovery slice
 
