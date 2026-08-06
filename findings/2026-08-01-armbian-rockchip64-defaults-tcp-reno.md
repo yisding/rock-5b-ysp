@@ -60,7 +60,7 @@ Reno is loss-based AIMD: the window grows one MSS per RTT and halves on any
 loss signal, so recovery is linear and slow on a high bandwidth-delay-product
 path. It also cannot distinguish congestion from **reordering**, which a Wi-Fi
 plus userspace-WireGuard path produces routinely — see
-[the RDP video-stall finding](2026-08-01-grd-rdp-video-stall-transport-congestion.md),
+[the promoted RDP transport evidence](../apps/gnome-remote-desktop/docs/validation.md#fixed-qp-transport-pressure),
 where the same socket showed `reordering:107`, `dsack_dups:215` and a collapsed
 `cwnd:48 ssthresh:13` while `bytes_retrans` never moved.
 
@@ -91,7 +91,7 @@ what the board's own Ubuntu userspace, and essentially every peer it talks to,
 already assumes. Three real caveats:
 
 1. **It invalidates the measured baseline.** Every number in
-   [the transport finding](2026-08-01-grd-rdp-video-stall-transport-congestion.md)
+   [the promoted transport evidence](../apps/gnome-remote-desktop/docs/validation.md#fixed-qp-transport-pressure)
    was captured under reno. Changing congestion control and the encoder ceiling
    together makes neither attributable.
 2. **Prefer a `sysctl.d` drop-in over a kernel-config change** on this board.

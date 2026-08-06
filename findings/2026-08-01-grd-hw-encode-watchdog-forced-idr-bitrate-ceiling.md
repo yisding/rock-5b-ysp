@@ -39,12 +39,16 @@ whose decoder state had diverged had **no resync point at all**.
 `note_hw_encode_duration()` — and therefore `start_hw_encode_cooldown()` — is
 reachable only from `on_bitstream_locked()`, the completion callback. An encode
 that never returns reports no duration, so it can never trigger the recovery
-built for it. This is the structural gap recorded in
-[2026-07-18](2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md),
+built for it. This is the structural gap preserved in the
+[pipeline diagnosis](../apps/gnome-remote-desktop/docs/profiling.md#9-firefox-freeze-diagnosis-and-the-exp3-recovery-design),
 confirmed here at source level.
 
-**3. Fixed QP had no bitrate ceiling.** Covered in
-[the transport finding](2026-08-01-grd-rdp-video-stall-transport-congestion.md).
+**3. Fixed QP had no bitrate ceiling.** During full-screen video the measured
+path averaged about 18.7 Mbps, peaked near 22.9 Mbps, and accumulated a roughly
+252 KiB send queue while retransmissions did not move. MPP logs proved that
+`qp_init=22` selected FIXQP and ignored GRD's computed bitrate fields. The
+[validation scorecard](../apps/gnome-remote-desktop/docs/validation.md#fixed-qp-transport-pressure)
+owns the complete promoted signal and attribution boundary.
 
 ## Fix
 
@@ -109,8 +113,8 @@ particular these are unproven:
   FIXQP.
 
 The change also does **not** make recovery fire more often for the
-acknowledgement wedges in
-[2026-07-20](2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md) — those deadlock
+acknowledgement wedges in the
+[focus/resume gate](../apps/gnome-remote-desktop/docs/testing.md#10-exp6exp7-macos-focusresume-gate) — those deadlock
 in frame flow control with the encoder idle and healthy, which neither the
 watchdog (nothing is in flight) nor an IDR addresses.
 
@@ -135,11 +139,11 @@ On hardware, with a client attached:
    19891800 bps, target 15913440 bps, QP 22-40` at session start, and that MPP
    reports a VBR mode rather than `mode fixqp`.
 2. Replay the YouTube workload and re-sample `ss -tin` on port 3389; the
-   `Send-Q` excursions recorded in
-   [the transport finding](2026-08-01-grd-rdp-video-stall-transport-congestion.md)
+   `Send-Q` excursions recorded in the
+   [promoted transport evidence](../apps/gnome-remote-desktop/docs/validation.md#fixed-qp-transport-pressure)
    should shrink or disappear.
 3. Induce a hardware-encode stall (the MPP conformance-suite workload from
-   [2026-07-18](2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md)
+   the [pipeline diagnosis](../apps/gnome-remote-desktop/docs/profiling.md#9-firefox-freeze-diagnosis-and-the-exp3-recovery-design)
    is the known trigger) and confirm a `[RDP] Hardware encode is unavailable
    (encode watchdog, ...)` warning appears within ~2 s and that the session
    recovers rather than staying wedged for ~90 s.

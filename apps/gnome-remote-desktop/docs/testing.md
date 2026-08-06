@@ -57,8 +57,8 @@ Do not activate a replacement package by running
 `systemctl --user restart gnome-remote-desktop-handover.service` from an
 already logged-in remote session. A package upgrade restarts the system GRD
 daemon, while the user handover daemon and its logind session association are
-separate. In the
-[2026-07-28 full-range experiment](../../../findings/2026-07-28-grd-avc-fullrange-bt709-handover-boundary.md),
+separate. In the retained
+[full-range experiment evidence](../../../findings/evidence/2026-07-28-grd-avc-fullrange709/README.md),
 restarting the user unit inside the existing session disconnected the client;
 later manual starts returned no session from `sd_pid_get_session()`, so the
 daemon could not match the system `/Handovers/session8` object. Authentication
@@ -73,6 +73,32 @@ For package-level tests:
   journal reached encode-backend and encode-session creation; and
 - after any failed handover, preserve both system and user GRD journals before
   restarting another service.
+
+Before re-enabling user-level RDP, also inspect the configured TLS certificate
+and key. A path under `/tmp` is disposable session scratch, not durable
+credential storage; replace it with a user-private persistent path before
+depending on reconnect or reboot behavior.
+
+### Idle wake-watch failure is not a handover failure
+
+Two failures can leave the client on the same frozen or black frame after an
+idle reconnect:
+
+- A stale gsd-power user-active watch leaves Mutter's `PowerSaveMode=3` even
+  after input. Mutter's watch is one-shot, and the client-side nonzero watch ID
+  can outlive the server-side registration. A later blank then skips re-arming.
+- A GRD greeter-to-session redirect race delivers no input to the user session;
+  its watch remains healthy, but the client never reaches it.
+
+Distinguish them before changing services. If an injected Mutter/EIS input
+emits the expected `WatchFired` signal and restores normal power-save mode, the
+wake path is alive and the handover/transport owns the freeze. If no watch
+fires and a controlled re-blank issues no new `AddUserActiveWatch`, restart the
+user gsd-power service to clear stale client state, preserve the D-Bus trace,
+and treat manual `PowerSaveMode=0` only as temporary repower—it does not heal
+the stale watch ID. An inhibitor release can reset Mutter idletime without
+firing a user-active watch, so idletime alone is not proof that RDP input
+arrived.
 
 ## 2. Environment for a shell that isn't the graphical session
 
@@ -303,7 +329,9 @@ normal three-second threshold. A disconnected session, repeated recovery loop,
 software-only continuation, stalled socket, or kernel codec/GPU/IOMMU fault
 fails the gate.
 
-The core-backed diagnosis and exact counters are recorded in the
-[focus/resume acknowledgement finding](../../../findings/2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md).
-The independently captured false-actuator transition is recorded in the
-[focus-return pipeline-starvation finding](../../../findings/2026-07-20-grd-focus-return-false-pipeline-starvation.md).
+This section owns the core-backed diagnosis and exact recovery counters. It
+also retains the independent false-actuator transition: the first fresh view
+after focus return was charged 42.493 seconds of pre-idle time and entered a
+software cooldown. The final idle-baseline change gives newly outstanding work
+its normal three-second window while continuously busy pipelines still use
+submission progress.

@@ -1,7 +1,7 @@
 # RDP reconnect after idle dies in the greeter→session handover, masquerading as the wake-watch wedge
 
-**Date:** 2026-07-29 (~06:45–06:58, investigated live while the tripwire from the
-[wake-watch finding](2026-07-29-rdp-black-screen-gsd-power-one-shot-wake-watch-wedge.md)
+**Date:** 2026-07-29 (~06:45–06:58, investigated live while the
+[wake-watch tripwire](../apps/gnome-remote-desktop/docs/testing.md#idle-wake-watch-failure-is-not-a-handover-failure)
 was running)
 **Symptom:** Identical from the client side to the wake-watch wedge — reconnect
 after a long idle period, GDM password accepted, then a stuck frame and never

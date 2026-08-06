@@ -125,9 +125,11 @@ Three walls are policy, not backlog:
 
 The
 [capability-gap triage](../../findings/2026-08-04-rockchip-vaapi-capability-gap-triage.md)
-and
-[GRD packed-header analysis](../../findings/2026-08-04-grd-vaapi-encode-blocked-by-packed-slice-headers.md)
-preserve the source anchors.
+preserves the broader source anchors. The
+[GRD validation owner](../../apps/gnome-remote-desktop/docs/validation.md#accumulated-capability-conclusions)
+retains the consumer boundary: GRD requires all four packed-header classes,
+including client-authored slice headers, so advertising a partial bridge would
+turn a clean probe rejection into incorrect output.
 
 ## Packaging and browser sandbox boundary
 

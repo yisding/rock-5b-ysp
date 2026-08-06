@@ -867,3 +867,31 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 - **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
   2026-08-06 across 403 Markdown files, 3,583 local links, 457 anchors, all 62
   regression tests, ShellCheck, documentation consistency, and whitespace.
+
+#### GNOME Remote Desktop owner batch
+
+- **Classification:** retained the 2026-07-29 authenticated reconnect finding
+  and 2026-08-01 watchdog/forced-IDR/VBR finding because status track 7 names
+  their exact unrun gates. The other ten files were completed diagnostics,
+  superseded experiments, or policy analyses with established durable owners.
+- **Promotion:** the GRD scorecard now owns fixed-QP transport pressure and
+  full-range BT.709 conclusions with trust boundaries; profiling owns cached
+  readback, driver exclusion, MPP input backpressure, and the FFmpeg retry;
+  testing owns focus/ACK recovery, false idle charging, wake-watch versus
+  handover diagnosis, clean package activation, and TLS-path safety. The VA-API
+  front door owns the packed-slice-header refusal policy.
+- **Evidence and routes:** the retained full-range bundle now links directly to
+  the promoted scorecard result. The two live findings, TCP Reno finding, and
+  every project caller were repointed before deletion; the curated GRD group
+  and generated chronology were regenerated around the two live owners.
+- **Removal:** deleted ten dated intake files spanning 2026-07-18 through
+  2026-08-04: starvation diagnostics, userspace encoder wedge and backpressure,
+  two focus/resume diagnoses, two color experiments, the wake-watch diagnosis,
+  transport pressure, and the GRD/VA-API packed-header assessment.
+- **Public/private review:** this batch retains public application, codec,
+  protocol, package, and network behavior. It adds no memory-corruption
+  trigger, private harness, disclosure/CVE coordination, upstream
+  destination/order, or send/withhold decision.
+- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
+  2026-08-06 across 393 Markdown files, 3,547 local links, 471 anchors, all 62
+  regression tests, ShellCheck, documentation consistency, and whitespace.

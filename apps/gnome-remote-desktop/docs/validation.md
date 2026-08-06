@@ -32,10 +32,46 @@ separate clocks. A useful gate names which one advanced.
 | Quality | Setting bounded VBR rates avoids MPP's low default ceiling on the upstream-style encoder | [Project issue model](../README.md#2-terrible-quality-the-25-mbps-ceiling) |
 | First visible frame | The startup smoke frame can consume the natural IDR; the backend must recreate or use a proven force-IDR control | [Project issue model](../README.md#1-the-frozen-desktop-no-idr-in-the-stream) |
 | Backpressure | One-frame-in-flight needs stale-work dropping and bounded software fallback/retry | [Profiling](profiling.md), release patch model |
+| Fixed-QP transport pressure | The measured encoder ignored bitrate fields in FIXQP mode and averaged 18.7 Mbps over the Tailscale path while the send queue and RTT inflated without retransmissions | [Promoted transport evidence](#fixed-qp-transport-pressure); the VBR candidate still needs its live gate |
 | Greeter encode | Dynamic greeter users require a stable group ACL on MPP/DMA-heap nodes | [Testing](testing.md), [gdm-hwenc package](../../../packaging/gdm-hwenc/README.md) |
 | Cached readback recovery | Copying into cached driver-owned storage removes the measured imported-buffer readback cliff | [Profiling](profiling.md) |
 | Frame-ACK recovery | Recovery must be gated on decoded-frame progress after ACK resume, not on transport traffic alone | [Testing](testing.md) |
+| AVC color signaling | The shader emits full-range BT.709 values; matching H.264 VUI signaling survives FFmpeg/MPP and corrected muted colors on the tested macOS client after a clean reboot | [Promoted color evidence](#full-range-bt709-signaling); visual result, not colorimetry |
 | Native VA-API alternative | GRD requires client-authored packed slice headers that MPP cannot accept | [VA-API capability policy](../../../video-libraries/vaapi/README.md#encode-surface-contract) |
+
+### Fixed-QP transport pressure
+
+On the 2056x1290@60 AVC420 path, ten one-second socket samples during
+full-screen video measured about 18.7 Mbps average with interval peaks near
+22.9 Mbps. `bytes_retrans` did not move, while `Send-Q` reached roughly 252 KiB
+and RTT rose from a 3.262 ms minimum into the 13.2–29.3 ms range. A worse
+sample combined `cwnd:48`, `ssthresh:13`, reordering/DSACK evidence, 47.7 ms
+RTT, and a 275 KiB send queue. The Wi-Fi link itself reported strong signal,
+high PHY rate, and no retries during the focused sample.
+
+Source and MPP logs explain why the computed bitrate triplet was inert:
+`qp_init=22` selected FIXQP, whose logged 1.5/2.0/2.5 Mbps values were MPP
+defaults rather than the 39.8 Mbps target computed by GRD. The measured queue,
+rate, no-loss, and mode evidence is strong; attributing each half-second visual
+stall to the queue remains inferred because no per-frame transport trace was
+captured. The uninstalled [watchdog/VBR finding](../../../findings/2026-08-01-grd-hw-encode-watchdog-forced-idr-bitrate-ceiling.md)
+owns the candidate ceiling and its re-measurement gate.
+
+### Full-range BT.709 signaling
+
+The AVC conversion shader uses full-range BT.709 coefficients, but the old
+encoder context declared limited range and no matrix. A one-variable package
+set `AVCOL_RANGE_JPEG` and `AVCOL_SPC_BT709`; the staged and installed daemon
+matched byte-for-byte, and a focused VPU A/B changed the H.264 metadata from
+unspecified/limited defaults to `color_range=pc` and `color_space=bt709`.
+After a clean reboot, the tested Microsoft macOS RDP client no longer showed
+the muted colors.
+
+The retained [experiment bundle](../../../findings/evidence/2026-07-28-grd-avc-fullrange709/README.md)
+owns the exact patch, package fingerprints, metadata output, failed first
+handover timeline, and static comparison chart. The final verdict is a
+package-verified visual observation, not a colorimeter or paired-pixel result;
+other clients, transfer functions, and display profiles remain outside it.
 
 ## Durable failure classification
 

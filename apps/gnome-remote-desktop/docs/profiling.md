@@ -281,11 +281,11 @@ remaining acceptance gate is one combined board run with patch `0017` and that
 FFmpeg package: sustain full-screen video without a readback wedge or transient
 hardware fallback, then repeat the macOS Windows App reconnect scenario.
 
-The detailed evidence is split by boundary:
-
-- [uncached readback diagnosis and exp5 proof](../../../findings/2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md);
-- [driver/hardware exclusion](../../../findings/2026-07-19-grd-rkmpp-encoder-wedge-userspace-not-driver.md); and
-- [MPP backpressure mechanism and FFmpeg fix](../../../findings/2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md).
+This section is the durable evidence owner for the cached-readback proof,
+driver/hardware exclusion, MPP input-task backpressure, and FFmpeg retry fix.
+The preceding [diagnosis](#9-firefox-freeze-diagnosis-and-the-exp3-recovery-design)
+retains the independent-thread instrumentation and empty-input blocking chain;
+the exact run chronology remains available through Git history.
 
 ## 11. Open item: which DRM modifier does mutter's dma-buf carry?
 

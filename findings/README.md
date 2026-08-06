@@ -276,22 +276,12 @@ Where upstream already is, what it is missing, and where our port will collide w
 - [`2026-07-24`](2026-07-24-rknpu-forward-port-scoping.md) — RKNPU forward-port scoping: 8.6k lines, three hard spots, smaller than the MPP/RGA port
 - [`2026-07-21`](2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) — Mainline AV1/V4L2 vs VA-API, and why Firefox's only Rockchip hardware-decode route is VA-API
 
-### GNOME Remote Desktop and RDP (12)
+### GNOME Remote Desktop and RDP (2)
 
 Hardware H.264 RDP encode end to end: encoder wedges, focus/resume, reconnect, and color.
 
-- [`2026-08-04`](2026-08-04-grd-vaapi-encode-blocked-by-packed-slice-headers.md) — GRD has a native VA-API encoder and does not need FFmpeg — but it demands packed slice headers, which MPP cannot serve
-- [`2026-08-01`](2026-08-01-grd-rdp-video-stall-transport-congestion.md) — GRD's fixed-QP encoder overruns the Tailscale RDP path, stalling video while audio continues
 - [`2026-08-01`](2026-08-01-grd-hw-encode-watchdog-forced-idr-bitrate-ceiling.md) — GRD hardware-encode recovery: forced IDR was implemented but unwired, and the detector could never see a hung encode
 - [`2026-07-29`](2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md) — RDP reconnect after idle dies in the greeter→session handover, masquerading as the wake-watch wedge
-- [`2026-07-29`](2026-07-29-rdp-black-screen-gsd-power-one-shot-wake-watch-wedge.md) — RDP session wedges black after idle lock: gsd-power's one-shot wake watch is unrecoverable
-- [`2026-07-29`](2026-07-29-grd-fullrange-bt709-fixes-muted-colors.md) — Full-range BT.709 signaling fixes the muted GRD AVC colors after a clean reboot
-- [`2026-07-28`](2026-07-28-grd-avc-fullrange-bt709-handover-boundary.md) — GRD AVC full-range BT.709 is package-verified; the live A/B stopped at handover
-- [`2026-07-20`](2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md) — macOS focus return can wedge GRD in restored RDPGFX acknowledgement history
-- [`2026-07-20`](2026-07-20-grd-focus-return-false-pipeline-starvation.md) — Focus return can falsely charge idle time as a GRD pipeline stall
-- [`2026-07-19`](2026-07-19-grd-rkmpp-encoder-wedge-userspace-not-driver.md) — GRD's intermittent HW-encode wedge is userspace (rkmpp/ffmpeg), not the rkvenc2 driver
-- [`2026-07-19`](2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md) — GRD encoder wedge, pinned: MPP input-task backpressure + get_packet timeout (userspace flow control)
-- [`2026-07-18`](2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md) — GRD's frame-starvation detector only warns — it never actuates recovery
 
 ### Desktop VA-API and browsers (24)
 
@@ -370,7 +360,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-08-04-rewrite-kunit-request-rotation-repair.md`](2026-08-04-rewrite-kunit-request-rotation-repair.md) — Current rewrite tips repair request cleanup and rotation KUnit contracts
 - [`2026-08-04-rewrite-kernel-rebase-6-18-42-7-2-rc6.md`](2026-08-04-rewrite-kernel-rebase-6-18-42-7-2-rc6.md) — Rewrite kernels rebased cleanly onto v6.18.42 and v7.2-rc6
 - [`2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md`](2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md) — IEP2 field parity settled: the mode suffix selects the field and `dil_order` does nothing, so MPP's hardcoded I1O1T is wrong for BFF streams
-- [`2026-08-04-grd-vaapi-encode-blocked-by-packed-slice-headers.md`](2026-08-04-grd-vaapi-encode-blocked-by-packed-slice-headers.md) — GRD has a native VA-API encoder and does not need FFmpeg — but it demands packed slice headers, which MPP cannot serve
 - [`2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md`](2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md) — Installed ysp13 fixes Google Chrome's green H.264; VP9 selects VA-API above Chromium's software cutoff
 - [`2026-08-04-forward-port-sd-rescue-rollback-used.md`](2026-08-04-forward-port-sd-rescue-rollback-used.md) — Forward-port kernel rollback has been performed through an SD rescue boot
 - [`2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md`](2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md) — Forward-port 0090–0092 close the RGA job-task and decoder recovery lifetime gaps
@@ -393,7 +382,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-08-01-rewrite-kunit-boot-failures-and-suite-audit.md`](2026-08-01-rewrite-kunit-boot-failures-and-suite-audit.md) — The two RGA KUnit boot failures were fixture lag; a full-suite audit tightened three more cases and pruned three
 - [`2026-08-01-rewrite-driver-review-round-3.md`](2026-08-01-rewrite-driver-review-round-3.md) — Rewrite-driver review round 3: 11 defects, 8 of them holes in fixes already recorded as closed
 - [`2026-08-01-rewrite-driver-retrospective.md`](2026-08-01-rewrite-driver-retrospective.md) — Rewrite-driver retrospective: keep the ownership model, change the architecture and qualification order
-- [`2026-08-01-grd-rdp-video-stall-transport-congestion.md`](2026-08-01-grd-rdp-video-stall-transport-congestion.md) — GRD's fixed-QP encoder overruns the Tailscale RDP path, stalling video while audio continues
 - [`2026-08-01-grd-hw-encode-watchdog-forced-idr-bitrate-ceiling.md`](2026-08-01-grd-hw-encode-watchdog-forced-idr-bitrate-ceiling.md) — GRD hardware-encode recovery: forced IDR was implemented but unwired, and the detector could never see a hung encode
 - [`2026-08-01-forward-port-uaf-oops-audit-round-2.md`](2026-08-01-forward-port-uaf-oops-audit-round-2.md) — Forward-port UAF/oops audit round 2: 18 defects, 7 of them unprivileged memory corruption
 - [`2026-08-01-armbian-rockchip64-defaults-tcp-reno.md`](2026-08-01-armbian-rockchip64-defaults-tcp-reno.md) — Armbian's rockchip64 kernel configs default TCP congestion control to reno
@@ -414,10 +402,8 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-29-rewrite-kunit-fixture-audit.md`](2026-07-29-rewrite-kunit-fixture-audit.md) — Rewrite KUnit fixture audit: 2 boot oopses fixed, full 232-case sweep, latent hazard inventory
 - [`2026-07-29-rewrite-driver-review-round-2.md`](2026-07-29-rewrite-driver-review-round-2.md) — Rewrite-driver review round 2: 12 confirmed defects fixed, 4 items ledgered
 - [`2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md`](2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md) — RDP reconnect after idle dies in the greeter→session handover, masquerading as the wake-watch wedge
-- [`2026-07-29-rdp-black-screen-gsd-power-one-shot-wake-watch-wedge.md`](2026-07-29-rdp-black-screen-gsd-power-one-shot-wake-watch-wedge.md) — RDP session wedges black after idle lock: gsd-power's one-shot wake watch is unrecoverable
 - [`2026-07-29-production-6-18-40-orig-is-rewrite-composite-snapshot.md`](2026-07-29-production-6-18-40-orig-is-rewrite-composite-snapshot.md) — The production 6.18.40 `20260725` orig is a rewrite-composite worktree snapshot, not the validated forward-port series
 - [`2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md`](2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md) — MPP job-ISR IOMMU fault-handler clear takes sleeping locks and panicked the idle task
-- [`2026-07-29-grd-fullrange-bt709-fixes-muted-colors.md`](2026-07-29-grd-fullrange-bt709-fixes-muted-colors.md) — Full-range BT.709 signaling fixes the muted GRD AVC colors after a clean reboot
 - [`2026-07-29-forward-port-warn-oops-audit-and-fixes.md`](2026-07-29-forward-port-warn-oops-audit-and-fixes.md) — Forward-port MPP/RGA WARN/oops audit: 18 defects found and fixed
 - [`2026-07-29-av1-rewrite-branch-hardening-gap-and-backport.md`](2026-07-29-av1-rewrite-branch-hardening-gap-and-backport.md) — rk3588-rewrite-av1-6.18 forked before 19 hardening commits; KUnit isolation and the ISR fault-handler panic fix are absent
 - [`2026-07-29-av1-rewrite-backend-design-source-audit.md`](2026-07-29-av1-rewrite-backend-design-source-audit.md) — AV1 rewrite backend: three-region sparse ABI on the mpp-rewrite core with a kernel-owned AFBC block
@@ -427,7 +413,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-28-rewrite-kunit-pre-phase-applied.md`](2026-07-28-rewrite-kunit-pre-phase-applied.md) — Rewrite KUnit pre-phase is applied with an 84/148 gate
 - [`2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md`](2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md) — Ramoops retention works on the 6.18.40-era kernels — the all-zero failure was kernel-generation-scoped, not firmware-scoped
 - [`2026-07-28-production-kernel-debug-option-audit.md`](2026-07-28-production-kernel-debug-option-audit.md) — Production kernel debug audit: four options above Armbian stock, and a 256 MiB debug allocation arriving from the shared boot environment
-- [`2026-07-28-grd-avc-fullrange-bt709-handover-boundary.md`](2026-07-28-grd-avc-fullrange-bt709-handover-boundary.md) — GRD AVC full-range BT.709 is package-verified; the live A/B stopped at handover
 - [`2026-07-28-dmabuf-debug-upstream-provenance-and-fix-options.md`](2026-07-28-dmabuf-debug-upstream-provenance-and-fix-options.md) — The DMABUF_DEBUG scatterlist defect is 100% upstream code, reported since 2022, and blocked on an unresolved dma-buf design argument
 - [`2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md`](2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md) — CONFIG_DMABUF_DEBUG's mangle_sg_table() is the system-heap page_link writer, and the dma-heap CPU-access sync dereferences it
 - [`2026-07-27-rk3588-spl-ramoops-binary-audit.md`](2026-07-27-rk3588-spl-ramoops-binary-audit.md) — Exact SPL audit closes the ordinary CPU zero-writer, not the DDR mechanism
@@ -496,15 +481,10 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-21-forward-port-lifetime-resource-ownership-audit.md`](2026-07-21-forward-port-lifetime-resource-ownership-audit.md) — Forward-port MPP/RGA lifetime and resource-ownership audit
 - [`2026-07-20-rkvenc2-slice-fifo-terminal-drop.md`](2026-07-20-rkvenc2-slice-fifo-terminal-drop.md) — RKVENC2 silently drops the terminal slice when its per-task FIFO fills
 - [`2026-07-20-rga2-unmapped-page-table-dma-sync.md`](2026-07-20-rga2-unmapped-page-table-dma-sync.md) — RGA2 syncs page-table memory through an unmapped DMA address
-- [`2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md`](2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md) — macOS focus return can wedge GRD in restored RDPGFX acknowledgement history
-- [`2026-07-20-grd-focus-return-false-pipeline-starvation.md`](2026-07-20-grd-focus-return-false-pipeline-starvation.md) — Focus return can falsely charge idle time as a GRD pipeline stall
 - [`2026-07-20-armbian-radxa-image-fit-audit.md`](2026-07-20-armbian-radxa-image-fit-audit.md) — Armbian Radxa catalog: 21 zero-DTB images, 207 clean, 95 not applicable
 - [`2026-07-20-armbian-non-radxa-radxa-uboot-audit.md`](2026-07-20-armbian-non-radxa-radxa-uboot-audit.md) — Non-Radxa Radxa-U-Boot catalog: 17 zero-DTB images, 182 clean, 4 unavailable
-- [`2026-07-19-grd-rkmpp-encoder-wedge-userspace-not-driver.md`](2026-07-19-grd-rkmpp-encoder-wedge-userspace-not-driver.md) — GRD's intermittent HW-encode wedge is userspace (rkmpp/ffmpeg), not the rkvenc2 driver
-- [`2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md`](2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md) — GRD encoder wedge, pinned: MPP input-task backpressure + get_packet timeout (userspace flow control)
 - [`2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md`](2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md) — KASAN: rkvenc2_wait_result reads task->state after freeing the task (forward-port-introduced)
 - [`2026-07-18-mpp-reset-session-dma-double-free-kasan.md`](2026-07-18-mpp-reset-session-dma-double-free-kasan.md) — KASAN caught the preflight Oops: MPP_CMD_RESET_SESSION double-frees session->dma
-- [`2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md`](2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md) — GRD's frame-starvation detector only warns — it never actuates recovery
 - [`2026-07-17-rga-session-close-uaf.md`](2026-07-17-rga-session-close-uaf.md) — RGA session-close force-free ignores refcounts; a leaked test handle exposed it as a kernel Oops
 - [`2026-07-17-mpp-procfs-session-teardown-oops.md`](2026-07-17-mpp-procfs-session-teardown-oops.md) — MPP procfs session dump races private teardown and NULL-dereferences
 - [`2026-07-17-forward-port-conformance-preflight-oops.md`](2026-07-17-forward-port-conformance-preflight-oops.md) — Forward-port conformance preflight Oopsed before the first MPP case
