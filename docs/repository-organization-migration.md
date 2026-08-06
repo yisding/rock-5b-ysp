@@ -896,3 +896,33 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 - **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
   2026-08-06 across 393 Markdown files, 3,547 local links, 471 anchors, all 62
   regression tests, ShellCheck, documentation consistency, and whitespace.
+
+#### VA-API and desktop-consumer owner batch
+
+- **Classification:** retained the status-linked Google Chrome
+  stable-export/install/automation/sandbox finding and the unresolved
+  IEP2-enabled interlaced-decode finding. The other 22 observations were
+  superseded checkpoints, completed qualification slices, source/policy
+  assessments, or application boundaries with durable owners.
+- **New scorecard owner:** `video-libraries/vaapi/docs/validation.md` now owns
+  the evidence ladder; immutable ysp8/ysp9 payload identities; renovation,
+  shipping sweep, sanitizer/fuzz, package, installed-stack, RGA discriminator,
+  codec/conversion, encode/import/transport, framework, application, and
+  sandbox conclusions; and every negative boundary needed to interpret them.
+- **Route cleanup:** the project policy, architecture guide, source map,
+  application map, external-workspace inventory, surviving browser/kernel/RGA
+  findings, and Chromium/Chrome evidence bundle now route to the scorecard.
+  The curated VA-API group and generated chronology contain only the two live
+  findings.
+- **Removal:** deleted 22 intake files from 2026-07-21 through 2026-08-04,
+  including the renovation/AV1 reviews, Firefox package policy/checkpoint,
+  decode/encode/import/RTP qualification slices, readiness/shipping/roadmap
+  rollups, ysp8/ysp9 package matrices, capability/consumer assessments, and the
+  superseded Chromium package measurement.
+- **Public/private review:** this userspace/application batch retains public
+  source, codec, package, sandbox, and consumer evidence only. It adds no
+  memory-corruption trigger, private harness, disclosure/CVE coordination,
+  upstream destination/order, or send/withhold decision.
+- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
+  2026-08-06 across 373 Markdown files, 3,477 local links, 498 anchors, all 62
+  regression tests, ShellCheck, documentation consistency, and whitespace.

@@ -2,7 +2,7 @@
 
 > Scope: kernel-drivers RGA core scheduling, and the `rockchip-vaapi` AFBC
 > NV15→P010 repack that every 10-bit surface depends on. Explains the single
-> remaining failure in the [Main10 conformance sweep](2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md).
+> remaining failure in the [promoted Main10 conformance evidence](../video-libraries/vaapi/docs/validation.md#decode-and-conversion-conclusions).
 >
 > Source: forward port `~/Code/rock-5b/kernel/linux-6.18-rkvenc-av1-fwport`
 > `drivers/video/rockchip/rga3/` — `rga_hw_config.c` `rga3_data`/`rga2e_data`

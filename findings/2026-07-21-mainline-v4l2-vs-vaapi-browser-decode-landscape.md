@@ -4,7 +4,7 @@
 > apps consume it, whether a VA-API path to it exists, and — given Firefox
 > "uses ffmpeg" — why Firefox can reach neither the mainline V4L2 decoders nor
 > the ffmpeg rkmpp wrapper decoders, leaving VA-API as its only route. Companion
-> to the [AV1 bitstream-reconstruction finding](2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md).
+> to the [VA-API reconstruction model](../video-libraries/vaapi/README.md#decode-architecture-and-boundaries).
 > Source: web research against primary sources (Mozilla Bugzilla, FFmpeg
 > mailing list + `libavcodec/rkmppdec.c`, kernel linux-media patchwork/LWN,
 > Chromium groups) — cited at the end; plus Firefox media-decode architecture
@@ -58,7 +58,7 @@ stateless shim. Two exist, neither reaching AV1 or rkvdec2:
 - `mxsrc/libva-v4l2`: MPEG-2/H.264/VP8/VP9, RK3399 (hantro/rockchip), **no
   AV1, no rkvdec2/RK3588**.
 
-**Key inversion** (ties to the [AV1-hardness finding](2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md)):
+**Key inversion** (ties to the [AV1 reconstruction boundary](../video-libraries/vaapi/README.md#decode-architecture-and-boundaries)):
 a VA-API→V4L2-stateless AV1 shim would be *far easier* than our VA-API→MPP
 bridge, because it is **stateless→stateless** — V4L2's stateless AV1 controls
 take the same parsed frame-header parameters VA-API provides, so it is

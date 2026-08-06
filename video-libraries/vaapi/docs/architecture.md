@@ -157,7 +157,7 @@ that survives the VA boundary. Complete OBU reconstruction remains unsuitable
 for stock clients. A separate direct vendor backend can instead translate the
 effective VA state into hardware jobs and key persistent CDF/segmentation/MV
 state to explicit VA surfaces. The packet mismatch is detailed in the
-[AV1 reconstruction finding](../../../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md);
+[validation scorecard](validation.md#decode-and-conversion-conclusions);
 the bounded alternative is the
 [direct AV1 backend design](av1-direct-mpp-service-backend.md).
 
@@ -873,7 +873,7 @@ rather than starting over.
 | A soak claim could go stale when log wording changed | Audit grep no longer matched after a log field was inserted | Repaired the gate and re-ran it; structured logs and explicit evidence classes reduce future ambiguity |
 
 The causal record behind those changes starts with the
-[original renovation review](../../../findings/2026-07-21-rockchip-vaapi-driver-review.md)
+[promoted renovation evidence](validation.md#accumulated-release-evidence)
 and continues through the project
 [evidence map](../README.md#evidence-map).
 
@@ -992,17 +992,13 @@ not a correctness result.
 
 - [Project capability and evidence map](../README.md)
 - [Application enablement map](../../../docs/app-enablement.md)
-- [Original driver review and renovation decision](../../../findings/2026-07-21-rockchip-vaapi-driver-review.md)
-- [Bitstream reconstruction and AV1 boundary](../../../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md)
+- [Renovation, reconstruction, and release evidence](validation.md#accumulated-release-evidence)
+- [Bitstream reconstruction and AV1 boundary](../README.md#decode-architecture-and-boundaries)
 - [Direct AV1 `/dev/mpp_service` backend design](av1-direct-mpp-service-backend.md)
-- [Main10 AFBC/P010 validation](../../../findings/2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md)
-- [Shipping-stack, HEVC, VLC, and Firefox gates](../../../findings/2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md)
+- [Decode, Main10 AFBC/P010, and shipping-stack validation](validation.md#decode-and-conversion-conclusions)
 - [Narrow AFBC 10-bit refusal](../../../findings/2026-07-29-rga-no-core-match-narrow-afbc-10bit.md)
-- [H.264 encode](../../../findings/2026-07-26-rockchip-vaapi-h264-va-encode-validation.md)
-  and [HEVC encode](../../../findings/2026-07-26-rockchip-vaapi-hevc-va-encode-validation.md)
-- [Planar uploads](../../../findings/2026-07-26-rockchip-vaapi-planar-encode-upload-validation.md)
-  and [PRIME RGB import](../../../findings/2026-07-26-rockchip-vaapi-drm-prime-rgb-encode-validation.md)
-- [Firefox RDD policy](../../../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md)
+- [Encode, upload, import, concurrency, and transport validation](validation.md#encode-import-and-transport-conclusions)
+- [Consumer and Firefox RDD policy evidence](validation.md#consumer-and-sandbox-conclusions)
 - [MPP library architecture](../../../vendor-libraries/mpp/docs/mpp-library-architecture.md)
 - [librga guide](../../../vendor-libraries/rga/docs/librga-guide.md)
 - [Kernel codec/RGA uAPIs](../../../kernel-drivers/docs/dev-uapis.md)

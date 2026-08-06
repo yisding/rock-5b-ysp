@@ -283,35 +283,13 @@ Hardware H.264 RDP encode end to end: encoder wedges, focus/resume, reconnect, a
 - [`2026-08-01`](2026-08-01-grd-hw-encode-watchdog-forced-idr-bitrate-ceiling.md) — GRD hardware-encode recovery: forced IDR was implemented but unwired, and the detector could never see a hung encode
 - [`2026-07-29`](2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md) — RDP reconnect after idle dies in the greeter→session handover, masquerading as the wake-watch wedge
 
-### Desktop VA-API and browsers (24)
+### Desktop VA-API and browsers (2)
 
 `rockchip-vaapi`: the bridge that serves Firefox, standard GStreamer and
 libavcodec VA-API consumers without per-application RKMPP codec patches.
 
 - [`2026-08-04`](2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md) — Google Chrome reaches rockchip-vaapi; green H.264 was a retained pre-decode DMA-BUF, and the source fix preserves that storage
-- [`2026-08-04`](2026-08-04-rockchip-vaapi-consumer-assessment.md) — rockchip-vaapi's durable consumers are Firefox and the standard VA-API framework stacks; Sunshine and OBS are the best unmeasured encode targets
-- [`2026-08-04`](2026-08-04-chromium-151-gpu-working-v4l2-only.md) — Chromium 151 closes the ANGLE startup blocker but the installed arm64 package exposes only Hantro V4L2 VP8, not rockchip-vaapi
 - [`2026-08-04`](2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md) — Enabling IEP2 broke interlaced VA-API decode by un-masking a driver defect: MPP's decoder deinterlacer is 1:N, VA-API decode is 1:1
-- [`2026-08-04`](2026-08-04-rockchip-vaapi-capability-gap-triage.md) — rockchip-vaapi's remaining non-AV1 gaps split three ways: two are MPP walls, the size caps fail open below as well as closed above, and the sweep harness overwrites its own evidence
-- [`2026-08-02`](2026-08-02-rockchip-vaapi-ysp9-rc-validation.md) — rockchip-vaapi ysp9 RC retires the VP9 quarantine and passes full sanitizer, RGA repeat, and package gates
-- [`2026-08-02`](2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md) — rockchip-vaapi ysp8 is installed and green across decode, encode, GStreamer, VLC, mpv, and Firefox; one optional IEP2 probe is noisy
-- [`2026-07-29`](2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md) — rockchip-vaapi closes 10-bit throughput and the remaining Phase 4 qualification slices, while Firefox Main10 stops at Panfrost EGL import
-- [`2026-07-28`](2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md) — rockchip-vaapi now measures green on the shipping stack, HEVC Main ships by default, and VLC and Firefox hardware-decode in a real session
-- [`2026-07-28`](2026-07-28-vaapi-decode-readiness-and-remaining-work.md) — rockchip-vaapi decode is codec-complete except AV1; the remaining work is deployment, one confirmation run, promotion, and browser integration
-- [`2026-07-26`](2026-07-26-vlc-headless-vaapi-device-boundary.md) — VLC headless playback cannot prove rockchip-vaapi hardware decode
-- [`2026-07-26`](2026-07-26-rockchip-vaapi-webrtc-rtp-validation.md) — rockchip-vaapi H.264 reaches the WebRTC-compatible RTP boundary
-- [`2026-07-26`](2026-07-26-rockchip-vaapi-planar-encode-upload-validation.md) — rockchip-vaapi planar VA uploads are normalized safely to MPP NV12
-- [`2026-07-26`](2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md) — rockchip-vaapi 10-bit decode needs MPP AFBC plus crop metadata
-- [`2026-07-26`](2026-07-26-rockchip-vaapi-hevc-va-encode-validation.md) — rockchip-vaapi HEVC VA encode requires the native RK3588 CTU64 contract
-- [`2026-07-26`](2026-07-26-rockchip-vaapi-hevc-rps-and-p010-boundary.md) — rockchip-vaapi HEVC RPS boundary, with P010 fixed below it
-- [`2026-07-26`](2026-07-26-rockchip-vaapi-h264-va-encode-validation.md) — rockchip-vaapi H.264 VA encode is interoperable through FFmpeg and GStreamer
-- [`2026-07-26`](2026-07-26-rockchip-vaapi-dual-encode-soak-smoke.md) — rockchip-vaapi dual encode soak exposed HEVC visible/aligned geometry
-- [`2026-07-26`](2026-07-26-rockchip-vaapi-drm-prime-rgb-encode-validation.md) — rockchip-vaapi imports linear RGB DMA-BUFs for checked RGA encode input
-- [`2026-07-26`](2026-07-26-firefox-rdd-rockchip-vaapi-policy.md) — Firefox 152.0.6 RDD needs both Rockchip broker paths and ioctl requests
-- [`2026-07-26`](2026-07-26-firefox-rdd-package-build-checkpoint.md) — Firefox 152.0.6 Rockchip RDD package build is configured but paused
-- [`2026-07-21`](2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md) — Why AV1 is hard for the VA-API↔MPP bridge (and H.264/HEVC/VP9 are not): the bitstream-reconstruction spectrum
-- [`2026-07-21`](2026-07-21-ubuntu-rockchip-piggyback-survey.md) — ubuntu-rockchip (Joshua Riek) survey: a working Chromium V4L2-stateful-over-MPP bridge exists, the project is archived, and per-app reuse is now mapped
-- [`2026-07-21`](2026-07-21-rockchip-vaapi-driver-review.md) — rockchip-vaapi review: a working PoC VA-API-over-MPP driver exists; strategic architecture is right, two load-bearing shortcuts must be replaced; recommend fork-and-renovate
 
 ### FFmpeg, MPP userspace, and Kodi (1)
 
@@ -355,8 +333,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-08-05-rewrite-rga-librga-swiotlb-fence-status.md`](2026-08-05-rewrite-rga-librga-swiotlb-fence-status.md) — Rewrite RGA librga failures: SWIOTLB segments, fd-zero fences, and sample status
 - [`2026-08-05-rewrite-kunit-fd-zero-boot-wedge.md`](2026-08-05-rewrite-kunit-fd-zero-boot-wedge.md) — A legacy fd-zero fence sentinel wedged the boot inside KUnit
 - [`2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md`](2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md) — Enabling IEP2 broke interlaced VA-API decode by un-masking a driver defect: MPP's decoder deinterlacer is 1:N, VA-API decode is 1:1
-- [`2026-08-04-rockchip-vaapi-consumer-assessment.md`](2026-08-04-rockchip-vaapi-consumer-assessment.md) — rockchip-vaapi's durable consumers are Firefox and the standard VA-API framework stacks; Sunshine and OBS are the best unmeasured encode targets
-- [`2026-08-04-rockchip-vaapi-capability-gap-triage.md`](2026-08-04-rockchip-vaapi-capability-gap-triage.md) — rockchip-vaapi's remaining non-AV1 gaps split three ways: two are MPP walls, the size caps fail open below as well as closed above, and the sweep harness overwrites its own evidence
 - [`2026-08-04-rewrite-kunit-request-rotation-repair.md`](2026-08-04-rewrite-kunit-request-rotation-repair.md) — Current rewrite tips repair request cleanup and rotation KUnit contracts
 - [`2026-08-04-rewrite-kernel-rebase-6-18-42-7-2-rc6.md`](2026-08-04-rewrite-kernel-rebase-6-18-42-7-2-rc6.md) — Rewrite kernels rebased cleanly onto v6.18.42 and v7.2-rc6
 - [`2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md`](2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md) — IEP2 field parity settled: the mode suffix selects the field and `dil_order` does nothing, so MPP's hardcoded I1O1T is wrong for BFF streams
@@ -364,13 +340,10 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-08-04-forward-port-sd-rescue-rollback-used.md`](2026-08-04-forward-port-sd-rescue-rollback-used.md) — Forward-port kernel rollback has been performed through an SD rescue boot
 - [`2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md`](2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md) — Forward-port 0090–0092 close the RGA job-task and decoder recovery lifetime gaps
 - [`2026-08-04-forward-port-6-18-42-0092-production-validation.md`](2026-08-04-forward-port-6-18-42-0092-production-validation.md) — Forward-port 6.18.42 production validation boots 0092 and closes the functional recovery gates
-- [`2026-08-04-chromium-151-gpu-working-v4l2-only.md`](2026-08-04-chromium-151-gpu-working-v4l2-only.md) — Chromium 151 closes the ANGLE startup blocker but the installed arm64 package exposes only Hantro V4L2 VP8, not rockchip-vaapi
 - [`2026-08-03-rk3588-iep2-nondeterministic-output.md`](2026-08-03-rk3588-iep2-nondeterministic-output.md) — RK3588 IEP2 runs clean under KASAN; its output non-determinism is a missing dma-buf cache sync in Rockchip's test harness, not the driver
 - [`2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md`](2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md) — The RGA rewrite's IOMMU-IRQ-mask fallback was unreachable, and it blocked the mainline mirror
 - [`2026-08-03-mainline-missing-uncached-dma32-heaps.md`](2026-08-03-mainline-missing-uncached-dma32-heaps.md) — Mainline lacks the BSP uncached/dma32 dma-heaps; MPP absorbs it, librga samples do not
 - [`2026-08-02-vsi-iommu-mainline-convergence-and-resync-collision.md`](2026-08-02-vsi-iommu-mainline-convergence-and-resync-collision.md) — Mainline absorbed the VSI IOMMU driver and its RK3588 DT node in v7.2-rc1, and our forward port will collide with both
-- [`2026-08-02-rockchip-vaapi-ysp9-rc-validation.md`](2026-08-02-rockchip-vaapi-ysp9-rc-validation.md) — rockchip-vaapi ysp9 RC retires the VP9 quarantine and passes full sanitizer, RGA repeat, and package gates
-- [`2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md`](2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md) — rockchip-vaapi ysp8 is installed and green across decode, encode, GStreamer, VLC, mpv, and Firefox; one optional IEP2 probe is noisy
 - [`2026-08-02-rk3588-maxline-proposal-refresh.md`](2026-08-02-rk3588-maxline-proposal-refresh.md) — RK3588 maxline refreshed to current proposals, Linus master, and linux-next
 - [`2026-08-02-rga3-forward-port-small-geometry-discriminator.md`](2026-08-02-rga3-forward-port-small-geometry-discriminator.md) — Forward-port RGA3 passes the repeated small-geometry AFBC-to-P010 dropped-write discriminator
 - [`2026-08-02-mainline-tool-assisted-contribution-policy.md`](2026-08-02-mainline-tool-assisted-contribution-policy.md) — Mainline now has a written tool-assisted contribution policy, and its trailer is not the one this repo uses
@@ -396,7 +369,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-30-rewrite-av1-vsi-fault-afbc-lifecycle-races.md`](2026-07-30-rewrite-av1-vsi-fault-afbc-lifecycle-races.md) — Rewrite AV1/VSI audit closes fault-admission and teardown races; AFBC retirement proof remains a hardware gate
 - [`2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md`](2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md) — FFmpeg RKMPP async-frame lifetime fix clears reset/close double release
 - [`2026-07-30-boot-failure-retro-prevention-levers.md`](2026-07-30-boot-failure-retro-prevention-levers.md) — Wedge-week retrospective: what would have caught each failure class before boot
-- [`2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md`](2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md) — rockchip-vaapi closes 10-bit throughput and the remaining Phase 4 qualification slices, while Firefox Main10 stops at Panfrost EGL import
 - [`2026-07-29-rga-no-core-match-narrow-afbc-10bit.md`](2026-07-29-rga-no-core-match-narrow-afbc-10bit.md) — A narrow AFBC 10-bit frame has no RGA core: RGA3 needs width ≥ 68 and RGA2 cannot read AFBC
 - [`2026-07-29-rewrite-soft-ccu-dual-core-wedge.md`](2026-07-29-rewrite-soft-ccu-dual-core-wedge.md) — Rewrite soft-CCU dual-core decode wedges the interconnect; arm/start split root-caused and fixed
 - [`2026-07-29-rewrite-kunit-fixture-audit.md`](2026-07-29-rewrite-kunit-fixture-audit.md) — Rewrite KUnit fixture audit: 2 boot oopses fixed, full 232-case sweep, latent hazard inventory
@@ -407,8 +379,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-29-forward-port-warn-oops-audit-and-fixes.md`](2026-07-29-forward-port-warn-oops-audit-and-fixes.md) — Forward-port MPP/RGA WARN/oops audit: 18 defects found and fixed
 - [`2026-07-29-av1-rewrite-branch-hardening-gap-and-backport.md`](2026-07-29-av1-rewrite-branch-hardening-gap-and-backport.md) — rk3588-rewrite-av1-6.18 forked before 19 hardening commits; KUnit isolation and the ISR fault-handler panic fix are absent
 - [`2026-07-29-av1-rewrite-backend-design-source-audit.md`](2026-07-29-av1-rewrite-backend-design-source-audit.md) — AV1 rewrite backend: three-region sparse ABI on the mpp-rewrite core with a kernel-owned AFBC block
-- [`2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md`](2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md) — rockchip-vaapi now measures green on the shipping stack, HEVC Main ships by default, and VLC and Firefox hardware-decode in a real session
-- [`2026-07-28-vaapi-decode-readiness-and-remaining-work.md`](2026-07-28-vaapi-decode-readiness-and-remaining-work.md) — rockchip-vaapi decode is codec-complete except AV1; the remaining work is deployment, one confirmation run, promotion, and browser integration
 - [`2026-07-28-rkvdec2-err23-picsize-oversize-width.md`](2026-07-28-rkvdec2-err23-picsize-oversize-width.md) — rkvdec2 `err 0x23`: an 8192-sample width inflection, BSP watchdog constants whose names are wrong, and VA-API caps that are wrong in both directions
 - [`2026-07-28-rewrite-kunit-pre-phase-applied.md`](2026-07-28-rewrite-kunit-pre-phase-applied.md) — Rewrite KUnit pre-phase is applied with an 84/148 gate
 - [`2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md`](2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md) — Ramoops retention works on the 6.18.40-era kernels — the all-zero failure was kernel-generation-scoped, not firmware-scoped
@@ -430,21 +400,10 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-27-grd-sg-corruption-reproduced-and-ioctl-capture-plan.md`](2026-07-27-grd-sg-corruption-reproduced-and-ioctl-capture-plan.md) — GRD system-heap oops reproduces 2/2 on production, and both corrupt pointers land 256 bytes below a 16 KiB boundary
 - [`2026-07-27-grd-sg-corruption-kasan-non-reproduction.md`](2026-07-27-grd-sg-corruption-kasan-non-reproduction.md) — The KASAN kernel does not reproduce the GRD system-heap oops, and is likely unable to
 - [`2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md`](2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md) — GRD's first RKMPP frame oopses on a corrupted system-heap scatterlist entry
-- [`2026-07-26-vlc-headless-vaapi-device-boundary.md`](2026-07-26-vlc-headless-vaapi-device-boundary.md) — VLC headless playback cannot prove rockchip-vaapi hardware decode
-- [`2026-07-26-rockchip-vaapi-webrtc-rtp-validation.md`](2026-07-26-rockchip-vaapi-webrtc-rtp-validation.md) — rockchip-vaapi H.264 reaches the WebRTC-compatible RTP boundary
-- [`2026-07-26-rockchip-vaapi-planar-encode-upload-validation.md`](2026-07-26-rockchip-vaapi-planar-encode-upload-validation.md) — rockchip-vaapi planar VA uploads are normalized safely to MPP NV12
-- [`2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md`](2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md) — rockchip-vaapi 10-bit decode needs MPP AFBC plus crop metadata
-- [`2026-07-26-rockchip-vaapi-hevc-va-encode-validation.md`](2026-07-26-rockchip-vaapi-hevc-va-encode-validation.md) — rockchip-vaapi HEVC VA encode requires the native RK3588 CTU64 contract
-- [`2026-07-26-rockchip-vaapi-hevc-rps-and-p010-boundary.md`](2026-07-26-rockchip-vaapi-hevc-rps-and-p010-boundary.md) — rockchip-vaapi HEVC RPS boundary, with P010 fixed below it
-- [`2026-07-26-rockchip-vaapi-h264-va-encode-validation.md`](2026-07-26-rockchip-vaapi-h264-va-encode-validation.md) — rockchip-vaapi H.264 VA encode is interoperable through FFmpeg and GStreamer
-- [`2026-07-26-rockchip-vaapi-dual-encode-soak-smoke.md`](2026-07-26-rockchip-vaapi-dual-encode-soak-smoke.md) — rockchip-vaapi dual encode soak exposed HEVC visible/aligned geometry
-- [`2026-07-26-rockchip-vaapi-drm-prime-rgb-encode-validation.md`](2026-07-26-rockchip-vaapi-drm-prime-rgb-encode-validation.md) — rockchip-vaapi imports linear RGB DMA-BUFs for checked RGA encode input
 - [`2026-07-26-rk3588-ddr-blob-ramoops-static-audit.md`](2026-07-26-rk3588-ddr-blob-ramoops-static-audit.md) — RK3588 DDR blobs do not directly clear the Linux ramoops window
 - [`2026-07-26-rewrite-kunit-poisons-runtime-and-rga3-probe-fails.md`](2026-07-26-rewrite-kunit-poisons-runtime-and-rga3-probe-fails.md) — Failed rewrite KUnit poisoned MPP runtime while overlapping resources disabled RGA3
 - [`2026-07-26-rewrite-kunit-gate-passes.md`](2026-07-26-rewrite-kunit-gate-passes.md) — Rewrite KUnit gate passes all 232 cases on the follow-up boot
 - [`2026-07-26-rewrite-kunit-failure-root-causes.md`](2026-07-26-rewrite-kunit-failure-root-causes.md) — Rewrite KUnit failures were stale fixtures plus six driver-contract defects
-- [`2026-07-26-firefox-rdd-rockchip-vaapi-policy.md`](2026-07-26-firefox-rdd-rockchip-vaapi-policy.md) — Firefox 152.0.6 RDD needs both Rockchip broker paths and ioctl requests
-- [`2026-07-26-firefox-rdd-package-build-checkpoint.md`](2026-07-26-firefox-rdd-package-build-checkpoint.md) — Firefox 152.0.6 Rockchip RDD package build is configured but paused
 - [`2026-07-26-dwc-pcie-pmu-bus-notifier-lockdep-false-positive.md`](2026-07-26-dwc-pcie-pmu-bus-notifier-lockdep-false-positive.md) — DWC PCIe PMU nests distinct same-class bus notifier locks and disables lockdep
 - [`2026-07-25-rock5b-zram-thrash-livelock-wedge.md`](2026-07-25-rock5b-zram-thrash-livelock-wedge.md) — The board wedges by thrash livelock, not by OOM — zram saturation plus a page-cache flood, with no daemon to break it
 - [`2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md`](2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md) — RK3588 per-die voltage binning: the BSP selects voltage from eFuse, mainline ships only the worst-die column
@@ -466,9 +425,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-22-mpp-process-request-list-add-double-add-warn.md`](2026-07-22-mpp-process-request-list-add-double-add-warn.md) — MPP `INIT_CLIENT_TYPE` double-call corrupts the workqueue session list
 - [`2026-07-22-gstreamer-suite-forward-port-userspace-gaps.md`](2026-07-22-gstreamer-suite-forward-port-userspace-gaps.md) — GStreamer conformance on the forward-port kernel — green modulo 4 userspace gaps
 - [`2026-07-22-bsp-high-current-tip-port.md`](2026-07-22-bsp-high-current-tip-port.md) — BSP-audit HIGH findings ported to the current forward-port tip
-- [`2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md`](2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md) — Why AV1 is hard for the VA-API↔MPP bridge (and H.264/HEVC/VP9 are not): the bitstream-reconstruction spectrum
-- [`2026-07-21-ubuntu-rockchip-piggyback-survey.md`](2026-07-21-ubuntu-rockchip-piggyback-survey.md) — ubuntu-rockchip (Joshua Riek) survey: a working Chromium V4L2-stateful-over-MPP bridge exists, the project is archived, and per-app reuse is now mapped
-- [`2026-07-21-rockchip-vaapi-driver-review.md`](2026-07-21-rockchip-vaapi-driver-review.md) — rockchip-vaapi review: a working PoC VA-API-over-MPP driver exists; strategic architecture is right, two load-bearing shortcuts must be replaced; recommend fork-and-renovate
 - [`2026-07-21-rga2-dma-api-ownership-and-over-4g-scope.md`](2026-07-21-rga2-dma-api-ownership-and-over-4g-scope.md) — Scope: RGA2 page-table DMA ownership (0050) and DMA-API over-4G path (0051)
 - [`2026-07-21-rga-rewrite-rust-counterfactual.md`](2026-07-21-rga-rewrite-rust-counterfactual.md) — Rust counterfactual for the RGA clean-room rewrite: wrong call in 2026, right call once dma-buf/fence/IOMMU abstractions land
 - [`2026-07-21-rga-request-completion-vs-session-close-uaf-kasan.md`](2026-07-21-rga-request-completion-vs-session-close-uaf-kasan.md) — RGA `rga_request` completion races session-close: KASAN use-after-free on the current forward-port tip

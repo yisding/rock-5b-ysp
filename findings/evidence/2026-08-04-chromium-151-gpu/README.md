@@ -1,9 +1,9 @@
 # Chromium 151 `chrome://gpu` export
 
-Supports
-[`2026-08-04-chromium-151-gpu-working-v4l2-only.md`](../../2026-08-04-chromium-151-gpu-working-v4l2-only.md)
-and
-[`2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md`](../../2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md).
+Supports the promoted
+[Chromium 151 boundary](../../../video-libraries/vaapi/docs/validation.md#consumer-and-sandbox-conclusions)
+and the live
+[Google Chrome retained-export diagnosis](../../2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md).
 
 ## Contents
 

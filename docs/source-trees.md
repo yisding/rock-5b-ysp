@@ -113,7 +113,7 @@ and interpretation.
 | FFmpeg publication-base study | `FFmpeg/FFmpeg` | `master@ceabc9b306f5`; `release/8.0@435ae0581deb`; `release/8.1@94138f6973dd` | [rebase notes](../video-libraries/ffmpeg/docs/rebase-notes.md) §7 |
 | rockchip-vaapi stable-export evidence | `github.com/yisding/rockchip-vaapi` | `70f26d950bcb` vs upstream `woodyst/rockchip-vaapi@e8c64dd` | [VA-API project](../video-libraries/vaapi/README.md) and [finding](../findings/2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md) |
 | rockchip-vaapi AV1 design | same | `docs/AV1_SUPPORT_PLAN.md` change `4d98eca2c76a007bc46523a26d39f3043d80ec52` | direct AV1 design |
-| Firefox RDD package audit | Mozilla Team PPA Resolute source | `153.0+build1-0ubuntu0.26.04.1~mt1`; `.dsc` SHA-256 `5fb63a47f969bc97479bf19abecc4d8d790ad2bcb1d3e7b2adde26248d50c8ed` | [Firefox RDD finding](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md) |
+| Firefox RDD package audit | Mozilla Team PPA Resolute source | `153.0+build1-0ubuntu0.26.04.1~mt1`; `.dsc` SHA-256 `5fb63a47f969bc97479bf19abecc4d8d790ad2bcb1d3e7b2adde26248d50c8ed` | [VA-API consumer scorecard](../video-libraries/vaapi/docs/validation.md#consumer-and-sandbox-conclusions) |
 
 The libmpp v1.3.9 study hash is unknown; do not substitute the different
 `1375813cbbae` tree. Librga Part B anchors were rechecked at `2cffdf6f332c`.

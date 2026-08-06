@@ -10,7 +10,7 @@ MPP/RGA operations on RK3588.
 |-------|----------|
 | Purpose | Expose the vendor `/dev/mpp_service` codec stack through standard VA-API without patching each desktop application into RKMPP wrapper codecs. |
 | Owns | Durable capability policy and evidence routes. |
-| Does not own | Architecture mechanism ([guide](docs/architecture.md)), application compatibility ([app map](../../docs/app-enablement.md)), publication ([W05](../../status.md#watch-w05)), remote tips ([W18](../../status.md#watch-w18)), or the dated browser/package verdict ([status track 14](../../status.md)). |
+| Does not own | Architecture mechanism ([guide](docs/architecture.md)), accumulated results ([scorecard](docs/validation.md)), application compatibility ([app map](../../docs/app-enablement.md)), publication ([W05](../../status.md#watch-w05)), remote tips ([W18](../../status.md#watch-w18)), or the dated browser/package verdict ([status track 14](../../status.md)). |
 | Depends on | A compatible MPP/RGA kernel and userspace pair, libva, device permissions, and application-specific display or sandbox access. |
 
 ## Where it sits
@@ -28,7 +28,8 @@ Firefox / Chromium / VLC / GStreamer / FFmpeg
 ```
 
 The [architecture guide](docs/architecture.md) explains how the bridge works;
-the [application map](../../docs/app-enablement.md) owns consumer fit.
+the [validation scorecard](docs/validation.md) owns accumulated proof; and the
+[application map](../../docs/app-enablement.md) owns consumer fit.
 
 ## Consumer strategy
 
@@ -70,8 +71,8 @@ scope** has no implementation commitment.
 The driver calls `DMA_BUF_IOCTL_SYNC` directly. A kernel that enables the
 known-bad DMA-BUF debug scatterlist mangling is incompatible; the
 [root-cause evidence](../../findings/2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md)
-and [shipping-stack rerun](../../findings/2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md)
-bound that precondition.
+and [validation scorecard](docs/validation.md#accumulated-release-evidence)
+bound that precondition and its shipping-stack replay.
 
 ## Decode architecture and boundaries
 
@@ -123,9 +124,8 @@ Three walls are policy, not backlog:
    client-authored slice header. Partial advertisement would attach clients
    such as GRD and then discard required state.
 
-The
-[capability-gap triage](../../findings/2026-08-04-rockchip-vaapi-capability-gap-triage.md)
-preserves the broader source anchors. The
+The [validation scorecard](docs/validation.md#encode-import-and-transport-conclusions)
+preserves the broader qualification and refusal evidence. The
 [GRD validation owner](../../apps/gnome-remote-desktop/docs/validation.md#accumulated-capability-conclusions)
 retains the consumer boundary: GRD requires all four packed-header classes,
 including client-authored slice headers, so advertising a partial bridge would
@@ -167,17 +167,17 @@ matrix.
 
 ## Evidence map
 
-Dated findings are measurements and intake; this policy and the architecture
-guide are their durable interpretation.
+Findings are live intake. This policy, architecture guide, scorecard, and
+application map are their durable successors after promotion.
 
 | Topic | Owner or evidence |
 |-------|-------------------|
 | Bridge mechanism, ownership, validation, debugging | [Architecture guide](docs/architecture.md) |
+| Accumulated source, hardware, matrix, package, installed, and app results | [Validation scorecard](docs/validation.md) |
 | Consumer compatibility | [Application map](../../docs/app-enablement.md) |
 | AV1 direct vendor-service design | [Backend design](docs/av1-direct-mpp-service-backend.md) |
-| Renovation and reconstruction boundary | [Driver review](../../findings/2026-07-21-rockchip-vaapi-driver-review.md), [reconstruction review](../../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md) |
-| Default decode and shipping-stack gates | [Shipping-stack finding](../../findings/2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md) |
-| Ten-bit layout and narrow-width decision | [Main10/P010 finding](../../findings/2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md), [narrow finding](../../findings/2026-07-29-rga-no-core-match-narrow-afbc-10bit.md) |
-| Encode contract and qualification | [H.264](../../findings/2026-07-26-rockchip-vaapi-h264-va-encode-validation.md), [HEVC](../../findings/2026-07-26-rockchip-vaapi-hevc-va-encode-validation.md), [roadmap closure](../../findings/2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md) |
-| Browser policy and pre-decode export ownership | [Firefox RDD policy](../../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md), [Chrome finding](../../findings/2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md) |
+| Renovation, reconstruction, and AV1 boundary | [Architecture guide](docs/architecture.md), [scorecard](docs/validation.md#accumulated-release-evidence) |
+| Decode, ten-bit layout, and narrow-width decision | [Decode scorecard](docs/validation.md#decode-and-conversion-conclusions), [narrow decision](docs/narrow-10bit-closure-plan.md) |
+| Encode/import/transport contract and qualification | [Encode scorecard](docs/validation.md#encode-import-and-transport-conclusions) |
+| Browser policy and pre-decode export ownership | [Consumer scorecard](docs/validation.md#consumer-and-sandbox-conclusions), [Chrome finding](../../findings/2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md) |
 | Package/publication/runtime verdict | [PPA owner](../../packaging/ppa/README.md), [W05](../../status.md#watch-w05), [status track 14](../../status.md) |

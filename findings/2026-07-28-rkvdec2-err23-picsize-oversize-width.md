@@ -425,7 +425,7 @@ finish" failure mode.
   or to measured values. They are BSP-inherited and misleading; any future
   timeout tuning that trusts them starts 22 % off.
 - Relates to the [MPP HEVC parser-state repair evidence](../vendor-libraries/mpp/docs/mpp-library-architecture.md#hevc-parser-state-must-follow-syntax-identity-not-poc-or-numeric-id-alone)
-  and [`2026-07-28-vaapi-decode-readiness-and-remaining-work.md`](2026-07-28-vaapi-decode-readiness-and-remaining-work.md).
+  and the [VA-API decode scorecard](../video-libraries/vaapi/docs/validation.md#decode-and-conversion-conclusions).
 
 ## Historical incidence
 
