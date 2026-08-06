@@ -134,7 +134,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-02 | Adopt the pilot-tested contract and add small templates | `CONTRIBUTING.md` becomes normative owner; templates illustrate README, explanation, runbook, live-plan, and audit interfaces. Proposal/ledger do not remain contracts. | Root/docs routes, nearest-README rule, all pilot compatibility findings. Security fields stay mandatory in ledger workflow. | CLOSED 2026-08-05 — normative contract and five shared interfaces are linked, complete, and handoff-gated. |
 | ORG-10 | Dashboard and optional cross-project ledger | `status.md` owns compact verdict/next proof; only irreducible synthesis remains in `status-ledger.md`; project/finding owners receive exact identity and evidence. | Every numbered dashboard/next-gate/ledger row and inbound ledger link; replace mandatory-pair checker atomically. Security review per kernel/upstream row. | CLOSED 2026-08-05 — all rows route directly to existing owners; ledger retired, routes/checker valid, full gate green. |
 | ORG-11 | Watchlist cache | Remote/service/host/board is authoritative; live W-item owns dated cache/recheck/freshness only. Promote stable knowledge/internal work and retain retired anchors. | Every W01–W25 index/detail anchor and inbound W-link; pairing checker plus authority/retired-anchor report. Security review required for W19 and any memory-safety item. | CLOSED 2026-08-05 — all IDs classified, successor routes/checker valid, full handoff gate green. |
-| ORG-20 | `source-trees.md` source map | Immutable documentation/comparison pins and reconstruction only; scripts/manifests own intended inputs, project docs own mechanism/results. | All source-tree section links and file/line citations; FFmpeg/GRD checks migrate only with owning package slices. Security review for kernel source/fix material. | ACTIVE 2026-08-05 — FFmpeg family mapped; remaining source families pending. |
+| ORG-20 | `source-trees.md` source map | Immutable documentation/comparison pins and reconstruction only; scripts/manifests own intended inputs, project docs own mechanism/results. | All source-tree section links and file/line citations; FFmpeg/GRD checks migrate only with owning package slices. Security review for kernel source/fix material. | ACTIVE 2026-08-05 — FFmpeg/GRD plus source-map sections 1–5 mapped; sections 6–14 pending. |
 | ORG-21 | PPA topology, package provenance, publication, and history | Package scripts own intended inputs; standard metadata owns artifacts; Launchpad/W05 own service state; runbooks own upload/sign/recovery; retain only incident/otherwise-unavailable history. | PPA/newcomer/package READMEs, installer, changelogs, W05, history links; FFmpeg/GRD pin tests and package helper checks. Security: public fix versus private submission/disclosure boundary. | ACTIVE 2026-08-05 — FFmpeg/GRD and history mapped; remaining packages/front-door simplification pending. |
 | ORG-22 | Userspace patch and public technical-fix inventories | Project catalogs own behavior, public patch identity/provenance, dependencies, validation; scripts own pins. Promote useful public maintenance facts and remove publication/upstream-submission copies. | `packaging/userspace-patches.md`, package/source-delta catalogs, project READMEs. Security review mandatory; private destinations/order/send-withhold/disclosure remain private. | ACTIVE 2026-08-05 — FFmpeg/GRD pin and publication copies removed; remaining packages pending. |
 | ORG-30 | Rewrite validation workstream | `rewrite-validation-plan.md` owns the plan; `tests/rewrite-conformance.md` owns operations and delegates; existing project docs own accumulated result; validation index routes only. Freeze or remove audits after promotion. | Rewrite status/finding/plan/audit/index/runbook links and private-harness references; findings and nearest-README checks. Security review mandatory for fuzzing, destructive PoCs, and memory safety. | PLANNED. |
@@ -383,6 +383,38 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   regression tests, ShellCheck, documentation consistency, and whitespace.
   ORG-20/21/22/35 remain active only for their other source/package families
   and the later GRD validation/history consolidation.
+
+### ORG-20 — primary, userspace, and GRD source-map slice
+
+- **Classification:** source-map sections 1–5 now retain only immutable
+  documentation anchors, comparison snapshots, historical lineage required to
+  interpret those pins, and replay recipes. All numbered section headings and
+  stable paths remain in place.
+- **Owner routing:** the root README owns current workspace layout; package
+  scripts own DKMS and PPA intended inputs; the forward-port patch/package
+  catalogs, W16, and status tracks 1–2 own moving kernel state; vendor-delta
+  owns measured conclusions; PPA artifact records own exact MPP/GRD exports;
+  VA-API and Firefox owners keep package/runtime state; W07/W10 own moving
+  FFmpeg/GRD heads; the GRD patch archive owns unpinned experiment history.
+- **Keep/link/promote/remove:** retained the two-patch primary reconstruction,
+  audit parent, exact vendor comparison pair, immutable userspace study/design
+  snapshots, GRD 50.1/reconnect/recorded experiment pins, and dirty-snapshot
+  delta. Removed publication/build IDs, installed-runtime narratives, current
+  branch/package claims, validation results, and the unpinned exp8–exp10
+  chronology from the source map; those assertions remain available through
+  the linked owners and findings.
+- **Inbound compatibility:** sections 1–5 and their headings remain unchanged;
+  the source map continues to resolve documentation line anchors. The first
+  full-gate run identified one nonexistent inferred workspace link, which was
+  corrected to the root README before handoff.
+- **Public/private review:** kernel content remains limited to already-public
+  source/fix identities and bounded reconstruction. No private reproducer,
+  disclosure/CVE planning, submission destination/order, or send/withhold
+  material moved into the public repository.
+- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
+  2026-08-05, covering Markdown links/anchors, all 62 regression tests,
+  ShellCheck, documentation consistency, and whitespace. ORG-20 remains active
+  for sections 6–14.
 
 ### ORG-21 — PPA history and recovery slice
 

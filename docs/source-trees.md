@@ -6,12 +6,9 @@ each of those trees and gives the reconstruction recipe, so the anchors stay
 auditable without access to the original dev box. Dev-box paths
 (`/home/yi/Code/…`) appear below **only** as provenance records of where the
 work was done; every tree is reconstructible from public sources + this repo's
-patches unless explicitly marked otherwise. The 2026-08-04 directory-only
-reorganization keeps external source checkouts under `/home/yi/Code/rock-5b/`
-and places disposable build, package, runtime, and test-artifact work under
-`/home/yi/Code/rock-5b/build/`; it did not change the recorded tree contents or
-pins. `rock-5b-ysp`, `rock-5b-security`, `tmp`, and the shared `.ccache` store
-remain direct children of `/home/yi/Code`.
+patches unless explicitly marked otherwise. Current workspace layout belongs
+in the root [workspace guide](../README.md#local-workspace-layout), not in this
+source map.
 
 | # | Tree | Anchors for | Pin |
 |---|------|-------------|-----|
@@ -22,12 +19,12 @@ remain direct children of `/home/yi/Code`.
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | immutable 50.1 replay and historical experiment pins remain in §5; W10 owns moving release/recovery heads |
 | 6 | Register recipes and RK3588 IEP2/VDPP identity | kernel/userspace driver docs, [IEP2 audit](../kernel-drivers/iep2/docs/rk3588-iep2-vdpp.md) | MPP HAL/vproc sources + RK3588 TRM Part 2 Rev 1.0 (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | maintained tips `rk3588-rewrite-6.18@571e261b26f79` on `v6.18.42` and `rk3588-rewrite-mainline@5db5ddf046825` on `v7.2-rc6`, at tracked-source parity as of 2026-08-05; current normal-profile build and 306-signal audit pass; 6.18 KASAN package `Pc86b-Cad24` (`gdf22eeef8757`) boots with exact 92+152 KUnit, 12/12 MPP, and partial 21/34 librga evidence, while the newer RGA2 DMA-BUF reroute/USERPTR alignment tips remain unbooted; package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958` are historical; see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | immutable lineage and package-composite pins in §8; the rewrite project and status track 4 own moving heads and validation |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | tracked seed under `kernel-drivers/tests/conformance/`; runtime bundle defaults to external `../rock-5b/build/rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../rock-5b/kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
 | 12 | Mesa MR !43161 benchmark tree | [fixed-clock benchmark finding](../findings/2026-07-28-mesa-blit-benchmark-timing-boundary.md), [Mesa reproducer runbook](../video-libraries/mesa/reproducers/README.md) | Mesa MR commit `647256dc2ae` + tracked benchmark override patch; local branch tip `6000414f9ea`, see §12 |
-| 13 | Current mainline/media-next/maxline codec audit | [driver quality comparison](../kernel-drivers/docs/driver-architecture-comparison.md#12-current-mainline-and-maxline-rockchip-codec-audit-2026-07-30) | Torvalds `3708dd948844`, prepared mainline fixes `c28b6586f74f`, media `next@a52e6f7923c1`, maxline public `f12fb0acf7bb`, maxline WIP `74b24e96da62`, and VDPU381 VP9 donor `6f0159ae61a89`; see §13 |
+| 13 | 2026-07-30 mainline/media-next/maxline codec audit | [driver quality comparison](../kernel-drivers/docs/driver-architecture-comparison.md#12-current-mainline-and-maxline-rockchip-codec-audit-2026-07-30) | Torvalds `3708dd948844`, prepared mainline fixes `c28b6586f74f`, media `next@a52e6f7923c1`, maxline public `f12fb0acf7bb`, maxline WIP `74b24e96da62`, and VDPU381 VP9 donor `6f0159ae61a89`; see §13 |
 | 14 | 2026-08-02 maxline refresh | [proposal/rebase finding](../findings/2026-08-02-rk3588-maxline-proposal-refresh.md), [maxline package source](../packaging/ppa/kernel-maxline/README.md) | Torvalds `075b74841bd0`, `next-20260731@415606a7be93`, public `e6951bc3f935`, WIP `73d29539f7bb`, public-next `0cae4ac66823`, and WIP-next `15a5179dc3b2`; see §14 |
 
 ---
@@ -55,29 +52,16 @@ its `&vdec0`/`&vdec1` overrides reference labels vanilla 6.18 doesn't define
 ([Armbian packaging guide](../packaging/docs/armbian-packaging.md), [vanilla-kernel guide](../kernel-versions/docs/vanilla-kernel.md)). For
 *anchoring* line cites that doesn't matter.
 
-> **Forward-port branch lineage.** The forward port is maintained on
-> **`rk3588-video-6.18`**, checked out at
-> `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc-av1-fwport`. It continues the older
-> `rkvenc-fwport-6.18` line: of that branch's 32 commits, 31 are present on
-> `rk3588-video-6.18` with identical patch-ids (rebased, so the SHAs differ),
-> the one exception being the unrelated `e059aad8d68b` libbpf tooling fix.
-> `rkvenc-fwport-6.18` still exists on the `linux-rock5b` remote at
-> `655d178191807`, so older pins below resolve, but it is no longer where work
-> lands. Sibling branches that share the prefix — `-iommu-debug-20260706`,
-> `-rga-userptr-iommu`, `-route-b` — are separate branches, not old names.
-> As of 2026-08-04 the maintained branch is at `7d53bc7a3adc`, 92 commits on
-> `v6.18`, with checked-in patches `0001`–`0092`. Published source package
-> `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1` carries the exact tip; its
-> source and all three arm64 binaries are Published, and the exact image, DTB,
-> and headers are installed and booted as `6.18.42-ysp-rockchip64`. The
-> production artifact passes the broad ABI, MPP, FFmpeg, direct RGA, IOMMU,
-> recovery, VA-API, bounded-log, and two-hour encode gates; its two-hour 4K
-> decode workload and kernel scan pass while the strict userspace fd-span
-> oracle remains red. Exact-tail KASAN/lockdep and the remaining targeted
-> hostile paths are still open. See the
-> [production finding](../findings/2026-08-04-forward-port-6-18-42-0092-production-validation.md)
-> and the earlier
-> [source/fix finding](../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md).
+> **Forward-port branch lineage.** The historical `rkvenc-fwport-6.18` line is
+> preserved publicly at `655d178191807`. The maintained `rk3588-video-6.18`
+> line rebases that work: 31 of the older branch's 32 commits have identical
+> patch-ids; the omitted `e059aad8d68b` is an unrelated libbpf tooling fix.
+> Sibling branches ending in `-iommu-debug-20260706`, `-rga-userptr-iommu`, or
+> `-route-b` are separate experiments. The
+> [patch catalog](../kernel-drivers/patches/README.md), [W16](../status.md#watch-w16),
+> [forward-port package record](../packaging/ppa/kernel-forward-port/README.md),
+> and status tracks 1–2 own the moving source, export, publication, and
+> validation state.
 
 Provenance: the patches were generated from the dev worktree
 `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc` (then on branch `rkvenc-fwport-6.18`;
@@ -102,10 +86,10 @@ only */` — and the dev worktree — `/* DKMS: drop private governor.h dep */`;
 byte-level diffs of `mpp_rkvenc2.c` against the dev tree will show exactly
 those 9 lines.)
 
-This same tree is the **DKMS source input**: `packaging/dkms/build-deb.sh:16`
-stages driver source from `KSRC` (default: the dev-box path
-`…/linux-6.18-rkvenc/drivers/video/rockchip`) — point `KSRC` at
-`<reconstructed-tree>/drivers/video/rockchip` on any other machine.
+For a DKMS build from this reconstruction, pass
+`KSRC=<reconstructed-tree>/drivers/video/rockchip` to
+[`packaging/dkms/build-deb.sh`](../packaging/dkms/build-deb.sh). The script owns
+its current default input.
 
 ## 2. The audited tree (bsp-audit.md line-number pin)
 
@@ -137,15 +121,10 @@ code.
 | `$BSP` | `rockchip-linux/kernel` branch `develop-6.1`, `drivers/video/rockchip/` | clean checkout, observed @ `b4ef083dc0c3` (2026-07-01) |
 | `$BSP66` | `rockchip-linux/kernel` branch `develop-6.6`, `drivers/video/rockchip/` | clean tree @ `1ba51b059f25`; official remote tip verified 2026-07-16 for the [6.1/6.6 comparison](../kernel-drivers/docs/bsp-6.1-6.6-comparison.md) |
 
-The BSP donor floats (it is a live vendor branch), so the measured integers drift
-against a future BSP. The current headline is **≈4,600 differing lines / ≈12%
-ours** for the shipping tree (the older ≈580-line / ≈1.7% figure describes the
-original two-patch import — both are kept, separated, in
-[vendor delta](../kernel-drivers/docs/vendor-delta.md)). If you need the *exact*
-counts to reproduce, use the `b4ef083dc0c3` state of `develop-6.1` against
-`linux-6.18-rkvenc-av1-fwport@710e6ad12af6`. (`radxa/kernel` `linux-7.0.11` also
-exists as a dev-box reference checkout @ `45943c54ded4` but is **not** the
-donor and is not cited by any doc.)
+The BSP branches move, so reproduce the recorded count against
+`develop-6.1@b4ef083dc0c3` and
+`linux-6.18-rkvenc-av1-fwport@710e6ad12af6`. The measured values and their
+interpretation belong in [vendor delta](../kernel-drivers/docs/vendor-delta.md).
 
 ## 4. Userspace pins — libmpp, librga, FFmpeg, rockchip-vaapi, Firefox
 
@@ -154,19 +133,19 @@ donor and is not cited by any doc.)
 | libmpp (v1.3.9 how-doc study tree) | `rockchip-linux/mpp` | **v1.3.9** (how-the-userspace-libs-work.md:9). Commit-level pin **unrecorded** — see note below | how-the-userspace-libs-work.md Part A, [`video-libraries/ffmpeg/README.md`](../video-libraries/ffmpeg/README.md) |
 | libmpp (KMPP-aware study tree) | `mpp-rockchip` | `1375813cbbae5ad6861b166475dd8fb672183220` — the KMPP-bearing tree the architecture/KMPP/Rust docs were read against; **distinct** from the v1.3.9 how-doc tree above | [`mpp-library-architecture.md`](../vendor-libraries/mpp/docs/mpp-library-architecture.md), [`mpp-kmpp-reverse-engineering.md`](../vendor-libraries/mpp/docs/mpp-kmpp-reverse-engineering.md), [`mpp-rust-rewrite-assessment.md`](../vendor-libraries/mpp/docs/mpp-rust-rewrite-assessment.md) |
 | libmpp AV1 design source | `github.com/yisding/mpp`, branch `ysp/main` | `3381fd2c9a0099135a94852c9434b47075458de1` (2026-07-29); private parsed-picture syntax, AV1 common/HAL state, VDPU383 job construction, and MPP-service transport inspected for the direct-backend design | [`direct AV1 backend design`](../video-libraries/vaapi/docs/av1-direct-mpp-service-backend.md) |
-| libmpp IEP2/VDPP audit and installed vproc source | `github.com/yisding/mpp`, branch `ysp/main` | Current installed source is `a8b19653af1a0b23754afafd7de72919fa8d0c0c` (2026-08-05), which retains the `ad325345` source originally inspected for vproc build defaults, IEP2/VDPP allocators, client types, and decoder orchestration and adds the intervening IEP2 cache/mode and signal-frame/field repairs | [`IEP2 audit`](../kernel-drivers/iep2/docs/rk3588-iep2-vdpp.md), [installed ysp8 validation](../findings/2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md) |
+| libmpp IEP2/VDPP audit source | `github.com/yisding/mpp`, branch `ysp/main` | `ad325345` — source inspected for vproc build defaults, IEP2/VDPP allocators, client types, and decoder orchestration | [`IEP2 audit`](../kernel-drivers/iep2/docs/rk3588-iep2-vdpp.md) |
 | libmpp VP9 presentation-event repair | `github.com/yisding/mpp`, branch `ysp/main` | `a8b19653af1a0b23754afafd7de72919fa8d0c0c` (2026-08-05); distinct slot-queue occurrences plus owned show-existing frame snapshots | [`VP9 presentation-event model`](../vendor-libraries/mpp/docs/mpp-library-architecture.md#vp9-presentation-event-ownership) |
-| libmpp PPA source snapshot | `github.com/yisding/mpp`, branch `ysp/main` | `a8b19653af1a0b23754afafd7de72919fa8d0c0c` (2026-08-05), exported without upstream `debian/` or the two unused Windows binaries; deterministic orig SHA-256 `67d1921fd31c607a44db0fcabfbd708bc33df55cff6e9dc017a8699f0a59356c` | [MPP source-artifact reconstruction](../packaging/ppa/README.md#mpp-source-artifact-reconstruction) |
-| librga source (fixed tree) | `github.com/yisding/librga` | branch `main`, tip `26a50ef` (2026-07-25); preserves the `2cffdf6f332c` JeffyCN history, then `cc39281` as the latest-vendor-source layer matching `yisding/librga-mirror@32c3bf1`, then nyanmisaka/local fixes. Since `a632217` (2026-07-03) the 10-bit stride convention moved across three commits: `c80eea7` submits `vir_w` as a byte stride, `b8def3e` limits that to raster, `4c26ddf` extends it to tile. Kernel and librga must ship together for 10-bit | [`vendor-libraries/rga/docs/librga-p010-p210-rkrga.md`](../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md), [gotchas](./gotchas.md) |
+| libmpp PPA source snapshot | `github.com/yisding/mpp`, branch `ysp/main` | `a8b19653af1a0b23754afafd7de72919fa8d0c0c` (2026-08-05); exact export recipe and orig hash live with the package artifact | [MPP source-artifact reconstruction](../packaging/ppa/README.md#mpp-source-artifact-reconstruction) |
+| librga 10-bit evidence snapshot | `github.com/yisding/librga` | `26a50ef` (2026-07-25), including lineage `2cffdf6f332c` → `cc39281`/mirror `32c3bf1` → 10-bit stride changes `c80eea7`, `b8def3e`, and `4c26ddf` | [`librga P010/P210 note`](../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md), [gotchas](./gotchas.md) |
 | librga historical source base (study tree) | `tsukumijima/librga-rockchip` (JeffyCN `linux-rga-multi` lineage) | `2cffdf6f332c` (`v2.2.0`, the 2026-01-21 merge of `JeffyCN/mirrors:linux-rga-multi`); **recorded**, every librga file/function cite in how-the-userspace-libs-work.md re-verified against it 2026-07-01 (how-the-userspace-libs-work.md:11-14). Also the last open vendor-history tip used as the fixed-tree base above | how-the-userspace-libs-work.md Part B, [gotchas](./gotchas.md) |
 | librga prebuilt | `airockchip/librga` | `2b32edc` ("Update librga version to 1.10.6_[3]") | ffmpeg/README.md librga row |
 | ffmpeg-rockchip (documented build) | `nyanmisaka/ffmpeg-rockchip` | `40c412daccf0` (2026-04-23); preserved locally as branch `backup-pre-upgrade-master` | ffmpeg/README.md, [`video-libraries/ffmpeg/docs/implementation-comparison.md`](../video-libraries/ffmpeg/docs/implementation-comparison.md) |
 | Jellyfin FFmpeg Rockchip reference | `jellyfin/jellyfin-ffmpeg` | `jellyfin@455bfe539220` (`v8.1.2-1-13-g455bfe53`); effective comparison applied all 96 Debian patches in scratch worktree `/home/yi/Code/rock-5b/build/ffmpeg/jellyfin-ffmpeg-applied` | [`video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md`](../video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md), [`video-libraries/ffmpeg/docs/jellyfin-ffmpeg-patch-survey.md`](../video-libraries/ffmpeg/docs/jellyfin-ffmpeg-patch-survey.md) |
 | FFmpeg upstream release tags | `FFmpeg/FFmpeg` | `n8.1.2@38b88335f99e` and `n8.0.3@151b17dd2400`; historical comparison/package bases | `video-libraries/ffmpeg/docs/implementation-comparison.md`; the PPA/GRD ABI base |
 | FFmpeg upstream publication bases | `FFmpeg/FFmpeg` | `master@ceabc9b306f5`, `release/8.0@435ae0581deb`, and `release/8.1@94138f6973dd`, fetched 2026-07-16 | `video-libraries/ffmpeg/docs/rebase-notes.md` §7 |
-| rockchip-vaapi maintained fork | `github.com/yisding/rockchip-vaapi`, branch `main` | `70f26d950bcb` (2026-08-05), clean and public; exported as `1.0.11+ysp13-0ubuntu1~rk1`. Retains ysp12's interlaced-decode and 8192×8192 fixes, then preserves pre-decode NV12/P010 export storage so Chrome presents completed pictures instead of the original green placeholder. Fresh `.dsc` extraction matches every tracked release file byte-for-byte with no extra source file; source `18657954`, successful arm64 build `33468630`, and driver/config binaries are Published. Upstream remains `woodyst/rockchip-vaapi@e8c64dd` | [`video-libraries/vaapi/README.md`](../video-libraries/vaapi/README.md), [stable-export finding](../findings/2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md), [`roadmap qualification`](../findings/2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md) |
+| rockchip-vaapi stable-export evidence | `github.com/yisding/rockchip-vaapi`, branch `main` | `70f26d950bcb` (2026-08-05), compared with upstream `woodyst/rockchip-vaapi@e8c64dd`; package and runtime state are owned outside this map | [`video-libraries/vaapi/README.md`](../video-libraries/vaapi/README.md), [stable-export finding](../findings/2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md) |
 | rockchip-vaapi AV1 design source | `github.com/yisding/rockchip-vaapi`, branch `main` | `docs/AV1_SUPPORT_PLAN.md` at its 2026-07-27 change `4d98eca2c76a007bc46523a26d39f3043d80ec52`; parsed-picture inventory and surface-keyed state source inspected for the direct-backend design | [`direct AV1 backend design`](../video-libraries/vaapi/docs/av1-direct-mpp-service-backend.md) |
-| Firefox Ubuntu source package | Mozilla Team PPA Resolute source `firefox` | Current package workspace is exact signed `153.0+build1-0ubuntu0.26.04.1~mt1` (`.dsc` SHA-256 `5fb63a47f969bc97479bf19abecc4d8d790ad2bcb1d3e7b2adde26248d50c8ed`) at `~/Code/rock-5b/build/browser/firefox-rdd-build/firefox-153.0+build1`. Both repo patches are byte-matched and quilt-applied as local `~mt1+ysp1`; the native arm64 package build is in progress. The preserved 152.0.6 package tree remains earlier affected-object compile evidence, not the current install target. | [`Firefox RDD policy`](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md), [`roadmap qualification`](../findings/2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md), [`package-build checkpoint`](../findings/2026-07-26-firefox-rdd-package-build-checkpoint.md) |
+| Firefox RDD package audit snapshot | Mozilla Team PPA Resolute source `firefox` | signed `153.0+build1-0ubuntu0.26.04.1~mt1`, `.dsc` SHA-256 `5fb63a47f969bc97479bf19abecc4d8d790ad2bcb1d3e7b2adde26248d50c8ed`; package progress and install intent belong in the Firefox finding | [`Firefox RDD policy`](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md), [`package-build checkpoint`](../findings/2026-07-26-firefox-rdd-package-build-checkpoint.md) |
 
 **Moving FFmpeg branches are not source-map pins.** `main`, `ffmpeg-80`, and
 `ffmpeg-81` follow FFmpeg master, release/8.0, and release/8.1 respectively.
@@ -175,24 +154,11 @@ Their maintained topology belongs in
 [W07](../status.md#watch-w07) owns the dated remote-head cache. This appendix
 retains only immutable study, comparison, and reconstruction snapshots.
 
-> **The pins to watch.**
-> - **libmpp v1.3.9 how-doc tree — unrecorded (flagged, not invented).**
->   how-the-userspace-libs-work.md records only "v1.3.9". No commit hash was
->   written down at study time, and the KMPP-aware/PPA-export tree
->   (`mpp-rockchip` @ `1375813cbbae`) is a *different* state.
->   **UNVERIFIED** which exact commit how-the-userspace-libs-work.md's Part A
->   line numbers were read against; treat its anchors as "v1.3.9-era, verify
->   against your checkout". (The architecture/KMPP/Rust docs, by contrast, record
->   their own `1375813cbbae` pin — see the study-tree row above.)
-> - **librga — now recorded.** how-the-userspace-libs-work.md's Part B anchors
->   are pinned to `tsukumijima/librga-rockchip` `2cffdf6f332c` (`v2.2.0`, the
->   2026-01-21 JeffyCN `linux-rga-multi` merge) and were **re-verified against it
->   2026-07-01** (how-the-userspace-libs-work.md:11-14). The fixed dev tree
->   (`github.com/yisding/librga` `main` @ `26a50ef`) preserves that
->   `2cffdf6f332c` open history, adds one latest-release source layer matching
->   `yisding/librga-mirror@32c3bf1`, then the P010/P210 fix commits. Treat old
->   file/line anchors as `2cffdf6f332c`-era unless a doc explicitly names the
->   fixed tree.
+The libmpp v1.3.9 how-doc study commit was not recorded; do not substitute the
+different KMPP-aware `1375813cbbae` snapshot. Treat Part A anchors as
+v1.3.9-era and verify them against the checkout in use. Part B librga anchors
+were re-verified against `2cffdf6f332c`; use `26a50ef` only where a document
+explicitly names the fixed 10-bit evidence tree.
 
 ## 5. GNOME Remote Desktop base
 
@@ -223,56 +189,20 @@ owns Published-source reconstruction; and the
 The 16 root-level patches remain the immutable 50.1 reconstruction on
 `c14e09e`.
 
-The historical diagnostic candidate is the public
-[`debug/exp1-frame-starvation`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/debug/exp1-frame-starvation)
-branch at `1c870bc82d1920edfac1e1544b61bd7c7b9a1873`. It adds only rate-limited
-pipeline observability on top of `eb91daf`: counters and serials for buffer,
-view, stale-drop, encode, submit, refresh, reset-wait, and cooldown progress,
-plus a suspected-starvation warning. It intentionally does not alter frame
-scheduling or backpressure behavior.
+The historical experiment sources with recorded immutable commits are:
 
-The current experimental-PPA source exports
-`2571326322c754de7608ef4afb1dff8e4d031cbd` directly as
-`50.1+rkmpp+git20260717.2571326-0ubuntu1~exp3`; source publication `18626586`,
-arm64 build `33412698`, and the exact binary are Published. It layers recovery
-patch `0015` on the diagnostics but predates exported patches `0016`–`0019`.
-That commit is present in the packaging checkout but was not advertised by any
-of the fork's 193 public refs when `git ls-remote` was rechecked on 2026-07-19.
-For an exact portable copy, retrieve the source package from publication
-`18626586`; for source-code review, replay patches `0001`–`0015` from this repo
-onto `c14e09e`. That replay produces the same compiled source but omits two
-GRD-tree documentation-only changes, so it is not a byte-for-byte replacement
-for the published orig tarball.
-The cached-copy readback behavior was hardware-tested at local `exp5@b3f0e20`;
-its historical patch `0017` is preserved under the
-[`pipeline investigation archive`](../apps/gnome-remote-desktop/patches/archive/pipeline-investigation/).
-Installed `exp6@7e958e6` adds patch `0018`'s bounded RDPGFX
-acknowledgement-resume recovery; its source/binary package and focused RDP test
-pass, and one live recovery restored hardware submissions. That same run
-exposed a separate idle-time false starvation fallback.
-The historical functional source candidate
-`exp7@3e4480e066d30ba44015ae1b8cb3bbb92fe6414e` is published on the fork's
-`main`; it cleans the noisy diagnostic from `0018` and adds `0019`'s corrected
-starvation baseline. Local `exp8` applies tracked patch `0020` on top to log
-every client `AUDIO_FORMAT` field without changing negotiation. Local `exp9`
-adds patch `0021`'s channel/training/PipeWire/WAVE2 trace and temporarily omits
-Opus from the server offer. Its source and native arm64 builds pass; packaged
-strings, Lintian, and an APT upgrade simulation from installed `exp8` also
-pass. Installed `exp9` then traced the complete SVC fallback, exact PCM
-selection, PipeWire capture, `SNDC_WAVE2`, and wave confirmations; after the
-audio-stack migration reboot, the macOS client rendered audible audio. These
-historical patches are preserved under
-[`patches/archive/`](../apps/gnome-remote-desktop/patches/archive/README.md),
-not in the release series. Local `exp10` adds `0022`'s
-runtime-selectable, negotiation-only exact A-law/Microsoft-ADPCM/IMA-ADPCM
-probe so all client capability tests use one package. Its source and native
-arm64 builds, RDP integration test, packaged-string inspection, Lintian, and
-APT upgrade simulation from installed `exp9` pass; the TPM and hardware-EGL
-tests skip on the build host. Installed individual probes show that Windows App
-for macOS `11.3.7.3040` rejects both exact ADPCM tuples but returns the exact
-stereo 22.05 kHz A-law tuple plus PCM over RDPSND SVC; the diagnostic package
-still selects PCM. A-law/AAC playback interoperability, publication/promotion,
-and the remaining video focus gate remain.
+| Experiment | Pin | Reconstruction owner |
+|------------|-----|----------------------|
+| Frame-starvation diagnostics | `1c870bc82d1920edfac1e1544b61bd7c7b9a1873` | public `debug/exp1-frame-starvation` branch |
+| Recovery source export | `2571326322c754de7608ef4afb1dff8e4d031cbd` | replay patches `0001`–`0015` on `c14e09e`; the [artifact record](../packaging/ppa/README.md#grd-source-artifact-reconstruction) owns byte-exact package recovery |
+| Cached-copy readback candidate | `b3f0e20` | [pipeline investigation archive](../apps/gnome-remote-desktop/patches/archive/pipeline-investigation/) |
+| Bounded acknowledgement-resume candidate | `7e958e6` | patch `0018` in the archive |
+| Corrected starvation-baseline candidate | `3e4480e066d30ba44015ae1b8cb3bbb92fe6414e` | public fork history plus patch `0019` |
+
+Later unpinned `exp8`–`exp10` diagnostic states are documented by the
+[`patches/archive/`](../apps/gnome-remote-desktop/patches/archive/README.md)
+series. Their build and runtime results belong in the GRD project documents and
+findings, not in this reconstruction appendix.
 
 The historical `a59c904` dirty snapshot remains reconstructible: commit
 `a59c904c99088235eb4de31ca340747d334494f3` plus the delta at
