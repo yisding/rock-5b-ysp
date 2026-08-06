@@ -135,7 +135,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-10 | Dashboard and optional cross-project ledger | `status.md` owns compact verdict/next proof; only irreducible synthesis remains in `status-ledger.md`; project/finding owners receive exact identity and evidence. | Every numbered dashboard/next-gate/ledger row and inbound ledger link; replace mandatory-pair checker atomically. Security review per kernel/upstream row. | CLOSED 2026-08-05 — all rows route directly to existing owners; ledger retired, routes/checker valid, full gate green. |
 | ORG-11 | Watchlist cache | Remote/service/host/board is authoritative; live W-item owns dated cache/recheck/freshness only. Promote stable knowledge/internal work and retain retired anchors. | Every W01–W25 index/detail anchor and inbound W-link; pairing checker plus authority/retired-anchor report. Security review required for W19 and any memory-safety item. | CLOSED 2026-08-05 — all IDs classified, successor routes/checker valid, full handoff gate green. |
 | ORG-20 | `source-trees.md` source map | Immutable documentation/comparison pins and reconstruction only; scripts/manifests own intended inputs, project docs own mechanism/results. | All source-tree section links and file/line citations; FFmpeg/GRD checks migrate only with owning package slices. Security review for kernel source/fix material. | ACTIVE 2026-08-05 — FFmpeg family mapped; remaining source families pending. |
-| ORG-21 | PPA topology, package provenance, publication, and history | Package scripts own intended inputs; standard metadata owns artifacts; Launchpad/W05 own service state; runbooks own upload/sign/recovery; retain only incident/otherwise-unavailable history. | PPA/newcomer/package READMEs, installer, changelogs, W05, history links; FFmpeg/GRD pin tests and package helper checks. Security: public fix versus private submission/disclosure boundary. | ACTIVE 2026-08-05 — FFmpeg package mapped; remaining packages/history pending. |
+| ORG-21 | PPA topology, package provenance, publication, and history | Package scripts own intended inputs; standard metadata owns artifacts; Launchpad/W05 own service state; runbooks own upload/sign/recovery; retain only incident/otherwise-unavailable history. | PPA/newcomer/package READMEs, installer, changelogs, W05, history links; FFmpeg/GRD pin tests and package helper checks. Security: public fix versus private submission/disclosure boundary. | ACTIVE 2026-08-05 — FFmpeg/GRD and history mapped; remaining packages/front-door simplification pending. |
 | ORG-22 | Userspace patch and public technical-fix inventories | Project catalogs own behavior, public patch identity/provenance, dependencies, validation; scripts own pins. Promote useful public maintenance facts and remove publication/upstream-submission copies. | `packaging/userspace-patches.md`, package/source-delta catalogs, project READMEs. Security review mandatory; private destinations/order/send-withhold/disclosure remain private. | ACTIVE 2026-08-05 — FFmpeg/GRD pin and publication copies removed; remaining packages pending. |
 | ORG-30 | Rewrite validation workstream | `rewrite-validation-plan.md` owns the plan; `tests/rewrite-conformance.md` owns operations and delegates; existing project docs own accumulated result; validation index routes only. Freeze or remove audits after promotion. | Rewrite status/finding/plan/audit/index/runbook links and private-harness references; findings and nearest-README checks. Security review mandatory for fuzzing, destructive PoCs, and memory safety. | PLANNED. |
 | ORG-31 | Forward-port validation and state | Patch README owns order; patch catalog owns provenance/backport; project evidence owner owns capability; status owns public boundary; findings are intake. | `forward-port-status.md`, patch docs, status tracks 1/2, W16, runbooks/findings. Security review mandatory. | PLANNED. |
@@ -383,3 +383,32 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   regression tests, ShellCheck, documentation consistency, and whitespace.
   ORG-20/21/22/35 remain active only for their other source/package families
   and the later GRD validation/history consolidation.
+
+### ORG-21 — PPA history and recovery slice
+
+- **Disposition:** the sole 2,471-line history file mixed routine upload
+  chronology, publication polls, current-state summaries, package validation,
+  and two material incidents. Current artifact identities route to standard
+  Debian/Launchpad metadata; package results route to project/package owners;
+  W05 owns service state; routine chronology is removed.
+- **Promoted operations:** the PPA front door now owns one sign/upload/recovery
+  entry point: signature and checksum verification, `.dsc` extraction, the
+  client-transfer versus service-publication boundary, byte-identical orig
+  reuse, safe `dput --force`, dependency-wave waits, failed-build log capture,
+  and the preconditions for deliberate archive recreation.
+- **Retained incident evidence:** the stable history path now contains a frozen
+  dated audit of only (1) the librga/MPP non-deterministic-orig rejection, with
+  accepted/rebuilt hashes and recovery, and (2) the ABI-driven six-archive
+  split, holding-copy boundary, 46-minute name-reuse delay, restoration order,
+  and archive-dependency cleanup. Git history preserves forensic chronology.
+- **Routes:** the PPA/history front doors and packaging hub describe the compact
+  role. The forward-port package keeps its exact kernel transitions locally and
+  links the incident record only for cross-package recovery decisions. FFmpeg
+  baseline recovery remains in its package README.
+- **Public/private review:** this slice changes public package operations and
+  dated service incidents only. It contains no fix-submission destination/order,
+  send/withhold choice, disclosure/CVE coordination, private harness, or
+  memory-corruption reproducer.
+- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
+  2026-08-05 across 435 Markdown files, 3,788 local links, 390 anchors, all 62
+  regression tests, ShellCheck, documentation consistency, and whitespace.

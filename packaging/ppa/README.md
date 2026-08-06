@@ -98,8 +98,9 @@ bash packaging/ppa/clean-install-system-stack.sh
 
 All nine live normal-PPA sources were rechecked through Launchpad's devel API
 on 2026-08-05, with per-package build/install boundaries stated below. The
-step-by-step provenance is retained in the
-[`history/` upload transcript](history/2026-07-06-ubuntu-rock-5b-upload-log.md):
+dated [incident record](history/2026-07-06-ubuntu-rock-5b-upload-log.md) retains
+only the orig-tarball rejection and archive-migration facts not expressed by
+the artifact records below.
 
 | Package | Version in this repo | Public PPA state | Notes |
 |---------|----------------------|------------------|-------|
@@ -156,7 +157,7 @@ packages are built on arm64 and published as `Architecture: all`.
 | [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md) | Launchpad source-package track for the Armbian-based 7.2-rc3 alpha clean-room rewrite kernel. |
 | [`kernel-rewrite-alpha-7.2-rc5/`](kernel-rewrite-alpha-7.2-rc5/README.md) | Deferred Armbian-based 7.2-rc5 alpha package definition; it needs a maintained-tip rebase and validation before it can supersede the rc3 line, which keeps the last Published binaries. |
 | [`kernel-maxline/`](kernel-maxline/README.md) | Local reproducible build/package track for the 2026-08-02 maximum-mainline `public` and FRL-only `wip` integrations; Linus/public passes its refreshed full compile gate, while the linux-next/WIP full build was stopped by request after focused and partial-build checks passed. Refreshed packaging and board boot gates remain open. |
-| [`history/`](history/README.md) | Dated build, lintian, signing, upload, Launchpad, and retry transcripts retained as provenance rather than current-state guidance. |
+| [`history/`](history/README.md) | Dated material incident record for orig-tarball rejection and deliberate archive recreation; routine upload chronology is not retained. |
 
 Generated `.dsc`, `.changes`, `.buildinfo`, orig tarballs, `.deb`, `.ddeb`, and
 build directories are intentionally not committed. The script writes them under
@@ -333,6 +334,8 @@ PPA configured as a build dependency for MPP/librga headers. Launchpad does not
 automatically retry builds that fail before dependencies exist. The upstream
 8.1 comparison source belongs in `rock5b-ffmpeg81-upstream`.
 
+### Sign, upload, and recover
+
 Signing and upload are deliberately outside the helper:
 
 ```bash
@@ -344,8 +347,35 @@ dput ppa:yi-ding/rock5b-kernel618-rewrite packaging/ppa/out/artifacts/<kernel-6.
 dput ppa:yi-ding/rock5b-kernel72rc2-rewrite packaging/ppa/out/artifacts/<kernel-7.2-rc3-rewrite>_source.changes
 ```
 
-Use the exact files from the artifact directory; the upload log records the
-fingerprint and package-specific retry history from the 2026-07-06 run.
+Use the exact files from the artifact directory. Before upload, verify the
+`.dsc` and source `.changes` signatures, extract the `.dsc` once with
+`dpkg-source -x`, and compare the payload hashes with its `Checksums-Sha256`
+fields. A successful `dput` is only client-side transfer; use W05's API/index
+recipe before claiming acceptance, build success, or installation availability.
+
+Recovery rules established by the initial archive incident:
+
+1. Launchpad keys an orig tarball by filename. For a Debian-only revision,
+   reuse the byte-identical accepted orig. If a rebuild differs, retrieve the
+   accepted source through `sourceFileUrls`, verify it against the Published
+   `.dsc`, and rebuild around that payload; do not force-upload different bytes.
+2. A rejected transfer can still leave a local `*.ppa.upload` marker. Use
+   `dput --force` only after the API/source index proves the rejected version
+   was not accepted and every source checksum has been reverified.
+3. Wait for build dependencies to appear in the target archive before the next
+   wave. Launchpad does not automatically retry a build that failed before its
+   dependencies were available.
+4. Capture the build record and hosted log before superseding a failure. A
+   retry can otherwise leave only the failed identity and no retained
+   diagnostics, as happened to the first GRD `~rk1` build.
+5. Do not delete/recreate an archive as a routine upgrade mechanism. If an ABI
+   split truly requires it, first copy every recoverable source/binary to a
+   holding archive, save package identities and checksums, audit reverse
+   dependencies and archive dependencies, and expect a name-reuse delay.
+
+The dated [incident record](history/2026-07-06-ubuntu-rock-5b-upload-log.md)
+keeps the decisive hashes and archive-recreation boundary; it is not a current
+publication ledger.
 
 ## Package Notes
 

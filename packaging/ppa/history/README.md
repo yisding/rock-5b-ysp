@@ -1,12 +1,12 @@
-# PPA history
+# PPA material-incident history
 
-Chronological packaging and Launchpad transcripts retained for provenance.
-These records explain how a package state was reached; they do not own the
-current package matrix or remaining gates.
+Dated records retained only when standard metadata cannot explain a material
+incident or reusable recovery decision. Routine upload chronology, build polls,
+and publication rechecks belong to artifact metadata and W05, not here.
 
 | Record | Scope |
 |--------|-------|
-| [`2026-07-06-ubuntu-rock-5b-upload-log.md`](2026-07-06-ubuntu-rock-5b-upload-log.md) | Initial userspace upload wave, Launchpad retries, archive split, kernel uploads, and subsequent publication checks |
+| [`2026-07-06-ubuntu-rock-5b-upload-log.md`](2026-07-06-ubuntu-rock-5b-upload-log.md) | Frozen record of the non-deterministic-orig rejection and deliberate ABI-driven archive recreation; reusable recovery steps are promoted to the live PPA runbook. |
 
 Use [`../README.md`](../README.md) for current package versions, archive state,
-build entry points, and installation guidance.
+build/upload/recovery operations, and installation guidance.
