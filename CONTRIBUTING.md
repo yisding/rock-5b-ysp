@@ -23,7 +23,7 @@ build products and external checkouts out of this repository.
 | A patch, test, reproducer, package recipe, or operational script | The project directory that owns the affected layer. |
 | A cross-project map, source pin, or global trap | [`docs/`](docs/README.md). |
 | A board subsystem with no or only narrow repo evidence | The stable row in [`docs/support-coverage.md`](docs/support-coverage.md), plus a dated finding when runtime evidence is gathered. |
-| A user-visible support state or the next proof needed | [`status.md`](status.md). Use [`docs/status-ledger.md`](docs/status-ledger.md) only for irreducible cross-project current synthesis that has no direct project/finding owner. |
+| A user-visible support state or the next proof needed | [`status.md`](status.md). Create or retain an optional `docs/status-ledger.md` only for irreducible cross-project current synthesis that has no direct project/finding owner. |
 | An external fact that can change without a repository edit | The [`status.md` watchlist](status.md#watchlist--facts-that-go-stale-silently). |
 | A shared term | [`glossary.md`](glossary.md); project-only terms stay in the project's `keywords.md`. |
 | A source checkout, build directory, log bundle, binary, or board backup | An external workspace or ignored local path; document its reconstruction or disposition instead. |
@@ -147,10 +147,11 @@ When an existing track changes:
 
 Keep each dashboard state to the latest proven capability plus its material
 boundary. Incident chronology, build fingerprints, per-case results, and
-superseded explanations belong in the ledger, owning project document, or
-dated finding. Likewise, a next-gate row names the next proof rather than
-retelling the proofs already closed. Keep every numbered row contiguous with
-the table above it; a blank line ends a Markdown table.
+superseded explanations belong in the owning project document, dated finding,
+or genuinely necessary optional cross-project ledger. Likewise, a next-gate
+row names the next proof rather than retelling the proofs already closed. Keep
+every numbered row contiguous with the table above it; a blank line ends a
+Markdown table.
 
 When adding a track, give it a new stable dashboard number. Add an optional
 ledger row under that number only when it has necessary cross-project synthesis

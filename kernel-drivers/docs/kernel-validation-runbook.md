@@ -253,9 +253,9 @@ Per [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) and
    and an explicit **boundary** (what was *not* validated — e.g. "KASAN
    build: no performance claims"; "production build: memory-safety step
    open").
-2. Advance the [`status.md`](../../status.md) row and
-   [`status-ledger.md`](../../docs/status-ledger.md) note only as far as the
-   evidence goes, with the date; update the matching next-gate row.
+2. Advance the owning project evidence and [`status.md`](../../status.md) row
+   only as far as the result goes, with the date; update the matching next-gate
+   row.
 3. If the kernel is meant to *replace* a validated one: keep the previous
    build's debs (step 0), and only retire them after rollback has been
    exercised once on the new build.

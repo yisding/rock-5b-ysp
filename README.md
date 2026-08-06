@@ -70,7 +70,7 @@ rather than being duplicated here.
 | Need | Re-enter through |
 |------|------------------|
 | Resume active work and find the next proof | [`status.md`](status.md), especially its dashboard and **Next gates** |
-| Reconstruct why a public state changed | [`docs/status-ledger.md`](docs/status-ledger.md), then its linked dated finding |
+| Reconstruct why a public state changed | [`status.md`](status.md), then the track's direct evidence and action links |
 | Reconstruct how a technical explanation evolved | [`findings/` investigation trails](findings/README.md#reconstruct-an-investigation), then the maintained project model |
 | Decide whether the public ROCK 5B PPA fits, and which packages to install | [`docs/ppa-support.md`](docs/ppa-support.md) |
 | Choose, install, validate, or recover a kernel/media path | [`install.md`](install.md) |
@@ -166,7 +166,7 @@ instead. They describe one mapping; change both together or neither.
 
 | Information | Canonical owner |
 |-------------|-----------------|
-| Dated public state, next proof, and volatile external facts | [`status.md`](status.md) and its [`audit ledger`](docs/status-ledger.md) |
+| Dated public state, next proof, and volatile external facts | [`status.md`](status.md), with direct links to the owning project or finding |
 | Whole-board tracked/narrow/unassessed scope | [`docs/support-coverage.md`](docs/support-coverage.md) |
 | Exact build, install, rollback, and validation commands | [`install.md`](install.md), then the owning project README |
 | Fresh observations and unresolved explanations | [`findings/`](findings/README.md) |

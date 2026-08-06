@@ -132,7 +132,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-00 | Phase 0 ledger and informational baseline | This ledger temporarily owns migration state; `report-doc-duplication.py` owns the reproducible signal definitions. No repository assertion moves. | `docs/README.md`, `scripts/README.md`; nearest-README, script-mode, regression tests. Security: not applicable; inventory only. | CLOSED 2026-08-05 — focused tests and full handoff gate pass. |
 | ORG-01 | MPP vertical pilot across build input, artifact, publication, runtime, and status | Build script owns intended pin; standard metadata owns actual artifact; Launchpad/W05 own live/datestamped publication; existing MPP/package owner absorbs closure evidence; status track 9 owns public rollup. Promote the useful closure evidence and remove its intake finding only after all inbound links move. | Track 9, W05, W25, MPP package/source docs, PPA docs/history, `findings/README.md`, direct finding links, ledger row 9; status-ledger/findings checks. Security: required because MPP/kernel logs and private reproducer boundary are adjacent; no reproducer or disclosure plan may move. | CLOSED 2026-08-05 — owners, reconstruction, negative control, link migration, intake removal, checker changes, and full handoff gate pass. |
 | ORG-02 | Adopt the pilot-tested contract and add small templates | `CONTRIBUTING.md` becomes normative owner; templates illustrate README, explanation, runbook, live-plan, and audit interfaces. Proposal/ledger do not remain contracts. | Root/docs routes, nearest-README rule, all pilot compatibility findings. Security fields stay mandatory in ledger workflow. | CLOSED 2026-08-05 — normative contract and five shared interfaces are linked, complete, and handoff-gated. |
-| ORG-10 | Dashboard and optional cross-project ledger | `status.md` owns compact verdict/next proof; only irreducible synthesis remains in `status-ledger.md`; project/finding owners receive exact identity and evidence. | Every numbered dashboard/next-gate/ledger row and inbound ledger link; replace mandatory-pair checker atomically. Security review per kernel/upstream row. | PLANNED; split by track before activation. |
+| ORG-10 | Dashboard and optional cross-project ledger | `status.md` owns compact verdict/next proof; only irreducible synthesis remains in `status-ledger.md`; project/finding owners receive exact identity and evidence. | Every numbered dashboard/next-gate/ledger row and inbound ledger link; replace mandatory-pair checker atomically. Security review per kernel/upstream row. | CLOSED 2026-08-05 — all rows route directly to existing owners; ledger retired, routes/checker valid, full gate green. |
 | ORG-11 | Watchlist cache | Remote/service/host/board is authoritative; live W-item owns dated cache/recheck/freshness only. Promote stable knowledge/internal work and retain retired anchors. | Every W01–W25 index/detail anchor and inbound W-link; pairing checker plus authority/retired-anchor report. Security review required for W19 and any memory-safety item. | PLANNED; classify every W-ID before activation. |
 | ORG-20 | `source-trees.md` source map | Immutable documentation/comparison pins and reconstruction only; scripts/manifests own intended inputs, project docs own mechanism/results. | All source-tree section links and file/line citations; FFmpeg/GRD checks migrate only with owning package slices. Security review for kernel source/fix material. | PLANNED; split by source family. |
 | ORG-21 | PPA topology, package provenance, publication, and history | Package scripts own intended inputs; standard metadata owns artifacts; Launchpad/W05 own service state; runbooks own upload/sign/recovery; retain only incident/otherwise-unavailable history. | PPA/newcomer/package READMEs, installer, changelogs, W05, history links; FFmpeg/GRD pin tests and package helper checks. Security: public fix versus private submission/disclosure boundary. | PLANNED; activate one source package at a time after pilot. |
@@ -235,3 +235,27 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 - **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
   2026-08-05 with all template routes, nearest-README ownership, 59 regression
   tests, ShellCheck, documentation consistency, and whitespace green.
+
+### ORG-10 — dashboard and optional ledger
+
+- **Row dispositions:** tracks 1/2 route to forward-port production, audit, and
+  patch owners; 3 to DKMS; 4 to rewrite architecture/current findings; 5 to
+  FFmpeg; 7 to GRD; 8 to Mesa; 10 to packaging/license; 11 to Kodi; 12 to boot
+  firmware; 13 to maxline package/audit; 14 to VA-API/browser evidence; and 15
+  to the PVTM plan and measured findings. No row contributes synthesis that
+  cannot be expressed by those direct links.
+- **Compatibility:** every maintained link to `docs/status-ledger.md` was
+  repointed in the root router/owner table, status, work-package routes,
+  findings trail, kernel runbooks/plans, RGA reconciliation, and VA-API plan.
+  The stable `status.md#status-ledger` heading remains as a disposition and
+  points to the normative optional-ledger rule.
+- **Checker disposition:** the pilot already changed the track check so a
+  missing ledger is valid, while any future ledger row must map to the same
+  dashboard number/name and a present-but-unparseable ledger still fails.
+- **Public/private review:** rows 1, 2, and 4 include kernel safety evidence,
+  but this slice only changes routes. It imports no reproducer, disclosure/CVE
+  material, submission destination/order, or private harness detail.
+- **Validation:** exact-link search finds no maintained link to the retired
+  file. The full `bash scripts/check-repo.sh` handoff gate passed on 2026-08-05
+  across 435 Markdown files, 3,793 local links, 398 anchors, all 59 regression
+  tests, ShellCheck, documentation consistency, and whitespace.

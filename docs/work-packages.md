@@ -113,7 +113,7 @@ flowchart TB
 | Understand or validate browser/desktop VA-API | [`../video-libraries/vaapi/`](../video-libraries/vaapi/README.md) -> [`app-enablement.md`](app-enablement.md) -> [`../status.md`](../status.md) track 14 |
 | Run accelerated RDP | [`../install.md`](../install.md) -> [`../packaging/`](../packaging/README.md) -> [`../apps/gnome-remote-desktop/`](../apps/gnome-remote-desktop/README.md) |
 | Build and test Kodi hardware decode | [`../apps/kodi/`](../apps/kodi/README.md) -> [`../apps/kodi/docs/build-hwaccel.md`](../apps/kodi/docs/build-hwaccel.md) |
-| Recover from a failure | [`../status.md`](../status.md) -> [`status-ledger.md`](status-ledger.md) -> [`gotchas.md`](gotchas.md) -> [`debug-kernel.md`](../kernel-drivers/docs/debug-kernel.md) |
+| Recover from a failure | [`../status.md`](../status.md) -> [`gotchas.md`](gotchas.md) -> [`debug-kernel.md`](../kernel-drivers/docs/debug-kernel.md) |
 
 ## Developer reading paths
 

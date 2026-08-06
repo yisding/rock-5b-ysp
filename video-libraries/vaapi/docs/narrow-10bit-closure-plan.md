@@ -303,7 +303,7 @@ decoder is expected to hold.
 
 Acceptance: sweep 11/11; no AFBC-path regressions; packaged as the next
 `ysp` revision, PPA-published, installed-driver gates re-run; finding and
-status ledger updated. Note: this removes **one of the three** reasons
+public status updated. Note: this removes **one of the three** reasons
 `VAProfileHEVCMain10` is hidden (`src/rockchip_drv_video.c:61-85`) — it does
 not by itself unhide the profile.
 

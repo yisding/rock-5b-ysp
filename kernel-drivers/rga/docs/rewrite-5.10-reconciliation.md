@@ -452,4 +452,5 @@ fuzzer and counter wiring. It remains
 - the forced-RGA3 BT.709-limited librga request is pixel-correct.
 
 The source reconciliation is implemented. Only after those gates should the
-rewrite status ledger describe it as hardware validated or conformant.
+maintained rewrite evidence and public status describe it as hardware validated
+or conformant.

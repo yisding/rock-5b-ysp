@@ -8,7 +8,6 @@ of repo-wide references that are not owned by one project.
 
 | File | Purpose |
 |------|---------|
-| [`status-ledger.md`](status-ledger.md) | Optional companion to `../status.md`, retaining only cross-project current synthesis that no direct project/finding owner can express. It is not a mandatory row-for-row dashboard copy. |
 | [`repository-organization-proposal.md`](repository-organization-proposal.md) | Draft repository-wide information-architecture proposal: canonical document roles, deliberate duplication, migration phases, enforcement, and completion criteria. |
 | [`repository-organization-migration.md`](repository-organization-migration.md) | Temporary resumable ledger for executing the accepted organization proposal: baselines, compatibility and security review, assertion-owner mappings, slice status, validation, and unresolved risks. Remove it after every slice closes. |
 | [`work-packages.md`](work-packages.md) | The project map, stack diagram, and operating/re-entry and developer reading paths. Start here when you are not sure which project owns a topic. |

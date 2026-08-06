@@ -446,6 +446,6 @@ not as the primary bet.
 
 ## After this run
 
-Update the finding's *Next verification gate* with the measured rate, and the
-`status.md` / `docs/status-ledger.md` rows for tracks 1 and 7, which currently
-assert the gate blocks GRD work on the strength of n=1.
+Update the finding's *Next verification gate* with the measured rate, the
+maintained kernel/GRD evidence owners, and the `status.md` rows for tracks 1 and
+7, which currently assert the gate blocks GRD work on the strength of n=1.

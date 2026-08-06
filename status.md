@@ -25,14 +25,14 @@ evidence in [`findings/`](findings/README.md) before adding a new status track.
 ## Dashboard
 
 This table answers **what is true as of the verification date**. Longer evidence
-stays in the linked project or finding; the optional status ledger carries only
-irreducible cross-project synthesis. The next proof is kept in the separate
-table below so both remain scannable.
+stays in the linked project or finding; no separate cross-project ledger is
+currently needed. The next proof is kept in the separate table below so both
+remain scannable.
 
 | # | Track | Public state | Verified | Detail |
 |---|-------|--------------|----------|--------|
 | 1 | Kernel forward-port | ⚠️ The exact published and installed forward-port kernel has a green functional/recovery verdict and encode soak. Its 4K decode workload and kernel scan pass, but the strict userspace resource oracle is red. Exact-tail KASAN/lockdep, targeted hostile paths, root counters, and authenticated display integration remain open; [W16](#watch-w16) owns the moving source/package identity. | 2026-08-04 | [production validation](./findings/2026-08-04-forward-port-6-18-42-0092-production-validation.md), [series status](./kernel-drivers/docs/forward-port-status.md) |
-| 2 | BSP-audit fixes | 🚧 All 11 remaining distinct HIGH audit bugs are ported as `0058`–`0068`; the combined tail passed KASAN, destructive-path, production conformance, and root gates. Several fixes still lack individual hostile-path tests, and the older 65-patch MEDIUM/LOW cleanup series remains unshippable. | 2026-07-24 | [audit ledger](./docs/status-ledger.md), [patch catalog](./kernel-drivers/docs/patch-catalog.md) |
+| 2 | BSP-audit fixes | 🚧 All 11 remaining distinct HIGH audit bugs are ported as `0058`–`0068`; the combined tail passed KASAN, destructive-path, production conformance, and root gates. Several fixes still lack individual hostile-path tests, and the older 65-patch MEDIUM/LOW cleanup series remains unshippable. | 2026-07-24 | [BSP audit](./kernel-drivers/docs/bsp-audit.md), [port record](./findings/2026-07-22-bsp-high-current-tip-port.md), [patch catalog](./kernel-drivers/docs/patch-catalog.md) |
 | 3 | DKMS channel | ⚠️ Compiles on 6.18; its DT overlay is dtc-validated but not boot-validated. | 2026-07-01 | [`packaging/dkms/`](packaging/dkms/README.md) |
 | 4 | Clean-room rewrite drivers | 🚧 The repaired 6.18 KASAN package boots with exact 92/152 KUnit and 12/12 official MPP. Corrected librga reaches 21/34 required cases and narrows the remaining RGA2 failures to plain-system-heap DMA-BUF routing and USERPTR bounce alignment. Exact-tip fix package `P49e6-Cad24` is built and package-verified but uninstalled and unbooted. AV1/VSI, recovery, performance, fuzz, and soak qualification remain open. | 2026-08-05 | [RGA2 bounce follow-up](./findings/2026-08-05-rewrite-rga2-dmabuf-userptr-bounce-followup.md), [architecture guide](./kernel-drivers/docs/rewrite-driver-architecture/README.md) |
 | 5 | ffmpeg tree | ⚠️ The asynchronous RKMPP frame-lifetime fix passes source and focused hardware gates. Its published/install state belongs to [W05](#watch-w05); installed-package GRD fallback/recreation and AV1 container validation remain open. | 2026-08-05 | [lifetime fix and gate](./findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md), [FFmpeg project](./video-libraries/ffmpeg/README.md) |
@@ -52,7 +52,7 @@ A next gate is the smallest result that would materially advance its track, not
 a general wish list. The action path points to the maintained runbook, exact
 evidence owner, or decision boundary; keep it usable when a gate changes. Close
 or replace a gate only with evidence from the owning detail page, and update the
-dashboard date and ledger row when public state changes.
+dashboard date when public state changes.
 
 | # | Track | Next proof | Action path |
 |---|-------|------------|-------------|
@@ -74,10 +74,12 @@ dashboard date and ledger row when public state changes.
 
 ## Status Ledger
 
-Irreducible cross-project synthesis may live in the optional
-[`docs/status-ledger.md`](./docs/status-ledger.md); most evidence belongs
-directly in its project or finding. Keep this page as the compact dashboard,
-next-gate queue, and watchlist of facts that can change silently.
+No separate status ledger is currently needed: every track routes directly to
+the project document, package record, or live finding that owns its evidence.
+The optional-ledger rule remains in [`CONTRIBUTING.md`](CONTRIBUTING.md) if a
+future track has irreducible cross-project synthesis. Keep this page as the
+compact dashboard, next-gate queue, and watchlist of facts that can change
+silently.
 
 <a id="watchlist--facts-that-go-stale-silently"></a>
 
@@ -260,9 +262,9 @@ last-checked date.
   source-build and `fate-source` results belong to the old `ffmpeg-80`/`ffmpeg-81`
   heads and **do not carry forward**; both lines need a fresh replay and test
   before any claim about them is repeated. `main` is unaffected. Upstream
-  `nyanmisaka/ffmpeg-rockchip@388741a3544b` matches the tip named in
-  [ledger track 5](docs/status-ledger.md) as sharing the async-frame lifetime
-  defect. The dedicated PPA remains at `be367abfe6`; separate normal-PPA branch
+  `nyanmisaka/ffmpeg-rockchip@388741a3544b` matches the tip named in the
+  [async-frame lifetime finding](findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md)
+  as sharing the defect. The dedicated PPA remains at `be367abfe6`; separate normal-PPA branch
   `fix/rkmpp-output-timeout@da5befc806` is public, built, and Published, with its
   combined GRD hardware gate still pending.
 
