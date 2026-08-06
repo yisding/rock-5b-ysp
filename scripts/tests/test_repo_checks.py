@@ -32,6 +32,21 @@ def load_doc_checker():
 DOC_CHECKER = load_doc_checker()
 
 
+def load_duplication_reporter():
+    spec = importlib.util.spec_from_file_location(
+        "report_doc_duplication",
+        SCRIPTS / "report-doc-duplication.py",
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot load report-doc-duplication.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+DUPLICATION_REPORTER = load_duplication_reporter()
+
+
 def load_findings_indexer():
     spec = importlib.util.spec_from_file_location(
         "update_findings_index",
@@ -123,6 +138,55 @@ class RepositoryMarkdownFilesTests(unittest.TestCase):
                 [path.name for path in repository_operational_files(root)],
                 ["check.py", "tool.sh"],
             )
+
+
+class DocumentationDuplicationReportTests(unittest.TestCase):
+    def test_report_finds_all_four_informational_signal_types(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = root / "one.md"
+            second = root / "two.md"
+            shared = (
+                "This deliberately long sentence contains enough distinct words to "
+                "exercise the exact duplicate detector across two maintained project "
+                "documents without depending on a short generic phrase."
+            )
+            paragraph = (
+                "Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu "
+                "nu xi omicron pi rho sigma tau upsilon phi chi psi omega one two "
+                "three four five six seven eight nine ten eleven twelve thirteen."
+            )
+            first.write_text(
+                f"# One\n\n{shared}\n\n{paragraph}\n\n"
+                "The current pin is 1.2.3 at abcdef0123456789.\n",
+                encoding="utf-8",
+            )
+            second.write_text(
+                f"# Two\n\n{shared}\n\n{paragraph.replace('thirteen', 'fourteen')}\n\n"
+                "As of review, use 1.2.3 at abcdef0123456789.\n",
+                encoding="utf-8",
+            )
+
+            report = DUPLICATION_REPORTER.build_report(root)
+
+            self.assertEqual(report["summary"]["identical_long_sentence_groups"], 1)
+            self.assertEqual(report["summary"]["similar_paragraph_pairs"], 1)
+            self.assertEqual(report["summary"]["repeated_version_or_sha_literals"], 2)
+            self.assertEqual(report["summary"]["time_language_occurrences"], 2)
+
+    def test_status_and_dated_findings_own_time_bounded_language(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            findings = root / "findings"
+            findings.mkdir()
+            (root / "status.md").write_text("Currently measured.\n", encoding="utf-8")
+            (findings / "2026-01-01-result.md").write_text(
+                "# Result\n\nAs of the run, this passed.\n", encoding="utf-8"
+            )
+
+            report = DUPLICATION_REPORTER.build_report(root)
+
+            self.assertEqual(report["summary"]["time_language_occurrences"], 0)
 
 
 class MarkdownLinkCheckerTests(unittest.TestCase):
