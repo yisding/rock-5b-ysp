@@ -59,7 +59,7 @@ so a link would dangle for every reader and fail the link check.
 Two gates cannot be closed from this repository alone, because the reproducers
 they drive moved: the memory-safety step of
 [`kernel-drivers/docs/kernel-validation-runbook.md`](kernel-drivers/docs/kernel-validation-runbook.md)
-and the destructive-PoC row of
+and the hostile fault/fuzz evidence class routed by
 [`kernel-drivers/docs/validation-index.md`](kernel-drivers/docs/validation-index.md).
 The syzkaller fuzzing definition-of-done in
 [`kernel-drivers/docs/rewrite-validation-plan.md`](kernel-drivers/docs/rewrite-validation-plan.md)

@@ -1,17 +1,17 @@
 # Rewrite conformance-gap audit — 2026-07-17
 
-This audit asks a narrower question than the driver design review: can the
-current validation machinery prove the behavior the RK3588 MPP and RGA rewrite
-drivers claim? It compares the 6.18 and mainline rewrite pins with the current
-forward-port ABI, pinned Rockchip MPP/librga consumers, debugfs instrumentation,
-and the final evidence gate.
+This frozen audit asks a narrower question than the driver design review: could
+the inspected validation machinery prove the behavior the RK3588 MPP and RGA
+rewrite drivers claimed? It records the 2026-07-17 inspection plus the bounded
+2026-07-22 and 2026-07-23 disposition addenda below.
 
-> **Current-source update (2026-08-04):** maintained rewrite tips are 6.18
-> `19634f4eebba` and mainline `b296374b7520`; their tracked rewrite sources,
-> Kconfig, ABI ledgers, and UAPI are byte-identical. The 92+152 manifest and
-> 305-signal audit pass, and the `normal` build passes on both. No current-tip
-> boot or media result exists. The VPU981 AV1 backend is present in source but
-> remains hardware-unproven.
+> **Frozen record.** This document no longer receives source-tip, package, test
+> result, or open-gap updates. Its durable gate designs were incorporated into
+> the [rewrite validation plan](./rewrite-validation-plan.md) and
+> [operational conformance entry point](../tests/rewrite-conformance.md). Read
+> [status track 4](../../status.md#dashboard) and
+> [rewrite-drivers.md §6](./rewrite-drivers.md#6-status--citable-location) for
+> the current public boundary and accumulated evidence.
 
 ## Result
 
@@ -25,12 +25,12 @@ new compatibility claim. Raw physical-address RGA import remains an intentional
 rewrite rejection, and AV1 remains a separate backend rather than part of the
 RKVDEC2 rewrite.
 
-The audit did find six proof gaps. Five are now executable gates in this repo;
-one requires more driver instrumentation.
+The audit found six proof gaps. Five received executable gates during the
+recorded disposition work; one required more driver instrumentation.
 
 | Gap | Why the old evidence could pass incorrectly | Resolution |
 |-----|---------------------------------------------|------------|
-| Compiled or stale KUnit was treated as current green KUnit | The build profiles enabled both suites, but nothing read the booted results; an unrelated older report could also be combined with newer suite logs. Exact KTAP later proved insufficient because a fixture warning could disable lockdep while its case still reported `ok`. | [`rewrite-kunit-log-check.sh`](../tests/rewrite-kunit-log-check.sh) requires exactly the cases named in `rewrite-kunit-manifest.tsv` (92 MPP and 152 RGA at the current tip), with no failure or skip. It also scans the complete boot KUnit interval with the shared fatal regex and requires live lockdep. The profile runner persists both reports, and the evidence audit requires the run ID matching every selected rewrite-candidate suite. |
+| Compiled or stale KUnit was treated as current green KUnit | The build profiles enabled both suites, but nothing read the booted results; an unrelated older report could also be combined with newer suite logs. Exact KTAP later proved insufficient because a fixture warning could disable lockdep while its case still reported `ok`. | [`rewrite-kunit-log-check.sh`](../tests/rewrite-kunit-log-check.sh) requires exactly the cases named by `rewrite-kunit-manifest.tsv`, with no failure or skip. It also scans the complete boot KUnit interval with the shared fatal regex and requires live lockdep. The profile runner persists both reports, and the evidence audit requires the run ID matching every selected rewrite-candidate suite. |
 | Userspace success could hide a kernel warning | Main suites saved only a dmesg tail; they did not compare or gate new messages. | All five suite wrappers now capture before/after dmesg, isolate new lines across ordinary growth or ring wrap, and reject KASAN/KCSAN/UBSAN/KFENCE, Oops/BUG/WARNING, lockdep/RCU/hung-task, DMA-API, and MPP/RGA/IOMMU fault signatures. The evidence audit requires a clean `dmesg-scan.tsv` on both profiles. |
 | Error and idle counters were under-specified | Timeout/fault checks omitted recovery failure, spurious IRQ, RGA2 config error, and boundary-shadow setup failure; a missing safety counter looked like a zero delta; zero-after checks covered only imports. | Default forbidden deltas now include those safety counters and rewrite audits require every listed counter for each component captured by a suite to be present. Rewrite suites also require `mpp:queued_job_count`, RGA import and boundary-shadow active gauges, and the direct librga userptr-IOMMU active gauge to return to zero. The latter uses `*:active` so both `userptr_iommu` and legacy `route_b` debugfs names work. |
 | The direct MPP evidence could be `mpp_info_test` only | Plugin/FFmpeg coverage exercises codecs, but does not prove the official MPP multi-thread, multi-instance, and rate-control paths selected for parity. | Normal evidence audits selecting MPP now require a representative named core matrix on both profiles and a nonempty checksum artifact for every media case. Decode evidence therefore needs `MPP_DUMP_OUTPUTS=1`. `REQUIRE_MPP_CORE_CASES=0` is an explicit relaxation for old/exploratory logs. |
@@ -60,11 +60,11 @@ defects remained and were ported to both rewrite tips as
 
 The two new RGA KUnit cases (`rk_rga_layout_yuv10_kunit`,
 `rk_rga_acquire_abort_queues_last_kunit`) raised the RGA suite to 122 and the
-booted-report requirement to 208 at these tips. **Both tips are now superseded**
-— see the 2026-07-23 addendum below for the current `1fe46df`/`ec9a4a06`
+booted-report requirement to 208 at these tips. **Both tips were superseded**
+— see the 2026-07-23 addendum below for the then-current `1fe46df`/`ec9a4a06`
 recovery-hardening tips, updated case counts, and the clean-source gate run.
 Both armbian packaging branches predate these tips and pick the fixes up on
-their next rebuild from tip, per gate 1 below.
+their next rebuild from that tip, per gate 1 below.
 
 ## Addendum — 2026-07-23: recovery hardening + clean-source gates re-run
 
@@ -101,6 +101,10 @@ churn is *only* compile- and unit-scaffold proven, never exercised on hardware.
 
 ## Remaining gaps and hardware gates
 
+These were the unresolved boundaries when the audit was frozen. The validation
+plan owns their current disposition; this section preserves why the gates were
+required.
+
 ### RGA fence cleanup is not directly observable
 
 `rk_rga_rewrite/release_fence_count` is a cumulative allocation counter. It is
@@ -116,9 +120,9 @@ stress; do not mislabel the cumulative counter as a leak gauge.
 
 The following cannot be closed by repository selftests:
 
-1. Boot KASAN and KCSAN rewrite kernels, persist the 244-case green KUnit report
-   (92 MPP + 152 RGA at the current tip), and run the full paired suite matrix
-   with clean dmesg evidence.
+1. Boot KASAN and KCSAN rewrite kernels, persist the exact manifest named by
+   the inspected candidate, and run the full paired suite matrix with clean
+   dmesg evidence.
 2. Supply an AVS2 elementary stream and record forward-port/rewrite
    `mpi_dec_avs2` output parity.
 3. Run both low-delay slice encode cases and deliberately inject a terminal
@@ -136,6 +140,7 @@ The following cannot be closed by repository selftests:
    live import, queued-job, userptr-IOMMU, and boundary-shadow gauges must return
    to zero at idle; cumulative job/fence counters should merely stop changing.
 
-The normal-mode [`rewrite-evidence-audit.sh`](../tests/rewrite-evidence-audit.sh)
-is intentionally expected to fail until these booted artifacts exist. Its
-`--selftest` proves only the audit logic.
+At freeze time the normal-mode
+[`rewrite-evidence-audit.sh`](../tests/rewrite-evidence-audit.sh) was expected
+to fail until those booted artifacts existed. Its `--selftest` proved only the
+audit logic. Consult the maintained operational owner for present behavior.

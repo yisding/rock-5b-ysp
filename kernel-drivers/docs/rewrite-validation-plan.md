@@ -669,6 +669,24 @@ Ship only when **all** hold, each with a dated record in
 
 Until 1–7 hold, the hardware-validated stack stays the forward-port.
 
+## 8. Scoped harness-maintenance backlog
+
+This child scope improves the public harness without changing the risk order or
+satisfying any production-readiness gate. Qualification work always takes
+precedence, and each cleanup must preserve the command and evidence contracts
+in [`../tests/rewrite-conformance.md`](../tests/rewrite-conformance.md).
+
+- Replace the five thin `*-suite-compare.sh` variants with one parameterized
+  comparator interface while preserving suite-specific required-artifact
+  policy and stable wrapper entry points.
+- Give the remaining public single-purpose C/C++ probes a small manifest or
+  runner so their coverage and privilege boundary are explicit. Destructive or
+  memory-corruption triggers remain in the sibling `rock-5b-security`
+  repository and must not be imported during this cleanup.
+- Reconcile the external conformance seed's build helpers with the maintained
+  `tests/build-*.sh` interfaces so the same third-party source is not built by
+  two independently drifting recipes.
+
 ---
 
 Cross-references: [rewrite-driver track](./rewrite-drivers.md) (what the drivers

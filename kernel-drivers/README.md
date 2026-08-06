@@ -110,7 +110,7 @@ Read in this order when changing or reviewing kernel behavior:
 | How do the rewrite drivers use KUnit, and how is a booted result judged? | [`docs/rewrite-kunit.md`](docs/rewrite-kunit.md) |
 | How should the rewrite KUnit suites be reduced and made fixture-safe? | [`docs/rewrite-kunit-rationalization-plan.md`](docs/rewrite-kunit-rationalization-plan.md) |
 | How do the rewrite IRQ paths become minimal hard handlers (RT-nesting clean)? | [`docs/rewrite-minimal-hard-irq-plan.md`](docs/rewrite-minimal-hard-irq-plan.md) |
-| How are these drivers tested — what's proven per track, and what's left? | [`docs/validation-index.md`](docs/validation-index.md) (entry point / coverage matrix) |
+| How are these drivers tested, and which owner answers each evidence question? | [`docs/validation-index.md`](docs/validation-index.md) (router to verdict, plan, runbooks, and evidence owners) |
 | How do I build any of the four local kernel flavors? | [`docs/kernel-builds.md`](docs/kernel-builds.md) |
 | How is a newly built or booted kernel validated, end to end? | [`docs/kernel-validation-runbook.md`](docs/kernel-validation-runbook.md) |
 | How do I reproduce the GRD/RKMPP system-heap scatterlist oops, and what do I do if it fires? | [`docs/grd-sg-corruption-repro-plan.md`](docs/grd-sg-corruption-repro-plan.md) |
@@ -140,7 +140,7 @@ Read in this order when changing or reviewing kernel behavior:
 | How do we resync to a new kernel or BSP? | [`docs/resyncing.md`](docs/resyncing.md) |
 | How do we validate the rewrite drivers to production readiness? | [`docs/rewrite-validation-plan.md`](docs/rewrite-validation-plan.md) |
 | How do we refactor the existing rewrite around explicit ownership objects? | [`docs/rewrite-ownership-refactor-plan.md`](docs/rewrite-ownership-refactor-plan.md) |
-| Which conformance gaps were found after the forward-port reconciliation? | [`docs/rewrite-conformance-gap-audit.md`](docs/rewrite-conformance-gap-audit.md) |
+| Which proof gaps did the 2026-07-17 conformance audit identify? | Frozen [`docs/rewrite-conformance-gap-audit.md`](docs/rewrite-conformance-gap-audit.md); use the validation plan for current disposition. |
 
 ## Shared files
 
@@ -168,7 +168,7 @@ each sub-project's `README.md`).
 | [`docs/rewrite-minimal-hard-irq-plan.md`](docs/rewrite-minimal-hard-irq-plan.md) | Staged plan to reduce every hard IRQ handler to claim/ack/stage, move slice/fence/wake work to threads, and re-enable PROVE_RAW_LOCK_NESTING as the per-boot enforcement. |
 | [`docs/rewrite-ownership-refactor-plan.md`](docs/rewrite-ownership-refactor-plan.md) | Object-first migration plan for shared MPP hardware, reset/IOMMU recovery, active lifetimes, RGA per-task execution, mapping ownership, and singular retirement paths. |
 | [`docs/rewrite-validation-plan.md`](docs/rewrite-validation-plan.md) | What it would take to make the rewrite drivers production-ready. |
-| [`docs/rewrite-conformance-gap-audit.md`](docs/rewrite-conformance-gap-audit.md) | 2026-07-17 audit of claimed ABI/codec coverage, booted evidence, counter/lifetime assertions, and remaining hardware gates. |
+| [`docs/rewrite-conformance-gap-audit.md`](docs/rewrite-conformance-gap-audit.md) | Frozen 2026-07-17 audit, with bounded 2026-07-22/23 dispositions, explaining the origin of ABI/codec, booted-evidence, counter, and lifetime gates. |
 | [`docs/rewrite-driver-adversarial-review-2026-08-02.md`](docs/rewrite-driver-adversarial-review-2026-08-02.md) | Complete MPP/RGA rewrite review: multi-SG comparison, repaired defects, open policy decisions, and hardware validation gaps. |
 | [`docs/debug-kernel.md`](docs/debug-kernel.md) | Capture a crash / run the KASAN debug kernel. |
 | [`patches/`](patches/README.md) | The maintained forward-port series, the superseded frozen base patches, debug-only DT patch, and the reviewable audit-fix series. |
