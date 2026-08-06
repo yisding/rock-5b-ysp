@@ -150,7 +150,8 @@ For each job-owned imported image role:
 1. take `import->map_lock`;
 2. reject an import invalidated by hardware removal;
 3. attach/map it to the selected core's DMA device;
-4. verify address width and contiguous device-visible span;
+4. verify the selected core's mapped-memory contract: one contiguous span for
+   RGA3, or complete page-granular coverage for RGA2's internal MMU;
 5. record physical/DMA extents for alias checks;
 6. retain hardware/device/import ownership in `rk_rga_job_mapping`;
 7. replace canonical import identities with this task's IOVAs.
@@ -169,6 +170,13 @@ At task completion, all mappings are unmapped before the next task is prepared.
 Any exporter bounce-buffer copyback is therefore complete before progression
 or fence signaling.
 
+An exact RGA2 DMA-BUF attachment `-EIO` can identify a mapping that this core
+cannot consume, such as a high 1 MiB system-heap SG entry exceeding SWIOTLB's
+per-map ceiling. If the task is independently valid on RGA3, dispatch excludes
+RGA2 for that task, revalidates it, and requeues it on RGA3. This is a selected-
+device fallback; it neither changes the global heap nor makes an RGA2-only
+operation appear successful.
+
 ### 4.5 USERPTR and cache-line shadows
 
 USERPTR is harder than DMA-BUF:
@@ -184,11 +192,22 @@ The driver can use a driver-owned IOMMU route when the ordinary DMA mapping
 does not provide the required contiguous IOVA. It allocates an IOVA, maps the
 owned pages, and records the exact size so unmap can verify complete teardown.
 
+For RGA2, the driver instead builds a page-granular internal-MMU table from the
+selected-device DMA mapping. Its driver-owned USERPTR SG is split at
+`dma_max_mapping_size()`, and RGA2 advertises a page-sized minimum DMA alignment
+so a SWIOTLB bounce preserves the original page offset. Without both pieces, a
+large entry can exceed the bounce limit or a discontinuity can land mid-page
+and become unrepresentable in the RGA2 table.
+
 Unaligned USERPTR boundaries can share cache lines with bytes outside the
 submitted range. The rewrite creates shadow pages for affected head/tail
 boundaries, copies data into them before DMA, and copies destination data back
 after DMA. This prevents cache maintenance or device writes from corrupting
 neighboring userspace bytes.
+
+The full allocation → DMA mapping → IOVA/internal-MMU contract, including why
+USERPTR permits a driver-owned fallback but DMA-BUF does not, is documented in
+the [cross-version DMA mapping chapter](../../iommu/docs/04-dma-mapping-porting-contracts.md).
 
 ### 4.6 Image layout validation
 

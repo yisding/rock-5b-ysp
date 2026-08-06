@@ -3,7 +3,8 @@
 > Scope: vendor-neutral concepts. Read this first, then
 > [`02-rk3588-iommu-hardware.md`](02-rk3588-iommu-hardware.md) for the RK3588
 > hardware and [`03-bsp-iommu-code.md`](03-bsp-iommu-code.md) for what the
-> Rockchip driver code actually does.
+> Rockchip driver code actually does. The cross-version traps are consolidated
+> in [`04-dma-mapping-porting-contracts.md`](04-dma-mapping-porting-contracts.md).
 > Audience: someone comfortable with C and Linux but new to DMA/IOMMU.
 
 ## The one-sentence version

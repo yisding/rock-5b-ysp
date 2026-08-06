@@ -106,3 +106,12 @@ together.
 | Corrupt frame | stride, modifier, cache sync, plane layout |
 | Slow path | userspace copied through CPU memory instead of sharing dmabuf |
 | Crash after job completion | dma-buf reference-count or release-order bug |
+
+## Related current-port guidance
+
+The BSP overview above explains the subsystem area. The maintained
+[DMA mapping contracts chapter](../../kernel-drivers/iommu/docs/04-dma-mapping-porting-contracts.md)
+records the source and runtime differences found when those assumptions crossed
+from Rockchip 5.10/6.1 into the 6.18 forward port and clean-room rewrite,
+including SWIOTLB's independent per-map limit, RGA2 page-offset preservation,
+and the USERPTR/DMA-BUF ownership boundary.

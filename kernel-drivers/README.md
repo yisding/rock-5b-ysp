@@ -131,6 +131,7 @@ Read in this order when changing or reviewing kernel behavior:
 | What did the BSP audit find? | [`docs/bsp-audit.md`](docs/bsp-audit.md) |
 | What did adversarial review find in our forward-port glue? | [`../kernel-versions/docs/forward-port-review-log.md`](../kernel-versions/docs/forward-port-review-log.md) |
 | What did the full adversarial review of the rewrite drivers find and fix? | [`docs/rewrite-driver-adversarial-review-2026-08-02.md`](docs/rewrite-driver-adversarial-review-2026-08-02.md) |
+| Why do DMA/IOMMU mappings differ across BSP, forward-port, and rewrite kernels? | [`iommu/docs/04-dma-mapping-porting-contracts.md`](iommu/docs/04-dma-mapping-porting-contracts.md) |
 | What is the net-new CCU MMU/IOMMU plan? | [`iommu/docs/mpp-ccu-iommu-plan.md`](iommu/docs/mpp-ccu-iommu-plan.md) |
 | What is the RK3588 AV1 path, and why is it separate from RKVDEC2? | [`av1/docs/av1-rk3588.md`](av1/docs/av1-rk3588.md) |
 | Does RK3588 have VDPP, how is IEP2 driven, and what would its forward port require? | [`iep2/docs/rk3588-iep2-vdpp.md`](iep2/docs/rk3588-iep2-vdpp.md) |

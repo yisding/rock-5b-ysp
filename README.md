@@ -153,7 +153,7 @@ The detailed package reading map is [`docs/work-packages.md`](docs/work-packages
 while [`docs/support-coverage.md`](docs/support-coverage.md) makes the repo's
 media-heavy evidence boundary and the remaining whole-board gaps explicit.
 The memory/address-translation path is documented concept → RK3588 hardware →
-RGA/MPP driver code in the
+RGA/MPP driver code → cross-version DMA contracts in the
 [IOMMU explainer series](kernel-drivers/iommu/docs/01-iommu-primer.md).
 
 ## Canonical owners

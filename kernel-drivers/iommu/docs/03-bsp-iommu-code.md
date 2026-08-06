@@ -4,6 +4,8 @@
 > the RK3588 IOMMU to put a buffer in front of hardware. Concepts:
 > [`01-iommu-primer.md`](01-iommu-primer.md); hardware:
 > [`02-rk3588-iommu-hardware.md`](02-rk3588-iommu-hardware.md).
+> Cross-version DMA/SWIOTLB contracts:
+> [`04-dma-mapping-porting-contracts.md`](04-dma-mapping-porting-contracts.md).
 > Code: `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport/drivers/video/rockchip/{rga3,mpp}/`
 > and the provider `drivers/iommu/rockchip-iommu.c`. Function names are stable
 > anchors; line numbers drift.
@@ -37,7 +39,7 @@ Rockchip blocks come in three flavours, selected per scheduler by
 | `->mmu` | Blocks | How scattered pages are handled |
 |---------|--------|---------------------------------|
 | `RGA_IOMMU` | RGA3 cores | **External** rockchip-iommu translates. Needs **one contiguous IOVA** (`dma_map_sg` must return `nents==1`). |
-| `RGA_MMU` | RGA2 core | **Internal** page-table MMU. The driver builds a page table from the sg_table (`rga_mm_set_mmu_base` / `rga_mm_sgt_to_page_table` in `rga_mm.c`) that the RGA2 hardware walks itself — so scattered pages are fine, but the buffer must be **under 4 GiB**. |
+| `RGA_MMU` | RGA2 core | **Internal** page-table MMU. The driver builds a page table from the sg_table (`rga_mm_set_mmu_base` / `rga_mm_sgt_to_page_table` in `rga_mm.c`) that the RGA2 hardware walks itself. Its page entries are 32-bit, so high physical pages require selected-device DMA/SWIOTLB addresses below 4 GiB. |
 | `RGA_NONE_MMU` | legacy | No MMU: requires physically-contiguous memory. |
 
 This is the single most important structural fact for RK3588: **RGA3 cannot walk
@@ -78,9 +80,12 @@ flowchart TD
   `RGA_JOB_STATE_INTR_ERR`, soft-resets the core, and classifies bus-error vs
   read/write fault.
 
-`map_dev` for all DMA mapping is `scheduler->iommu_info->default_dev` (the IOMMU
-device), *not* the RGA platform device — a consequence of the upstream
-`iommu/rockchip: Use IOMMU device for dma mapping operations` change.
+Normal RGA3 DMA mapping uses `scheduler->iommu_info->default_dev` (the IOMMU
+mapping device), *not* the RGA platform device — a consequence of the upstream
+`iommu/rockchip: Use IOMMU device for dma mapping operations` change. The
+forward-port RGA2 transient path deliberately maps against the selected RGA2
+device instead, because its 32-bit DMA mask and SWIOTLB behavior are exactly
+what produce internal-MMU-compatible device addresses.
 
 ## RGA: buffer import flow (the important path)
 
@@ -178,25 +183,28 @@ imports remain fail-closed.
 
 ## Scattered userptr on RGA3 and RGA userptr-IOMMU fallback
 
-The contract requires `nents == 1`, and on this platform `dma_map_sg()` for the
-RGA3 `map_dev` returns `nents == orig_nents` (no coalescing) — so a physically
-**scattered** userptr buffer (e.g. `orig_nents == 341` for a fragmented 3.6 MB
-malloc) is rejected, while a buffer that happens to land physically contiguous
-passes. This was **by design** before RGA userptr-IOMMU fallback: fail-closed beats faulting, but it
-made raw-malloc `virt_addr` imports flaky by allocation luck. Notably:
+The contract requires `nents == 1`, and measured 6.18 forward-port mappings for
+some physically **scattered** userptr buffers returned `nents == orig_nents`
+with real gaps and even descending IOVAs. A fragmented 3.6 MB malloc produced
+hundreds of entries, while physically contiguous allocations passed. This was
+fail-closed before RGA userptr-IOMMU fallback, but it made raw-malloc
+`virt_addr` imports depend on allocation luck. Notably:
 
 - raising `max_seg_size` does **not** help — it is already `DMA_BIT_MASK(32)` and
-  `nents == orig_nents` proves no merge is even attempted (the device isn't on the
-  coalescing iommu-dma path). Proven in the finding.
-- real pipelines feed RGA **dma-buf** (CMA-backed → `orig_nents == 1`), which
-  always passes; only raw-malloc `virt_addr` imports hit this.
+  the measured mapped entries are genuinely non-adjacent. The device is on a
+  translated generic IOMMU-DMA domain, but the mapping did not use the normal
+  whole-list coalescing result. The exact branch trigger is not load-bearing;
+  the mapped geometry is.
+- production pipelines commonly feed RGA a DMA-BUF rather than a raw malloc
+  pointer. CMA-backed attachments are normally one physical run, while a system
+  heap or another exporter can legitimately produce a different geometry; every
+  attachment still requires device-specific validation.
 - RGA userptr-IOMMU fallback is the driver-owned `iommu_map_sg()` fix for RGA3 userptr, not a config
-  tweak. The forward-port RGA-userptr-IOMMU-only kernel passed repeated RK3588 behavioral
-  smoke runs for `rga_copy_demo`, `rga_resize_rect_demo`, and
-  `rga_transform_rotate_demo`; direct forward-port fallback attribution still
-  needs a temporary positive breadcrumb/counter in the RGA userptr-IOMMU fallback helper. The
-  rewrite now exposes `rk_rga_rewrite/userptr_iommu` counters for the equivalent
-  booted validation, but that run is still pending.
+  tweak. The forward-port RGA-userptr-IOMMU-only kernel passed repeated RK3588
+  behavioral smoke runs for `rga_copy_demo`, `rga_resize_rect_demo`, and
+  `rga_transform_rotate_demo`. The rewrite's current board evidence records
+  64/64 successful Route B import-time mappings; the newer RGA2-specific
+  USERPTR alignment fix remains compile-verified and awaits an exact-tip boot.
 - without RGA userptr-IOMMU fallback, route scattered userptr to the RGA2 core (`RGA_MMU`), whose
   internal page-table MMU handles scatter.
 
@@ -223,3 +231,6 @@ made raw-malloc `virt_addr` imports flaky by allocation luck. Notably:
 - [`../../patches/rga-userptr-iommu/architecture.md`](../../patches/rga-userptr-iommu/architecture.md)
   — RGA userptr-IOMMU fallback architecture, IOMMU-domain allocator model, and runtime evidence
   boundary.
+- [`04-dma-mapping-porting-contracts.md`](04-dma-mapping-porting-contracts.md)
+  — the allocator/mapping/hardware layers, SWIOTLB limits, ownership rules, and
+  review checklist that differ across the BSP, forward port, and rewrite.
