@@ -40,6 +40,46 @@ SUITE_LOCKDEP_FILE=${SUITE_LOCKDEP_FILE:-/proc/lockdep_stats}
 # \bBUG: lesson first.
 SUITE_DMESG_FATAL_RE=${SUITE_DMESG_FATAL_RE:-'KASAN|KCSAN|UBSAN|KFENCE|\bBUG:|kernel BUG|\bOops|Unable to handle kernel|use-after-free|slab-out-of-bounds|out-of-bounds|general protection fault|hung task|blocked for more than|RCU stall|lockdep|DEBUG_LOCKS|trying to register non-static key|turning off the locking correctness validator|WARNING:|DMA-API.*(error|WARNING)|refcount_t:|list_[a-z_]* corruption|scheduling while atomic|sleeping function called|Page fault at|iommu[^[:alnum:]]*(intr|read|write)?[^[:alnum:]]*(fault|panic|oops)|bus error|rga[^[:alnum:]]*(fault|panic)|mpp[^[:alnum:]]*(fault|panic)'}
 
+# Wedge-localization markers (2026-07-29): the board can hard-lock with no
+# panic, ramoops, or disk survivors, so the terminal scrollback is the only
+# record of how far a suite got.  Every hardware-touching step announces
+# itself on stdout first.  Shared here because both the MPP and librga
+# phases of rewrite-conformance-run.sh have wedged the board silently.
+suite_progress()
+{
+	printf 'PROGRESS %s %s\n' "$(date +%T)" "$*"
+}
+
+# Nothing under a build or evidence tree should end up owned by root.
+# Every hardware suite needs root (dmesg_restrict=1 and debugfs are both
+# root-only here), so each run would otherwise leave root-owned outputs that
+# the next non-root run cannot rewrite.  That is not hypothetical: the
+# 2026-08-04 forward-port librga baseline was lost because librga-smoke.sh
+# relinks its binary unconditionally and hit "cannot open output file ...
+# Permission denied" on a root-owned artifact, so the one profile comparison
+# that mattered never ran.  Hand ownership back to the invoking user after
+# writing.  A no-op when not running under sudo: a direct root login has no
+# invoking user to hand back to, and guessing one would be worse than leaving
+# the tree alone.
+suite_reown_to_invoking_user()
+{
+	local path
+
+	if [ "$(id -u)" != "0" ] || [ -z "${SUDO_UID:-}" ]; then
+		return 0
+	fi
+
+	for path in "$@"; do
+		if [ -e "$path" ]; then
+			chown -R "$SUDO_UID:${SUDO_GID:-$SUDO_UID}" "$path" ||
+				printf "warning: could not return %s to uid %s\n" \
+					"$path" "$SUDO_UID" >&2
+		fi
+	done
+
+	return 0
+}
+
 suite_now_ns()
 {
 	local now

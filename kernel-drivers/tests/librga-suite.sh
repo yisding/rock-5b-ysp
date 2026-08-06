@@ -52,7 +52,17 @@ librga_sample_log_succeeded()
 	# The official demos use IM_STATUS_SUCCESS (numeric value 1) as main()'s
 	# return value. Require their explicit terminal success message before
 	# translating that nonzero shell status into success.
-	grep -aiEq -- 'running success!' "${1:--}"
+	#
+	# Two terminal wordings exist. 52 samples print their own literal
+	# "running success!". A few instead print the library's status string
+	# through imStrError(), whose IM_STATUS_SUCCESS text is
+	# "Run successfully" (im2d_api/src/im2d.cpp), in the fixed
+	# "<tag> .... <status>" form -- rga_alpha_colorkey_demo is the one such
+	# sample in the required set, and matching only the first wording
+	# recorded its genuine pass as a status-1 failure. Anchor on the
+	# "...." separator so the bare library string cannot normalize a status
+	# the sample never claimed as terminal success.
+	grep -aiEq -- 'running success!|\.\.\.\. Run successfully' "${1:--}"
 }
 
 classify_librga_sample_status()
@@ -130,6 +140,44 @@ EOF
 		"$librga_parser_tmp_log")
 	if [ "$classified" != "1" ]; then
 		printf 'FAIL: librga status classifier normalized status without explicit success: %s\n' \
+			"$classified" >&2
+		return 1
+	fi
+
+	# The imStrError() terminal wording, verbatim from a colorkey run.
+	printf '%s\n' \
+		'Could not open /data/in0w1280-h720-rgba8888.bin' \
+		'foreground image read err' \
+		'rga_alpha_colorkey_demo .... Run successfully' \
+		> "$librga_parser_tmp_log"
+	classified=$(classify_librga_sample_status 1 \
+		"$librga_parser_tmp_log")
+	if [ "$classified" != "0" ]; then
+		printf 'FAIL: librga status classifier did not normalize imStrError success: %s\n' \
+			"$classified" >&2
+		return 1
+	fi
+
+	# The same library string outside the terminal "...." form must not
+	# normalize a status the sample never claimed as success.
+	printf '%s\n' 'imStrError(IM_STATUS_SUCCESS) is "Run successfully"' \
+		> "$librga_parser_tmp_log"
+	classified=$(classify_librga_sample_status 1 \
+		"$librga_parser_tmp_log")
+	if [ "$classified" != "1" ]; then
+		printf 'FAIL: librga status classifier normalized a non-terminal success string: %s\n' \
+			"$classified" >&2
+		return 1
+	fi
+
+	printf '%s\n' \
+		'rga_alpha_colorkey_demo .... Run successfully' \
+		'rga_alpha_colorkey_demo running failed, Fatal error: submit failed' \
+		> "$librga_parser_tmp_log"
+	classified=$(classify_librga_sample_status 1 \
+		"$librga_parser_tmp_log")
+	if [ "$classified" != "log-fail" ]; then
+		printf 'FAIL: librga status classifier let imStrError success hide a fatal line: %s\n' \
 			"$classified" >&2
 		return 1
 	fi
@@ -302,6 +350,7 @@ setup_rga_userptr_iommu_force()
 	*) rga_userptr_iommu_force_prev=0 ;;
 	esac
 
+	suite_progress "preflight: forcing userptr IOMMU remap at $rga_userptr_iommu_force_path"
 	printf "1\n" > "$rga_userptr_iommu_force_path"
 }
 
@@ -324,6 +373,7 @@ artifact_summary="$OUT/artifacts.tsv"
 printf "profile\tclass\tcase\tstatus\telapsed_s\tresult\n" > "$summary"
 printf "profile\tclass\tcase\tkind\tbytes\tsha256\tpath\n" > "$artifact_summary"
 
+suite_progress "preflight: dmesg baseline"
 if ! suite_dmesg_start "$OUT"; then
 	echo "FAIL: dmesg is required but unreadable" >&2
 	exit 1
@@ -343,6 +393,7 @@ snapshot_debugfs()
 	: > "$target"
 	for path in /sys/kernel/debug/rk_rga_rewrite /sys/kernel/debug/rkrga; do
 		if [ -d "$path" ]; then
+			suite_progress "snapshot $label: reading $path"
 			{
 				printf "== %s ==\n" "$path"
 				find "$path" -maxdepth 2 -type f -print | sort |
@@ -402,6 +453,8 @@ run_case()
 		exe="$TEST_DIR/librga-smoke.sh"
 	fi
 
+	suite_progress "case $class/$case_name: start"
+
 	if [ ! -x "$exe" ]; then
 		printf "missing\n" > "$status_file"
 		printf "%s\t%s\t%s\tmissing\t0\tmissing\n" \
@@ -409,11 +462,19 @@ run_case()
 		if [ "$class" = "required" ]; then
 			failed=1
 		fi
+		# Close the marker pair even here: several diagnostic cases are
+		# routinely absent, and a dangling "start" would read as the
+		# point where the board wedged.
+		suite_progress "case $class/$case_name: done result=missing"
 		return
 	fi
 
 	rm -rf "$case_artifact_dir"
 	mkdir -p "$case_artifact_dir"
+	# Persist the rows written so far before the hardware touch: after a
+	# hard wedge, the last summary row plus the last PROGRESS line on the
+	# terminal name the killer case.
+	sync
 	start=$(suite_now_ns)
 	set +e
 	if [ "$case_name" = "ysp_librga_smoke" ]; then
@@ -446,11 +507,14 @@ run_case()
 	printf "%s\t%s\t%s\t%s\t%s\t%s\n" \
 		"$PROFILE" "$class" "$case_name" "$status" "$elapsed" "$result" \
 		>> "$summary"
+	suite_progress "case $class/$case_name: done result=$result status=$status elapsed=${elapsed}s"
+	sync
 }
 
 setup_rga_userptr_iommu_force
 
 snapshot_debugfs before
+suite_progress "preflight: debugfs counter snapshot"
 debugfs_counter_snapshot "$OUT/debugfs-counters-before.tsv" \
 	rga /sys/kernel/debug/rk_rga_rewrite \
 	rga_userptr_iommu /sys/kernel/debug/rk_rga_rewrite/userptr_iommu \
@@ -467,6 +531,7 @@ for case_name in $diagnostic_cases; do
 done
 
 snapshot_debugfs after
+suite_progress "postflight: debugfs counter snapshot"
 debugfs_counter_snapshot "$OUT/debugfs-counters-after.tsv" \
 	rga /sys/kernel/debug/rk_rga_rewrite \
 	rga_userptr_iommu /sys/kernel/debug/rk_rga_rewrite/userptr_iommu \
@@ -476,11 +541,13 @@ debugfs_counter_snapshot "$OUT/debugfs-counters-after.tsv" \
 debugfs_counter_delta "$OUT/debugfs-counters-before.tsv" \
 	"$OUT/debugfs-counters-after.tsv" \
 	"$OUT/debugfs-counters-delta.tsv"
+suite_progress "postflight: dmesg scan"
 if ! suite_dmesg_finish "$OUT"; then
 	echo "FAIL: new fatal kernel-log signature or unavailable required dmesg; see $OUT/dmesg-scan.tsv" >&2
 	failed=1
 fi
 tail -n 500 "$OUT/dmesg-after.txt" > "$OUT/dmesg-tail.txt" 2>/dev/null || true
+suite_reown_to_invoking_user "$OUT"
 
 echo "$OUT"
 

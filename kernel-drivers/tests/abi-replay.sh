@@ -6,6 +6,8 @@ set -euo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$TEST_DIR/../.." && pwd)"
+# shellcheck source=suite-common.sh disable=SC1091
+source "$TEST_DIR/suite-common.sh"
 
 PROFILE="${PROFILE:-$(uname -r)}"
 LOG_DIR="${LOG_DIR:-$ROOT_DIR/kernel-drivers/tests/logs/abi-replay}"
@@ -21,6 +23,10 @@ case "$PROFILE" in
 esac
 
 mkdir -p "$LOG_DIR"
+# On EXIT rather than at the end: the baseline diffs below fail the script
+# under set -e, and the logs this run just wrote must still come back to the
+# invoking user.
+trap 'suite_reown_to_invoking_user "$LOG_DIR"' EXIT
 
 raw_log="$LOG_DIR/$PROFILE.raw.log"
 norm_log="$LOG_DIR/$PROFILE.norm.log"

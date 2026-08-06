@@ -3262,6 +3262,7 @@ if ! suite_dmesg_finish "$OUT"; then
 	failed=1
 fi
 tail -n 500 "$OUT/dmesg-after.txt" > "$OUT/dmesg-tail.txt" 2>/dev/null || true
+suite_reown_to_invoking_user "$OUT" "$GST_GENERATED_INPUT_CACHE"
 
 echo "$OUT"
 

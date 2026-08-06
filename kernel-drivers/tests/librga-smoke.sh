@@ -6,6 +6,8 @@ set -euo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
+# shellcheck source=suite-common.sh disable=SC1091
+source "$TEST_DIR/suite-common.sh"
 
 CXX="${CXX:-c++}"
 LIBRGA_SMOKE_VALIDATE_BUILD="${LIBRGA_SMOKE_VALIDATE_BUILD:-0}"
@@ -65,6 +67,7 @@ if [ "$LIBRGA_SMOKE_VALIDATE_BUILD" = "1" ]; then
     "${LIBRGA_CFLAGS[@]}" \
     -c "$TEST_DIR/librga-smoke.cpp" \
     -o "$BUILD_DIR/librga-smoke.o"
+  suite_reown_to_invoking_user "$BUILD_DIR"
   echo "PASS: librga smoke builds"
   exit 0
 fi
@@ -75,6 +78,11 @@ PKG_CONFIG_PATH="$PKG_CONFIG_PATH" "$CXX" -std=gnu++17 -Wall -Wextra \
   "${LIBRGA_LIBS[@]}" \
   -Wl,-rpath,"$RPATH_DIR" \
   -o "$BUILD_DIR/librga-smoke"
+
+# Before exec, not after: this process is replaced by the smoke binary and
+# never runs another line. A root run that skipped this would leave the
+# relinked binary root-owned and break the next non-root run's build.
+suite_reown_to_invoking_user "$BUILD_DIR"
 
 LD_LIBRARY_PATH="$LD_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
   exec "$BUILD_DIR/librga-smoke"

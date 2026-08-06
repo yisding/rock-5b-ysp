@@ -105,15 +105,6 @@ CASE_ARTIFACT_KINDS=()
 CASE_ARTIFACT_PATHS=()
 CASE_ENV=()
 
-# Wedge-localization markers (2026-07-29): the board can hard-lock with no
-# panic, ramoops, or disk survivors, so the terminal scrollback is the only
-# record of how far the suite got.  Every hardware-touching step announces
-# itself on stdout first.
-suite_progress()
-{
-	printf 'PROGRESS %s %s\n' "$(date +%T)" "$*"
-}
-
 get_var()
 {
 	local name=$1
@@ -1006,6 +997,7 @@ if ! suite_dmesg_finish "$OUT"; then
 	failed=1
 fi
 tail -n 500 "$OUT/dmesg-after.txt" > "$OUT/dmesg-tail.txt" 2>/dev/null || true
+suite_reown_to_invoking_user "$OUT" "$MPP_GENERATED_INPUT_CACHE"
 
 echo "$OUT"
 

@@ -132,4 +132,34 @@ if SUITE_DMESG_SCAN=1 SUITE_REQUIRE_DMESG=1 \
 fi
 grep -q $'^status\tfatal$' "$bothbad/dmesg-scan.tsv"
 
+# Ownership handback. The gates run unprivileged, so what is checkable here
+# is that the helper stays a silent no-op off the sudo path and never fails
+# its caller: it runs late in every suite, and an error there would turn a
+# green run red after the evidence was already written.
+reown="$TMP_ROOT/reown"
+mkdir -p "$reown"
+printf "artifact\n" > "$reown/artifact.txt"
+reown_before=$(stat -c '%u:%g' "$reown/artifact.txt")
+
+suite_reown_to_invoking_user "$reown"
+if [ "$(stat -c '%u:%g' "$reown/artifact.txt")" != "$reown_before" ]; then
+	echo "reown changed ownership when it should have been a no-op" >&2
+	exit 1
+fi
+
+# A path that does not exist, and no paths at all, are both tolerated.
+suite_reown_to_invoking_user "$reown/absent" "$reown"
+suite_reown_to_invoking_user
+
+# Under sudo the helper must still succeed rather than abort the suite when
+# the chown cannot be performed; simulate the sudo path as an unprivileged
+# user, where every chown is refused.
+if [ "$(id -u)" != "0" ]; then
+	if ! SUDO_UID=0 SUDO_GID=0 \
+		suite_reown_to_invoking_user "$reown" 2>/dev/null; then
+		echo "reown failed its caller when chown was refused" >&2
+		exit 1
+	fi
+fi
+
 echo "suite common selftest passed"

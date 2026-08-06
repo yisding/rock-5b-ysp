@@ -6,6 +6,8 @@ set -euo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$TEST_DIR/../.." && pwd)"
+# shellcheck source=suite-common.sh disable=SC1091
+source "$TEST_DIR/suite-common.sh"
 ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$ROOT_DIR/../rock-5b}"
 
 CC="${CC:-cc}"
@@ -25,5 +27,8 @@ mkdir -p "$BUILD_DIR"
   -I "$LIBRGA_INCLUDE" \
   "$TEST_DIR/abi-probe.c" \
   -o "$BUILD_DIR/abi-probe"
+
+# Before exec: this process is replaced and never runs another line.
+suite_reown_to_invoking_user "$BUILD_DIR"
 
 exec "$BUILD_DIR/abi-probe" "$@"
