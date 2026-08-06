@@ -145,7 +145,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-35 | GNOME Remote Desktop validation and branch state | Remote owns branch tip; build script owns package input; project docs own design/test conclusions; status/W05 own verdict/publication. | GRD README/docs/findings, status track 7, W05/W10, PPA and GRD pin checker. Security: review public fix inventory versus private submission plan. | CLOSED 2026-08-05 — application scorecard, compact front door, frozen replay, mutable-state routes, and full handoff gate complete. |
 | ORG-40 | Project front doors, runbooks, plans, audits, and coverage | Each project README routes stable scope/boundary/model/operation; deep docs own mechanism; runbooks own commands; plans own future ladder; coverage owns scope/first missing evidence. | Activate one project/README at a time; preserve all headings/inbound links and nearest-README completeness. Security review when the project scope requires it. | CLOSED 2026-08-06 — taxonomy-defined project interfaces, packaging hub, operations, evidence routes, and compatibility headings handoff-gated. |
 | ORG-41 | Findings inbox promotion | Existing project/runbook/test/catalog/package owners absorb useful evidence; findings index retains deposit guidance and views of live intake only. No tombstones or permanent `findings/evidence/` archive. | Exact inbound links, generated chronology, curated topic row/count, status citations; update findings checks atomically. Security review for every kernel safety/upstream finding. | CLOSED 2026-08-06 — all 188 baseline findings classified; 72 promoted/obsolete intake files removed and 116 live evidence owners retained. |
-| ORG-50 | Root and work-package navigation | Root README owns short task router; `work-packages.md` owns taxonomy/reading paths; project READMEs own local routes. | Root/category/project links and representative journeys; Markdown link/anchor and nearest-README checks. Security: not applicable unless content moves. | PLANNED after canonical owners stabilize. |
+| ORG-50 | Root and work-package navigation | Root README owns short task router; `work-packages.md` owns taxonomy/reading paths; project READMEs own local routes. | Root/category/project links and representative journeys; Markdown link/anchor and nearest-README checks. Security: not applicable unless content moves. | CLOSED 2026-08-06 — root routes common tasks, the work-package map owns taxonomy/reading paths, and successor anchors preserve inbound links. |
 | ORG-60 | Tune reporting and add targeted enforcement | Informational report owns broad candidates; structured checks own only proven high-risk assertions and retired-ID/finding-evidence invariants. | `check-repo.sh` remains sole gate; reporter/tests/check-doc-consistency/CI docs updated together. Security: reporting must not expose ignored/private material. | PLANNED; baseline false positives need classification. |
 | ORG-99 | Remove temporary migration state | Lasting rules/risks/exceptions live in `CONTRIBUTING.md` or owning docs; proposal may be frozen/retired as decided. Remove this ledger only after all prior rows close. | All inbound ledger/proposal links and full completion audit; full handoff gate. Security review of final diff/history references. | PLANNED. |
 
@@ -979,4 +979,31 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   not freeze the inbox or exempt future findings from promotion and deletion.
 - **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
   2026-08-06 across 368 Markdown files, 3,442 local links, 498 anchors, all 62
+  regression tests, ShellCheck, documentation consistency, and whitespace.
+
+### ORG-50 — root and work-package navigation
+
+- **Ownership:** the root README is now a compact task router for newcomer,
+  operator, maintainer, and subsystem-developer entry. `work-packages.md`
+  remains the sole detailed project taxonomy, stack diagram, and multi-document
+  reading-path owner; local project front doors own subsystem navigation.
+- **Compatibility:** all existing root H2/H3 headings remain as useful
+  successor anchors. The source-map workspace route still lands at the local
+  workspace contract, while the former repository-map route now explicitly
+  hands off to the work-package owner.
+- **Duplicate removal:** removed the second stack diagram, detailed category
+  table, repeated multi-hop reading paths, source-lineage catalog, and long
+  licensing inventory from the root. `docs/README.md` and the resyncing guide
+  now describe the same owner split rather than instructing maintainers to
+  update two taxonomy copies.
+- **Reader replay:** a newcomer reaches PPA choice and verification in one hop;
+  an operator reaches status, install/recovery, and baseline capture in one;
+  a maintainer reaches the contribution contract, findings inbox, and source
+  map in one; a developer reaches the complete stack or a category front door
+  in at most two deliberate hops.
+- **Security review:** this slice changes public navigation and removes copied
+  orientation only. It adds no technical trigger, private route, disclosure or
+  CVE coordination, or upstream destination/order.
+- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
+  2026-08-06 across 368 Markdown files, 3,434 local links, 496 anchors, all 62
   regression tests, ShellCheck, documentation consistency, and whitespace.

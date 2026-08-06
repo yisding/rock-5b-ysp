@@ -1,210 +1,127 @@
 # rock-5b-ysp — ROCK 5B RK3588 support record
 
-This repo is the tracking and knowledge record for improving Radxa ROCK 5B
-support on Armbian's Ubuntu 26.04 (Resolute) images. The largest body of work is
-making the RK3588 hardware-video stack usable end to end, but the record also
-captures board bring-up, boot-chain, packaging, and application gaps encountered
-along the way. The goal is to make each gap, experiment, result, and remaining
-gate quick to reconstruct when returning to the project later.
+This repository is the public integration, evidence, and patch-delivery record
+for Radxa ROCK 5B support on Armbian's Ubuntu 26.04 (Resolute) images. It covers
+board bring-up and packaging, with the deepest evidence following the RK3588
+media stack from kernel drivers through vendor libraries, FFmpeg/VA-API, and
+applications. Dated claims and the next proof always live in
+[`status.md`](status.md).
 
-The actual code lives under the sibling `rock-5b/` workspace (kernel forks,
-`ffmpeg-rockchip`, `gnome-remote-desktop`, Mesa, `librga`, `mpp-rockchip`);
-this repo holds the architecture notes, forward-port design, patch deliverables,
-captured findings, and dated status of every track. Cross-cutting vocabulary
-(MPP, RGA, CCU, DCHS, …) lives in [`glossary.md`](glossary.md); most leaf
-projects also keep a `keywords.md` for their own local jargon.
+The source trees and build outputs live in the sibling `rock-5b/` workspace;
+this repository contains maintained explanations, patches, tests, operations,
+and fresh findings. Start from the task routes below. Use
+[`docs/work-packages.md`](docs/work-packages.md) when you need the complete
+project map, stack diagram, or a multi-document reading path.
 
 ## Local workspace layout
-
-Board-related external trees, builds, packages, and captured artifacts are
-grouped under `rock-5b/`. The public support record and private security record
-remain separate peer repositories; shared scratch and compiler-cache storage
-also remain at the `~/Code` level.
 
 ```text
 ~/Code/
 ├── rock-5b-ysp/       # this public integration and evidence record
 ├── rock-5b-security/  # private disclosure and memory-safety material
-├── rock-5b/           # external board source trees, builds, and artifacts
-│   ├── kernel/
-│   ├── ffmpeg/
-│   ├── fdo/
-│   ├── gnome/
-│   ├── rockchip-conformance/
-│   └── …
-├── tmp/               # shared scratch, intentionally not relocated
-└── .ccache/           # the only compiler-cache store for all ~/Code builds
+├── rock-5b/           # external source trees, builds, packages, evidence
+├── tmp/               # shared scratch
+└── .ccache/           # the only compiler-cache store for ~/Code builds
 ```
 
-Unless a command says otherwise, relative external paths such as
-`../rock-5b/kernel/…` are resolved from the `rock-5b-ysp` repository root.
-Set `ROCK5B_WORKSPACE=/path/to/rock-5b` to relocate the grouped board
-workspace; component-specific variables such as `CONFORMANCE_ROOT`,
-`WORKSPACE`, `WORKSPACE_ROOT`, `MESA_BUILD`, and `FFDIR` still take precedence.
-The shared `~/Code/tmp` and `~/Code/.ccache` peers are intentionally independent
-of `ROCK5B_WORKSPACE`. `~/Code/.ccache` is the only allowed compiler-cache
-store; build directories belong under the grouped workspace, but ccache does
-not.
-
-The deepest body of evidence follows a Rockchip vendor **MPP** codec stack plus
-**RGA** from the Rockchip 6.1 BSP into Linux 6.18, plus an end-to-end source
-inspection of the BSP **RKNPU/RKNN** stack, then upward through
-`ffmpeg-rockchip`, GNOME Remote Desktop, Kodi, Mesa/Panfrost, and package
-delivery. BSP-audit and clean-room rewrite work are recorded alongside that
-forward-port path rather than presented as interchangeable kernels.
-
-The dated project dashboard is [`status.md`](status.md); read every state claim
-through its last-verified dates.
+Relative external paths such as `../rock-5b/kernel/…` resolve from this
+repository root. `ROCK5B_WORKSPACE` may relocate the grouped board workspace;
+component-specific variables such as `CONFORMANCE_ROOT`, `WORKSPACE`,
+`WORKSPACE_ROOT`, `MESA_BUILD`, and `FFDIR` take precedence. Build directories
+belong under `../rock-5b/build/`; the compiler cache remains `~/Code/.ccache`.
+Exact source pins and reconstruction routes live in
+[`docs/source-trees.md`](docs/source-trees.md).
 
 ## Start here
 
-Use the shortest path for the context you need to recover. This front door does
-not repeat dated status or operational commands because those copies drift.
-Each row names **one destination**; when a job needs several documents read in
-order, that sequence lives in
-[`docs/work-packages.md`](docs/work-packages.md#operating-and-re-entry-paths)
-rather than being duplicated here.
+Choose the shortest route for the job. These links point to maintained owners
+instead of repeating status, commands, or the project taxonomy here.
 
 ### Resume or operate the board
 
-| Need | Re-enter through |
-|------|------------------|
-| Resume active work and find the next proof | [`status.md`](status.md), especially its dashboard and **Next gates** |
-| Reconstruct why a public state changed | [`status.md`](status.md), then the track's direct evidence and action links |
-| Reconstruct how a technical explanation evolved | [`findings/` investigation trails](findings/README.md#reconstruct-an-investigation), then the maintained project model |
-| Decide whether the public ROCK 5B PPA fits, and which packages to install | [`docs/ppa-support.md`](docs/ppa-support.md) |
-| Choose, install, validate, or recover a kernel/media path | [`install.md`](install.md) |
-| Capture the exact board, boot, kernel, and userspace identity | [`docs/system-baseline.md`](docs/system-baseline.md) |
-| Understand the rewrite kernel's as-built and target architecture | [`kernel-drivers/docs/rewrite-driver-architecture/`](kernel-drivers/docs/rewrite-driver-architecture/README.md) |
-| Diagnose an unexplained failure or known trap | [`docs/gotchas.md`](docs/gotchas.md) |
-| See what this repo has not established about the board | [`docs/support-coverage.md`](docs/support-coverage.md) |
+| Goal | Start here |
+|------|------------|
+| Resume work or find the next proof | [`status.md`](status.md) |
+| Decide whether the public PPA fits and verify the stack | [`docs/ppa-support.md`](docs/ppa-support.md) |
+| Install, validate, switch, or recover a kernel/media path | [`install.md`](install.md) |
+| Capture exact board, boot, kernel, and userspace identity | [`docs/system-baseline.md`](docs/system-baseline.md) |
+| Diagnose a known trap or unexplained failure | [`docs/gotchas.md`](docs/gotchas.md) |
+| See unassessed board areas and the first useful evidence | [`docs/support-coverage.md`](docs/support-coverage.md) |
 
 ### Recover the technical model
 
-| Need | Re-enter through |
-|------|------------------|
-| See the whole stack and choose a reading path | [`docs/work-packages.md`](docs/work-packages.md) |
-| Evaluate the ROCK 5B-only Ubuntu 26.04 image successor | [`docs/ubuntu-rock5b-image-plan.md`](docs/ubuntu-rock5b-image-plan.md) |
-| Understand U-Boot and the ROCK 5B boot chain | [`boot-firmware/`](boot-firmware/README.md) |
-| Compare the validated vendor path with maximum-mainline RK3588 builds | [`kernel-versions/`](kernel-versions/README.md) |
-| Rebuild the MPP/RGA kernel-driver model | [`kernel-drivers/docs/how-the-drivers-work.md`](kernel-drivers/docs/how-the-drivers-work.md) |
-| Understand RK3588 deinterlacing and IEP2 versus VDPP | [`kernel-drivers/iep2/`](kernel-drivers/iep2/README.md) |
-| Follow the kernel-to-userspace ABI boundary | [`vendor-libraries/docs/how-the-userspace-libs-work.md`](vendor-libraries/docs/how-the-userspace-libs-work.md) |
-| Understand RKNN conversion, userspace, and the RKNPU driver | [`kernel-drivers/rknpu/`](kernel-drivers/rknpu/README.md) |
-| Decode shared terms like MPP, RGA, CCU, and DCHS | [`glossary.md`](glossary.md) |
+| Goal | Start here |
+|------|------------|
+| Choose a project or follow the whole stack | [`docs/work-packages.md`](docs/work-packages.md) |
+| Understand the boot chain | [`boot-firmware/`](boot-firmware/README.md) |
+| Compare BSP, forward-port, and maximum-mainline kernels | [`kernel-versions/`](kernel-versions/README.md) |
+| Understand or test the kernel accelerator drivers | [`kernel-drivers/`](kernel-drivers/README.md) |
+| Follow the userspace ABI and vendor libraries | [`vendor-libraries/`](vendor-libraries/README.md) |
+| Trace FFmpeg, VA-API, Mesa, and application integration | [`video-libraries/`](video-libraries/README.md) → [`apps/`](apps/README.md) |
+| Understand package delivery and recovery | [`packaging/`](packaging/README.md) |
+| Decode shared terms such as MPP, RGA, CCU, and DCHS | [`glossary.md`](glossary.md) |
 
 ### Maintain or extend the record
 
-| Need | Re-enter through |
-|------|------------------|
-| Record a newly discovered gap or result | [`findings/`](findings/README.md) |
-| Update evidence, status, or project documentation | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| Goal | Start here |
+|------|------------|
+| Record a fresh gap, observation, or unresolved result | [`findings/`](findings/README.md) |
+| Place a change, promote evidence, or hand off work | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Review the maintained kernel patch deliverables | [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
-| Map each forward-port patch to behavior and BSP applicability | [`kernel-drivers/docs/patch-catalog.md`](kernel-drivers/docs/patch-catalog.md) |
-| Reconstruct an external source tree or resolve a code citation | [`docs/source-trees.md`](docs/source-trees.md) |
-| Review repository-specific agent instructions | [`AGENTS.md`](AGENTS.md) |
+| Reconstruct external sources or resolve code citations | [`docs/source-trees.md`](docs/source-trees.md) |
+| Run repository or board operations | [`scripts/`](scripts/README.md) |
+| Review environment-specific agent instructions | [`AGENTS.md`](AGENTS.md) |
 
-This is an integration record and patch-delivery repo, not a self-contained
-source monorepo. A subsystem missing from the dashboard is not implicitly
-working or broken. Use the support coverage inventory to see the evidence
-boundary, then create a finding rather than guessing.
+This is an integration record, not a source monorepo. A subsystem absent from
+the dashboard is not implicitly working or broken; check support coverage and
+create a finding rather than guessing.
 
 ## Repository structure
 
-The repo is split project-by-project, grouped into the categories below. Each
-project directory carries its own `README.md` (front door) and, where useful, a
-`keywords.md` ("key words to know"). Shared driver architecture, the combined
-patch series, scripts, and on-hardware tests stay at the `kernel-drivers/` top.
+The detailed category/project taxonomy, canonical stack diagram, and operator
+and developer reading paths are maintained in
+[`docs/work-packages.md`](docs/work-packages.md). Each category and project has
+a local `README.md` that owns its scope, dependencies, evidence boundary, and
+complete local file index. The top-level categories are:
 
-```mermaid
-flowchart TB
-  board["Radxa ROCK 5B / RK3588"]
-  boot["boot-firmware: BootROM · SPL · TF-A · U-Boot"]
-  kver["kernel-versions<br/>BSP overlay · forward-port"]
-  kernel["kernel-drivers<br/>mpp · iep2 · rga · av1 · iommu · rknpu"]
-  libs["vendor-libraries<br/>librockchip_mpp · librga"]
-  video["video-libraries<br/>ffmpeg · vaapi · mesa"]
-  apps["apps<br/>gnome-remote-desktop · kodi"]
-  packaging["packaging<br/>delivery & validation"]
+[`boot-firmware/`](boot-firmware/README.md) ·
+[`kernel-versions/`](kernel-versions/README.md) ·
+[`kernel-drivers/`](kernel-drivers/README.md) ·
+[`vendor-libraries/`](vendor-libraries/README.md) ·
+[`video-libraries/`](video-libraries/README.md) ·
+[`apps/`](apps/README.md) ·
+[`packaging/`](packaging/README.md)
 
-  board --> boot --> kernel
-  kver -.-> kernel
-  kernel --> libs --> video --> apps
-  packaging -.-> kernel
-  packaging -.-> libs
-  packaging -.-> video
-```
-
-| Category | What lives here | Entry |
-|----------|-----------------|-------|
-| **boot-firmware** | Power-on through Linux handoff: U-Boot primer, RK3588 stages/artifacts, lineage comparison, and safe debugging. | [`boot-firmware/`](boot-firmware/README.md) |
-| **kernel-versions** | The kernel bases and moving between them: what the BSP adds vs stock, the forward-port narrative, the mainline-V4L2 alternative. | [`kernel-versions/`](kernel-versions/README.md) |
-| **kernel-drivers** | In-kernel accelerator drivers, split `mpp` · `iep2` · `rga` · `av1` · `iommu` · `rknpu`; shared architecture docs, patches, scripts, on-hardware tests at the top. | [`kernel-drivers/`](kernel-drivers/README.md) |
-| **vendor-libraries** | Userspace vendor libs: `mpp` (librockchip_mpp), `rga` (librga). | [`vendor-libraries/`](vendor-libraries/README.md) |
-| **video-libraries** | `ffmpeg` (rkmpp codecs + rkrga filters), `vaapi` (desktop VA-API over MPP/RGA), and `mesa` (Mali-G610 transfer work). | [`video-libraries/`](video-libraries/README.md) |
-| **apps** | Real applications on the stack: `gnome-remote-desktop` H.264 RDP encode and Kodi DRM PRIME hardware decode. | [`apps/`](apps/README.md) |
-| **packaging** | Delivery channels: DKMS, udev/ACL debs, PPA source packages, binary policy. | [`packaging/`](packaging/README.md) |
-| **scripts** | Repo-wide maintenance checks (links, documentation contracts, whitespace) and destructive board operations: SPI backup/erase/restore, passive cooling, headless image prep. | [`scripts/`](scripts/README.md) |
-| **findings** | Raw capture inbox — drop a freshly-learned fact first, graduate it into a project doc later. | [`findings/`](findings/README.md) |
-| **captured evidence** | Small tracked inventories for forensic inputs; generated or bulky downloads stay outside Git. | [`downloads/armbian-rock5b-uboot-compare/`](downloads/armbian-rock5b-uboot-compare/README.md) |
-| **docs** + glossary | Cross-cutting: support coverage, project map, source-tree pins, whole-repo trap index, shared vocabulary. | [`docs/`](docs/README.md), [`glossary.md`](glossary.md) |
-
-The detailed package reading map is [`docs/work-packages.md`](docs/work-packages.md),
-while [`docs/support-coverage.md`](docs/support-coverage.md) makes the repo's
-media-heavy evidence boundary and the remaining whole-board gaps explicit.
-The memory/address-translation path is documented concept → RK3588 hardware →
-RGA/MPP driver code → cross-version DMA contracts in the
-[IOMMU explainer series](kernel-drivers/iommu/docs/01-iommu-primer.md).
+Cross-project references enter through [`docs/`](docs/README.md). Small
+tracked forensic inputs enter through
+[`downloads/armbian-rock5b-uboot-compare/`](downloads/armbian-rock5b-uboot-compare/README.md);
+generated and bulky artifacts stay outside Git.
 
 ## Canonical owners
 
-This is the **read** view — where to look for a kind of information.
-[`CONTRIBUTING.md`](CONTRIBUTING.md#where-a-change-belongs) carries the matching
-**write** view, which is longer because it also covers patches, scripts, build
-artifacts, and the material that belongs in the private security repository
-instead. They describe one mapping; change both together or neither.
+This is the compact read view; the authoritative placement and update contract
+is [`CONTRIBUTING.md`](CONTRIBUTING.md#where-a-change-belongs).
 
-| Information | Canonical owner |
-|-------------|-----------------|
-| Dated public state, next proof, and volatile external facts | [`status.md`](status.md), with direct links to the owning project or finding |
-| Whole-board tracked/narrow/unassessed scope | [`docs/support-coverage.md`](docs/support-coverage.md) |
-| Exact build, install, rollback, and validation commands | [`install.md`](install.md), then the owning project README |
+| Information | Owner |
+|-------------|-------|
+| Dated public state, next proof, and volatile external facts | [`status.md`](status.md) |
+| Whole-board tracked, narrow, and unassessed scope | [`docs/support-coverage.md`](docs/support-coverage.md) |
+| Commands and recovery | [`install.md`](install.md), then the owning project/runbook |
 | Fresh observations and unresolved explanations | [`findings/`](findings/README.md) |
-| Stable technical explanations, patches, tests, and scripts | The nearest project `README.md` in the category table above |
+| Stable models, patches, tests, and project evidence | The nearest project front door in [`docs/work-packages.md`](docs/work-packages.md) |
 | Evidence lifecycle, file placement, and handoff checks | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
-
-The deepest evidence follows the vendor MPP/RGA media path from kernel through
-userspace and applications. That depth is not proof of unrelated board support;
-the coverage inventory keeps the untouched areas visible. Likewise, this README
-does not choose between the vendor and mainline media models: the maintained
-comparison and its dated trade-offs live in
-[`kernel-versions/docs/vanilla-kernel.md`](kernel-versions/docs/vanilla-kernel.md).
 
 ## Provenance and licensing
 
-- The repository's multi-license policy is recorded in
-  [`LICENSE.md`](LICENSE.md): documentation and non-code are CC BY-SA 4.0;
-  code follows its upstream project, with Yi Ding's original kernel
-  contributions licensed GPL-2.0-or-later.
-- The driver code is forward-ported from Rockchip's GPL-2.0 BSP MPP framework
-  (`rockchip-kernel` `drivers/video/rockchip/mpp/`) and `airockchip/librga`'s
-  kernel driver. It is GPL-2.0 like the kernel.
-- `librga` userspace is open source (Apache-2.0). The official `airockchip/librga`
-  repo ships a prebuilt `.so`; the source lineage and build notes are linked
-  from [`vendor-libraries/`](vendor-libraries/README.md) and
-  [`docs/gotchas.md`](docs/gotchas.md).
-- RKNN-Toolkit2, RKNNLite, `librknnrt`, and `rknn_server` are distributed under
-  Rockchip's proprietary RKNN SDK license; public headers, manuals, and some
-  separately licensed examples do not make the compiler/runtime implementation
-  open source. The inspected boundary is recorded in the
-  [`RKNPU/RKNN guide`](kernel-drivers/rknpu/docs/how-rknpu-works.md#4-what-is-open-and-what-is-closed).
-- The mainline RGA-in-U-Boot / RGA-V4L2 context comes from Collabora's RK3588
-  upstreaming work.
-- Imported kernel material retains its upstream notices, including
-  GPL-2.0-only where applicable. The broader GPL-2.0-or-later grant covers only
-  Yi Ding's own original copyrightable contributions; it does not apply to the
-  upstream kernel or anyone else's code. Standalone source files carry the
-  applicable SPDX identifier where one license governs the file.
+[`LICENSE.md`](LICENSE.md) owns the repository license policy: documentation
+and non-code are CC BY-SA 4.0; imported code retains its upstream license and
+notices; Yi Ding's original kernel contributions are GPL-2.0-or-later. Project
+front doors and [`docs/source-trees.md`](docs/source-trees.md) own source
+lineage and immutable reconstruction pins. Proprietary RKNN compiler/runtime
+boundaries are documented in the
+[`RKNPU/RKNN guide`](kernel-drivers/rknpu/docs/how-rknpu-works.md#4-what-is-open-and-what-is-closed).
 
-This repo is the integration and analysis record; the heavy lifting on the
-drivers is Rockchip's.
+This public repository may contain technical fix and bounded validation facts.
+Disclosure coordination, memory-corruption reproducers, and private upstream
+planning belong in `rock-5b-security/` under the rules in
+[`CONTRIBUTING.md`](CONTRIBUTING.md).

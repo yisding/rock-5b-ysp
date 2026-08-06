@@ -1,8 +1,8 @@
 # docs/ — cross-project references
 
 Most technical documentation lives with the project that owns it (see the
-categories in [`../README.md`](../README.md)). This directory keeps the small set
-of repo-wide references that are not owned by one project.
+project map in [`work-packages.md`](work-packages.md)). This directory keeps the
+small set of repo-wide references that are not owned by one project.
 
 ## Cross-project docs
 
@@ -26,10 +26,10 @@ Repository-wide license status is not a cross-project doc; it lives at
 ## Everything else is project-owned
 
 Project-specific material lives with the project that owns it, not here. The
-category table in the root [`README.md`](../README.md#repository-structure) maps
-every category to its front door, and [`work-packages.md`](work-packages.md)
-carries the detailed project map. This page does not restate either — a third
-copy of the taxonomy is how the three drifted apart before.
+root [`README.md`](../README.md#repository-structure) routes common tasks;
+[`work-packages.md`](work-packages.md) owns the category/project map and
+detailed reading paths. This page does not restate either — another copy of the
+taxonomy is how the indexes drifted apart before.
 
 ## Reading paths
 
