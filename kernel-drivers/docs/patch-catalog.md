@@ -52,26 +52,12 @@ provenance/backport layer on top and does not repeat full fix mechanics.
 | `BSP-BUG` | A defect we found whose broken code is **also in the pristine Rockchip BSP** (stated in the commit message/finding, or established by byte-identity of the affected file). | **Backport candidate.** |
 | `HARDEN` | New validation/diagnostics not present in the BSP, where the underlying weakness exists there too. | Defensive/optional backport. |
 
-**Verification** — where hardware proof currently stands (details:
-[forward-port status](./forward-port-status.md), series README):
-
-- `0001`–`0058`: **boot-validated** as a whole on debug build `Pd222-C4ad2`
-  (full conformance + GStreamer suites green). Individual fixes in the
-  `0042`–`0058` tail each also carry their own targeted KASAN/gate evidence on
-  the earlier debug builds (`Pb999`, `P63dd`, `P9636`, `P7589`, `P9c12`).
-- `0059`–`0069`: per-commit checkpatch-clean, packaged in KASAN/lockdep build
-  `Pabd5-C4ad2`, **installed and booted 2026-07-22** (fingerprint-verified)
-  with clean boot health, a bit-exact four-codec decode differential, and a
-  clean KASAN MPP suite. The librga/ABI/FFmpeg/GStreamer sweep and the
-  destructive rungs ran later on that same boot (19:20–19:34) — FFmpeg 24/24,
-  ABI `rc=0`, GStreamer 129/4, foreign-fd `-EBADF`, RCB/request bounds PoCs
-  reaching their guards. Still never individually gated on any boot:
-  acquire-fence stress, shutdown-outside-`irq_lock`, missing-plane, and
-  partial-handle unwind — see the
-  [port record](../../findings/2026-07-22-bsp-high-current-tip-port.md).
-- The Published PPA package now carries the full `0001`–`0071` tail
-  (`…20260723~rk1`), booted and conformance-green 2026-07-24. The
-  `0041`-era statement this bullet used to make was three weeks stale.
+**Verification.** Per-fix rows may name a bounded preparation or targeted gate
+when it changes backport readiness. The
+[forward-port scorecard](./forward-port-status.md) owns accumulated capability
+evidence; [status](../../status.md) owns the live public boundary; dated
+findings own run detail. This catalog does not maintain package publication or
+installed-state rollups.
 
 A backport verdict below is a statement about **where the fix belongs**, not
 that it is ready to ship: anything not yet through its runtime gate keeps that
@@ -263,6 +249,9 @@ against a silent-corruption case rather than fixing a specific commit's mistake.
 
 ## Current `0072`–`0092` — outside the 2026-07-22 compilation
 
+This compatibility heading records the range added after the catalog's first
+compilation. It is not a moving “current tip” owner.
+
 > **These rows use CURRENT numbering**, unlike everything above, which uses the
 > pre-cleanup scheme (this page's `0072` is current `0071`). The 21 patches
 > below all landed after this page was compiled on 2026-07-22.
@@ -276,49 +265,34 @@ fork's [im2d pixel-to-byte request translation](../../vendor-libraries/rga/docs/
 fix on its own evidence.
 
 `0076`–`0079` are the [2026-07-29 WARN/oops audit
-sweep](../../findings/2026-07-29-forward-port-warn-oops-audit-and-fixes.md) —
-18 defects, of which 12 are unprivileged-reachable and five are kernel-heap
-corruption. They first landed compile-verified only. The `0089` production
-predecessor later booted with a narrow tier-1 decode run; the exact
-`0092` production package has now completed broad ordinary conformance and
-recovery testing. The four patches still lack their targeted hostile-path
-gates, which the broad campaign does not substitute for.
+sweep](../../findings/2026-07-29-forward-port-warn-oops-audit-and-fixes.md).
+The linked finding owns the bounded source/validation record; the rows below
+retain public provenance and backport disposition.
 
 `0080` is the 2026-07-31 mapped-SG contract reconciliation. Its direct-span
 admission check repairs forward-port-only hardening, while its RGA2 page-table
 walker corrects vendor code that mixed original SG lengths/counts with mapped
-DMA addresses. Its two changed objects compile cleanly, it is included in the
-booted exact `0092` package, and that package passes direct RGA and IOMMU
-machinery gates. The forced fragmented-DMA-BUF RGA2 discriminator remains
-open.
+DMA addresses. It was compile-checked at preparation; the scorecard and linked
+findings own later hardware evidence and remaining discriminators.
 
 `0081`–`0087` are the 2026-08-01 ioctl/lifetime audit fixes and their
 adversarial-review repairs. The audit traces most defect sites to the BSP
 import, while the session-fd ordering bug and the original RGA ownership leak
-were forward-port regressions. These rows preserve that mixed provenance. The
-booted exact `0092` package gives them broad ordinary integrated evidence, not
-the still-owed targeted forward-port ABI, cross-session RGA, MPP lifetime,
-encode, and decode hostile-path regressions.
+were forward-port regressions. These rows preserve that mixed provenance; the
+audit finding and scorecard own validation.
 
 `0088` imports the BSP's RK3588 IEP2 block and board DT enablement into 6.18.
 `0089` is its three-way safety-review tail. It contains both adaptations to the
 6.18 IOMMU/fault ABI and defects inherited from the BSP-shaped MPP/IEP2 code;
-backport only the latter after translating them to the BSP provider ABI. The
-dedicated client-28/KASAN/runtime gate is now green except for the untriggered
-software-timeout injection; the Published production package also runs
-standalone IEP2. See the
+backport only the latter after translating them to the BSP provider ABI. See the
 [IEP2 safety review](../iep2/docs/forward-port-safety-review.md).
 
 `0090`–`0092` close the known-open RGA job-task, MPP provider-callback/task,
-and decoder recovery lifetime gaps from the 2026-08-01 audit. They pass an
-affected-object arm64 `W=1` build and ship in the Published, installed, booted
-exact `0092` package. Production-profile cancellation/recovery and the broad
-native/VA-API campaign are green, but that config has no KASAN/lockdep, so
-exact-tail memory-safety qualification remains open. Their mixed backport
-boundary is recorded in the rows below, the
-[fix finding](../../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md),
-and the later
-[production finding](../../findings/2026-08-04-forward-port-6-18-42-0092-production-validation.md).
+and decoder recovery lifetime gaps from the 2026-08-01 audit. They passed an
+affected-object arm64 `W=1` build at preparation. Their mixed backport boundary
+is recorded in the rows below and the
+[fix finding](../../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md);
+the [scorecard](./forward-port-status.md) owns accumulated capability evidence.
 
 | # | What it does | Class | BSP evidence | Backport |
 |---|--------------|-------|--------------|----------|
@@ -409,21 +383,12 @@ fixes), `0018`–`0037` (already Rockchip's), `0043` (port-introduced bug),
 - **`0053`/`0054` carry a known trade-off**: the fail-safe orphan drop
   introduces the audit's F4 destructorless-leak shape; fold the F4 remediation
   when backporting.
-- **Runtime gates travel with the fixes.** `0059`–`0069` are booted on *this*
-  tree — `Pabd5-C4ad2` was installed and booted 2026-07-22, per the
-  Verification section above — but nothing has been gated on a BSP
-  application of them, and four of the eleven still lack a targeted
-  hostile-path trigger on any boot (acquire-fence stress,
-  shutdown-outside-`irq_lock`, missing-plane, partial-handle unwind). The
-  targeted triggers and codec/RGA regression gate in
+- **Runtime gates travel with the fixes.** Evidence from the forward-port tree
+  does not prove a BSP application. Carry the targeted and codec/RGA regression
+  gates in
   [`cleanup-draft/verification.md`](../patches/cleanup-draft/verification.md)
-  apply to a BSP application of the same fixes just as much.
-  *(Corrected 2026-07-29: this bullet used to read "`0059`–`0069` have not
-  booted anywhere yet (`Pabd5-C4ad2` is packaged, not installed)", which was
-  already stale by the end of 2026-07-22 and contradicted this page's own
-  Verification section as well as
-  [`forward-port-status.md`](./forward-port-status.md) and the
-  [port record](../../findings/2026-07-22-bsp-high-current-tip-port.md).)*
+  with any backport; use the scorecard and dated port record for the bounded
+  forward-port result.
 - **Second wave**: the audit's 30 MEDIUM + 30 LOW + 13 cleanup findings are
-  equally latent in the BSP and live only in `cleanup-split/`; none are ported
-  to the current tip.
+  equally latent in the BSP and live only in `cleanup-split/`; none are in the
+  recorded `0092` forward-port export.

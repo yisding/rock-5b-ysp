@@ -1,7 +1,8 @@
 # STATUS — project-wide dashboard (dated)
 
-Whole-project state at a glance. [kernel status](./kernel-drivers/docs/forward-port-status.md) stays the deep
-scorecard for the *kernel port*; this page rolls up **every** track.
+Whole-project state at a glance. The [forward-port scorecard](./kernel-drivers/docs/forward-port-status.md)
+owns durable kernel capability evidence; this page owns the live public
+boundary across **every** track.
 
 **How to read it.** Every row carries a **last-verified date** — trust a row
 only as of its date. Facts that can go stale *silently* (external PRs/MRs,

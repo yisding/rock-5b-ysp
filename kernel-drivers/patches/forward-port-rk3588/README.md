@@ -41,15 +41,10 @@ were written — resolve any older number through the **renumber map** at the en
 
 Exported with `git format-patch 7d0a66e4bb908..rk3588-video-6.18` from the kernel
 worktree at `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` (branch
-`rk3588-video-6.18`, tip `7d53bc7a3adc`). The checked-in source series is
-contiguous `0001`–`0092`. Accepted source package
-`6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1` carries that exact tip; its
-source and all three arm64 binaries are Published. The exact image, DTB, and
-headers are installed and booted as `6.18.42-ysp-rockchip64`; ABI, native
-codec/RGA/IOMMU, recovery, broad VA-API, bounded-log, and two-hour encode gates
-are green. The two-hour 4K decode workload and kernel scan pass, but the strict
-userspace fd-span oracle remains red. Exact-tail KASAN/lockdep and the remaining
-targeted hostile paths remain open.
+`rk3588-video-6.18`). This checked-in export is the contiguous `0001`–`0092`
+snapshot ending at `7d53bc7a3adc`. W16 owns the moving branch;
+the forward-port package record owns actual artifacts; the
+[scorecard](../../docs/forward-port-status.md) owns accumulated validation.
 Backup of the pre-cleanup tip: tag
 `backup/pre-reorg-20260723` (`4401383a6d9b5`). Generated fallback/official `.deb`
 files in the external build workspace are intentionally not tracked here — only
@@ -194,8 +189,8 @@ conversion `c80eea7`, and both P010/NV15 gates plus the tracked
 `rga-10bit-legacy-stride-test.c` probe must be re-run on the pair), and
 `0073` makes the RGA2 MMU page-table builder fail closed with `-EOPNOTSUPP`
 on above-4G entries instead of silently truncating to a hardware bus error.
-Compile-verified + checkpatch-clean; booted gates pending the next build
-([stride finding](../../../findings/2026-07-24-rga3-legacy-blit-10bit-stride-convention-fault.md)).
+The [stride finding](../../../findings/2026-07-24-rga3-legacy-blit-10bit-stride-convention-fault.md)
+owns the dated validation and decision boundary.
 
 | # | Title | Commit | Was |
 |---|-------|--------|-----|
@@ -214,8 +209,9 @@ IOMMU-fault; over-sized ones **succeed and return chroma read from the wrong
 offset**, a silent wrong-output bug that made the GStreamer NV12_10 cases
 report false greens. `0074` drops the scaling (`y_bytes = vir_w * vir_h`)
 and the now-redundant `compact_mode` branch. Compile-verified +
-checkpatch-clean; **booted gates pending a rebuild**
-([UV-offset finding](../../../findings/2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md)).
+checkpatch-clean at preparation time; the
+[UV-offset finding](../../../findings/2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md)
+owns the dated hardware evidence.
 
 | # | Title | Commit | Was |
 |---|-------|--------|-----|
@@ -264,9 +260,7 @@ previously carried the array length; and both translation helpers now take a
 register count, since callers pass buffers differing by two orders of magnitude
 (360 decoder registers vs the encoder's 23-register `CLASS_BASE` class).
 
-**Compile-verified (`W=1`, zero warnings) only — no fix has been booted and no
-reproducer has been run.** Full defect inventory, the known-open list, the
-negative results, and the verification gate are in the
+Full defect inventory, bounded validation, and gate disposition are in the
 [audit finding](../../../findings/2026-07-29-forward-port-warn-oops-audit-and-fixes.md).
 
 | # | Title | Commit | Was |
@@ -283,8 +277,8 @@ safe direct-address span and builds RGA2 page tables from the mapped entry
 count, DMA lengths, and DMA addresses. Page-aligned real gaps become distinct
 RGA2 PTE runs; sub-page gaps, short coverage, overflow, and above-32-bit PTEs
 remain fail-closed. This preserves DMA-API/SWIOTLB ownership instead of
-reinterpreting exporter pages. The two changed objects compile cleanly; a
-forced-RGA2 fragmented DMA-BUF hardware run is still owed.
+reinterpreting exporter pages. The forward-port scorecard owns the current
+evidence boundary.
 
 | # | Title | Commit | Was |
 |---|-------|--------|-----|
@@ -302,13 +296,8 @@ additional same-shape races; `0087` repairs the RGA import count, orders MPP fd
 release last, serializes dma-buf release lookup/check/put, completes timeout and
 `cur_task` locking, and restores fd/PTR dma-buf de-duplication.
 
-These seven commits first landed with a clean `W=1` compile only. They are now
-present in the booted `6.18.42` production package and receive ordinary
-integrated exercise from its tier-1 decode run, but still lack the targeted RGA
-ABI, cross-session import, MPP lifetime, encode, and decode regression gates.
-The forward-port RGA ABI and cross-session import probes remain the smallest
-missing discriminator; see the
-[audit finding](../../../findings/2026-08-01-forward-port-uaf-oops-audit-round-2.md).
+The [audit finding](../../../findings/2026-08-01-forward-port-uaf-oops-audit-round-2.md)
+owns the dated validation boundary and missing discriminators.
 
 | # | Title | Commit | Was |
 |---|-------|--------|-----|
@@ -330,11 +319,7 @@ clock/reset failures fatal, and adds exclusive fixed-IOVA reservation. It also
 hides unsupported MPP hot-unbind controls; arbitrary DT-overlay removal still
 does not have a complete common drain/unpublish contract.
 
-The affected objects and ROCK 5B DTB compile cleanly, including a `W=1` pass.
-KASAN/lockdep package `Pcf86-Cc271` subsequently bound client 28 and passed the
-focused TFF/BFF, decoder-vproc, negative, encoding-race, close/completion, and
-soak gates; the software timeout was the one fault path not triggered. The
-Published production `6.18.42` package also runs standalone IEP2. See the
+See the
 [complete safety review](../../iep2/docs/forward-port-safety-review.md) and the
 [production-kernel result](../../../findings/2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md#this-is-not-an-iep2-defect-and-iep2-now-has-production-kernel-evidence).
 
@@ -352,15 +337,10 @@ publishing OSD results only into a pinned request. Provider handler removal is
 a non-sleeping quiescence barrier, and failed soft-CCU tasks remain live until
 reset has stopped hardware access.
 
-All six affected objects pass the clean arm64 `W=1` build. Exact `0092` source
-package `20260804` passed pollution/provenance checks and Launchpad Published it
-as source publication `18656958`; remote arm64 build `33467257` completed
-successfully, and all three binaries are Published. The exact artifact is
-installed and booted; its production-profile cancellation, recovery, native
-conformance, VA-API, bounded-log, and soak campaign is recorded in the
+The dated production-profile cancellation, recovery, native conformance,
+VA-API, bounded-log, and soak campaign is recorded in the
 [production finding](../../../findings/2026-08-04-forward-port-6-18-42-0092-production-validation.md).
-That production config has no KASAN/lockdep, so exact-tail memory-safety and the
-remaining targeted hostile-path qualification stay open. See also the earlier
+See also the earlier
 [source/fix finding](../../../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md).
 
 | # | Title | Commit | Was |

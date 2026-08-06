@@ -138,7 +138,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-21 | PPA topology, package provenance, publication, and history | Package scripts own intended inputs; standard metadata owns artifacts; Launchpad/W05 own service state; runbooks own upload/sign/recovery; retain only incident/otherwise-unavailable history. | PPA/newcomer/package READMEs, installer, changelogs, W05, history links; FFmpeg/GRD pin tests and package helper checks. Security: public fix versus private submission/disclosure boundary. | ACTIVE 2026-08-05 — FFmpeg/GRD and history mapped; remaining packages/front-door simplification pending. |
 | ORG-22 | Userspace patch and public technical-fix inventories | Project catalogs own behavior, public patch identity/provenance, dependencies, validation; scripts own pins. Promote useful public maintenance facts and remove publication/upstream-submission copies. | `packaging/userspace-patches.md`, package/source-delta catalogs, project READMEs. Security review mandatory; private destinations/order/send-withhold/disclosure remain private. | ACTIVE 2026-08-05 — FFmpeg/GRD pin and publication copies removed; remaining packages pending. |
 | ORG-30 | Rewrite validation workstream | `rewrite-validation-plan.md` owns the plan; `tests/rewrite-conformance.md` owns operations and delegates; existing project docs own accumulated result; validation index routes only. Freeze or remove audits after promotion. | Rewrite status/finding/plan/audit/index/runbook links and private-harness references; findings and nearest-README checks. Security review mandatory for fuzzing, destructive PoCs, and memory safety. | CLOSED 2026-08-05 — canonical plan/operation/evidence/verdict owners, router-only index, frozen audit, and state-free teaching guide handoff-gated. |
-| ORG-31 | Forward-port validation and state | Patch README owns order; patch catalog owns provenance/backport; project evidence owner owns capability; status owns public boundary; findings are intake. | `forward-port-status.md`, patch docs, status tracks 1/2, W16, runbooks/findings. Security review mandatory. | PLANNED. |
+| ORG-31 | Forward-port validation and state | Patch README owns order; patch catalog owns provenance/backport; project evidence owner owns capability; status owns public boundary; findings are intake. | `forward-port-status.md`, patch docs, status tracks 1/2, W16, runbooks/findings. Security review mandatory. | CLOSED 2026-08-05 — compact capability scorecard, mechanical series index, provenance/backport catalog, and status/W16 live owners handoff-gated. |
 | ORG-32 | VA-API validation and application route | VA-API README owns capability policy; architecture owns mechanism; app map owns consumer compatibility; status owns browser/package verdict. Promote fresh evidence, preserve superseded-plan anchors. | VA-API/app READMEs, status track 14/W18, findings, closure plans, package docs. Security: not expected; recheck if kernel safety enters. | PLANNED after ORG-01 negative control. |
 | ORG-33 | Mesa validation and MR state | Remote service is MR authority; W06 is dated cache; validation/review docs own conclusions; README routes. | Mesa README/docs, W06, status track 8, findings; preserve MR links. Security: upstream destination is public fact, but submission planning remains private. | PLANNED. |
 | ORG-34 | FFmpeg validation and branch state | Remote owns moving tip; build script owns intended package input; immutable comparison pins stay in source map; project docs own measured conclusions; status/W05 own verdict/publication. | FFmpeg README/docs/findings, W04/W05/W07/W21, status track 5, PPA installer/build/checker. Security: review public fix inventory versus private submission plan. | ACTIVE 2026-08-05 — source/package ownership migrated; validation consolidation pending. |
@@ -511,6 +511,45 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 - **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
   2026-08-05, covering Markdown links/anchors, all 62 regression tests,
   ShellCheck, documentation consistency, and whitespace. ORG-30 is closed.
+
+### ORG-31 — forward-port state and evidence slice
+
+- **Owner map:** `patches/forward-port-rk3588/README.md` owns mechanical order
+  and immutable checked-in export identity; `patch-catalog.md` owns public fix
+  provenance, BSP presence, backport disposition, and bounded per-fix gate
+  classification; `forward-port-status.md` owns accumulated capability
+  evidence; status tracks 1–2 own the live public boundary/next proofs; W16
+  owns moving branch/package observation; findings remain fresh run detail.
+- **Scorecard disposition:** replaced the 491-line mixed current-status/run
+  diary with a 153-line capability scorecard, one frozen 2026-08-04 release
+  boundary, a compact milestone table, durable done/deferred/limitation
+  classifications, and an evidence-completeness contract. Every prior H2
+  heading remains as either maintained content or an explicit dated
+  compatibility anchor.
+- **Patch-front-door disposition:** removed source publication, installed boot,
+  runtime matrix, and open-gate rollups from both patch front doors. The top
+  patch README now routes deliverable/order, provenance, evidence, and live
+  state separately. The series README retains patch mechanics and immutable
+  export/renumber history while linking dated validation owners.
+- **Catalog disposition:** removed the competing publication/install rollup and
+  correction diary. Retained exact public affected behavior, patch identity,
+  BSP evidence, backport classification, and bounded validation only when it
+  changes backport readiness. The dated `Current 0072–0092` heading remains as
+  a compatibility anchor and explicitly disclaims moving-tip ownership.
+- **Inbound compatibility:** stable paths and all scorecard/series/catalog
+  headings remain. Kernel, packaging, install, status, and validation front
+  doors now call the document a capability/evidence scorecard rather than a
+  build-history or live-state ledger. The existing contiguous-series
+  regression assertion remains owned by the mechanical README.
+- **Public/private review:** public docs retain affected behavior, patch title,
+  provenance/backport facts, and bounded safety evidence. Working hostile
+  triggers, destructive/memory-corruption reproducers, severity/disclosure
+  framing, submission destination/order, and send/withhold decisions remain in
+  the sibling private repository; no private link or material was added.
+- **Validation:** after restoring the regression-owned contiguous-series phrase,
+  the full `bash scripts/check-repo.sh` handoff gate passed on 2026-08-05,
+  covering Markdown links/anchors, all 62 regression tests, ShellCheck,
+  documentation consistency, and whitespace. ORG-31 is closed.
 
 ### ORG-21 — PPA history and recovery slice
 

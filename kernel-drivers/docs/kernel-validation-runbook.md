@@ -268,9 +268,9 @@ Per [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) and
 | | Forward-port | Rewrite | Maxline |
 |---|---|---|---|
 | Reference oracle | software decode / vendor encoder | the forward-port (dual-boot A/B, bit-exact) | n/a (subsystem support matrix) |
-| Extra required gates | GStreamer suite; RGA patch-gate probes (P010/NV15/legacy-blit/over-4G) | 244 booted KUnit; counter checks; paired evidence audit; KCSAN race kernel; fault-injection matrix; 72 h soak | recovery-first subsystem order; `public` before `wip`; blacklist handling for HDMI audio |
+| Extra required gates | GStreamer suite; RGA patch-gate probes (P010/NV15/legacy-blit/over-4G) | exact manifest booted KUnit; counter checks; paired evidence audit; KCSAN race kernel; fault-injection matrix; 72 h soak | recovery-first subsystem order; `public` before `wip`; blacklist handling for HDMI audio |
 | Perf-valid build | production combined build only | Kernel C only | production only |
-| Current state anchor | [`forward-port-status.md`](./forward-port-status.md) | [`rewrite-conformance-gap-audit.md`](./rewrite-conformance-gap-audit.md) | [`kernel-maxline/README.md`](../../packaging/ppa/kernel-maxline/README.md) |
+| Evidence owner | [`forward-port-status.md`](./forward-port-status.md) | [`rewrite-drivers.md` §6](./rewrite-drivers.md#6-status--citable-location) | [`kernel-maxline/README.md`](../../packaging/ppa/kernel-maxline/README.md) |
 
 ## Worked example — forward-port debug build `Pd222-C4ad2` (2026-07-22)
 
