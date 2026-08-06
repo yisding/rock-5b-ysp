@@ -224,9 +224,9 @@ benchmark measured:
 | Samples / clock checks | 6,480 non-disjoint A/B samples; 242 checks at 500 MHz |
 | Same-batch draw control | +0.451%; p10..p90 +0.081%..+0.666% |
 
-These are workload-specific microbenchmark costs. The causal, matrix, and
-timing intake remains in the linked
-[erratum](../../../findings/2026-07-22-mali-varying-depth-bias-erratum-workaround.md),
-[triangle](../../../findings/2026-07-24-mali-oblong-triangle-matrix.md), and
-[timing](../../../findings/2026-07-28-mesa-blit-benchmark-timing-boundary.md)
-findings until their ORG-41 promotion/removal batch.
+These are workload-specific microbenchmark costs. The causal mechanism and
+geometry boundary live in [`blit-precision.md`](blit-precision.md); the exact
+benchmark procedure, controls, signals, and retained raw-output shape live in
+[`../reproducers/README.md`](../reproducers/README.md#blit-workaround-bench).
+The result does not establish every format, scaling, flipping, scissor, layer,
+MSAA, or application frame-pacing path.

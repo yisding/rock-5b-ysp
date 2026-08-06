@@ -333,19 +333,6 @@ The userspace codec libraries and the media applications that consume them.
 - [`2026-07-11`](2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) — Kodi 22 hardware video on RK3588 via ffmpeg-rockchip-81: MPP runtime, three fork-packaging bugs, and zero-patch decoder selection
 - [`2026-07-09`](2026-07-09-ffmpeg-baseline-rk2-local-build-validation.md) — FFmpeg baseline `-1+rk2` local source-package build validates frei0r fix
 
-### Mesa, Panfrost, and the Mali blob (8)
-
-Mali-G610 transfer and interpolation work behind the GRD readback path.
-
-- [`2026-07-28`](2026-07-28-mesa-blit-benchmark-timing-boundary.md) — Mesa single-context benchmark resolves MR !43161 workaround cost
-- [`2026-07-27`](2026-07-27-mesa-all-blit-workaround-benchmark-results.md) — Mesa all-blit workaround benchmark validates correctness but not per-blit cost
-- [`2026-07-27`](2026-07-27-mali-blit-workaround-performance-benchmark-plan.md) — Plan for measuring per-blit cost of the Mali workaround
-- [`2026-07-24`](2026-07-24-mali-oblong-triangle-matrix.md) — Mali oblong-triangle matrix for MR !43161
-- [`2026-07-24`](2026-07-24-mali-blit-workaround-size-results.md) — Mali blit workaround size results for Mesa MR !43161
-- [`2026-07-22`](2026-07-22-mali-varying-depth-bias-erratum-workaround.md) — Mali-G610 varying erratum: zero-valued depth bias repairs GL, Vulkan, and ordinary TEX
-- [`2026-07-18`](2026-07-18-mesa-panfrost-uncached-readpixels-convert-cliff.md) — Mesa/panfrost: glReadPixels convert fallback is catastrophic over uncached imported buffers
-- [`2026-07-08`](2026-07-08-blit-precision-nir-migration.md) — Blit-precision fix: the TGSI→NIR migration and doing it with pixel_coord
-
 ### Build, packaging, and provenance (8)
 
 How an artifact was actually built — and the times that turned out to be the bug.
@@ -445,7 +432,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-28-rewrite-kunit-pre-phase-applied.md`](2026-07-28-rewrite-kunit-pre-phase-applied.md) — Rewrite KUnit pre-phase is applied with an 84/148 gate
 - [`2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md`](2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md) — Ramoops retention works on the 6.18.40-era kernels — the all-zero failure was kernel-generation-scoped, not firmware-scoped
 - [`2026-07-28-production-kernel-debug-option-audit.md`](2026-07-28-production-kernel-debug-option-audit.md) — Production kernel debug audit: four options above Armbian stock, and a 256 MiB debug allocation arriving from the shared boot environment
-- [`2026-07-28-mesa-blit-benchmark-timing-boundary.md`](2026-07-28-mesa-blit-benchmark-timing-boundary.md) — Mesa single-context benchmark resolves MR !43161 workaround cost
 - [`2026-07-28-grd-avc-fullrange-bt709-handover-boundary.md`](2026-07-28-grd-avc-fullrange-bt709-handover-boundary.md) — GRD AVC full-range BT.709 is package-verified; the live A/B stopped at handover
 - [`2026-07-28-dmabuf-debug-upstream-provenance-and-fix-options.md`](2026-07-28-dmabuf-debug-upstream-provenance-and-fix-options.md) — The DMABUF_DEBUG scatterlist defect is 100% upstream code, reported since 2022, and blocked on an unresolved dma-buf design argument
 - [`2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md`](2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md) — CONFIG_DMABUF_DEBUG's mangle_sg_table() is the system-heap page_link writer, and the dma-heap CPU-access sync dereferences it
@@ -459,8 +445,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-27-rewrite-kunit-final-stack-fixture.md`](2026-07-27-rewrite-kunit-final-stack-fixture.md) — Final capped RGA KUnit stack fixture warning is fixed in both rewrite trees
 - [`2026-07-27-rewrite-kunit-boot-lifecycle-wedge.md`](2026-07-27-rewrite-kunit-boot-lifecycle-wedge.md) — Rewrite KUnit boot wedge was live-singleton destruction after initcalls
 - [`2026-07-27-rewrite-kasan-fixed-source-package.md`](2026-07-27-rewrite-kasan-fixed-source-package.md) — Fixed-source rewrite KASAN package is built and package-verified
-- [`2026-07-27-mesa-all-blit-workaround-benchmark-results.md`](2026-07-27-mesa-all-blit-workaround-benchmark-results.md) — Mesa all-blit workaround benchmark validates correctness but not per-blit cost
-- [`2026-07-27-mali-blit-workaround-performance-benchmark-plan.md`](2026-07-27-mali-blit-workaround-performance-benchmark-plan.md) — Plan for measuring per-blit cost of the Mali workaround
 - [`2026-07-27-kasan-vs-production-build-provenance-confound.md`](2026-07-27-kasan-vs-production-build-provenance-confound.md) — The KASAN non-reproduction is confounded by toolchain: production is a Launchpad gcc-15.2 build, the KASAN kernel is a local gcc-13.3 build
 - [`2026-07-27-grd-sg-writer-source-sweep-vendor-drivers-cleared.md`](2026-07-27-grd-sg-writer-source-sweep-vendor-drivers-cleared.md) — Source sweep clears the vendor MPP driver of the GRD scatterlist write, and corrects three readings of the corrupt value
 - [`2026-07-27-grd-sg-oops-third-repro-ioctl-window-measured.md`](2026-07-27-grd-sg-oops-third-repro-ioctl-window-measured.md) — Third GRD oops under live MPP tracing: one buffer import, an immediate fatal sync, and the fingerprint holds 3/3
@@ -494,8 +478,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-24-rga-10bit-tile-byte-stride-and-fbc-exception.md`](2026-07-24-rga-10bit-tile-byte-stride-and-fbc-exception.md) — 10-bit `vir_w` is a byte stride in TILE too — the `* 8` is a line factor, not a depth scale
 - [`2026-07-24-rewrite-driver-multi-agent-defect-audit.md`](2026-07-24-rewrite-driver-multi-agent-defect-audit.md) — Multi-agent defect audit of the rewrite drivers: 17 confirmed, 4 refuted, all fixed
 - [`2026-07-24-production-ppa-kernel-full-conformance-run.md`](2026-07-24-production-ppa-kernel-full-conformance-run.md) — Production PPA kernel (…20260723) — full driver conformance run, all gates green
-- [`2026-07-24-mali-oblong-triangle-matrix.md`](2026-07-24-mali-oblong-triangle-matrix.md) — Mali oblong-triangle matrix for MR !43161
-- [`2026-07-24-mali-blit-workaround-size-results.md`](2026-07-24-mali-blit-workaround-size-results.md) — Mali blit workaround size results for Mesa MR !43161
 - [`2026-07-24-bsp-vs-armbian-ramoops-gap.md`](2026-07-24-bsp-vs-armbian-ramoops-gap.md) — BSP vs. Armbian ramoops: provisioning is not proof of retention
 - [`2026-07-23-rock5b-boot-hang-recurred-with-patched-plymouth.md`](2026-07-23-rock5b-boot-hang-recurred-with-patched-plymouth.md) — ROCK 5B boot hang recurred with the patched Plymouth provably in the boot path
 - [`2026-07-23-rga-scattered-userptr-unaligned-src-zero-output.md`](2026-07-23-rga-scattered-userptr-unaligned-src-zero-output.md) — RGA scattered-userptr blit silently returns all-zero output for non-16-byte-aligned source offsets
@@ -503,7 +485,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-22-rock5b-boot-hang-plymouth-initramfs-daemon.md`](2026-07-22-rock5b-boot-hang-plymouth-initramfs-daemon.md) — ROCK 5B boot was held by an unresponsive initramfs Plymouth daemon
 - [`2026-07-22-rga-mm-session-debugfs-uaf-freed-task-struct.md`](2026-07-22-rga-mm-session-debugfs-uaf-freed-task-struct.md) — RGA `mm_session` debugfs read is a use-after-free on a freed `task_struct` (+ unkillable D-state hang)
 - [`2026-07-22-mpp-process-request-list-add-double-add-warn.md`](2026-07-22-mpp-process-request-list-add-double-add-warn.md) — MPP `INIT_CLIENT_TYPE` double-call corrupts the workqueue session list
-- [`2026-07-22-mali-varying-depth-bias-erratum-workaround.md`](2026-07-22-mali-varying-depth-bias-erratum-workaround.md) — Mali-G610 varying erratum: zero-valued depth bias repairs GL, Vulkan, and ordinary TEX
 - [`2026-07-22-gstreamer-suite-forward-port-userspace-gaps.md`](2026-07-22-gstreamer-suite-forward-port-userspace-gaps.md) — GStreamer conformance on the forward-port kernel — green modulo 4 userspace gaps
 - [`2026-07-22-bsp-high-current-tip-port.md`](2026-07-22-bsp-high-current-tip-port.md) — BSP-audit HIGH findings ported to the current forward-port tip
 - [`2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md`](2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md) — Why AV1 is hard for the VA-API↔MPP bridge (and H.264/HEVC/VP9 are not): the bitstream-reconstruction spectrum
@@ -529,7 +510,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md`](2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md) — GRD encoder wedge, pinned: MPP input-task backpressure + get_packet timeout (userspace flow control)
 - [`2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md`](2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md) — KASAN: rkvenc2_wait_result reads task->state after freeing the task (forward-port-introduced)
 - [`2026-07-18-mpp-reset-session-dma-double-free-kasan.md`](2026-07-18-mpp-reset-session-dma-double-free-kasan.md) — KASAN caught the preflight Oops: MPP_CMD_RESET_SESSION double-frees session->dma
-- [`2026-07-18-mesa-panfrost-uncached-readpixels-convert-cliff.md`](2026-07-18-mesa-panfrost-uncached-readpixels-convert-cliff.md) — Mesa/panfrost: glReadPixels convert fallback is catastrophic over uncached imported buffers
 - [`2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md`](2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md) — GRD's frame-starvation detector only warns — it never actuates recovery
 - [`2026-07-17-rga-session-close-uaf.md`](2026-07-17-rga-session-close-uaf.md) — RGA session-close force-free ignores refcounts; a leaked test handle exposed it as a kernel Oops
 - [`2026-07-17-mpp-procfs-session-teardown-oops.md`](2026-07-17-mpp-procfs-session-teardown-oops.md) — MPP procfs session dump races private teardown and NULL-dereferences
@@ -539,7 +519,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md`](2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) — Kodi 22 hardware video on RK3588 via ffmpeg-rockchip-81: MPP runtime, three fork-packaging bugs, and zero-patch decoder selection
 - [`2026-07-09-rock5b-armbian-sd-boot-investigation.md`](2026-07-09-rock5b-armbian-sd-boot-investigation.md) — ROCK 5B Armbian SD boot investigation summary
 - [`2026-07-09-ffmpeg-baseline-rk2-local-build-validation.md`](2026-07-09-ffmpeg-baseline-rk2-local-build-validation.md) — FFmpeg baseline `-1+rk2` local source-package build validates frei0r fix
-- [`2026-07-08-blit-precision-nir-migration.md`](2026-07-08-blit-precision-nir-migration.md) — Blit-precision fix: the TGSI→NIR migration and doing it with pixel_coord
 - [`2026-07-08-armbian-builder-setup.md`](2026-07-08-armbian-builder-setup.md) — ROCK 5B Armbian builder: native host, branch/release map, and remote-cache behavior
 - [`2026-07-08-armbian-26.2.1-bl31-handoff-hang.md`](2026-07-08-armbian-26.2.1-bl31-handoff-hang.md) — Armbian 26.2.1 ROCK 5B raw bootloader hangs after BL31 handoff
 - [`2026-07-07-rock5b-spi-sd-boot-chain.md`](2026-07-07-rock5b-spi-sd-boot-chain.md) — ROCK 5B SPI U-Boot changes how Radxa SD images boot

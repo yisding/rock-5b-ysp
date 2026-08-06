@@ -25,7 +25,7 @@ checkout and build-directory layout.
 | 9 | Upstream-style V4L2 RGA3 comparison | rewrite-driver comparison | `rk3588-rewrite-mainline@180ee72a9a80` |
 | 10 | Expanded Rockchip conformance bundle | [rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) | tracked manifest and five immutable third-party pins |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md) | `a81feb1e2971`, `839de47fcda2`, and `b4ef083dc0c3` |
-| 12 | Mesa MR !43161 benchmark | [benchmark finding](../findings/2026-07-28-mesa-blit-benchmark-timing-boundary.md) | Mesa `647256dc2ae` + tracked override; equivalent local `6000414f9ea` |
+| 12 | Mesa MR !43161 benchmark | [validation scorecard](../video-libraries/mesa/docs/validation.md#depth-bias-workaround-validation) | Mesa `647256dc2ae` + tracked override; equivalent local `6000414f9ea` |
 | 13 | 2026-07-30 codec audit | [driver quality comparison](../kernel-drivers/docs/driver-architecture-comparison.md#12-current-mainline-and-maxline-rockchip-codec-audit-2026-07-30) | audit and prepared-fix pins in §13 |
 | 14 | 2026-08-02 maxline refresh | [refresh finding](../findings/2026-08-02-rk3588-maxline-proposal-refresh.md) | dated package and linux-next pins in §14 |
 

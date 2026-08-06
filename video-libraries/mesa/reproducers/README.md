@@ -377,12 +377,12 @@ Useful dimensions from the local timing pass:
 
 Recorded medians are in [`../docs/validation.md`](../docs/validation.md).
 
+<a id="blit-workaround-bench"></a>
 ## `blit_workaround_bench.c`
 
-This is the implementation companion to the
-[per-blit benchmark plan](../../../findings/2026-07-27-mali-blit-workaround-performance-benchmark-plan.md).
-The first six-size A/B runs are recorded in the
-[benchmark-results finding](../../../findings/2026-07-27-mesa-all-blit-workaround-benchmark-results.md):
+This is the maintained implementation companion to the
+[validation scorecard](../docs/validation.md#depth-bias-workaround-validation).
+The first six-size A/B runs established that
 the workaround fixed both affected geometries, and a rerun held every clock
 check at 500 MHz, but the GPU query still did not scale with operation count,
 leaving per-blit cost unresolved. A repaired process-level run still had a
@@ -391,9 +391,9 @@ submission with unique-FBO GPU work. The final same-context `coalesced` design
 resolves the affected `12288x1` result: workaround-on adds `0.50%`
 completion-side cost (95% interval `0.34%..0.73%`) and `0.62%` end-to-end wall
 cost (`0.44%..1.01%`). The
-[benchmark-boundary correction](../../../findings/2026-07-28-mesa-blit-benchmark-timing-boundary.md)
-records both generations and the controls that make the resolved number
-trustworthy.
+[validation scorecard](../docs/validation.md#depth-bias-workaround-validation)
+records the resolved number; this section preserves both harness generations
+and the controls that make it trustworthy.
 
 The process-level timer repair pinned two harness causes:
 
@@ -464,9 +464,27 @@ EGL_PLATFORM=surfaceless ./blit_workaround_bench \
   --warmups 1 --ring 8 --schedule both --label smoke
 ```
 
-For the precision G610 run, first lock GPU devfreq at 500 MHz and CPU policy 6
-at 1.8 GHz as described in the
-[plan's machine controls](../../../findings/2026-07-27-mali-blit-workaround-performance-benchmark-plan.md#machine-controls).
+### Machine controls
+
+For the precision G610 run, first lock GPU devfreq at 500 MHz and pin the
+process to the recorded CPU policy/core:
+
+```bash
+MESA_GPU_DEVFREQ=/sys/devices/platform/fb000000.gpu/devfreq/fb000000.gpu
+echo 500000000 | sudo tee "$MESA_GPU_DEVFREQ/min_freq"
+echo 500000000 | sudo tee "$MESA_GPU_DEVFREQ/max_freq"
+cat "$MESA_GPU_DEVFREQ"/{min_freq,max_freq,cur_freq}
+```
+
+Record the three frequencies before and after every matrix, plus renderer,
+Mesa identity, kernel, CPU policy/core, and GPU temperature. Reject a disjoint
+timer or clock mismatch. Restore the board afterward:
+
+```bash
+echo 1000000000 | sudo tee "$MESA_GPU_DEVFREQ/max_freq"
+echo 300000000 | sudo tee "$MESA_GPU_DEVFREQ/min_freq"
+```
+
 Run a same-mode A/A control before the off/on measurement. The single-context
 mode automatically assigns each label one ascending-count and one
 descending-count fit in every block, cancelling the count-order drift that

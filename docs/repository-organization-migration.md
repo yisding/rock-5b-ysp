@@ -819,3 +819,26 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   `promoted →` stub. The full `bash scripts/check-repo.sh` gate passed on
   2026-08-05 across 415 Markdown files, 3,643 local links, 448 anchors, all 62
   regression tests, ShellCheck, documentation consistency, and whitespace.
+
+#### Mesa/Panfrost owner batch
+
+- **Promotion:** moved the remaining unique benchmark machine controls and
+  cleanup commands into `mesa/reproducers/README.md`. The causal model,
+  geometry counterexamples, NIR implementation, corrected benchmark result,
+  trust, and negative boundaries were already owned by `blit-precision.md`,
+  `fix-walkthrough.md`, and `validation.md`; links now stay within those owners.
+- **Removal:** deleted the eight Mesa/Mali intake files covering NIR migration,
+  uncached readback, the varying erratum, geometry/size matrices, benchmark
+  plan, first result, and timing correction. The topic group disappears rather
+  than becoming project history; the generated chronology was regenerated.
+- **Identity and operation:** `source-trees.md` retains the immutable benchmark
+  tips, the validation scorecard retains exact measured signals and scope, and
+  the reproducer front door retains the byte-identical A/B, fixed-clock,
+  control, rejection, and raw-output contract.
+- **Public/private review:** this userspace/GPU batch contains public MR,
+  erratum, source, and measurement facts only. It adds no private submission
+  plan, send/withhold decision, disclosure coordination, or kernel-security
+  reproducer.
+- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
+  2026-08-06 across 407 Markdown files, 3,588 local links, 451 anchors, all 62
+  regression tests, ShellCheck, documentation consistency, and whitespace.

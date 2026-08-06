@@ -281,8 +281,8 @@ Mesa maintainer identified it as a hardware erratum; zero-valued polygon
 offset makes the same Panfrost varying exact, and equivalent zero-valued
 Vulkan depth bias makes PanVK exact. The `~2⁻¹⁰` value is therefore a measured
 signature at these widths, not an inherent ten-fractional-bit Valhall limit.
-The workaround has not yet been run on the proprietary stack; see the
-[dated finding](../../../findings/2026-07-22-mali-varying-depth-bias-erratum-workaround.md).
+The workaround has not been established on the proprietary stack; see the
+[maintained Mesa validation boundary](validation.md#depth-bias-workaround-validation).
 The proprietary-compiler question in the old "Current Unknowns" is still
 answered by the bit-identical baseline.
 

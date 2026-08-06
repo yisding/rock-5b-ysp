@@ -16,8 +16,8 @@ lifecycle live in [`README.md` § Status](../README.md).
 > they are not evidence of an inherent ten-fractional-bit varying format.
 > `gl_FragCoord` reconstruction remains a valid way for !42679 to avoid the
 > affected path, not the now-established root cause or the only possible
-> workaround. See the
-> [dated finding](../../../findings/2026-07-22-mali-varying-depth-bias-erratum-workaround.md).
+> workaround. The maintained evidence is summarized in
+> [`validation.md` § Depth-bias workaround validation](validation.md#depth-bias-workaround-validation).
 
 > **Measurement boundary, 2026-07-27:** Forcing zero-valued depth bias on all
 > V9–V10 internal fullscreen blits fixed both affected R32UI geometries in the
@@ -25,15 +25,14 @@ lifecycle live in [`README.md` § Status](../README.md).
 > functional evidence for MR !43161's broad policy, not a performance result or
 > proof of every blit path. GPU devfreq was uncontrolled, the run used KASAN,
 > and the batched timer query did not grow with operation count, so no
-> per-blit-cost number is valid. See the
-> [benchmark result](../../../findings/2026-07-27-mesa-all-blit-workaround-benchmark-results.md).
+> per-blit-cost number is valid. The corrected result and boundary are in
+> [`validation.md` § Depth-bias workaround validation](validation.md#depth-bias-workaround-validation).
 
 ## Fast re-entry
 
 This page owns the causal mechanism and durable option analysis. Live MR state
 belongs to [`README.md` § Status](../README.md#mr-status);
-dated experiments retain their exact trust and scope in
-[`findings/`](../../../findings/README.md#reconstruct-an-investigation).
+exact result identities and trust live in the validation owner.
 
 | Question to recover | Read | Load-bearing fact |
 |---------------------|------|-------------------|
@@ -44,8 +43,8 @@ dated experiments retain their exact trust and scope in
 | Which alternative explanations were eliminated? | [Hypotheses ruled out](#hypotheses-ruled-out) and [Asahi/AGX boundary](#why-asahiagx-was-not-evidence-that-blit-is-safe) | Compiler precision toggles, filtering, synchronization, triangle choice, and another GPU architecture could not license the Mali-G610 path. |
 | Why not use COMPUTE or a narrow format fallback? | [Options considered](#options-considered) and [AFBC constraint](#the-afbc-constraint-why-compute-only-was-rejected) | COMPUTE avoids the varying path but cannot write AFBC; integer-only fallback misses the identical float corruption. |
 | How does the fragcoord avoidance work? | [Options considered](#options-considered) and [on-device verification](#on-device-verification-2026-07-01) | Exact pixel position plus constant affine scale/offset reconstructs source coordinates without sending a changing texel address through the interpolator. |
-| What changed after the root cause was confirmed? | [Erratum/workaround finding](../../../findings/2026-07-22-mali-varying-depth-bias-erratum-workaround.md) and [triangle matrix](../../../findings/2026-07-24-mali-oblong-triangle-matrix.md) | Zero-valued depth bias selects an unaffected measured path; no tested size/aspect cutoff cleanly describes all failures. |
-| What is the current correctness/performance boundary? | [Benchmark plan](../../../findings/2026-07-27-mali-blit-workaround-performance-benchmark-plan.md) → [benchmark result](../../../findings/2026-07-27-mesa-all-blit-workaround-benchmark-results.md) | The forced broad policy passed its measured R32UI functional subset, but per-blit cost and broader formats/operations remain open. |
+| What changed after the root cause was confirmed? | [`validation.md` § Depth-bias workaround validation](validation.md#depth-bias-workaround-validation) | Zero-valued depth bias selects an unaffected measured path; no tested size/aspect cutoff cleanly describes all failures. |
+| What is the correctness/performance boundary? | [Validation](validation.md#depth-bias-workaround-validation) and [benchmark operation](../reproducers/README.md#blit-workaround-bench) | The forced broad policy passed its measured R32UI subset and the corrected benchmark bounds its workload-specific cost; broader formats/operations remain outside that result. |
 
 ### The causal chain
 
@@ -111,9 +110,9 @@ resize the step is a fraction, so there's a little arithmetic — but done from 
 exact position it is still ~1000× more accurate than the old guess, far more than
 a resize needs. Same recipe, two settings.
 
-The rest of this doc is the evidence and mechanism behind that summary; the exact
-NIR / `u_blitter` implementation is in
-[`../../../findings/2026-07-08-blit-precision-nir-migration.md`](../../../findings/2026-07-08-blit-precision-nir-migration.md).
+The rest of this doc is the evidence and mechanism behind that summary; the
+NIR / `u_blitter` implementation is explained in
+[`fix-walkthrough.md`](fix-walkthrough.md).
 
 ## Starting Point
 
@@ -797,5 +796,5 @@ result needs the corrected work-owning timer/counters, descriptor trace, fixed
 GPU/CPU clocks, and an unsanitized kernel. See
 [`README.md` § Status](../README.md#mr-status)
 for the upstream shape and the
-[benchmark result](../../../findings/2026-07-27-mesa-all-blit-workaround-benchmark-results.md)
+[validation scorecard](validation.md#depth-bias-workaround-validation)
 for the exact open boundary.
