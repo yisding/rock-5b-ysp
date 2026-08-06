@@ -62,17 +62,23 @@ Do not invent a tag when one of these fits; add a new one here first if none do.
 
 ## Lifecycle
 
-A finding is raw by default. When it matures into durable reference, **graduate**
-it: move the content into the owning project's `docs/`, and replace the file here
-with a tombstone so the trail survives. Every tombstone shares one shape — the
-original H1 title, a blank line, `promoted → <path> (YYYY-MM-DD)`, a blank line,
-and two to four lines naming what the target preserves, so a reader landing on
-the stub knows whether following the link is worth it. Keep the index row.
-Findings that turn out wrong get deleted with a one-line note in the index.
+A finding is raw by default. When it matures, promote its useful identity,
+method, signal, trust classification, boundary, and reconstruction route into
+the existing project explanation, runbook/test contract, patch catalog,
+package document, audit, or status owner that fits. Repoint every maintained
+inbound link, remove the finding, and regenerate both inbox views in the same
+change. Do not leave a tombstone or preserve routine work chronology; Git
+history already supplies forensic recovery.
 
-Small text artifacts that materially improve reproduction live under the
-[`evidence/` hub](evidence/README.md). The bundle README records capture scope;
-the dated finding still owns interpretation and trust classification.
+Delete an obsolete or falsified finding only after confirming that no
+maintained claim still depends on its unique negative result. If the negative
+result remains a useful discriminator, promote that minimum evidence before
+removal.
+
+Small text artifacts that materially improve active reproduction may live
+under the [`evidence/` hub](evidence/README.md). The bundle README records
+capture scope; the live finding owns interpretation and trust. Remove or move
+the bundle with its finding unless a named durable owner still needs it.
 
 **Boundary vs [`status.md`](../status.md) watchlist:** the watchlist tracks
 *facts that go stale silently* (external PRs, distro versions, dev-box SPOFs).
@@ -82,40 +88,23 @@ in the watchlist.
 
 ## Reconstruct an investigation
 
-The generated index below answers **what was learned when**. These curated
-trails answer a different question: **how did the explanation change?** They
-are deliberately selective re-entry paths, not alternate summaries or a
-tutorial sequence.
+The live inbox is not repository history and does not maintain curated
+investigation trails. Re-enter a subject through its project README or
+[`docs/work-packages.md`](../docs/work-packages.md), read the maintained model
+and evidence boundary, then consult Git history only when the evolution itself
+matters. Current public verdicts and next proofs always come from
+[`status.md`](../status.md), not from the age or ordering of findings.
 
-For a returning thread:
-
-1. Rebuild the vocabulary and mechanism from the maintained model.
-2. Read the dated turning points in order, including any **FALSIFIED**,
-   **SUPERSEDED**, or **PARTIAL** disposition.
-3. Finish at the live boundary before treating an older result as current.
-
-| Thread | Maintained model | Dated turning points | Live boundary |
-|--------|------------------|----------------------|---------------|
-| Forward-port safety and ownership | [Driver task/lifetime model](../kernel-drivers/docs/how-the-drivers-work.md) and [forward-port status](../kernel-drivers/docs/forward-port-status.md) | [ownership audit](2026-07-21-forward-port-lifetime-resource-ownership-audit.md) → [HIGH fixes](2026-07-22-bsp-high-current-tip-port.md) → [6.18.40 KASAN validation](2026-07-25-forward-port-6-18-40-kasan-full-validation.md) → [current scatterlist-corruption trace](2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md) | [`status.md` track 1](../status.md) and [production validation](2026-08-04-forward-port-6-18-42-0092-production-validation.md) |
-| Clean-room rewrite qualification | [Rewrite architecture](../kernel-drivers/docs/rewrite-driver-architecture/README.md) | [defect audit](2026-07-24-rewrite-driver-multi-agent-defect-audit.md) → [first complete KUnit failures](2026-07-26-rewrite-kunit-failure-root-causes.md) → [boot-lifecycle wedge](2026-07-27-rewrite-kunit-boot-lifecycle-wedge.md) → [fixture/lockdep boundary](2026-07-27-rewrite-reset-import-fixture-lockdep.md) → [rewrite counterfactual](2026-08-01-rewrite-driver-retrospective.md) → [request/rotation repair](2026-08-04-rewrite-kunit-request-rotation-repair.md) → [current rebase/build boundary](2026-08-04-rewrite-kernel-rebase-6-18-42-7-2-rc6.md) → [first current-tip boot and librga root causes](2026-08-05-rewrite-rga-librga-swiotlb-fence-status.md) → [fd-zero KUnit boot wedge](2026-08-05-rewrite-kunit-fd-zero-boot-wedge.md) → [RGA2 DMA-BUF/USERPTR bounce follow-up](2026-08-05-rewrite-rga2-dmabuf-userptr-bounce-followup.md) | [`status.md` track 4](../status.md) and [rewrite conformance contract](../kernel-drivers/tests/rewrite-conformance.md) |
-| RGA memory and 10-bit ABI | [userptr/IOMMU model](../kernel-drivers/rga/docs/userptr-iommu.md) and [librga 10-bit contract](../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md) | [conformance root causes](2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md) → [legacy byte-stride regression](2026-07-24-rga3-legacy-blit-10bit-stride-convention-fault.md) → [UV-offset sibling defect](2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md) → [TILE correction](2026-07-24-rga-10bit-tile-byte-stride-and-fbc-exception.md) → [hardware validation](2026-07-25-forward-port-6-18-40-kasan-full-validation.md) | [librga 10-bit contract](../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md) and [`status.md` track 1 / W16](../status.md) |
-| GNOME Remote Desktop end to end | [Capture path](../apps/gnome-remote-desktop/docs/capture-path.md) and [test gates](../apps/gnome-remote-desktop/docs/testing.md) | [MPP input backpressure](2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md) → [RDPGFX ACK wedge](2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md) → [audio validation](2026-07-21-grd-rdp-audio-live-validation-and-codec-control.md) → [first-frame kernel oops](2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md) | [`status.md` track 7](../status.md) |
-| SD/SPI/U-Boot diagnosis | [Boot-chain model](../boot-firmware/docs/u-boot-primer.md) and [artifact comparison](../boot-firmware/docs/version-comparison.md) | [SD boot investigation](2026-07-09-rock5b-armbian-sd-boot-investigation.md) → [FIT/DTB race](2026-07-13-rock5b-u-boot-fit-dtb-race.md) → [firmware-generation gap](2026-07-24-rock5b-spi-vs-radxa-bsp-firmware-generation-gap.md) | [`status.md` track 12](../status.md) |
-| Ramoops retention | [Maintained retention explanation](../boot-firmware/docs/ramoops-retention.md) | [measured loss](2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md) → [BSP-premise correction](2026-07-24-bsp-vs-armbian-ramoops-gap.md) → [DDR/TPL audit](2026-07-26-rk3588-ddr-blob-ramoops-static-audit.md) → [SPL audit](2026-07-27-rk3588-spl-ramoops-binary-audit.md) → [next temporal experiment](2026-07-27-rk3588-ramoops-next-experiment-plan.md) | [Current evidence contract and next causal experiment](../boot-firmware/docs/ramoops-retention.md#current-evidence-contract) |
-| Desktop VA-API and browser path | [VA-API capability/boundary model](../video-libraries/vaapi/README.md) and [app map](../docs/app-enablement.md) | [fork review](2026-07-21-rockchip-vaapi-driver-review.md) → [bitstream-reconstruction spectrum](2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md) → [Main10/AFBC/P010 validation](2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md) → [Firefox RDD policy](2026-07-26-firefox-rdd-rockchip-vaapi-policy.md) → [roadmap qualification and Firefox/Panfrost boundary](2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md) → [installed ysp8 runtime and IEP2 warning](2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md) → [forward-port RGA3 small-geometry discriminator](2026-08-02-rga3-forward-port-small-geometry-discriminator.md) → [RK3588 IEP2/VDPP source audit](2026-08-02-rk3588-iep2-vdpp-source-audit.md) → [consumer assessment after GRD](2026-08-04-rockchip-vaapi-consumer-assessment.md) → [Chromium 151 closes GL and exposes the V4L2-only package](2026-08-04-chromium-151-gpu-working-v4l2-only.md) → [Google Chrome reaches VA-API and exposes stable-export lifetime](2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md) | [`status.md` track 14](../status.md) |
-| Mesa/Panfrost blit precision | [Mesa project brief](../video-libraries/mesa/README.md) and [precision model](../video-libraries/mesa/docs/blit-precision.md) | [uncached readback cliff](2026-07-18-mesa-panfrost-uncached-readpixels-convert-cliff.md) → [varying erratum workaround](2026-07-22-mali-varying-depth-bias-erratum-workaround.md) → [oblong-triangle matrix](2026-07-24-mali-oblong-triangle-matrix.md) → [benchmark plan](2026-07-27-mali-blit-workaround-performance-benchmark-plan.md) → [bounded correctness pass; cost still open](2026-07-27-mesa-all-blit-workaround-benchmark-results.md) | [`status.md` track 8](../status.md) |
-| CPU voltage binning | [Two-track PVTM/eFuse port model](../kernel-versions/docs/pvtm-opp-binning-plan.md) | [BSP/mainline comparison](2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md) → [this board's measured L5/L7/L7 selection](2026-07-27-rk3588-pvtm-volt-sel-measured.md) | [`status.md` track 15](../status.md) |
-
-Maintain this table only when a thread gains a better re-entry point or its
-canonical owner changes. Ordinary new findings belong in the generated index;
-they do not all need a trail entry.
+The generated chronology below is a deposit view for still-live intake. Once a
+finding is promoted or discarded, it disappears from both views; its durable
+knowledge remains at the named owner and its old text remains recoverable from
+Git.
 
 ## Browse by subsystem
 
-The generated chronology below answers *what was learned when*. This index
-answers *what do we know about X* — every live finding, grouped by the layer it
-belongs to, newest first inside each group. Tombstones are deliberately absent:
-they are pointers, and the chronological index still lists them.
+The generated chronology below answers *what entered the live inbox when*.
+This index groups the same live findings by subsystem, newest first. Promoted,
+discarded, and obsolete files appear in neither view.
 
 Coverage is mechanically enforced — `scripts/check-doc-consistency.py` fails if
 a live finding is missing from these groups, appears in two, or names a file
@@ -395,7 +384,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md`](2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md) — Enabling IEP2 broke interlaced VA-API decode by un-masking a driver defect: MPP's decoder deinterlacer is 1:N, VA-API decode is 1:1
 - [`2026-08-04-rockchip-vaapi-consumer-assessment.md`](2026-08-04-rockchip-vaapi-consumer-assessment.md) — rockchip-vaapi's durable consumers are Firefox and the standard VA-API framework stacks; Sunshine and OBS are the best unmeasured encode targets
 - [`2026-08-04-rockchip-vaapi-capability-gap-triage.md`](2026-08-04-rockchip-vaapi-capability-gap-triage.md) — rockchip-vaapi's remaining non-AV1 gaps split three ways: two are MPP walls, the size caps fail open below as well as closed above, and the sweep harness overwrites its own evidence
-- [`2026-08-04-rkvenc-encoder-rcb-sram-scope.md`](2026-08-04-rkvenc-encoder-rcb-sram-scope.md) — RK3588 encoder RCB is reachable only by >4096-wide H.264, so the absent encoder SRAM costs almost nothing
 - [`2026-08-04-rewrite-kunit-request-rotation-repair.md`](2026-08-04-rewrite-kunit-request-rotation-repair.md) — Current rewrite tips repair request cleanup and rotation KUnit contracts
 - [`2026-08-04-rewrite-kernel-rebase-6-18-42-7-2-rc6.md`](2026-08-04-rewrite-kernel-rebase-6-18-42-7-2-rc6.md) — Rewrite kernels rebased cleanly onto v6.18.42 and v7.2-rc6
 - [`2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md`](2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md) — IEP2 field parity settled: the mode suffix selects the field and `dil_order` does nothing, so MPP's hardcoded I1O1T is wrong for BFF streams
@@ -412,11 +400,9 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-08-02-rockchip-vaapi-ysp9-rc-validation.md`](2026-08-02-rockchip-vaapi-ysp9-rc-validation.md) — rockchip-vaapi ysp9 RC retires the VP9 quarantine and passes full sanitizer, RGA repeat, and package gates
 - [`2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md`](2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md) — rockchip-vaapi ysp8 is installed and green across decode, encode, GStreamer, VLC, mpv, and Firefox; one optional IEP2 probe is noisy
 - [`2026-08-02-rk3588-maxline-proposal-refresh.md`](2026-08-02-rk3588-maxline-proposal-refresh.md) — RK3588 maxline refreshed to current proposals, Linus master, and linux-next
-- [`2026-08-02-rk3588-iep2-vdpp-source-audit.md`](2026-08-02-rk3588-iep2-vdpp-source-audit.md) — RK3588 exposes IEP2 deinterlacing, not VDPP, and the YSP 6.18 port omits IEP2
 - [`2026-08-02-rga3-forward-port-small-geometry-discriminator.md`](2026-08-02-rga3-forward-port-small-geometry-discriminator.md) — Forward-port RGA3 passes the repeated small-geometry AFBC-to-P010 dropped-write discriminator
 - [`2026-08-02-mainline-tool-assisted-contribution-policy.md`](2026-08-02-mainline-tool-assisted-contribution-policy.md) — Mainline now has a written tool-assisted contribution policy, and its trailer is not the one this repo uses
 - [`2026-08-02-mainline-codec-fix-series-self-review.md`](2026-08-02-mainline-codec-fix-series-self-review.md) — Three of the seven mainline codec-fix patches are defective
-- [`2026-08-02-librga-handle-plane-placeholder.md`](2026-08-02-librga-handle-plane-placeholder.md) — librga handle requests use uv_addr—not v_addr—as the separate-plane discriminator
 - [`2026-08-02-driver-probe-error-path-test-design.md`](2026-08-02-driver-probe-error-path-test-design.md) — Probe error paths are testable by DT alone, but -ENXIO and -ENODEV probe failures are silent by default
 - [`2026-08-01-stock-ubuntu-rock5b-successor-architecture.md`](2026-08-01-stock-ubuntu-rock5b-successor-architecture.md) — A ROCK 5B-only Ubuntu successor should keep Resolute userspace stock and own the board kernel and firmware
 - [`2026-08-01-rkvdec-self-reset-and-iommu-restore-gaps.md`](2026-08-01-rkvdec-self-reset-and-iommu-restore-gaps.md) — The rkvdec2 hardware self-resets on error; the rewrite driver neither detects it nor restores the IOMMU
@@ -437,11 +423,9 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-30-rewrite-rkvenc-dchs-producer-retirement-race.md`](2026-07-30-rewrite-rkvenc-dchs-producer-retirement-race.md) — RKVENC DCHS producer retirement raced a dependent consumer's START; lifecycle serialization applied
 - [`2026-07-30-rewrite-kunit-gate-false-red-harness-defects.md`](2026-07-30-rewrite-kunit-gate-false-red-harness-defects.md) — First fully green rewrite KUnit boot failed the gate: four harness defects, zero kernel defects
 - [`2026-07-30-rewrite-av1-vsi-fault-afbc-lifecycle-races.md`](2026-07-30-rewrite-av1-vsi-fault-afbc-lifecycle-races.md) — Rewrite AV1/VSI audit closes fault-admission and teardown races; AFBC retirement proof remains a hardware gate
-- [`2026-07-30-mainline-maxline-rockchip-codec-source-audit.md`](2026-07-30-mainline-maxline-rockchip-codec-source-audit.md) — Current mainline and maxline Rockchip codec audit found transferable ownership, DMA, and recovery defects
 - [`2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md`](2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md) — FFmpeg RKMPP async-frame lifetime fix clears reset/close double release
 - [`2026-07-30-boot-failure-retro-prevention-levers.md`](2026-07-30-boot-failure-retro-prevention-levers.md) — Wedge-week retrospective: what would have caught each failure class before boot
 - [`2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md`](2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md) — rockchip-vaapi closes 10-bit throughput and the remaining Phase 4 qualification slices, while Firefox Main10 stops at Panfrost EGL import
-- [`2026-07-29-rockchip-vaapi-direct-av1-mpp-service-design.md`](2026-07-29-rockchip-vaapi-direct-av1-mpp-service-design.md) — A direct `/dev/mpp_service` AV1 backend can bypass libmpp by owning a surface-keyed VDPU job compiler
 - [`2026-07-29-rga-no-core-match-narrow-afbc-10bit.md`](2026-07-29-rga-no-core-match-narrow-afbc-10bit.md) — A narrow AFBC 10-bit frame has no RGA core: RGA3 needs width ≥ 68 and RGA2 cannot read AFBC
 - [`2026-07-29-rewrite-soft-ccu-dual-core-wedge.md`](2026-07-29-rewrite-soft-ccu-dual-core-wedge.md) — Rewrite soft-CCU dual-core decode wedges the interconnect; arm/start split root-caused and fixed
 - [`2026-07-29-rewrite-kunit-fixture-audit.md`](2026-07-29-rewrite-kunit-fixture-audit.md) — Rewrite KUnit fixture audit: 2 boot oopses fixed, full 232-case sweep, latent hazard inventory
@@ -534,12 +518,10 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md`](2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md) — Ramoops/pstore does not survive a warm reset on this ROCK 5B
 - [`2026-07-21-mpp-collect-msgs-clientless-session-null-deref-crash.md`](2026-07-21-mpp-collect-msgs-clientless-session-null-deref-crash.md) — MPP client-less session NULL-deref hard crash — `RELEASE_FD` dereferences a NULL `session->dma`
 - [`2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md`](2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) — Mainline AV1/V4L2 vs VA-API, and why Firefox's only Rockchip hardware-decode route is VA-API
-- [`2026-07-21-grd-rdp-audio-live-validation-and-codec-control.md`](2026-07-21-grd-rdp-audio-live-validation-and-codec-control.md) — GRD audio is audible as PCM; Windows uses the same SVC fallback
 - [`2026-07-21-forward-port-lifetime-resource-ownership-audit.md`](2026-07-21-forward-port-lifetime-resource-ownership-audit.md) — Forward-port MPP/RGA lifetime and resource-ownership audit
 - [`2026-07-20-rkvenc2-slice-fifo-terminal-drop.md`](2026-07-20-rkvenc2-slice-fifo-terminal-drop.md) — RKVENC2 silently drops the terminal slice when its per-task FIFO fills
 - [`2026-07-20-rga2-unmapped-page-table-dma-sync.md`](2026-07-20-rga2-unmapped-page-table-dma-sync.md) — RGA2 syncs page-table memory through an unmapped DMA address
 - [`2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md`](2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md) — macOS focus return can wedge GRD in restored RDPGFX acknowledgement history
-- [`2026-07-20-grd-rdp-audio-split-stack.md`](2026-07-20-grd-rdp-audio-split-stack.md) — RDP audio negotiated successfully but PulseAudio bypassed GRD's PipeWire graph
 - [`2026-07-20-grd-focus-return-false-pipeline-starvation.md`](2026-07-20-grd-focus-return-false-pipeline-starvation.md) — Focus return can falsely charge idle time as a GRD pipeline stall
 - [`2026-07-20-armbian-radxa-image-fit-audit.md`](2026-07-20-armbian-radxa-image-fit-audit.md) — Armbian Radxa catalog: 21 zero-DTB images, 207 clean, 95 not applicable
 - [`2026-07-20-armbian-non-radxa-radxa-uboot-audit.md`](2026-07-20-armbian-non-radxa-radxa-uboot-audit.md) — Non-Radxa Radxa-U-Boot catalog: 17 zero-DTB images, 182 clean, 4 unavailable
@@ -549,31 +531,16 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-18-mpp-reset-session-dma-double-free-kasan.md`](2026-07-18-mpp-reset-session-dma-double-free-kasan.md) — KASAN caught the preflight Oops: MPP_CMD_RESET_SESSION double-frees session->dma
 - [`2026-07-18-mesa-panfrost-uncached-readpixels-convert-cliff.md`](2026-07-18-mesa-panfrost-uncached-readpixels-convert-cliff.md) — Mesa/panfrost: glReadPixels convert fallback is catastrophic over uncached imported buffers
 - [`2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md`](2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md) — GRD's frame-starvation detector only warns — it never actuates recovery
-- [`2026-07-17-rk3588-maxline-implementation-and-build-record.md`](2026-07-17-rk3588-maxline-implementation-and-build-record.md) — RK3588 maxline implementation and build record
-- [`2026-07-17-rk3588-maximum-mainline-kernel-plan.md`](2026-07-17-rk3588-maximum-mainline-kernel-plan.md) — Maximum-mainline RK3588 kernel plan for this Armbian ROCK 5B
 - [`2026-07-17-rga-session-close-uaf.md`](2026-07-17-rga-session-close-uaf.md) — RGA session-close force-free ignores refcounts; a leaked test handle exposed it as a kernel Oops
 - [`2026-07-17-mpp-procfs-session-teardown-oops.md`](2026-07-17-mpp-procfs-session-teardown-oops.md) — MPP procfs session dump races private teardown and NULL-dereferences
 - [`2026-07-17-forward-port-conformance-preflight-oops.md`](2026-07-17-forward-port-conformance-preflight-oops.md) — Forward-port conformance preflight Oopsed before the first MPP case
 - [`2026-07-16-rockchip-bsp-driver-quality.md`](2026-07-16-rockchip-bsp-driver-quality.md) — Rockchip BSP driver quality is feature-strong but below mature mainline robustness
 - [`2026-07-13-rock5b-u-boot-fit-dtb-race.md`](2026-07-13-rock5b-u-boot-fit-dtb-race.md) — ROCK 5B zero-DTB race: controlled proof, Noble `cp`, and KSpace amplification
-- [`2026-07-11-rock5b-u-boot-four-way-comparison.md`](2026-07-11-rock5b-u-boot-four-way-comparison.md) — ROCK 5B U-Boot comparison: Armbian 26.2, Armbian 26.5, Radxa, upstream
 - [`2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md`](2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) — Kodi 22 hardware video on RK3588 via ffmpeg-rockchip-81: MPP runtime, three fork-packaging bugs, and zero-patch decoder selection
 - [`2026-07-09-rock5b-armbian-sd-boot-investigation.md`](2026-07-09-rock5b-armbian-sd-boot-investigation.md) — ROCK 5B Armbian SD boot investigation summary
 - [`2026-07-09-ffmpeg-baseline-rk2-local-build-validation.md`](2026-07-09-ffmpeg-baseline-rk2-local-build-validation.md) — FFmpeg baseline `-1+rk2` local source-package build validates frei0r fix
 - [`2026-07-08-blit-precision-nir-migration.md`](2026-07-08-blit-precision-nir-migration.md) — Blit-precision fix: the TGSI→NIR migration and doing it with pixel_coord
 - [`2026-07-08-armbian-builder-setup.md`](2026-07-08-armbian-builder-setup.md) — ROCK 5B Armbian builder: native host, branch/release map, and remote-cache behavior
 - [`2026-07-08-armbian-26.2.1-bl31-handoff-hang.md`](2026-07-08-armbian-26.2.1-bl31-handoff-hang.md) — Armbian 26.2.1 ROCK 5B raw bootloader hangs after BL31 handoff
-- [`2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md`](2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md) — ARM Mali blob reproduces the varying-interpolation drift bit-for-bit identically to Mesa/Panfrost
-- [`2026-07-08-arm-mali-blob-gbm-setversion-kernel-oops.md`](2026-07-08-arm-mali-blob-gbm-setversion-kernel-oops.md) — ARM Mali blob GBM path kernel-Oopses in drm_setversion on the Radxa 5.10 vendor kernel
 - [`2026-07-07-rock5b-spi-sd-boot-chain.md`](2026-07-07-rock5b-spi-sd-boot-chain.md) — ROCK 5B SPI U-Boot changes how Radxa SD images boot
-- [`2026-07-07-arm-mali-blob-reproducer-readiness.md`](2026-07-07-arm-mali-blob-reproducer-readiness.md) — ARM Mali blob interp reproducer readiness on the Radxa Bullseye 5.10 vendor distro
-- [`2026-07-06-rga3-dmabuf-scatter-bsp-contract.md`](2026-07-06-rga3-dmabuf-scatter-bsp-contract.md) — RGA3 dma-buf scatter contract vs BSP
-- [`2026-07-06-ffmpeg-rockchip81-package-validation.md`](2026-07-06-ffmpeg-rockchip81-package-validation.md) — ffmpeg-rockchip-81 package validation failures and MPP root cause
-- [`2026-07-05-rkvenc-rcb-sram.md`](2026-07-05-rkvenc-rcb-sram.md) — RK3588 RKVENC RCB/SRAM support is ABI-plumbed but not SRAM-backed in DT
-- [`2026-07-05-rga3-userptr-iommu-runtime-smoke.md`](2026-07-05-rga3-userptr-iommu-runtime-smoke.md) — RGA3 userptr-IOMMU runtime smoke: behavior passes, fallback attribution still indirect
-- [`2026-07-05-rga3-userptr-iommu-design.md`](2026-07-05-rga3-userptr-iommu-design.md) — RGA3 userptr-IOMMU fallback design: driver-owned contiguous IOVA for scattered userptr
-- [`2026-07-05-rga3-scattered-iova-mechanism.md`](2026-07-05-rga3-scattered-iova-mechanism.md) — Why RGA3 userptr imports get non-contiguous IOVAs: per-segment mapping, not the guard band
-- [`2026-07-05-rga3-memory-import-contract.md`](2026-07-05-rga3-memory-import-contract.md) — RGA3 memory import contract: fd, userptr, physical address, and mmap paths
-- [`2026-07-04-rga3-im2d-error-irq.md`](2026-07-04-rga3-im2d-error-irq.md) — RGA3 MMU interrupt on direct im2d samples: RGA DMA/IOMMU IOVA contract gaps
-- [`2026-07-04-librga-consumer-survey.md`](2026-07-04-librga-consumer-survey.md) — Public librga consumer survey: RKNN is the main additional Linux signal
 <!-- findings-index:end -->

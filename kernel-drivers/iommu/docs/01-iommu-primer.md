@@ -143,7 +143,7 @@ If the device is **not** on the coalescing path (direct/identity mapping), you g
 `nents == orig_nents` — one DMA segment per physical run — and simple hardware
 can't consume it. This distinction is the entire story behind the RK3588 RGA3
 scattered-buffer limitation; see doc 03 and
-[`../../../findings/2026-07-04-rga3-im2d-error-irq.md`](../../../findings/2026-07-04-rga3-im2d-error-irq.md).
+[`../../rga/docs/userptr-iommu.md`](../../rga/docs/userptr-iommu.md).
 
 ## Mental model to carry into the next docs
 

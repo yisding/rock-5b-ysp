@@ -86,8 +86,8 @@ rewrite. Kconfig makes the two tracks mutually exclusive per device node
 ([`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md) "Expanded conformance bundle"), keeping
 `assets/` and command lines identical across the two boots.
 
-The public `librga` consumer survey
-([`findings/2026-07-04-librga-consumer-survey.md`](../../findings/2026-07-04-librga-consumer-survey.md))
+The maintained
+[`librga` consumer model](../rga/docs/userspace-consumers.md)
 does not broaden the required Linux RK3588 profile beyond the current
 conformance direction.  Outside ffmpeg-rockchip, JeffyCN GStreamer, and the
 official librga samples, the strongest additional signal is RKNN/RKNPU

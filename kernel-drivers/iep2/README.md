@@ -44,9 +44,8 @@ Rockchip's BSP exposes it, how libmpp selects it, and the state of its Linux
 - [`iep2-smoke.sh`](../tests/iep2-smoke.sh) — device-free source/build gate and
   on-board TFF/BFF I5O2 output test with size, nonzero-content, binding, and
   kernel-log checks.
-- [Historical source-audit finding](../../findings/2026-08-02-rk3588-iep2-vdpp-source-audit.md)
-  — the promoted tombstone for the installed-kernel observation that started
-  this project.
+- [RK3588 IEP2 versus VDPP](docs/rk3588-iep2-vdpp.md) — the maintained source
+  audit and hardware-identity explanation.
 
 ## Evidence state
 

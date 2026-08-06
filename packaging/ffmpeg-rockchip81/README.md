@@ -41,8 +41,9 @@ and packaged successfully. Feature registration, H.264 RKMPP encode, and
 software-source RKMPP `hwupload` -> `scale_rkrga` -> HEVC RKMPP encode were
 validated on the ROCK 5B.
 
-Known failures from that run are documented in
-[`../../findings/2026-07-06-ffmpeg-rockchip81-package-validation.md`](../../findings/2026-07-06-ffmpeg-rockchip81-package-validation.md):
+The frozen
+[`package-validation audit`](../../video-libraries/ffmpeg/docs/rockchip81-package-validation.md)
+owns the run and its known failures:
 the default sandbox hides codec device nodes, installed-MPP rkmpp decode fails
 with `parser h264 is not registered`, direct software-frame input to
 `scale_rkrga` is the wrong command shape, and local MPP demo binaries do not

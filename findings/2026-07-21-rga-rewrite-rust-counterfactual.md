@@ -63,8 +63,8 @@ where the sharp edges are — while the safe-Rust fraction (ioctl parsing,
 session bookkeeping, scheduling) covers the parts the C design was not
 getting wrong. The binding work would have displaced the actual value of the
 rewrite: the contract archaeology recorded in
-[2026-07-05-rga3-memory-import-contract](./2026-07-05-rga3-memory-import-contract.md),
-[2026-07-06-rga3-dmabuf-scatter-bsp-contract](./2026-07-06-rga3-dmabuf-scatter-bsp-contract.md),
+[the maintained import contract](../kernel-drivers/rga/docs/userptr-iommu.md),
+[the BSP scatter contract](../kernel-drivers/patches/rga-userptr-iommu/architecture.md),
 and [2026-07-21-rga-forward-port-abi-gaps](./2026-07-21-rga-forward-port-abi-gaps.md).
 
 **3. Shipping constraints.** The rewrite is carried on three branches

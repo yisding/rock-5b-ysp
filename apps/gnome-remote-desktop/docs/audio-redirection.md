@@ -24,10 +24,8 @@ bare `pipewire` and `wireplumber` alongside a standalone PulseAudio daemon is
 therefore insufficient, even though it satisfies GRD's screen-capture runtime
 dependencies.
 
-The dated hardware evidence behind this conclusion is
-[`findings/2026-07-20-grd-rdp-audio-split-stack.md`](../../../findings/2026-07-20-grd-rdp-audio-split-stack.md),
-with the successful live result and Windows control summarized in
-[`findings/2026-07-21-grd-rdp-audio-live-validation-and-codec-control.md`](../../../findings/2026-07-21-grd-rdp-audio-live-validation-and-codec-control.md).
+The evidence basis below retains the decisive split-stack failure, successful
+live result, and Windows control needed to support this conclusion.
 
 ## What RDP and GRD support
 

@@ -26,7 +26,7 @@ mpp+rga). This sub-project holds MPP-specific notes.
 | [`docs/ioctl-collector.md`](docs/ioctl-collector.md) | Kernel-side trace of `mpp_collect_msgs`: how one `MPP_IOC_CFG_V1` batch is walked into task containers, and why `LAST_MSG` is a whole-syscall terminator (one per ioctl) while `SET_SESSION_FD` is the real per-batch delimiter. |
 | [`docs/multicore-scheduling.md`](docs/multicore-scheduling.md) | Why RK3588 multi-core decode is hard (per-stream DPB dependency), and where a scheduler would live; soft/hard CCU consequences. |
 | [`docs/rcb-sram.md`](docs/rcb-sram.md) | What RCB scratch buffers are, what SRAM is, and how DT, IOMMU mappings, and register patching connect them. |
-| [`../../findings/2026-07-05-rkvenc-rcb-sram.md`](../../findings/2026-07-05-rkvenc-rcb-sram.md) | RK3588 RKVENC RCB/SRAM evidence: encoder RCB descriptors are ABI-plumbed, but current 6.1 BSP and 7.2 rewrite RK3588 DT only wire SRAM-backed RCB for decoder cores. |
+| [`docs/rcb-sram.md`](docs/rcb-sram.md) | RK3588 RKVENC RCB/SRAM mechanism and evidence: encoder RCB descriptors are ABI-plumbed, while the inspected BSP/rewrite DTs wire SRAM-backed RCB only for decoder cores. |
 
 Start with the shared [`../docs/how-the-drivers-work.md`](../docs/how-the-drivers-work.md)
 for the end-to-end layer model, then [`../docs/dev-uapis.md`](../docs/dev-uapis.md)

@@ -170,7 +170,7 @@ generic DMA/IOMMU stack. All three are load-bearing together:
 | **Fail-closed contract** | `rga_dma_check_iova_contract` / `mpp_dma_check_iova_contract` (commit `590c9ef297ce`) | Rejects any mapping that isn't exactly one nonzero, non-wrapping 32-bit segment — turning a would-be MMU fault into a clean `-EOPNOTSUPP`/`-EOVERFLOW` at import time. |
 
 Full root-cause, fault addresses, and the runtime validation are in
-[`../../../findings/2026-07-04-rga3-im2d-error-irq.md`](../../../findings/2026-07-04-rga3-im2d-error-irq.md).
+[`../../rga/docs/userptr-iommu.md`](../../rga/docs/userptr-iommu.md).
 
 RGA userptr-IOMMU fallback is the follow-up for driver-owned scattered userptr sg-tables that fail
 that contract after the normal DMA API map. It allocates one guard-banded IOVA
@@ -226,7 +226,7 @@ fail-closed before RGA userptr-IOMMU fallback, but it made raw-malloc
   shared-domain plan.
 - [`rewrite-hard-ccu-finding.md`](rewrite-hard-ccu-finding.md) — the RKVDEC2
   SOFT/HARD CCU finding.
-- [`../../../findings/2026-07-04-rga3-im2d-error-irq.md`](../../../findings/2026-07-04-rga3-im2d-error-irq.md)
+- [`../../rga/docs/userptr-iommu.md`](../../rga/docs/userptr-iommu.md)
   — the RGA3 MMU-fault root-cause + the scattered-buffer limitation.
 - [`../../patches/rga-userptr-iommu/architecture.md`](../../patches/rga-userptr-iommu/architecture.md)
   — RGA userptr-IOMMU fallback architecture, IOMMU-domain allocator model, and runtime evidence

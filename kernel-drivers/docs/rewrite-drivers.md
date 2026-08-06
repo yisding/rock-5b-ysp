@@ -959,8 +959,8 @@ implementation (cross-reference:
   on 2026-07-04 and refreshed on 2026-07-05/06 by GitHub code search, excluding
   the already-covered ffmpeg-rockchip, JeffyCN GStreamer, and official librga
   sample paths.  The
-  raw survey note is
-  [`findings/2026-07-04-librga-consumer-survey.md`](../../findings/2026-07-04-librga-consumer-survey.md).
+  maintained survey is
+  [`rga/docs/userspace-consumers.md`](../rga/docs/userspace-consumers.md).
   The
   strongest additional Linux signal is RKNN/RKNPU preprocessing:
   [airockchip/rknn_model_zoo](https://github.com/airockchip/rknn_model_zoo/blob/bad6c7334531becaf90a561988519b7bec34d0ab/utils/image_utils.c),

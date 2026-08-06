@@ -261,7 +261,7 @@ single-span contract, and verify `userptr_iommu/{attempt,ok,active}` do not move
 That distinguishes "dma-buf physical backing may be scattered" from the forbidden
 case where exporter-owned dma-buf mappings are silently replaced by the
 driver-owned userptr-IOMMU fallback. See
-[`findings/2026-07-06-rga3-dmabuf-scatter-bsp-contract.md`](../../../findings/2026-07-06-rga3-dmabuf-scatter-bsp-contract.md)
+[`architecture.md`](architecture.md)
 for the BSP comparison and the contiguous multi-entry DMA-span follow-up.
 
 `LIBRGA_FORCE_RGA_USERPTR_IOMMU=1` makes the suite set the rewrite

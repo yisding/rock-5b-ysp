@@ -183,9 +183,8 @@ not a forward-port omission.
 ### How often the encoder path is reached at all
 
 Two gates keep the RK3588 encoder RCB path dark for ordinary work, so the missing
-encoder SRAM has almost no surface to cost anything on. The original dated
-finding is retained as a [promotion tombstone](../../../findings/2026-08-04-rkvenc-encoder-rcb-sram-scope.md);
-this section is the maintained evidence chain.
+encoder SRAM has almost no surface to cost anything on. This section is the
+maintained evidence chain.
 
 - **H.265 never uses it.** `hal_h265e_vepu580.c` has no ext-line-buffer and no
   `MPP_DEV_RCB_INFO` code at all. HEVC encode is unaffected at every resolution.

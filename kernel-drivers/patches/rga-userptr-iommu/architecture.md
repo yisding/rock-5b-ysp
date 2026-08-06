@@ -63,7 +63,7 @@ clean RGA userptr-IOMMU fallback code, but not the temporary fallback breadcrumb
   register programming.
 
 The BSP comparison for this boundary is recorded in
-[`findings/2026-07-06-rga3-dmabuf-scatter-bsp-contract.md`](../../../findings/2026-07-06-rga3-dmabuf-scatter-bsp-contract.md):
+the pinned BSP comparison in this document:
 the studied RGA3 BSP path maps dma-buf attachments and records the first DMA
 address, but it does not allocate a synthetic contiguous IOVA for exporter-owned
 dma-bufs and does not check adjacent multi-entry DMA spans.

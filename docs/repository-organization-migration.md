@@ -144,7 +144,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-34 | FFmpeg validation and branch state | Remote owns moving tip; build script owns intended package input; immutable comparison pins stay in source map; project docs own measured conclusions; status/W05 own verdict/publication. | FFmpeg README/docs/findings, W04/W05/W07/W21, status track 5, PPA installer/build/checker. Security: review public fix inventory versus private submission plan. | CLOSED 2026-08-05 — evidence scorecard, frozen audits/replays, mutable-state routing, and full handoff gate complete. |
 | ORG-35 | GNOME Remote Desktop validation and branch state | Remote owns branch tip; build script owns package input; project docs own design/test conclusions; status/W05 own verdict/publication. | GRD README/docs/findings, status track 7, W05/W10, PPA and GRD pin checker. Security: review public fix inventory versus private submission plan. | CLOSED 2026-08-05 — application scorecard, compact front door, frozen replay, mutable-state routes, and full handoff gate complete. |
 | ORG-40 | Project front doors, runbooks, plans, audits, and coverage | Each project README routes stable scope/boundary/model/operation; deep docs own mechanism; runbooks own commands; plans own future ladder; coverage owns scope/first missing evidence. | Activate one project/README at a time; preserve all headings/inbound links and nearest-README completeness. Security review when the project scope requires it. | PLANNED after owner consolidation. |
-| ORG-41 | Findings inbox promotion | Existing project/runbook/test/catalog/package owners absorb useful evidence; findings index retains deposit guidance and views of live intake only. No tombstones or permanent `findings/evidence/` archive. | Exact inbound links, generated chronology, curated topic row/count, status citations; update findings checks atomically. Security review for every kernel safety/upstream finding. | PLANNED; promote in small owner-based batches. |
+| ORG-41 | Findings inbox promotion | Existing project/runbook/test/catalog/package owners absorb useful evidence; findings index retains deposit guidance and views of live intake only. No tombstones or permanent `findings/evidence/` archive. | Exact inbound links, generated chronology, curated topic row/count, status citations; update findings checks atomically. Security review for every kernel safety/upstream finding. | ACTIVE 2026-08-05 — all 22 legacy promotion tombstones removed; owner-based live-intake review remains. |
 | ORG-50 | Root and work-package navigation | Root README owns short task router; `work-packages.md` owns taxonomy/reading paths; project READMEs own local routes. | Root/category/project links and representative journeys; Markdown link/anchor and nearest-README checks. Security: not applicable unless content moves. | PLANNED after canonical owners stabilize. |
 | ORG-60 | Tune reporting and add targeted enforcement | Informational report owns broad candidates; structured checks own only proven high-risk assertions and retired-ID/finding-evidence invariants. | `check-repo.sh` remains sole gate; reporter/tests/check-doc-consistency/CI docs updated together. Security: reporting must not expose ignored/private material. | PLANNED; baseline false positives need classification. |
 | ORG-99 | Remove temporary migration state | Lasting rules/risks/exceptions live in `CONTRIBUTING.md` or owning docs; proposal may be frozen/retired as decided. Remove this ledger only after all prior rows close. | All inbound ledger/proposal links and full completion audit; full handoff gate. Security review of final diff/history references. | PLANNED. |
@@ -762,3 +762,28 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   ledger closure on 2026-08-05 across 437 Markdown files, 3,783 local links,
   453 anchors, all 62 regression tests, ShellCheck, documentation consistency,
   and whitespace.
+
+### ORG-41 — findings promotion batches
+
+#### Legacy promotion-tombstone batch
+
+- **Disposition:** removed all 22 findings that had already been reduced to a
+  `promoted →` stub. Their durable content was already owned by RGA, MPP,
+  FFmpeg, Mesa, boot firmware, maxline, GRD, VA-API, and IEP2 maintained docs.
+- **Inbound routes:** repointed the remaining RGA import/consumer, RCB/SRAM,
+  FFmpeg package, GRD audio, and IEP2 callers to those durable owners before
+  deletion. Findings that referenced the retired stubs now link to the same
+  maintained evidence directly.
+- **Hub contract:** `findings/README.md` now requires promotion, inbound-route
+  migration, deletion, and index regeneration in one change. It forbids
+  tombstones and permanent curated chronology, and routes historical evolution
+  to project owners plus Git history.
+- **Public/private review:** several removed stubs concerned kernel lifetime,
+  DMA/IOMMU, and driver audit material. This batch adds no trigger, exploit,
+  disclosure/CVE framing, upstream destination/order, send/withhold decision,
+  private harness, or private repository route; it only redirects public
+  technical links to already-maintained public explanations.
+- **Validation:** the regenerated live-inbox index contains 165 findings and no
+  `promoted →` stub. The full `bash scripts/check-repo.sh` gate passed on
+  2026-08-05 across 415 Markdown files, 3,643 local links, 448 anchors, all 62
+  regression tests, ShellCheck, documentation consistency, and whitespace.
