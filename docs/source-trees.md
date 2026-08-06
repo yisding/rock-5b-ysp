@@ -22,7 +22,7 @@ remain direct children of `/home/yi/Code`.
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | latest GNOME 50 stable = `18cc5f7bf6ea`; clean release tip = `c4ef3c961940`; historical 50.1 replay and experiment tips remain recorded in §5 |
 | 6 | Register recipes and RK3588 IEP2/VDPP identity | kernel/userspace driver docs, [IEP2 audit](../kernel-drivers/iep2/docs/rk3588-iep2-vdpp.md) | MPP HAL/vproc sources + RK3588 TRM Part 2 Rev 1.0 (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | maintained tips `rk3588-rewrite-6.18@37ae7459656b` on `v6.18.42` and `rk3588-rewrite-mainline@02bf372dac70` on `v7.2-rc6`, at tracked-source parity as of 2026-08-05; current normal-profile build and 305-signal audit pass; exact-tip 6.18 KASAN packages are built as `P27bb-Cad24` with embedded `g37ae7459656b` identity but remain unbooted; predecessor 6.18 `19634f4eebba` has exact 92+152 KUnit, MPP, and partial RGA hardware evidence; package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958` are historical; see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | maintained tips `rk3588-rewrite-6.18@df22eeef8757` on `v6.18.42` and `rk3588-rewrite-mainline@518f59c9f1f8` on `v7.2-rc6`, at tracked-source parity as of 2026-08-05; current normal-profile build and 306-signal audit pass; exact-tip 6.18 KASAN packages are built as `Pc86b-Cad24` with embedded `gdf22eeef8757` identity but remain unbooted, after predecessor `P27bb-Cad24` (`g37ae7459656b`) failed to boot on a boot-time KUnit fixture wedge; predecessor 6.18 `19634f4eebba` has exact 92+152 KUnit, MPP, and partial RGA hardware evidence; package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958` are historical; see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | tracked seed under `kernel-drivers/tests/conformance/`; runtime bundle defaults to external `../rock-5b/build/rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../rock-5b/kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -342,7 +342,7 @@ The clean-room MPP/RGA rewrite ([rewrite-driver track](../kernel-drivers/docs/re
 is reconstructible from the committed local branch tips targeting
 `github.com/yisding/linux-rock5b`:
 
-- branch `rk3588-rewrite-6.18`, commit `37ae7459656b` ("media: rockchip:
+- branch `rk3588-rewrite-6.18`, commit `df22eeef8757` ("media: rockchip:
   rga-rewrite: fix librga DMA mapping"), in the dev worktree
   `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc`. It caps USERPTR
   scatterlist entries to the selected DMA backend's maximum mapping size,
@@ -363,7 +363,7 @@ is reconstructible from the committed local branch tips targeting
   tip is preserved as
   `ysp-backup/rk3588-rewrite-6.18-before-6.18.42-20260804@33c30ec6989e`.
   The mainline mirror is at parity as of 2026-08-05:
-  `rk3588-rewrite-mainline@02bf372dac70` carries the same
+  `rk3588-rewrite-mainline@518f59c9f1f8` carries the same
   repair chain; the tracked rewrite sources, Kconfig, ABI ledgers, and UAPI are
   byte-identical. Earlier `cd71f985a784c` lands the
   2026-07-29
@@ -415,8 +415,8 @@ is reconstructible from the committed local branch tips targeting
   ("video: rockchip: rkvenc2: reserve a slice fifo slot for the terminal
   record"). The pre-rebase 6.18 rewrite tip is preserved locally as
   `ysp-backup/rk3588-rewrite-6.18-before-fwport-20260726@40cf22629cf63`.
-- branch `rk3588-rewrite-mainline`, commit `02bf372dac70` ("media: rockchip:
-  rga-rewrite: fix librga DMA mapping"). It carries the same maintained rewrite
+- branch `rk3588-rewrite-mainline`, commit `518f59c9f1f8` ("media: rockchip:
+  rga-rewrite: keep KUnit fence fds off descriptor zero"). It carries the same maintained rewrite
   implementation as 6.18. Parent `b296374b7520` contains the request/rotation
   repair; earlier `7dcb4c3b5a981`
   carries the byte-identical review-round-2 fixes. Parent
@@ -581,9 +581,9 @@ unpinned devm-hardware use. The mainline branch carries the minimal
 support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
 KUnit-enabled provider/rewrite/DTB build. On 2026-08-05 its warning-fatal
-clean-archive `normal` profile passed at 6.18 `37ae7459656b` and mainline
-`02bf372dac70`, building Rockchip and VSI IOMMU support, both KUnit-enabled
-rewrite objects, and the ROCK 5B DTB. The source audit reported 305 known
+clean-archive `normal` profile passed at 6.18 `df22eeef8757` and mainline
+`518f59c9f1f8`, building Rockchip and VSI IOMMU support, both KUnit-enabled
+rewrite objects, and the ROCK 5B DTB. The source audit reported 306 known
 signals, zero new, and zero absent on both trees. Test-disabled, memory, and
 race results were not rerun at these tips. Historically, on 2026-07-15 its default `normal`
 profile completed warning-free for the then-current pins. On 2026-07-17 all

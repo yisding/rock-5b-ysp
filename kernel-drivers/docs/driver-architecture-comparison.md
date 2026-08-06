@@ -665,7 +665,7 @@ evidence:
 | Rewrite mainline replay | `rk3588-rewrite-mainline@b296374b7520` on `v7.2-rc6`; tracked rewrite sources, Kconfig, ABI ledgers, and UAPI are byte-identical |
 | Rockchip BSP donor | `develop-6.1@b4ef083dc0c3` |
 | Upstream-style comparators | Linux `v7.2-rc5`-era `rockchip/rkvdec`, Verisilicon Hantro, Chips&Media Wave5, Qualcomm Venus, MediaTek vcodec, Allegro DVT, and Amphion sources in the mainline replay tree |
-| Runtime boundary | The current tips pass the warning-fatal clean-archive `normal` build and exact 305-signal source audit. Their 92 MPP + 152 RGA manifest, multicore fixes, and AV1/VSI path are not boot-verified. |
+| Runtime boundary | The current tips pass the warning-fatal clean-archive `normal` build and exact 306-signal source audit. Their 92 MPP + 152 RGA manifest, multicore fixes, and AV1/VSI path are not boot-verified. |
 
 The upstream comparators are reference designs for kernel-boundary and
 maintenance quality, not feature- or performance-equivalent implementations.

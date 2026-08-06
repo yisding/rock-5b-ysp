@@ -134,9 +134,9 @@ source edits. Use it only when checking the last pushed state while another
 worktree has unrelated local changes.
 
 Last recorded compile gates: on 2026-08-05 `normal` passed warning-free for
-maintained 6.18 `37ae7459656b` and mainline `02bf372dac70`. Each built
+maintained 6.18 `df22eeef8757` and mainline `518f59c9f1f8`. Each built
 Rockchip and VSI IOMMU support, both KUnit-enabled rewrite objects, and the
-Rock 5B DTB from a clean archive. The source audit reported 305 known signals,
+Rock 5B DTB from a clean archive. The source audit reported 306 known signals,
 zero new, and zero absent. The `test-disabled`, `memory`, `race`, and deliberate
 ABI-size-mutation results remain older-tip evidence and must not be attributed
 to these tips. Every profile runs the checked KUnit source-debt audit first and

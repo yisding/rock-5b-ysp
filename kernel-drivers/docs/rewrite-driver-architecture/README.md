@@ -70,8 +70,8 @@ This guide describes the maintained sources checked on 2026-08-05:
 
 | Kernel branch | Commit |
 |---------------|--------|
-| `rk3588-rewrite-6.18` | `37ae7459656b` on `v6.18.42` |
-| `rk3588-rewrite-mainline` | `02bf372dac70` on `v7.2-rc6` |
+| `rk3588-rewrite-6.18` | `df22eeef8757` on `v6.18.42` |
+| `rk3588-rewrite-mainline` | `518f59c9f1f8` on `v7.2-rc6` |
 
 The commits contain byte-identical rewrite driver, Kconfig, ABI, and shared
 MPP-uAPI sources. The two implementation files are:
@@ -91,7 +91,7 @@ evidence is:
 | Driver code | MPP and RGA implementations on both kernel branches, including the source-only RKMPP AV1 backend | The same driver design is maintained on the 6.18 and current-mainline tracks. Source parity is not hardware parity. |
 | ABI coverage | MPP covers the observed RK3588 RKVENC2/RKVDEC2/VPU981 contract; RGA covers a broad current `librga`/FFmpeg/GStreamer subset and explicitly rejects recognized unsafe or unimplemented paths | Expected current requests can be parsed and represented; an explicit rejection is preferable to silently misprogramming hardware. |
 | In-source tests | 92 MPP and 152 RGA KUnit cases, 244 total | Pure logic such as parsing, bounds, routing, register emission, IRQ policy, and race-state transitions has executable coverage without requiring the board. |
-| Build evidence | On 2026-08-05 the KUnit-enabled normal clean-archive profile passed at 6.18 `37ae7459656b` and mainline `02bf372dac70`, building both IOMMU providers, both rewrite objects, and the ROCK 5B DTB without warnings. The 305-signal fixture audit and the 92+152 manifest check also passed on both. Test-disabled, memory, race, and ABI-mutation evidence remains attached to earlier tips. | The current production and test code compiles on both bases. It does not prove boot, KUnit execution, or hardware behavior. |
+| Build evidence | On 2026-08-05 the KUnit-enabled normal clean-archive profile passed at 6.18 `df22eeef8757` and mainline `518f59c9f1f8`, building both IOMMU providers, both rewrite objects, and the ROCK 5B DTB without warnings. The 306-signal fixture audit and the 92+152 manifest check also passed on both. Test-disabled, memory, race, and ABI-mutation evidence remains attached to earlier tips. | The current production and test code compiles on both bases. It does not prove boot, KUnit execution, or hardware behavior. |
 | Latest recovery work | Generation-aware timeout/fault ownership, stricter CCU recovery, close/remove handoffs, and fail-closed MPP containment when a reset cannot prove that DMA stopped | The code has a defined terminal branch for dangerous recovery failures instead of assuming reset always works. |
 | Architecture maturity | Session/job/import ownership, exact active-slot claims, provider callback drains, fail-closed reset handling, and per-execution DMA mapping exist. Explicit MPP cluster/activation owners, RGA task-execution/acquire-set owners, sealed register/command plans, and one transition engine per active object do not. | The current architecture is auditable but still relies on cross-path conventions at its most complicated shared-hardware boundaries. The proposed object graph is a refactor target, not a description of current types. |
 | Hardware evidence | KASAN boot `#2` (`g19634f4eebba`, 2026-08-05) passed exact 92/92 MPP plus 152/152 RGA with live lockdep and a clean outer interval. Official MPP passed 12/12; partial librga smoke verified the earlier handle-plane repair before exposing the defects fixed only in the current tip. | The predecessor has real board evidence, but the current sources still need booted KUnit, corrected full librga, AV1, and broader media-conformance proof. |

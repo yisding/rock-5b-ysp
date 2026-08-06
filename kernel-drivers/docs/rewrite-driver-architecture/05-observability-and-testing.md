@@ -95,7 +95,7 @@ REWRITE_BUILD_PROFILES='normal memory race' \
 On 2026-08-04 the `normal` profile completed without warnings at 6.18
 `19634f4eebba` on `v6.18.42` and mainline `b296374b7520` on `v7.2-rc6`, including both IOMMU providers,
 both KUnit-enabled rewrite objects, and the ROCK 5B DTB. The same run passed
-the 305-signal fixture audit, the 92+152 manifest check, and cross-tree source
+the 306-signal fixture audit, the 92+152 manifest check, and cross-tree source
 identity. Test-disabled, memory, race, and ABI-mutation results belong to older
 tips and must not be silently carried to these commits. All of that is compile
 evidence, not a boot or hardware result. For a release claim, also record the

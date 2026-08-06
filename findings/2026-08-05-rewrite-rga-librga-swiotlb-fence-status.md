@@ -126,15 +126,24 @@ The four package SHA-256 values are:
 | headers | `749d48fa429fa056971ecfe9f0819181d9540bc3c74c0a8b9596d156dbdf6c9a` |
 | libc development | `996d9371da676479cfebc27682bb91017ff93572ef68d4a0d16fa25815eeb476` |
 
-This is package-build and identity evidence only. The packages are not
-installed, the new kernel has not booted, and none of the runtime gates below
-has run on `37ae7459656b`.
+This is package-build and identity evidence only. None of the runtime gates
+below has run on `37ae7459656b`.
+
+**Superseded by the boot result.** `P27bb-Cad24` was installed at 16:42 and did
+not boot — no HDMI, no journal, empty pstore — and `37ae7459656b` was reverted.
+The legacy fd-zero sentinel described above is correct for userspace but reached
+three pending-acquire KUnit cases whose fixtures install a live sync-file on
+descriptor zero, because a KUnit case runs in a kthread with an empty file
+table. The fixture is now repaired at 6.18 `df22eeef8757` and mainline
+`518f59c9f1f8`, which rebuild as `Pc86b-Cad24`. See
+[the wedge finding](2026-08-05-rewrite-kunit-fd-zero-boot-wedge.md); the gates
+below now apply to that package.
 
 ## Boundary and verification gate
 
 The fixes are not runtime-verified. The board run used predecessor
-`19634f4eebba`, while the fixed 6.18 tip is `37ae7459656b`. Install and boot
-the built `P27bb-Cad24` KASAN package from that exact tip, then require:
+`19634f4eebba`, while the fixed 6.18 tip is now `df22eeef8757`. Install and boot
+the built `Pc86b-Cad24` KASAN package from that exact tip, then require:
 
 1. exact ordered 92+152 KUnit with clean outer interval and live lockdep;
 2. the full maintained `librga-smoke` including legacy RGB resize;

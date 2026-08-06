@@ -62,8 +62,8 @@ Its operational conclusion is:
 | KASAN memory-safety matrix | `kasan-mpp-suite.sh` | ✅ Broad historical clean run; current IEP2 tail has its own KASAN/lockdep gates, but the current production package is non-KASAN | ⚠️ Exact 244-case KUnit interval is clean under KASAN/live lockdep and MPP 12/12 completes, but no full memory-safety workload matrix exists. |
 | Destructive ioctl PoC ladder (OOB/UAF/type-confusion) | PoC ladder, now kept in the private `rock-5b-security` repository | ✅ 0055/0060/0061/0063/0070 + cross-UAF | ❌ (surface differs; not run) |
 | ABI replay / cross-profile diff | `abi-probe.sh`, `abi-replay.sh` | ✅ `abi_status=0` | ⚠️ comparator wired; rewrite is booted but current-tip ABI replay is not recorded |
-| Booted KUnit (92 MPP + 152 RGA = 244 current gate) | `rewrite-kunit-log-check.sh` | — | ⚠️ KASAN boot `#2` (`g19634f4eebba`, 2026-08-05) passes exact 92/92 MPP plus 152/152 RGA with zero failures/skips, a clean outer interval, and live lockdep. Current fix tip `37ae7459656b` keeps the manifest but extends an existing case and therefore still needs the compound rerun. |
-| Clean-source build gate (normal/test-disabled/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ On 2026-08-05, maintained 6.18 `37ae7459656b` on `v6.18.42` and mainline `02bf372dac70` on `v7.2-rc6` pass the warning-fatal clean-archive `normal` profile, including Rockchip/VSI IOMMU, both KUnit-enabled rewrite objects, and the ROCK 5B DTB. The source audit reports 305 known signals, zero new, and zero absent on both. Test-disabled, memory, race, and ABI-mutation results belong to older tips and were not silently carried forward. Current source remains unbooted. |
+| Booted KUnit (92 MPP + 152 RGA = 244 current gate) | `rewrite-kunit-log-check.sh` | — | ⚠️ KASAN boot `#2` (`g19634f4eebba`, 2026-08-05) passes exact 92/92 MPP plus 152/152 RGA with zero failures/skips, a clean outer interval, and live lockdep. Current fix tip `df22eeef8757` keeps the manifest but extends an existing case and therefore still needs the compound rerun. |
+| Clean-source build gate (normal/test-disabled/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ On 2026-08-05, maintained 6.18 `df22eeef8757` on `v6.18.42` and mainline `518f59c9f1f8` on `v7.2-rc6` pass the warning-fatal clean-archive `normal` profile, including Rockchip/VSI IOMMU, both KUnit-enabled rewrite objects, and the ROCK 5B DTB. The source audit reports 306 known signals, zero new, and zero absent on both. Test-disabled, memory, race, and ABI-mutation results belong to older tips and were not silently carried forward. Current source remains unbooted. |
 | Fault-injection / recovery matrix | `rewrite-recovery-stress.sh`, root gates | ⚠️ exact `0092` passes VP9 hard-lock regression plus RGA cancellation/reset stress with clean kernel windows; historical root gates are green, but the systematic matrix remains unbuilt | ❌ not run |
 | Differential FP↔RW byte-exact oracle | `*-suite-compare.sh`, `rewrite-evidence-audit.sh` | — | ❌ (needs RW booted) |
 | Fuzzing under KCOV/KASAN (syzkaller/ioctl/iommu) | `ioctl-fuzz-smoke.sh`, `iommu-machinery-fuzz.sh`; the syzkaller description is kept in the private `rock-5b-security` repository | ⚠️ ran without KCOV | ❌ |
@@ -88,7 +88,7 @@ for **both** tracks.
 **Rewrite — the big one: current-tip media qualification remains open.** Boot
 `#2 g19634f4eebba` proves the exact 92+152 plan and official MPP 12/12; its
 librga run proves the earlier handle-plane repair but exposes the RGA defects
-fixed only at maintained tips `37ae7459656b` and `02bf372dac70`. Those tips have
+fixed only at maintained tips `df22eeef8757` and `518f59c9f1f8`. Those tips have
 source/build evidence only. They need a warning-clean boot, exact KUnit,
 corrected full librga, all intended bindings, isolated ABI replay, and the
 paired media matrix. Gap-audit
@@ -153,10 +153,10 @@ before media qualification can start. Sequenced:
    AVS2 elementary-stream asset (cannot be generated). `P91d6-Cad24` is
    disqualified by the case-83 lockdep report.
 1. **Current clean build gate:** the `normal` profile passes on 6.18
-   `37ae7459656b` and mainline `02bf372dac70`; test-disabled, memory, race,
+   `df22eeef8757` and mainline `518f59c9f1f8`; test-disabled, memory, race,
    and ABI-mutation profiles retain older-tip evidence and must be rerun before
    a full handoff claim.
-2. **Build and boot a successor package from 6.18 `37ae7459656b`**; persist a **244-case green
+2. **Build and boot a successor package from 6.18 `df22eeef8757`**; persist a **244-case green
    KUnit report plus complete clean interval and live-lockdep report**
    (`rewrite-kunit-log-check.sh`) tied to the boot fingerprint.
 3. **P1 smoke** (`rewrite-smoke.sh`) then **P2 conformance**: all four suites

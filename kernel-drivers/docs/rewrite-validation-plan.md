@@ -22,8 +22,8 @@ and definition of done.
 > correlated run artifacts.
 
 > **Current source boundary (2026-08-05):** maintained tips
-> `37ae7459656b` / `02bf372dac70` pass the warning-fatal `normal` build and
-> 305-signal audit. Predecessor 6.18 `19634f4eebba` passes exact 92+152 booted
+> `df22eeef8757` / `518f59c9f1f8` pass the warning-fatal `normal` build and
+> 306-signal audit. Predecessor 6.18 `19634f4eebba` passes exact 92+152 booted
 > KUnit and 12/12 official MPP, but its librga run exposed the RGA defects fixed
 > only at the new tips. The other focused build profiles retain older-tip
 > evidence. The source contains the separate VPU981 AV1 backend, but no rewrite

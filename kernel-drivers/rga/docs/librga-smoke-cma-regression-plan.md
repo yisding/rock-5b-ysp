@@ -26,7 +26,7 @@
 > runtime proof for this handle-plane repair. The full smoke later failed on an
 > independent legacy fd-zero fence mismatch, and official userptr samples
 > exposed oversized SWIOTLB segments. Those defects are source-fixed and
-> compile-verified at 6.18 `37ae7459656b` / mainline `02bf372dac70`, but require
+> compile-verified at 6.18 `df22eeef8757` / mainline `518f59c9f1f8`, but require
 > a new boot; see the [follow-up finding](../../../findings/2026-08-05-rewrite-rga-librga-swiotlb-fence-status.md).
 
 ## Result
