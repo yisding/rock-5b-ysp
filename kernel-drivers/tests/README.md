@@ -33,6 +33,10 @@ every target; rewrite KUnit/counters and focused sanitizer or race tests are
 selected only where their declared requirements apply.
 
 ```bash
+# On the booted board, both axes are normally automatic.
+sudo bash run-conformance.sh
+
+# Explicit selectors remain useful for off-board plans and CI fixtures.
 bash run-conformance.sh --target bsp --plan
 sudo bash run-conformance.sh --target bsp
 sudo bash run-conformance.sh --target forward-port --configuration kasan
@@ -45,6 +49,9 @@ Use `--list` to see every catalog row, `--only id1,id2` for a focused run,
 comparators, and `--validate` for device-free harness maintenance. The catalog,
 target descriptors, configuration descriptors, profile naming, and extension
 contract are documented in [`conformance/README.md`](conformance/README.md).
+Autodetection identifies rewrite from driver Kconfig; vendor kernels on 5.10,
+6.1, or 6.6 are BSP and other vendor-kernel series are forward-port. KASAN and
+KCSAN are detected independently from their Kconfig symbols.
 The stable comparator commands remain `mpp-suite-compare.sh`,
 `librga-suite-compare.sh`, `gstreamer-suite-compare.sh`,
 `ffmpeg-suite-compare.sh`, and `rkmppenc-suite-compare.sh`; all are thin

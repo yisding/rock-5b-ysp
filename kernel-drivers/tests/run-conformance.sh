@@ -18,8 +18,8 @@ Usage: ${0##*/} [options]
 Run the standard conformance set selected from conformance/TESTS.tsv. Kernel
 implementation and build instrumentation are independent axes.
 
-  --target NAME          bsp, forward-port, or rewrite (default: rewrite)
-  --configuration NAME   production, kasan, or kcsan (default: production)
+  --target NAME          bsp, forward-port, rewrite, or auto (default: auto)
+  --configuration NAME   production, kasan, kcsan, or auto (default: auto)
   --only IDS             run only these comma-separated compatible test IDs
   --include IDS          add opt-in compatible test IDs to the standard set
   --skip IDS             remove test IDs from the selected set
@@ -31,6 +31,7 @@ implementation and build instrumentation are independent axes.
   -h, --help             show this help
 
 Examples:
+  sudo ${0##*/}
   sudo ${0##*/} --target bsp --configuration production
   sudo ${0##*/} --target forward-port --configuration kasan \\
     --include reset-session-kasan,ioctl-fuzz-kasan
@@ -38,8 +39,11 @@ Examples:
     --include iommu-stress,recovery-stress,reset-contention
   sudo ${0##*/} --target rewrite --compare-to forward-port
 
-PROFILE and the older RUN_* switches remain accepted as compatibility inputs,
-but new automation should use the target/configuration and test-ID interface.
+With no selectors, the runner identifies the target from the booted driver
+Kconfig and kernel series, and the configuration from sanitizer Kconfig.
+Device-free --validate retains rewrite/production defaults. PROFILE and the
+older RUN_* switches remain accepted as compatibility inputs, but new
+automation should use the target/configuration and test-ID interface.
 EOF
 }
 
@@ -182,13 +186,151 @@ resolve_legacy_profile()
 	return 1
 }
 
+kernel_release()
+{
+	if [ -n "${CONFORMANCE_KERNEL_RELEASE:-}" ]; then
+		printf '%s\n' "$CONFORMANCE_KERNEL_RELEASE"
+	else
+		uname -r
+	fi
+}
+
+kernel_config_file()
+{
+	if [ -n "${CONFORMANCE_KERNEL_CONFIG:-}" ]; then
+		printf '%s\n' "$CONFORMANCE_KERNEL_CONFIG"
+	else
+		printf '/boot/config-%s\n' "$(kernel_release)"
+	fi
+}
+
+kernel_series()
+{
+	local release=$1
+
+	if [[ $release =~ ^([0-9]+)\.([0-9]+)([^0-9]|$) ]]; then
+		printf '%s.%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+		return 0
+	fi
+	printf 'cannot extract kernel series from release: %s\n' "$release" >&2
+	return 1
+}
+
+descriptor_matches_boot()
+(
+	local descriptor=$1 config_file=$2 series=$3 entry
+	local required forbidden required_series forbidden_series
+
+	unset CONFORMANCE_TARGET_REQUIRED_CONFIG
+	unset CONFORMANCE_TARGET_FORBIDDEN_CONFIG
+	unset CONFORMANCE_TARGET_REQUIRED_KERNEL_SERIES
+	unset CONFORMANCE_TARGET_FORBIDDEN_KERNEL_SERIES
+	unset CONFORMANCE_CONFIGURATION_REQUIRED_CONFIG
+	unset CONFORMANCE_CONFIGURATION_FORBIDDEN_CONFIG
+	# shellcheck disable=SC1090
+	source "$descriptor"
+	required="${CONFORMANCE_TARGET_REQUIRED_CONFIG:-} ${CONFORMANCE_CONFIGURATION_REQUIRED_CONFIG:-}"
+	forbidden="${CONFORMANCE_TARGET_FORBIDDEN_CONFIG:-} ${CONFORMANCE_CONFIGURATION_FORBIDDEN_CONFIG:-}"
+	required_series=${CONFORMANCE_TARGET_REQUIRED_KERNEL_SERIES:-}
+	forbidden_series=${CONFORMANCE_TARGET_FORBIDDEN_KERNEL_SERIES:-}
+
+	for entry in $required; do
+		grep -qxF "$entry" "$config_file" || return 1
+	done
+	for entry in $forbidden; do
+		if grep -qxF "$entry" "$config_file"; then
+			return 1
+		fi
+	done
+	if [ -n "$required_series" ]; then
+		[ -n "$series" ] && list_has "$required_series" "$series" || return 1
+	fi
+	if [ -n "$forbidden_series" ] && [ -n "$series" ] &&
+		list_has "$forbidden_series" "$series"; then
+		return 1
+	fi
+)
+
+detect_descriptor()
+{
+	local directory=$1 kind=$2 config_file=$3 series=$4 descriptor identity
+	local -a matches=()
+
+	for descriptor in "$directory"/*.env; do
+		if descriptor_matches_boot "$descriptor" "$config_file" "$series"; then
+			identity=${descriptor##*/}
+			matches+=("${identity%.env}")
+		fi
+	done
+	if [ "${#matches[@]}" -ne 1 ]; then
+		printf 'cannot uniquely autodetect conformance %s from %s' \
+			"$kind" "$config_file" >&2
+		if [ -n "$series" ]; then
+			printf ' (kernel series %s)' "$series" >&2
+		fi
+		printf '; matches: %s\n' "${matches[*]:-none}" >&2
+		return 1
+	fi
+	printf '%s\n' "${matches[0]}"
+}
+
+autodetect_matrix()
+{
+	local config_file release series detected
+
+	config_file=$(kernel_config_file)
+	if [ ! -r "$config_file" ]; then
+		printf 'cannot autodetect conformance matrix: unreadable kernel config %s\n' \
+			"$config_file" >&2
+		printf 'select --target and --configuration explicitly, or set CONFORMANCE_KERNEL_CONFIG\n' >&2
+		return 1
+	fi
+	release=$(kernel_release)
+	series=$(kernel_series "$release") || return 1
+
+	if [ -z "$TARGET_ARG" ]; then
+		detected=$(detect_descriptor "$TARGET_DIR" target "$config_file" "$series") ||
+			return 1
+		TARGET_ARG=$detected
+		TARGET_SELECTION=autodetected
+	fi
+	if [ -z "$CONFIGURATION_ARG" ]; then
+		detected=$(detect_descriptor "$CONFIGURATION_DIR" configuration \
+			"$config_file" "$series") || return 1
+		CONFIGURATION_ARG=$detected
+		CONFIGURATION_SELECTION=autodetected
+	fi
+}
+
 if [ -n "$LEGACY_PROFILE" ] && [ -z "$TARGET_ARG" ] &&
 	[ -z "$CONFIGURATION_ARG" ]; then
 	resolve_legacy_profile "$LEGACY_PROFILE"
 fi
 
-TARGET_ARG=${TARGET_ARG:-rewrite}
-CONFIGURATION_ARG=${CONFIGURATION_ARG:-production}
+TARGET_SELECTION=explicit
+CONFIGURATION_SELECTION=explicit
+TARGET_AUTO_REQUESTED=0
+CONFIGURATION_AUTO_REQUESTED=0
+if [ "$TARGET_ARG" = auto ]; then
+	TARGET_ARG=
+	TARGET_AUTO_REQUESTED=1
+fi
+if [ "$CONFIGURATION_ARG" = auto ]; then
+	CONFIGURATION_ARG=
+	CONFIGURATION_AUTO_REQUESTED=1
+fi
+if [ "$ACTION" = validate ]; then
+	if [ -z "$TARGET_ARG" ] && [ "$TARGET_AUTO_REQUESTED" = 0 ]; then
+		TARGET_ARG=rewrite
+	fi
+	if [ -z "$CONFIGURATION_ARG" ] &&
+		[ "$CONFIGURATION_AUTO_REQUESTED" = 0 ]; then
+		CONFIGURATION_ARG=production
+	fi
+fi
+if [ -z "$TARGET_ARG" ] || [ -z "$CONFIGURATION_ARG" ]; then
+	autodetect_matrix
+fi
 case "$TARGET_ARG:$CONFIGURATION_ARG" in
 *[!a-z0-9-:]*|:*|*:)
 	printf 'invalid target/configuration: %s/%s\n' \
@@ -218,6 +360,8 @@ if [ "$CONFORMANCE_TARGET" != "$TARGET_ARG" ] ||
 		"$TARGET_ARG" "$CONFIGURATION_ARG" >&2
 	exit 2
 fi
+CONFORMANCE_TARGET_REQUIRED_KERNEL_SERIES=${CONFORMANCE_TARGET_REQUIRED_KERNEL_SERIES:-}
+CONFORMANCE_TARGET_FORBIDDEN_KERNEL_SERIES=${CONFORMANCE_TARGET_FORBIDDEN_KERNEL_SERIES:-}
 
 PROFILE=$CONFORMANCE_TARGET
 if [ -n "$CONFORMANCE_CONFIGURATION_PROFILE_SUFFIX" ]; then
@@ -454,8 +598,10 @@ print_plan()
 	printf 'profile-description\t%s\n' "$PROFILE_DESCRIPTION"
 	printf 'target\t%s\t%s\n' "$CONFORMANCE_TARGET" \
 		"$CONFORMANCE_TARGET_DESCRIPTION"
+	printf 'target-selection\t%s\n' "$TARGET_SELECTION"
 	printf 'configuration\t%s\t%s\n' "$CONFORMANCE_CONFIGURATION" \
 		"$CONFORMANCE_CONFIGURATION_DESCRIPTION"
+	printf 'configuration-selection\t%s\n' "$CONFIGURATION_SELECTION"
 	printf 'test\tgroup\tdefault\tselection\tdescription\n'
 	for id in "${CATALOG_IDS[@]}"; do
 		printf '%s\t%s\t%s\t%s\t%s\n' "$id" "${TEST_GROUP[$id]}" \
@@ -643,9 +789,13 @@ run_system_info()
 
 run_matrix_identity()
 {
-	local config_file=${CONFORMANCE_KERNEL_CONFIG:-"/boot/config-$(uname -r)"}
+	local config_file release series
 	local report="$LOG_ROOT/$RUN_ID-matrix-identity.tsv"
-	local required forbidden entry failed=0
+	local required forbidden required_series forbidden_series entry failed=0
+
+	config_file=$(kernel_config_file)
+	release=$(kernel_release)
+	series=$(kernel_series "$release") || return 1
 
 	if [ ! -r "$config_file" ]; then
 		printf 'cannot verify declared matrix: unreadable kernel config %s\n' \
@@ -655,8 +805,12 @@ run_matrix_identity()
 
 	required="$CONFORMANCE_TARGET_REQUIRED_CONFIG $CONFORMANCE_CONFIGURATION_REQUIRED_CONFIG"
 	forbidden="$CONFORMANCE_TARGET_FORBIDDEN_CONFIG $CONFORMANCE_CONFIGURATION_FORBIDDEN_CONFIG"
+	required_series=$CONFORMANCE_TARGET_REQUIRED_KERNEL_SERIES
+	forbidden_series=$CONFORMANCE_TARGET_FORBIDDEN_KERNEL_SERIES
 	{
 		printf 'kind\tentry\tstatus\n'
+		printf 'kernel-release\t%s\tobserved\n' "$release"
+		printf 'kernel-series\t%s\tobserved\n' "$series"
 		for entry in $required; do
 			if grep -qxF "$entry" "$config_file"; then
 				printf 'required\t%s\tpresent\n' "$entry"
@@ -673,6 +827,26 @@ run_matrix_identity()
 				printf 'forbidden\t%s\tabsent\n' "$entry"
 			fi
 		done
+		if [ -n "$required_series" ]; then
+			if list_has "$required_series" "$series"; then
+				printf 'required-kernel-series\t%s\tmatched\n' \
+					"$required_series"
+			else
+				printf 'required-kernel-series\t%s\tmismatch\n' \
+					"$required_series"
+				failed=1
+			fi
+		fi
+		if [ -n "$forbidden_series" ]; then
+			if list_has "$forbidden_series" "$series"; then
+				printf 'forbidden-kernel-series\t%s\tmatched\n' \
+					"$forbidden_series"
+				failed=1
+			else
+				printf 'forbidden-kernel-series\t%s\tabsent\n' \
+					"$forbidden_series"
+			fi
+		fi
 	} > "$report"
 	cat "$report"
 
@@ -699,21 +873,120 @@ matrix_identity_selftest()
 
 	CONFORMANCE_TARGET_REQUIRED_CONFIG='CONFIG_ROCKCHIP_MPP_REWRITE=y CONFIG_ROCKCHIP_RGA_REWRITE=y' \
 	CONFORMANCE_TARGET_FORBIDDEN_CONFIG='CONFIG_ROCKCHIP_MPP_SERVICE=y CONFIG_VIDEO_ROCKCHIP_RGA=y' \
+	CONFORMANCE_TARGET_REQUIRED_KERNEL_SERIES='' \
+	CONFORMANCE_TARGET_FORBIDDEN_KERNEL_SERIES='' \
 	CONFORMANCE_CONFIGURATION_REQUIRED_CONFIG='CONFIG_KASAN=y' \
 	CONFORMANCE_CONFIGURATION_FORBIDDEN_CONFIG='CONFIG_KCSAN=y' \
-	CONFORMANCE_KERNEL_CONFIG="$config_file" LOG_ROOT="$out" RUN_ID=good \
+	CONFORMANCE_KERNEL_CONFIG="$config_file" CONFORMANCE_KERNEL_RELEASE=6.18.38-ysp \
+		LOG_ROOT="$out" RUN_ID=good \
 		run_matrix_identity > /dev/null
 
 	if CONFORMANCE_TARGET_REQUIRED_CONFIG='CONFIG_ROCKCHIP_MPP_REWRITE=y CONFIG_ROCKCHIP_RGA_REWRITE=y' \
 		CONFORMANCE_TARGET_FORBIDDEN_CONFIG='' \
+		CONFORMANCE_TARGET_REQUIRED_KERNEL_SERIES='' \
+		CONFORMANCE_TARGET_FORBIDDEN_KERNEL_SERIES='' \
 		CONFORMANCE_CONFIGURATION_REQUIRED_CONFIG='CONFIG_KCSAN=y' \
 		CONFORMANCE_CONFIGURATION_FORBIDDEN_CONFIG='CONFIG_KASAN=y' \
-		CONFORMANCE_KERNEL_CONFIG="$config_file" LOG_ROOT="$out" RUN_ID=bad \
+		CONFORMANCE_KERNEL_CONFIG="$config_file" CONFORMANCE_KERNEL_RELEASE=6.18.38-ysp \
+		LOG_ROOT="$out" RUN_ID=bad \
 		run_matrix_identity > /dev/null 2>&1; then
 		printf 'matrix identity mismatch unexpectedly passed\n' >&2
 		return 1
 	fi
+	if CONFORMANCE_TARGET_REQUIRED_CONFIG='CONFIG_ROCKCHIP_MPP_REWRITE=y CONFIG_ROCKCHIP_RGA_REWRITE=y' \
+		CONFORMANCE_TARGET_FORBIDDEN_CONFIG='' \
+		CONFORMANCE_TARGET_REQUIRED_KERNEL_SERIES='5.10 6.1 6.6' \
+		CONFORMANCE_TARGET_FORBIDDEN_KERNEL_SERIES='' \
+		CONFORMANCE_CONFIGURATION_REQUIRED_CONFIG='CONFIG_KASAN=y' \
+		CONFORMANCE_CONFIGURATION_FORBIDDEN_CONFIG='CONFIG_KCSAN=y' \
+		CONFORMANCE_KERNEL_CONFIG="$config_file" CONFORMANCE_KERNEL_RELEASE=6.18.38-ysp \
+		LOG_ROOT="$out" RUN_ID=bad-series \
+		run_matrix_identity > /dev/null 2>&1; then
+		printf 'matrix kernel-series mismatch unexpectedly passed\n' >&2
+		return 1
+	fi
 	printf 'matrix identity selftest passed\n'
+}
+
+matrix_autodetect_selftest()
+{
+	local out="$CONFORMANCE_ROOT/build/harness-validation/matrix-autodetect"
+	local vendor_config="$out/vendor.config"
+	local rewrite_config="$out/rewrite.config"
+	local both_sanitizers_config="$out/both-sanitizers.config"
+	local release expected result
+
+	mkdir -p "$out"
+	{
+		printf 'CONFIG_ROCKCHIP_MPP_SERVICE=y\n'
+		printf 'CONFIG_VIDEO_ROCKCHIP_RGA=y\n'
+	} > "$vendor_config"
+	{
+		printf 'CONFIG_ROCKCHIP_MPP_REWRITE=y\n'
+		printf 'CONFIG_ROCKCHIP_RGA_REWRITE=y\n'
+		printf 'CONFIG_KASAN=y\n'
+	} > "$rewrite_config"
+	{
+		printf 'CONFIG_ROCKCHIP_MPP_SERVICE=y\n'
+		printf 'CONFIG_VIDEO_ROCKCHIP_RGA=y\n'
+		printf 'CONFIG_KASAN=y\n'
+		printf 'CONFIG_KCSAN=y\n'
+	} > "$both_sanitizers_config"
+
+	for release in 5.10.221-vendor 6.1.99-vendor 6.6.80-vendor; do
+		expected=bsp/production
+		result=$(
+			TARGET_ARG='' CONFIGURATION_ARG=''
+			CONFORMANCE_KERNEL_CONFIG="$vendor_config"
+			CONFORMANCE_KERNEL_RELEASE=$release
+			autodetect_matrix
+			printf '%s/%s\n' "$TARGET_ARG" "$CONFIGURATION_ARG"
+		) || return 1
+		if [ "$result" != "$expected" ]; then
+			printf 'autodetected %s as %s, expected %s\n' \
+				"$release" "$result" "$expected" >&2
+			return 1
+		fi
+	done
+
+	for release in 6.7.12-ysp 6.18.38-ysp 7.2.0-rc5-ysp; do
+		expected=forward-port/production
+		result=$(
+			TARGET_ARG='' CONFIGURATION_ARG=''
+			CONFORMANCE_KERNEL_CONFIG="$vendor_config"
+			CONFORMANCE_KERNEL_RELEASE=$release
+			autodetect_matrix
+			printf '%s/%s\n' "$TARGET_ARG" "$CONFIGURATION_ARG"
+		) || return 1
+		if [ "$result" != "$expected" ]; then
+			printf 'autodetected %s as %s, expected %s\n' \
+				"$release" "$result" "$expected" >&2
+			return 1
+		fi
+	done
+
+	result=$(
+		TARGET_ARG='' CONFIGURATION_ARG=''
+		CONFORMANCE_KERNEL_CONFIG="$rewrite_config"
+		CONFORMANCE_KERNEL_RELEASE=6.6.80-rewrite
+		autodetect_matrix
+		printf '%s/%s\n' "$TARGET_ARG" "$CONFIGURATION_ARG"
+	) || return 1
+	if [ "$result" != rewrite/kasan ]; then
+		printf 'rewrite/KASAN autodetection returned %s\n' "$result" >&2
+		return 1
+	fi
+
+	if (
+		TARGET_ARG='' CONFIGURATION_ARG=''
+		CONFORMANCE_KERNEL_CONFIG="$both_sanitizers_config"
+		CONFORMANCE_KERNEL_RELEASE=6.18.38-ysp
+		autodetect_matrix
+	) > /dev/null 2>&1; then
+		printf 'ambiguous sanitizer configuration unexpectedly autodetected\n' >&2
+		return 1
+	fi
+	printf 'matrix autodetection selftest passed\n'
 }
 
 run_counter_check()
@@ -1010,6 +1283,8 @@ run_comparators()
 
 run_validation()
 {
+	run_step "identity: validate matrix autodetection" matrix_autodetect_selftest
+
 	run_step "identity: validate matrix config gate" matrix_identity_selftest
 
 	run_step "counter defaults: validate wiring" validate_counter_defaults

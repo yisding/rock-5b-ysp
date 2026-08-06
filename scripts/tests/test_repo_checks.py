@@ -1756,7 +1756,14 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
 
     def run_plan(self, *arguments: str, env: dict[str, str] | None = None):
         command_env = os.environ.copy()
-        command_env.pop("PROFILE", None)
+        for variable in (
+            "PROFILE",
+            "CONFORMANCE_TARGET",
+            "CONFORMANCE_CONFIGURATION",
+            "CONFORMANCE_KERNEL_CONFIG",
+            "CONFORMANCE_KERNEL_RELEASE",
+        ):
+            command_env.pop(variable, None)
         if env:
             command_env.update(env)
         return subprocess.run(
@@ -1766,6 +1773,17 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
             capture_output=True,
             text=True,
         )
+
+    def run_auto_plan(self, release: str, *config: str):
+        with tempfile.TemporaryDirectory() as temporary:
+            config_file = Path(temporary) / "kernel.config"
+            config_file.write_text("\n".join(config) + "\n", encoding="utf-8")
+            return self.run_plan(
+                env={
+                    "CONFORMANCE_KERNEL_CONFIG": str(config_file),
+                    "CONFORMANCE_KERNEL_RELEASE": release,
+                }
+            )
 
     @staticmethod
     def selections(output: str) -> dict[str, str]:
@@ -1835,6 +1853,63 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("profile\trewrite-kcsan\n", result.stdout)
         self.assertIn("configuration\tkcsan\t", result.stdout)
+
+    def test_vendor_bsp_series_are_autodetected(self) -> None:
+        for release in ("5.10.221-vendor", "6.1.99-vendor", "6.6.80-vendor"):
+            with self.subTest(release=release):
+                result = self.run_auto_plan(
+                    release,
+                    "CONFIG_ROCKCHIP_MPP_SERVICE=y",
+                    "CONFIG_VIDEO_ROCKCHIP_RGA=y",
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("target\tbsp\t", result.stdout)
+                self.assertIn("configuration\tproduction\t", result.stdout)
+                self.assertIn("target-selection\tautodetected\n", result.stdout)
+
+    def test_other_vendor_series_are_forward_ports(self) -> None:
+        for release in ("6.7.12-ysp", "6.18.38-ysp", "7.2.0-rc5-ysp"):
+            with self.subTest(release=release):
+                result = self.run_auto_plan(
+                    release,
+                    "CONFIG_ROCKCHIP_MPP_SERVICE=y",
+                    "CONFIG_VIDEO_ROCKCHIP_RGA=y",
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("target\tforward-port\t", result.stdout)
+                self.assertIn("configuration\tproduction\t", result.stdout)
+
+    def test_rewrite_and_sanitizers_are_autodetected_from_kconfig(self) -> None:
+        rewrite = self.run_auto_plan(
+            "6.6.80-rewrite",
+            "CONFIG_ROCKCHIP_MPP_REWRITE=y",
+            "CONFIG_ROCKCHIP_RGA_REWRITE=y",
+            "CONFIG_KASAN=y",
+        )
+        self.assertEqual(rewrite.returncode, 0, rewrite.stderr)
+        self.assertIn("target\trewrite\t", rewrite.stdout)
+        self.assertIn("configuration\tkasan\t", rewrite.stdout)
+
+        kcsan = self.run_auto_plan(
+            "6.18.38-ysp",
+            "CONFIG_ROCKCHIP_MPP_SERVICE=y",
+            "CONFIG_VIDEO_ROCKCHIP_RGA=y",
+            "CONFIG_KCSAN=y",
+        )
+        self.assertEqual(kcsan.returncode, 0, kcsan.stderr)
+        self.assertIn("target\tforward-port\t", kcsan.stdout)
+        self.assertIn("configuration\tkcsan\t", kcsan.stdout)
+
+    def test_contradictory_sanitizer_config_fails_closed(self) -> None:
+        result = self.run_auto_plan(
+            "6.18.38-ysp",
+            "CONFIG_ROCKCHIP_MPP_SERVICE=y",
+            "CONFIG_VIDEO_ROCKCHIP_RGA=y",
+            "CONFIG_KASAN=y",
+            "CONFIG_KCSAN=y",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("cannot uniquely autodetect conformance configuration", result.stderr)
 
 
 class RewriteKunitSourceAuditTests(unittest.TestCase):

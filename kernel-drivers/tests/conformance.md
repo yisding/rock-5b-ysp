@@ -198,6 +198,9 @@ test.
 The standard catalog is intentionally identical across driver implementations:
 
 ```bash
+# On a booted board, autodetect target and instrumentation, then run.
+sudo ../rock-5b-ysp/kernel-drivers/tests/run-conformance.sh
+
 # Inspect the matrix cell first.
 ../rock-5b-ysp/kernel-drivers/tests/run-conformance.sh \
   --target forward-port --configuration production --plan
@@ -221,10 +224,13 @@ sudo ../rock-5b-ysp/kernel-drivers/tests/run-conformance.sh \
 then sequences system-info collection, normalized ABI replay, MPP, librga,
 GStreamer, and ffmpeg-rockchip for every target/configuration cell. Rewrite
 rows add KUnit and counter requirements; sanitizer-specific safety tests remain
-explicit opt-ins. Use `--only` for a focused run, `--skip` for a documented
-temporary omission, `--include rkmppenc` for the optional application suite,
-`--compare-to PROFILE` for comparators, and `--validate` for the device-free
-runner, ioctl-fuzzer build, direct
+explicit opt-ins. With no matrix selectors, rewrite/vendor Kconfig identifies
+the driver family, vendor kernels on 5.10/6.1/6.6 are classified as BSP and
+other vendor-kernel series as forward-port, and KASAN/KCSAN Kconfig selects the
+configuration independently. Use `--only` for a focused run, `--skip` for a
+documented temporary omission, `--include rkmppenc` for the optional application
+suite, `--compare-to PROFILE` for comparators, and `--validate` for the
+device-free runner, ioctl-fuzzer build, direct
 `librga` smoke build, optional GStreamer event-harness build, RGA IOMMU
 scatter-fuzzer build, recovery stress harness config validation,
 MPP/GStreamer case-builder validation, FFmpeg case-list validation, comparator

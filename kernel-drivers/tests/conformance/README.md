@@ -12,6 +12,9 @@ defines build instrumentation. The first-class entry point is
 [`../run-conformance.sh`](../run-conformance.sh):
 
 ```bash
+# On the board, autodetect both axes and run the standard set.
+sudo bash kernel-drivers/tests/run-conformance.sh
+
 # Inspect exactly what would run; this does not touch the board.
 bash kernel-drivers/tests/run-conformance.sh \
   --target bsp --configuration production --plan
@@ -39,12 +42,21 @@ matrix cell. `--compare-to PROFILE` compares every selected catalog row marked
 comparable. Sanitizer configurations disable timing thresholds unless the
 caller deliberately sets `PERF_MAX_RATIO`.
 
-The standard `matrix-identity` row reads `/boot/config-$(uname -r)` (override
-with `CONFORMANCE_KERNEL_CONFIG`) and requires the declared vendor/rewrite plus
-KASAN/KCSAN symbols while rejecting mutually exclusive symbols. BSP and
-forward-port share the vendor driver symbols, so their distinction comes from
-the package/boot identity captured by `system-info`; it cannot be inferred from
-Kconfig alone.
+With neither selector supplied, the harness reads
+`/boot/config-$(uname -r)` and autodetects both axes. Rewrite Kconfig selects
+the rewrite target. For vendor-driver Kconfig, kernel series 5.10, 6.1, and 6.6
+select BSP; every other series selects forward-port. `CONFIG_KASAN=y` selects
+KASAN, `CONFIG_KCSAN=y` selects KCSAN, and neither selects production. The
+descriptors own these predicates so autodetection and the standard
+`matrix-identity` row cannot drift. Explicit selectors remain supported and
+are verified against the same predicates before consumer workloads run.
+
+Set `CONFORMANCE_KERNEL_CONFIG` and `CONFORMANCE_KERNEL_RELEASE` to inspect a
+different boot artifact. `--target auto` and `--configuration auto` explicitly
+request detection of either axis. If a config is missing, contradictory, or
+matches more than one descriptor, the harness fails instead of guessing.
+Device-free `--validate` deliberately defaults to rewrite/production; an
+off-board `--plan` should provide both selectors or the two identity overrides.
 
 The bundle also owns pinned external sources, assets, and generated logs. The
 suite defaults use installed MPP and librga; pinned copies remain reconstructible
@@ -76,7 +88,8 @@ directories stay untracked by policy.
 
 `targets/*.env`
 : One descriptor per driver implementation. A target may set policy such as
-  rewrite counter requirements, but it does not encode sanitizer state.
+  rewrite counter requirements and kernel-series identity, but it does not
+  encode sanitizer state.
 
 `configurations/*.env`
 : One descriptor per instrumentation shape. Configuration suffixes create
