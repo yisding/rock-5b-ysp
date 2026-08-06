@@ -123,6 +123,13 @@ the intake file without a tombstone. Git history retains the discarded intake;
 the ordinary reader should reach the durable owner rather than a second
 chronology.
 
+An evidence bundle under `findings/evidence/` is temporary intake material and
+must have at least one active dated finding as an owner. When the last owning
+finding is promoted or removed, move still-useful artifacts into the durable
+project evidence owner or remove the bundle in the same change. The repository
+check enforces both this ownership boundary and the no-tombstone rule; it does
+not judge a finding by age.
+
 Small shared templates for a project front door, technical explanation,
 runbook, live plan, and dated audit live under
 [`docs/templates/`](docs/templates/README.md). They illustrate the common

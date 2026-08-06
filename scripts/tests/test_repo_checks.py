@@ -14,7 +14,11 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS))
 
-from repo_files import repository_markdown_files, repository_operational_files  # noqa: E402
+from repo_files import (  # noqa: E402
+    repository_files,
+    repository_markdown_files,
+    repository_operational_files,
+)
 
 
 def load_doc_checker():
@@ -139,6 +143,19 @@ class RepositoryMarkdownFilesTests(unittest.TestCase):
                 ["check.py", "tool.sh"],
             )
 
+    def test_all_file_inventory_excludes_ignored_material(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "--quiet", str(root)], check=True)
+            self.write(root, ".gitignore", "private/\n")
+            self.write(root, "public/result.txt", "public\n")
+            self.write(root, "private/result.txt", "private\n")
+
+            self.assertEqual(
+                [path.relative_to(root).as_posix() for path in repository_files(root)],
+                [".gitignore", "public/result.txt"],
+            )
+
 
 class DocumentationDuplicationReportTests(unittest.TestCase):
     def test_report_finds_all_four_informational_signal_types(self) -> None:
@@ -187,6 +204,52 @@ class DocumentationDuplicationReportTests(unittest.TestCase):
             report = DUPLICATION_REPORTER.build_report(root)
 
             self.assertEqual(report["summary"]["time_language_occurrences"], 0)
+
+    def test_owner_review_signals_remain_informational(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bundle = root / "findings" / "evidence" / "orphan"
+            bundle.mkdir(parents=True)
+            (bundle / "README.md").write_text(
+                "# Orphan\n\n[Promoted owner](../../../project.md)\n",
+                encoding="utf-8",
+            )
+            (root / "project.md").write_text("# Project\n", encoding="utf-8")
+            (root / "status.md").write_text(
+                "## Dashboard\n\n"
+                "| # | Track | State |\n"
+                "|---|-------|-------|\n"
+                "| 1 | Wide row | [A](a.md) [B](b.md) [C](c.md) [D](d.md) |\n"
+                "\n## Next gates\n",
+                encoding="utf-8",
+            )
+
+            report = DUPLICATION_REPORTER.build_report(root)
+
+            self.assertEqual(
+                report["summary"]["unowned_finding_evidence_bundles"], 1
+            )
+            self.assertEqual(report["summary"]["dashboard_rows_with_many_routes"], 1)
+            self.assertGreater(
+                report["summary"]["project_front_doors_with_brief_gaps"], 0
+            )
+
+    def test_owner_report_does_not_scan_ignored_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "--quiet", str(root)], check=True)
+            (root / ".gitignore").write_text(
+                "findings/evidence/private/\n", encoding="utf-8"
+            )
+            bundle = root / "findings" / "evidence" / "private"
+            bundle.mkdir(parents=True)
+            (bundle / "README.md").write_text("# Private\n", encoding="utf-8")
+
+            report = DUPLICATION_REPORTER.build_report(root)
+
+            self.assertEqual(
+                report["summary"]["unowned_finding_evidence_bundles"], 0
+            )
 
 
 class MarkdownLinkCheckerTests(unittest.TestCase):
@@ -1070,6 +1133,61 @@ class SubstantiveDriftTests(unittest.TestCase):
             errors: list[str] = []
 
             DOC_CHECKER.check_findings_topic_coverage(root, errors)
+
+            self.assertEqual(errors, [])
+
+    def test_findings_lifecycle_reports_tombstones_and_orphaned_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            findings = root / "findings"
+            evidence = findings / "evidence"
+            orphan = evidence / "orphan"
+            owned = evidence / "owned"
+            orphan.mkdir(parents=True)
+            owned.mkdir(parents=True)
+            (orphan / "README.md").write_text(
+                "# Orphan\n\n[Project](../../../project.md)\n", encoding="utf-8"
+            )
+            (owned / "README.md").write_text("# Owned\n", encoding="utf-8")
+            (owned / "result.txt").write_text("signal\n", encoding="utf-8")
+            (root / "project.md").write_text("# Project\n", encoding="utf-8")
+            (findings / "2026-01-01-live.md").write_text(
+                "# Live\n\n[Evidence](evidence/owned/result.txt)\n",
+                encoding="utf-8",
+            )
+            tombstone = findings / "2026-01-02-promoted.md"
+            tombstone.write_text(
+                "# Promoted\n\npromoted → project.md (2026-01-02)\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_findings_lifecycle(root, errors)
+
+            self.assertTrue(any("promotion tombstone" in error for error in errors))
+            self.assertTrue(
+                any(
+                    "evidence/orphan" in error and "no active owning" in error
+                    for error in errors
+                )
+            )
+            self.assertFalse(any("evidence/owned" in error for error in errors))
+
+    def test_findings_lifecycle_accepts_bundle_backlink_to_live_finding(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            findings = root / "findings"
+            bundle = findings / "evidence" / "owned"
+            bundle.mkdir(parents=True)
+            finding = findings / "2026-01-01-live.md"
+            finding.write_text("# Live\n", encoding="utf-8")
+            (bundle / "README.md").write_text(
+                "# Owned\n\n[Finding](../../2026-01-01-live.md)\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_findings_lifecycle(root, errors)
 
             self.assertEqual(errors, [])
 

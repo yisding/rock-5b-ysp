@@ -47,9 +47,11 @@ check_whitespace() {
 # first failure and silently skip the rest, which reports one problem per run
 # and hides the others -- the opposite of what a handoff gate is for.
 failed_stages=()
+stage_count=0
 run_stage() {
 	local name="$1"
 	shift
+	stage_count=$((stage_count + 1))
 	printf '%s\n' "$name"
 	if ! "$@"; then
 		failed_stages+=("$name")
@@ -62,6 +64,9 @@ run_stage 'Checking Markdown links and anchors...' \
 run_stage 'Running repository-check regression tests...' \
 	python3 -m unittest discover -s scripts/tests -p 'test_*.py'
 
+run_stage 'Reporting documentation ownership candidates (informational)...' \
+	python3 scripts/report-doc-duplication.py --summary "$ROOT"
+
 run_stage 'Checking maintained shell scripts...' check_shell_scripts
 
 run_stage 'Checking version pins, portable defaults, and index completeness...' \
@@ -70,7 +75,8 @@ run_stage 'Checking version pins, portable defaults, and index completeness...' 
 run_stage 'Checking unstaged, staged, and untracked whitespace...' check_whitespace
 
 if ((${#failed_stages[@]} > 0)); then
-	printf '\n%s of 5 repository check stages FAILED:\n' "${#failed_stages[@]}" >&2
+	printf '\n%s of %s repository check stages FAILED:\n' \
+		"${#failed_stages[@]}" "$stage_count" >&2
 	printf '  - %s\n' "${failed_stages[@]%%...}" >&2
 	exit 1
 fi

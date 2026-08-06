@@ -77,8 +77,9 @@ removal.
 
 Small text artifacts that materially improve active reproduction may live
 under the [`evidence/` hub](evidence/README.md). The bundle README records
-capture scope; the live finding owns interpretation and trust. Remove or move
-the bundle with its finding unless a named durable owner still needs it.
+capture scope; at least one live finding owns interpretation and trust. When
+the last owning finding leaves the inbox, move still-useful artifacts to that
+finding's durable project owner or remove the bundle in the same change.
 
 **Boundary vs [`status.md`](../status.md) watchlist:** the watchlist tracks
 *facts that go stale silently* (external PRs, distro versions, dev-box SPOFs).

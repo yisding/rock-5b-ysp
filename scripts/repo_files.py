@@ -5,8 +5,18 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from pathlib import Path
+from urllib.parse import unquote
+
+
+MARKDOWN_LINK_RE = re.compile(
+    r"!?\[[^\]\n]*(?:\][^\[\]\n]*)*\]\(([^\)\n]+)\)"
+)
+SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
+DATED_FINDING_RE = re.compile(r"20\d{2}-\d{2}-\d{2}-.+\.md")
+TOMBSTONE_RE = re.compile(r"^promoted → ", re.MULTILINE)
 
 
 def _git_files(root: Path, patterns: tuple[str, ...]) -> list[Path] | None:
@@ -106,6 +116,13 @@ def _walk_files(root: Path, suffixes: tuple[str, ...]) -> list[Path]:
     return sorted(files)
 
 
+def repository_files(root: Path) -> list[Path]:
+    """Return every tracked or non-ignored untracked repository file."""
+    root = root.resolve()
+    git_files = _git_files(root, ("*",))
+    return git_files if git_files is not None else _walk_files(root, ("",))
+
+
 def repository_markdown_files(root: Path) -> list[Path]:
     """Return tracked and non-ignored untracked Markdown files under root."""
     root = root.resolve()
@@ -135,3 +152,91 @@ def repository_documented_files(root: Path) -> list[Path]:
     git_files = _git_files(root, DOCUMENTED_PATTERNS)
     files = git_files if git_files is not None else _walk_files(root, DOCUMENTED_SUFFIXES)
     return [path for path in files if "debian" not in path.relative_to(root).parts]
+
+
+def local_markdown_targets(source: Path, root: Path) -> set[Path]:
+    """Resolve same-repository link targets from one Markdown document."""
+    targets: set[Path] = set()
+    text = source.read_text(encoding="utf-8", errors="replace")
+    for match in MARKDOWN_LINK_RE.finditer(text):
+        target = match.group(1).strip()
+        if target.startswith("<") and target.endswith(">"):
+            target = target[1:-1]
+        elif " " in target:
+            target = target.split()[0]
+        if not target or target.startswith("#") or SCHEME_RE.match(target):
+            continue
+
+        file_part = target.partition("#")[0]
+        if not file_part:
+            continue
+        candidate = (source.parent / unquote(file_part)).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            continue
+        if candidate.is_dir():
+            candidate /= "README.md"
+        targets.add(candidate)
+    return targets
+
+
+def finding_evidence_ownership(root: Path) -> dict[Path, set[Path]]:
+    """Map each temporary evidence bundle to its active dated finding owners.
+
+    Ownership may be declared in either useful direction: a live finding links
+    to material inside the bundle, or the bundle README links back to the live
+    finding. Project-only links do not keep material in the intake area alive.
+    """
+    root = root.resolve()
+    findings = root / "findings"
+    evidence = findings / "evidence"
+    if not evidence.is_dir():
+        return {}
+
+    maintained_files = {path.resolve() for path in repository_files(root)}
+    bundle_names = set()
+    for path in maintained_files:
+        try:
+            relative = path.relative_to(evidence.resolve())
+        except ValueError:
+            continue
+        if len(relative.parts) >= 2:
+            bundle_names.add(relative.parts[0])
+    bundles = sorted(
+        (evidence / name).resolve()
+        for name in bundle_names
+        if (evidence / name).is_dir()
+    )
+    ownership = {bundle: set() for bundle in bundles}
+    live_findings = {
+        path
+        for path in maintained_files
+        if path.parent == findings.resolve()
+        if DATED_FINDING_RE.fullmatch(path.name)
+        and not TOMBSTONE_RE.search(
+            path.read_text(encoding="utf-8", errors="replace")
+        )
+    }
+
+    by_name = {bundle.name: bundle for bundle in bundles}
+    for finding in live_findings:
+        for target in local_markdown_targets(finding, root):
+            try:
+                relative = target.relative_to(evidence.resolve())
+            except ValueError:
+                continue
+            if relative.parts and relative.parts[0] in by_name:
+                ownership[by_name[relative.parts[0]]].add(finding)
+
+    for bundle in bundles:
+        readme = bundle / "README.md"
+        if readme.resolve() not in maintained_files:
+            continue
+        ownership[bundle].update(
+            target
+            for target in local_markdown_targets(readme, root)
+            if target in live_findings
+        )
+
+    return ownership

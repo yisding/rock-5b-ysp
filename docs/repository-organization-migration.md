@@ -146,7 +146,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-40 | Project front doors, runbooks, plans, audits, and coverage | Each project README routes stable scope/boundary/model/operation; deep docs own mechanism; runbooks own commands; plans own future ladder; coverage owns scope/first missing evidence. | Activate one project/README at a time; preserve all headings/inbound links and nearest-README completeness. Security review when the project scope requires it. | CLOSED 2026-08-06 — taxonomy-defined project interfaces, packaging hub, operations, evidence routes, and compatibility headings handoff-gated. |
 | ORG-41 | Findings inbox promotion | Existing project/runbook/test/catalog/package owners absorb useful evidence; findings index retains deposit guidance and views of live intake only. No tombstones or permanent `findings/evidence/` archive. | Exact inbound links, generated chronology, curated topic row/count, status citations; update findings checks atomically. Security review for every kernel safety/upstream finding. | CLOSED 2026-08-06 — all 188 baseline findings classified; 72 promoted/obsolete intake files removed and 116 live evidence owners retained. |
 | ORG-50 | Root and work-package navigation | Root README owns short task router; `work-packages.md` owns taxonomy/reading paths; project READMEs own local routes. | Root/category/project links and representative journeys; Markdown link/anchor and nearest-README checks. Security: not applicable unless content moves. | CLOSED 2026-08-06 — root routes common tasks, the work-package map owns taxonomy/reading paths, and successor anchors preserve inbound links. |
-| ORG-60 | Tune reporting and add targeted enforcement | Informational report owns broad candidates; structured checks own only proven high-risk assertions and retired-ID/finding-evidence invariants. | `check-repo.sh` remains sole gate; reporter/tests/check-doc-consistency/CI docs updated together. Security: reporting must not expose ignored/private material. | PLANNED; baseline false positives need classification. |
+| ORG-60 | Tune reporting and add targeted enforcement | Informational report owns broad candidates; structured checks own only proven high-risk assertions and retired-ID/finding-evidence invariants. | `check-repo.sh` remains sole gate; reporter/tests/check-doc-consistency/CI docs updated together. Security: reporting must not expose ignored/private material. | CLOSED 2026-08-06 — owner candidates are reported in the sole gate; tombstones and maintained evidence bundles without a live finding owner are blocked. |
 | ORG-99 | Remove temporary migration state | Lasting rules/risks/exceptions live in `CONTRIBUTING.md` or owning docs; proposal may be frozen/retired as decided. Remove this ledger only after all prior rows close. | All inbound ledger/proposal links and full completion audit; full handoff gate. Security review of final diff/history references. | PLANNED. |
 
 ## Active records
@@ -1007,3 +1007,40 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 - **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
   2026-08-06 across 368 Markdown files, 3,434 local links, 496 anchors, all 62
   regression tests, ShellCheck, documentation consistency, and whitespace.
+
+### ORG-60 — informational reporting and targeted invariants
+
+- **Gate integration:** `check-repo.sh` remains the single handoff command and
+  now prints the bounded owner-review summary on every run. Candidate counts do
+  not determine its exit status; a reporter execution failure is still visible
+  like any other broken repository tool.
+- **Tuned signals:** the broad sentence, normalized-paragraph, repeated-literal,
+  and time-language signals remain review aids. The report now also lists
+  temporary finding-evidence bundles without a live owner, dashboard rows with
+  four or more routes, and taxonomy-defined project front doors missing a
+  brief concept.
+- **False-positive classification:** the current report has no unowned
+  maintained evidence bundle and no dashboard row above the route threshold.
+  Four front doors are useful review candidates, not defects: libmpp and
+  FFmpeg route evidence outside the brief table, VA-API expresses developer
+  scope through its architecture/consumer sections, and Mesa expresses runtime
+  prerequisites through its validation and reproducer routes. Their tailored
+  interfaces remain preferable to inserting empty or duplicate fields.
+- **Blocking boundary:** only two newly proven lifecycle assertions block:
+  promoted findings leave no tombstone, and every non-ignored maintained bundle
+  under `findings/evidence/` has an active dated finding owner. Ownership may be
+  expressed by the finding linking bundle material or the bundle linking its
+  finding; project-only ownership requires moving the bundle out of intake.
+  Finding age, prose similarity, route count, and brief wording do not block.
+- **Security review:** the shared inventory discovers only Git-tracked or
+  non-ignored untracked files, and regression coverage proves ignored evidence
+  is not scanned or named. The report does not traverse the sibling private
+  repository or generated/ignored trees.
+- **Baseline after tuning:** 11 identical-long-sentence groups, 3 similar
+  paragraph pairs, 443 repeated version/SHA literals, and 848 time-language
+  occurrences in 169 files remain informational. The targeted counts are zero
+  unowned bundles, zero wide dashboard rows, and four classified brief gaps.
+- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
+  2026-08-06 across 368 Markdown files, 3,434 local links, 496 anchors, all 67
+  regression tests, the informational owner report, ShellCheck, documentation
+  consistency, and whitespace.

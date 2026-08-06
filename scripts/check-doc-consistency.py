@@ -7,7 +7,8 @@ Deliberately excludes documentation-formatting pedantry (finding headers,
 dashboard/ledger date-matching, support-coverage schema, project-brief fields,
 terminology). It reports only things that break navigation or ship wrong bits:
 files no README names, unlinked/dangling findings, a findings index that is not
-newest-first, live watchlist halves that are missing, lack an external
+newest-first, promotion tombstones or temporary evidence bundles without a
+live finding owner, live watchlist halves that are missing, lack an external
 authority/recheck/freshness contract, or disagree on name/last-checked date,
 retired watchlist details without a disposition,
 ledger tracks missing from or named differently than the dashboard, status
@@ -23,10 +24,12 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
-from urllib.parse import unquote
 
 from repo_files import (
+    finding_evidence_ownership,
+    local_markdown_targets,
     repository_documented_files,
+    repository_files,
     repository_markdown_files,
     repository_operational_files,
     tracked_file_modes,
@@ -59,8 +62,6 @@ WATCH_RETIRED_RE = re.compile(
 )
 ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TRACK_ROW_RE = re.compile(r"^\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|")
-MARKDOWN_LINK_RE = re.compile(r"!?\[[^\]\n]*(?:\][^\[\]\n]*)*\]\(([^\)\n]+)\)")
-SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
 PERSONAL_HOME_DEFAULT_RE = re.compile(
     r"(?:^[A-Z][A-Z0-9_]*=[\"']?/(?:home|Users)/|"
     r"\$\{[A-Za-z_][A-Za-z0-9_]*:-[\"']?/(?:home|Users)/)"
@@ -196,8 +197,8 @@ def check_findings_topic_coverage(root: Path, errors: list[str]) -> None:
     curated -- which is the point, since a machine cannot tell that a dma-buf
     oops filed under GRD is really a memory-plumbing finding -- but that makes it
     the half that silently rots. Enforcing coverage keeps the curation honest
-    without dictating which group a finding lands in. Tombstones are excluded:
-    they are pointers to a promoted target, and the chronology still lists them.
+    without dictating which group a finding lands in. Tombstones are excluded
+    defensively here and rejected outright by the lifecycle check below.
     """
     findings = root / "findings"
     readme = findings / "README.md"
@@ -267,6 +268,31 @@ def check_findings_topic_coverage(root: Path, errors: list[str]) -> None:
             f"findings/README.md: {name} is in no topic group; add it to the "
             "by-subsystem index so the finding is reachable by layer"
         )
+
+
+def check_findings_lifecycle(root: Path, errors: list[str]) -> None:
+    """Forbid promotion tombstones and orphaned temporary evidence bundles."""
+    findings = root / "findings"
+    for path in repository_markdown_files(root):
+        if path.parent != findings or not FINDING_NAME_RE.fullmatch(path.name):
+            continue
+        if TOMBSTONE_RE.search(path.read_text(encoding="utf-8", errors="replace")):
+            errors.append(
+                f"{path.relative_to(root)}: promotion tombstone must be replaced "
+                "by migrated inbound links and deletion"
+            )
+
+    maintained_files = {path.resolve() for path in repository_files(root)}
+    for bundle, owners in finding_evidence_ownership(root).items():
+        relative = bundle.relative_to(root)
+        if (bundle / "README.md").resolve() not in maintained_files:
+            errors.append(f"{relative}: evidence bundle has no README.md")
+        if not owners:
+            errors.append(
+                f"{relative}: temporary evidence bundle has no active owning "
+                "dated finding; move promoted material to its project owner or "
+                "remove it"
+            )
 
 
 def check_watchlist_pairing(root: Path, errors: list[str]) -> None:
@@ -745,33 +771,6 @@ def check_readme_ownership(root: Path, errors: list[str]) -> None:
             )
 
 
-def _readme_link_targets(readme: Path, root: Path) -> set[Path]:
-    """Resolve local Markdown file/directory links from one README."""
-    targets: set[Path] = set()
-    text = readme.read_text(encoding="utf-8", errors="replace")
-    for match in MARKDOWN_LINK_RE.finditer(text):
-        target = match.group(1).strip()
-        if target.startswith("<") and target.endswith(">"):
-            target = target[1:-1]
-        elif " " in target:
-            target = target.split()[0]
-        if not target or target.startswith("#") or SCHEME_RE.match(target):
-            continue
-
-        file_part = target.partition("#")[0]
-        if not file_part:
-            continue
-        candidate = (readme.parent / unquote(file_part)).resolve()
-        try:
-            candidate.relative_to(root)
-        except ValueError:
-            continue
-        if candidate.is_dir():
-            candidate /= "README.md"
-        targets.add(candidate)
-    return targets
-
-
 def check_readme_navigation(root: Path, errors: list[str]) -> None:
     """Every nested README is linked from its nearest ancestor README."""
     for readme in repository_markdown_files(root):
@@ -797,7 +796,7 @@ def check_readme_navigation(root: Path, errors: list[str]) -> None:
         if owner is None:
             errors.append(f"{relative}: no ancestor README.md links this front door")
             continue
-        if readme.resolve() not in _readme_link_targets(owner, root):
+        if readme.resolve() not in local_markdown_targets(owner, root):
             errors.append(
                 f"{relative}: not linked from its nearest ancestor README "
                 f"({owner.relative_to(root)})"
@@ -856,6 +855,7 @@ def main() -> int:
     check_readme_navigation(root, errors)
     check_findings_index(root, errors)
     check_findings_topic_coverage(root, errors)
+    check_findings_lifecycle(root, errors)
     check_watchlist_pairing(root, errors)
     check_status_ledger_tracks(root, errors)
     check_status_table_layout(root, errors)

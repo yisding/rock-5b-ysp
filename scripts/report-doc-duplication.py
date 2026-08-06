@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Report likely competing documentation owners without failing the handoff gate.
 
-This is a deliberately broad migration aid.  Its output is evidence for human
+This is a deliberately broad review aid.  Its output is evidence for human
 review, not a score and not proof that a duplicate is wrong.  Keep blocking
 owner checks in check-doc-consistency.py, where each assertion has a known
 canonical owner.
@@ -18,7 +18,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import NamedTuple
 
-from repo_files import repository_markdown_files
+from repo_files import finding_evidence_ownership, repository_markdown_files
 
 
 LINK_RE = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
@@ -33,6 +33,36 @@ VERSION_RE = re.compile(
 )
 DATE_RE = re.compile(r"\b20\d{2}-\d{2}-\d{2}\b")
 CURRENT_RE = re.compile(r"\b(?:current(?:ly)?|as\s+of)\b", re.IGNORECASE)
+DASHBOARD_ROW_RE = re.compile(r"^\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|")
+LINK_TARGET_RE = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
+
+PROJECT_FRONT_DOORS = (
+    "boot-firmware/README.md",
+    "kernel-versions/README.md",
+    "kernel-drivers/README.md",
+    "kernel-drivers/mpp/README.md",
+    "kernel-drivers/iep2/README.md",
+    "kernel-drivers/rga/README.md",
+    "kernel-drivers/av1/README.md",
+    "kernel-drivers/iommu/README.md",
+    "kernel-drivers/rknpu/README.md",
+    "vendor-libraries/README.md",
+    "vendor-libraries/mpp/README.md",
+    "vendor-libraries/rga/README.md",
+    "video-libraries/ffmpeg/README.md",
+    "video-libraries/vaapi/README.md",
+    "video-libraries/mesa/README.md",
+    "apps/gnome-remote-desktop/README.md",
+    "apps/kodi/README.md",
+    "packaging/README.md",
+)
+PROJECT_BRIEF_CONCEPTS = {
+    "purpose/user outcome": ("| Purpose |", "| User outcome |"),
+    "developer focus": ("| Developer focus |",),
+    "owns": ("| Owns |",),
+    "depends on": ("| Depends on |",),
+    "evidence boundary": ("| Evidence boundary |", "| Does not own |"),
+}
 
 # These files describe the organization contract rather than a mutable product
 # assertion.  Dated findings/audits and status caches are legitimate owners of
@@ -301,6 +331,70 @@ def find_time_language(root: Path, paths: list[Path]) -> list[dict[str, object]]
     return findings
 
 
+def find_unowned_finding_evidence(root: Path) -> list[dict[str, object]]:
+    return [
+        {"path": bundle.relative_to(root.resolve()).as_posix()}
+        for bundle, owners in finding_evidence_ownership(root).items()
+        if not owners
+    ]
+
+
+def find_dashboard_route_candidates(root: Path) -> list[dict[str, object]]:
+    """Report dashboard rows with many destinations for human boundary review."""
+    status = root / "status.md"
+    if not status.is_file():
+        return []
+
+    candidates = []
+    in_dashboard = False
+    for line_number, line in enumerate(
+        status.read_text(encoding="utf-8", errors="replace").splitlines(), start=1
+    ):
+        if line == "## Dashboard":
+            in_dashboard = True
+            continue
+        if in_dashboard and line.startswith("## "):
+            break
+        if not in_dashboard or not (row := DASHBOARD_ROW_RE.match(line)):
+            continue
+        routes = sorted(
+            {
+                target.strip().partition("#")[0]
+                for target in LINK_TARGET_RE.findall(line)
+                if target.strip().partition("#")[0]
+            }
+        )
+        if len(routes) >= 4:
+            candidates.append(
+                {
+                    "track": int(row.group(1)),
+                    "name": clean_markdown(row.group(2)),
+                    "line": line_number,
+                    "routes": routes,
+                }
+            )
+    return candidates
+
+
+def find_project_brief_gaps(root: Path) -> list[dict[str, object]]:
+    """Report missing interface concepts without enforcing one wording/style."""
+    gaps = []
+    for relative in PROJECT_FRONT_DOORS:
+        path = root / relative
+        if not path.is_file():
+            gaps.append({"path": relative, "missing": ["front door"]})
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        missing = [
+            concept
+            for concept, markers in PROJECT_BRIEF_CONCEPTS.items()
+            if not any(marker in text for marker in markers)
+        ]
+        if missing:
+            gaps.append({"path": relative, "missing": missing})
+    return gaps
+
+
 def build_report(root: Path) -> dict[str, object]:
     root = root.resolve()
     paths = repository_markdown_files(root)
@@ -316,6 +410,9 @@ def build_report(root: Path) -> dict[str, object]:
         "similar_paragraphs": find_similar_paragraphs(blocks),
         "repeated_literals": find_repeated_literals(blocks),
         "time_language": find_time_language(root, paths),
+        "unowned_finding_evidence": find_unowned_finding_evidence(root),
+        "dashboard_route_candidates": find_dashboard_route_candidates(root),
+        "project_brief_gaps": find_project_brief_gaps(root),
     }
     report["summary"] = {
         "identical_long_sentence_groups": len(report["identical_long_sentences"]),
@@ -325,6 +422,13 @@ def build_report(root: Path) -> dict[str, object]:
         "time_language_files": len(
             {item["path"] for item in report["time_language"]}
         ),
+        "unowned_finding_evidence_bundles": len(
+            report["unowned_finding_evidence"]
+        ),
+        "dashboard_rows_with_many_routes": len(
+            report["dashboard_route_candidates"]
+        ),
+        "project_front_doors_with_brief_gaps": len(report["project_brief_gaps"]),
     }
     return report
 
@@ -348,6 +452,18 @@ def print_text(report: dict[str, object], *, max_items: int, summary_only: bool)
         f"{summary['time_language_occurrences']} occurrences in "
         f"{summary['time_language_files']} files"
     )
+    print(
+        "Finding-evidence bundles without a live owner: "
+        f"{summary['unowned_finding_evidence_bundles']}"
+    )
+    print(
+        "Dashboard rows with four or more routes: "
+        f"{summary['dashboard_rows_with_many_routes']}"
+    )
+    print(
+        "Project front doors with brief-concept gaps: "
+        f"{summary['project_front_doors_with_brief_gaps']}"
+    )
     if summary_only:
         return
 
@@ -356,6 +472,9 @@ def print_text(report: dict[str, object], *, max_items: int, summary_only: bool)
         ("Highly similar paragraphs", "similar_paragraphs"),
         ("Repeated version/SHA literals", "repeated_literals"),
         ("Current/as-of language", "time_language"),
+        ("Unowned finding-evidence bundles", "unowned_finding_evidence"),
+        ("Dashboard rows with many routes", "dashboard_route_candidates"),
+        ("Project brief concept gaps", "project_brief_gaps"),
     )
     for title, key in sections:
         items = report[key]
@@ -378,7 +497,17 @@ def print_text(report: dict[str, object], *, max_items: int, summary_only: bool)
                 )
                 print(f"- {item['kind']} {item['literal']}: {refs}")
             else:
-                print(f"- {item['path']}:{item['line']} :: {item['text']}")
+                if key == "time_language":
+                    print(f"- {item['path']}:{item['line']} :: {item['text']}")
+                elif key == "unowned_finding_evidence":
+                    print(f"- {item['path']}")
+                elif key == "dashboard_route_candidates":
+                    print(
+                        f"- status.md:{item['line']} track {item['track']} "
+                        f"{item['name']}: {len(item['routes'])} routes"
+                    )
+                else:
+                    print(f"- {item['path']}: missing {', '.join(item['missing'])}")
 
 
 def main() -> int:

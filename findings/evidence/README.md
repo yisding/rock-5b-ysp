@@ -14,6 +14,6 @@ build output remain outside Git.
 | [`2026-08-01-armbian-default-tcp-cubic/`](2026-08-01-armbian-default-tcp-cubic/README.md) | [Armbian's reno default](../2026-08-01-armbian-rockchip64-defaults-tcp-reno.md) | Upstream-bound patch restoring CUBIC across nine kernel configs, with its Kconfig-resolution verification |
 
 Evidence belongs here only when committing the small text artifact materially
-improves reproducibility. The owning dated finding interprets it during intake;
-after promotion, the bundle links directly to the project document that owns
-the durable conclusion.
+improves reproducibility. At least one active dated finding interprets every
+bundle during intake. When the last owner leaves the inbox, move still-useful
+material to the project evidence owner or remove it in the same change.
