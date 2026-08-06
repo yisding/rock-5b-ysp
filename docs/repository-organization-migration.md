@@ -144,7 +144,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-34 | FFmpeg validation and branch state | Remote owns moving tip; build script owns intended package input; immutable comparison pins stay in source map; project docs own measured conclusions; status/W05 own verdict/publication. | FFmpeg README/docs/findings, W04/W05/W07/W21, status track 5, PPA installer/build/checker. Security: review public fix inventory versus private submission plan. | CLOSED 2026-08-05 — evidence scorecard, frozen audits/replays, mutable-state routing, and full handoff gate complete. |
 | ORG-35 | GNOME Remote Desktop validation and branch state | Remote owns branch tip; build script owns package input; project docs own design/test conclusions; status/W05 own verdict/publication. | GRD README/docs/findings, status track 7, W05/W10, PPA and GRD pin checker. Security: review public fix inventory versus private submission plan. | CLOSED 2026-08-05 — application scorecard, compact front door, frozen replay, mutable-state routes, and full handoff gate complete. |
 | ORG-40 | Project front doors, runbooks, plans, audits, and coverage | Each project README routes stable scope/boundary/model/operation; deep docs own mechanism; runbooks own commands; plans own future ladder; coverage owns scope/first missing evidence. | Activate one project/README at a time; preserve all headings/inbound links and nearest-README completeness. Security review when the project scope requires it. | CLOSED 2026-08-06 — taxonomy-defined project interfaces, packaging hub, operations, evidence routes, and compatibility headings handoff-gated. |
-| ORG-41 | Findings inbox promotion | Existing project/runbook/test/catalog/package owners absorb useful evidence; findings index retains deposit guidance and views of live intake only. No tombstones or permanent `findings/evidence/` archive. | Exact inbound links, generated chronology, curated topic row/count, status citations; update findings checks atomically. Security review for every kernel safety/upstream finding. | ACTIVE 2026-08-05 — all 22 legacy promotion tombstones removed; owner-based live-intake review remains. |
+| ORG-41 | Findings inbox promotion | Existing project/runbook/test/catalog/package owners absorb useful evidence; findings index retains deposit guidance and views of live intake only. No tombstones or permanent `findings/evidence/` archive. | Exact inbound links, generated chronology, curated topic row/count, status citations; update findings checks atomically. Security review for every kernel safety/upstream finding. | CLOSED 2026-08-06 — all 188 baseline findings classified; 72 promoted/obsolete intake files removed and 116 live evidence owners retained. |
 | ORG-50 | Root and work-package navigation | Root README owns short task router; `work-packages.md` owns taxonomy/reading paths; project READMEs own local routes. | Root/category/project links and representative journeys; Markdown link/anchor and nearest-README checks. Security: not applicable unless content moves. | PLANNED after canonical owners stabilize. |
 | ORG-60 | Tune reporting and add targeted enforcement | Informational report owns broad candidates; structured checks own only proven high-risk assertions and retired-ID/finding-evidence invariants. | `check-repo.sh` remains sole gate; reporter/tests/check-doc-consistency/CI docs updated together. Security: reporting must not expose ignored/private material. | PLANNED; baseline false positives need classification. |
 | ORG-99 | Remove temporary migration state | Lasting rules/risks/exceptions live in `CONTRIBUTING.md` or owning docs; proposal may be frozen/retired as decided. Remove this ledger only after all prior rows close. | All inbound ledger/proposal links and full completion audit; full handoff gate. Security review of final diff/history references. | PLANNED. |
@@ -945,6 +945,38 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   firmware, pstore, and kernel-generation evidence. It adds no hostile or
   memory-corruption reproducer, disclosure/CVE coordination, upstream
   destination/order, or send/withhold decision.
+- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
+  2026-08-06 across 368 Markdown files, 3,442 local links, 498 anchors, all 62
+  regression tests, ShellCheck, documentation consistency, and whitespace.
+
+#### Remaining-live-inbox classification and ORG-41 closure
+
+- **Complete owner review:** every one of the 116 remaining dated findings was
+  reviewed by owner group; 19 are direct dashboard evidence or action routes.
+  Boot-chain, boot-hang, board-platform, ramoops, IEP2, mainline/maxline,
+  application, and packaging findings retain exact current hardware gates,
+  artifact/source provenance, external-state checks, or unrun qualification
+  that has no equivalent durable owner yet.
+- **Kernel evidence disposition:** forward-port, RGA, rewrite-driver,
+  rewrite-KUnit, and dma-buf findings remain primary patch-level fault,
+  lifetime, safety, and qualification evidence. Their project docs own the
+  accumulated model and verdict, but compressing these files now would discard
+  exact counterexamples, negative boundaries, or the next discriminating test.
+  They continue through the ordinary intake lifecycle as their gates close.
+- **Evidence-bundle disposition:** every bundle under `findings/evidence/` is
+  owned by at least one retained live finding. Promoted-only GRD evidence moved
+  to its project owner; no tombstone, orphaned bundle, or permanent promoted
+  findings archive remains.
+- **Public/private review:** retained kernel findings contain public technical
+  results and bounded test operations only. This review adds no working hostile
+  or memory-corruption trigger, disclosure/CVE coordination, upstream
+  destination or ordering, send/withhold decision, private harness, or private
+  repository route. Patch-level files were retained rather than flattened
+  where promotion could blur that boundary.
+- **Result:** the baseline live-plus-tombstone inventory fell from 188 to 116
+  dated findings, a reduction of 72. Closure means every baseline file has a
+  named disposition and the remaining files are live evidence owners; it does
+  not freeze the inbox or exempt future findings from promotion and deletion.
 - **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
   2026-08-06 across 368 Markdown files, 3,442 local links, 498 anchors, all 62
   regression tests, ShellCheck, documentation consistency, and whitespace.
