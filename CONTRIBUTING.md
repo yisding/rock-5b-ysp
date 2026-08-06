@@ -198,6 +198,8 @@ checks substantive drift and completeness only:
   stated count matches its rows, and no group lists a tombstone or a file that
   does not exist — the topic index is curated, so only its coverage is checked,
   never which group a finding belongs to;
+- no dated finding is a promotion tombstone, and every maintained bundle under
+  `findings/evidence/` has an active dated finding owner;
 - each live `W##` watchlist entry has both halves agreeing on item name and
   last-checked date plus recognized authority, recheck, and freshness fields,
   while each retired ID has no live index row and retains a dated disposition
@@ -322,10 +324,8 @@ symptom
 ```
 
 The dated finding owns the exact experiment and trust tags. The stable project
-doc owns the maintained mechanism. Curate an
-[investigation trail](findings/README.md#reconstruct-an-investigation) only for
-a recurring thread whose turning points are otherwise hard to recover; ordinary
-findings stay in the generated chronology.
+doc owns the maintained mechanism and any useful causal chain. Findings remain
+a live intake view; use Git history only when the evolution itself matters.
 
 For every experiment-to-conclusion write-up, preserve enough of this chain to
 audit the claim:

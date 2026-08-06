@@ -1,12 +1,34 @@
 # Proposal: make the repository easier to read, navigate, and maintain
 
-> **Status:** draft for discussion, 2026-08-05
+> **Status:** implemented and retired, 2026-08-06
 >
 > **Scope:** documentation and evidence organization in `rock-5b-ysp`
 >
-> **Authority:** this is a proposal, not the current repository contract.
-> [`CONTRIBUTING.md`](../CONTRIBUTING.md) remains authoritative until a later
-> change explicitly adopts parts of this proposal.
+> **Authority:** this is the historical design and completion record, not the
+> current repository contract. [`CONTRIBUTING.md`](../CONTRIBUTING.md) and the
+> named project/status/package owners are authoritative.
+
+## Implementation outcome
+
+The proposal was executed in handoff-gated slices from baseline commit
+`a6f9d05ff389b1f11b0c28efb2e7f1f3ddbb5831`. The final organization has one
+compact root task router, one detailed work-package map, project-local front
+doors, direct dashboard evidence/action routes, a source map limited to
+identity and reconstruction, and a live findings inbox with no promotion
+tombstones. Useful observations moved into project, package, runbook, test, or
+status owners; temporary promoted evidence moved with them.
+
+The baseline 430-Markdown/188-finding inventory finishes at 367 maintained
+Markdown files and 116 live dated findings. All five maintained
+`findings/evidence/` bundles have an active finding owner. The informational
+owner report runs inside the sole handoff gate, while structured checks block
+only proven high-risk owner drift and lifecycle violations. The temporary
+migration ledger was removed after every slice closed; Git history retains its
+per-slice mappings, reader replays, security reviews, and validation records.
+The final `bash scripts/check-repo.sh` handoff gate passed on 2026-08-06 across
+367 Markdown files, 3,431 local links, 495 anchors, all 67 regression tests,
+the informational owner report, ShellCheck, documentation consistency, and
+whitespace.
 
 ## Executive proposal
 
