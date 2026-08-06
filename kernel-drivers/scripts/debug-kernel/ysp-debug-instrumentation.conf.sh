@@ -38,6 +38,25 @@ function custom_kernel_config__rock5b_hard_reboot_debug() {
 	opts_val["DEFAULT_HUNG_TASK_TIMEOUT"]="60"
 	opts_val["RCU_CPU_STALL_TIMEOUT"]="21"
 
+	# Stalls DO panic, unlike the oops policy above, and the difference is
+	# deliberate. "Let the board stay up and capture it live" only works if
+	# userspace exists: kunit_run_all_tests() runs in kernel_init_freeable()
+	# *before* wait_for_initramfs(), and CONFIG_DRM_ROCKCHIP=m, so a stall in a
+	# boot-time KUnit case has no journald and no HDMI to report through, and a
+	# hang raises no kmsg_dump either. That is a board that is simply dead with
+	# zero trace -- measured 2026-08-05 on the rewrite RGA fd-zero wedge, and
+	# again on the 2026-07-29 conformance run. Panicking at least puts the stuck
+	# task and its stack on ttyS2 and lets panic=10 reboot into something
+	# debuggable. Override per boot with sysctl.kernel.hung_task_panic=0 /
+	# sysctl.kernel.softlockup_panic=0 on the kernel command line if a long
+	# KASAN-slowed D-state wait turns out to trip the 60 s threshold.
+	# HARDLOCKUP is left reporting-only: it fires with interrupts disabled,
+	# where a KASAN debug kernel is most likely to be merely slow.
+	opts_y+=(
+		"BOOTPARAM_HUNG_TASK_PANIC"
+		"BOOTPARAM_SOFTLOCKUP_PANIC"
+	)
+
 	# Exercise allocation and usercopy recovery paths deterministically from the
 	# bounded ioctl-fuzz harness. Keep these built in with the other detectors.
 	opts_y+=(

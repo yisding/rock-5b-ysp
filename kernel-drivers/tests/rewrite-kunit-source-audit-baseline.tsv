@@ -162,6 +162,7 @@ fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_
 fd-acquisition	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_kunit_dmabuf_fd	1	fd = dma_buf_fd(dmabuf, O_CLOEXEC);
 fd-acquisition	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_kunit_dmabuf_fd	1	reserved_fd = get_unused_fd_flags(O_CLOEXEC);
 fd-acquisition	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_kunit_install_fence_fd	1	fd = rk_rga_fence_create_fd(fence, &sync_file);
+fd-acquisition	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_kunit_install_fence_fd	1	reserved_fd = get_unused_fd_flags(O_CLOEXEC);
 fd-acquisition	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_release_fence_fd_state_kunit	1	fd = rk_rga_fence_create_fd(fence, &sync_file);
 fd-acquisition	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_release_fence_fd_state_kunit	2	fd = rk_rga_fence_create_fd(fence, &sync_file);
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_core_identity_kunit	1	list_add_tail(&dec0->link, &srv->hw_list);
