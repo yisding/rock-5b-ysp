@@ -11,6 +11,12 @@
 > **ROOT-CAUSED** / **FIX-COMPILE-VERIFIED** / **PACKAGE-BUILD-VERIFIED** /
 > **PARTIAL**
 
+> **Follow-up 2026-08-05:** `Pc86b-Cad24` booted and confirmed the USERPTR
+> segment-size repair: the 17 oversized USERPTR SWIOTLB failures disappeared.
+> The corrected suite then isolated a plain-system-heap DMA-BUF failure and a
+> separate RGA2 USERPTR page-offset mechanism, fixed only in newer unbooted
+> tips. See the [RGA2 bounce follow-up](2026-08-05-rewrite-rga2-dmabuf-userptr-bounce-followup.md).
+
 ## Result
 
 The first current-tip hardware run materially improves the rewrite evidence but
