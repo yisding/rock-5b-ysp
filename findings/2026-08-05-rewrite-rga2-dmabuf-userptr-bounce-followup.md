@@ -5,17 +5,20 @@
 > `20260805-190822-librga-suite`; fixed 6.18 `571e261b26f79` and mainline
 > `5db5ddf046825`; `drivers/video/rockchip/rga-rewrite/rga_rewrite.c`
 > `rk_rga_job_map_import()`, `rk_rga_hw_dispatch()`, and
-> `rk_rga_hw_probe()`
+> `rk_rga_hw_probe()`; exact-tip 6.18 package `P49e6-Cad24`
 > Date: 2026-08-05
 > Trust: **MEASURED** / **SOURCE-INSPECTED** / **ROOT-CAUSED** /
-> **FIX-COMPILE-VERIFIED** / **INFERRED** / **PARTIAL**
+> **FIX-COMPILE-VERIFIED** / **PACKAGE-VERIFIED** / **INFERRED** /
+> **PARTIAL**
 
 ## Result
 
 The repaired `df22eeef8757` KASAN package boots and passes the exact 92 MPP +
 152 RGA KUnit manifest with live lockdep. Its official MPP suite passes all 12
 required cases. The corrected librga wrapper records **21/34 required
-cases passing**. This materially narrows the earlier SWIOTLB diagnosis:
+cases passing**. The successor exact-tip `571e261b26f79` KASAN package is now
+built and package-inspected but remains uninstalled and unbooted. This
+materially narrows the earlier SWIOTLB diagnosis:
 
 - the USERPTR SG-size cap is runtime-confirmed. The prior run emitted 17
   416-KiB, 1-MiB, or 2-MiB SWIOTLB mapping failures; this run emits none of
@@ -93,10 +96,56 @@ the source audit reports 306 known signals, zero new, and zero absent; and all
 tracked rewrite source, Kconfig, ABI, and UAPI files are byte-identical between
 the two trees.
 
+## Exact-tip 6.18 KASAN package
+
+On 2026-08-05, the `rewrite-debug` wrapper built the exact 389-commit range
+from official `v6.18.42@856a9b51680cbbed1ace1207b29e424a616cff48` through
+`rk3588-rewrite-6.18@571e261b26f799a3bde9a370559fb02b382d62bc`:
+
+```bash
+PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+PREFER_DOCKER=yes BASE_TAG=v6.18.42 \
+ARMBIAN_KERNELBRANCH=commit:856a9b51680cbbed1ace1207b29e424a616cff48 \
+ARMBIAN_USE_CCACHE=yes ARMBIAN_USE_TMPFS=no \
+  bash kernel-drivers/scripts/build-kernel.sh rewrite-debug
+```
+
+Armbian completed in 47:56, with 1,465 compiler-cache hits and 55 misses
+(96%), and the wrapper returned success with build hash `P49e6-Cad24`. The
+four `arm64` packages have Debian version `26.08.0-trunk`:
+
+| Package | Bytes | SHA-256 |
+|---------|------:|---------|
+| `linux-image-video-rewrite-kasan-rockchip64` | 649871552 | `9706b6c060cede1028e2249448fcd968d49fc61dcf00a6d902e0a247086f2bdb` |
+| `linux-headers-video-rewrite-kasan-rockchip64` | 112947392 | `997a0c36d3b8ee273b315f51fe518e2a190d22b56fc9e95bdac359838cd31f46` |
+| `linux-dtb-video-rewrite-kasan-rockchip64` | 30525632 | `f85f4305ed34ecb70c8147394615aa47caa78e899e5789d81a258c788aa4fb5d` |
+| `linux-libc-dev-video-rewrite-kasan-rockchip64` | 7884992 | `f636e57c99b11f34db1aaee4a505f2d4967f14b4f29385d307d1b55f4d251d81` |
+
+The artifacts are retained under
+`../rock-5b/build/kernel/rock5b-kernel-build/armbian-build/output/debs/`; each
+filename ends in
+`__6.18.42-S856a-D6d03-P49e6-Cad24-H1c44-HK01ba-Vc222-B3ab8-R448a.deb`.
+Independent extraction of the image package proves:
+
+- release `6.18.42-video-rewrite-kasan-rockchip64` and embedded build identity
+  `g571e261b26f7`;
+- packaged-config SHA-256
+  `18b72117c018604844b7cb74adb3a24ea25e0134cefe6eb1adf82aea8fc8502d`;
+- `KASAN`, generic/inline KASAN, lock proving, Rockchip IOMMU, SWIOTLB, both
+  rewrite drivers, and both rewrite KUnit suites resolve to `y`; and
+- vendor `ROCKCHIP_MPP_SERVICE`, `ROCKCHIP_MULTI_RGA`, and
+  `VIDEO_ROCKCHIP_RGA` resolve to `n`.
+
+The package build log is retained as
+`output/logs/log-kernel-3ed5f55e-1d4e-40fc-8f3e-eb20f542c6d4.log.ans` in the
+same Armbian workspace. The debug/KASAN compile emits non-fatal large-stack-
+frame warnings in both rewrite drivers plus unrelated platform/vendor-Wi-Fi
+warnings; package assembly and all maintainer-script shellchecks succeeded.
+
 ## Boundary and verification gate
 
-The new commits are not boot- or runtime-verified. Build, install, and boot an
-exact-tip 6.18 KASAN package from `571e261b26f79`, then require:
+The exact-tip package is built and inspected, but it is not installed, booted,
+or runtime-verified. Install and boot `P49e6-Cad24`, then require:
 
 1. exact 92/152 KUnit with a clean outer interval and live lockdep;
 2. 12/12 official MPP and the complete maintained librga smoke;

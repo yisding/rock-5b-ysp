@@ -591,7 +591,15 @@ clean-archive `normal` profile passed at 6.18 `571e261b26f79` and mainline
 `5db5ddf046825`, building Rockchip and VSI IOMMU support, both KUnit-enabled
 rewrite objects, and the ROCK 5B DTB. The source audit reported 306 known
 signals, zero new, and zero absent on both trees. Test-disabled, memory, and
-race results were not rerun at these tips. Historically, on 2026-07-15 its default `normal`
+race results were not rerun at these tips. The exact-tip 6.18 `rewrite-debug`
+package build also completed on 2026-08-05 as `P49e6-Cad24`: its image embeds
+`g571e261b26f7`, all four packages are `arm64` Debian version
+`26.08.0-trunk`, and the packaged config SHA-256 is
+`18b72117c018604844b7cb74adb3a24ea25e0134cefe6eb1adf82aea8fc8502d`.
+The package remains uninstalled and unbooted; exact hashes and the runtime gate
+are in the
+[RGA2 bounce follow-up](../findings/2026-08-05-rewrite-rga2-dmabuf-userptr-bounce-followup.md#exact-tip-618-kasan-package).
+Historically, on 2026-07-15 its default `normal`
 profile completed warning-free for the then-current pins. On 2026-07-17 all
 three `normal`, `memory`, and `race` profiles completed warning-free for
 `../rock-5b/kernel/linux-6.18-rkvenc@0d71ded1690c` and
