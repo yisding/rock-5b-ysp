@@ -17,7 +17,7 @@ mpp+rga). This sub-project holds MPP-specific notes.
 | Owns | The MPP-specific docs under [`docs/`](docs/multicore-scheduling.md), this front door, and [`keywords.md`](keywords.md); shared kernel architecture, patches, scripts, and tests remain owned by [`../`](../README.md). |
 | Depends on | The RK3588 device tree and shared MPP/IOMMU kernel infrastructure, plus [`../../vendor-libraries/mpp/`](../../vendor-libraries/mpp/README.md) for runtime exercise. |
 | Code lives in | `linux-6.18-rkvenc*` / `rockchip-kernel` `drivers/video/rockchip/mpp/` (`mpp_service.c`, `mpp_rkvenc2.c`, `mpp_rkvdec2*.c`). |
-| Current state | Encode + decode hardware-validated on the combined kernel. See [`../docs/forward-port-status.md`](../docs/forward-port-status.md) and [`../../status.md`](../../status.md). |
+| Evidence boundary | [`../docs/forward-port-status.md`](../docs/forward-port-status.md) owns accumulated codec capability evidence; the rewrite architecture/plan own that implementation; [`../../status.md`](../../status.md) owns current public verdicts and next proofs. |
 
 ## Scoped docs
 
@@ -25,8 +25,7 @@ mpp+rga). This sub-project holds MPP-specific notes.
 |-----|-----------|
 | [`docs/ioctl-collector.md`](docs/ioctl-collector.md) | Kernel-side trace of `mpp_collect_msgs`: how one `MPP_IOC_CFG_V1` batch is walked into task containers, and why `LAST_MSG` is a whole-syscall terminator (one per ioctl) while `SET_SESSION_FD` is the real per-batch delimiter. |
 | [`docs/multicore-scheduling.md`](docs/multicore-scheduling.md) | Why RK3588 multi-core decode is hard (per-stream DPB dependency), and where a scheduler would live; soft/hard CCU consequences. |
-| [`docs/rcb-sram.md`](docs/rcb-sram.md) | What RCB scratch buffers are, what SRAM is, and how DT, IOMMU mappings, and register patching connect them. |
-| [`docs/rcb-sram.md`](docs/rcb-sram.md) | RK3588 RKVENC RCB/SRAM mechanism and evidence: encoder RCB descriptors are ABI-plumbed, while the inspected BSP/rewrite DTs wire SRAM-backed RCB only for decoder cores. |
+| [`docs/rcb-sram.md`](docs/rcb-sram.md) | RK3588 RKVENC/RKVDEC RCB scratch-buffer, SRAM, DT, IOMMU, register-patching, and evidence boundary. |
 
 Start with the shared [`../docs/how-the-drivers-work.md`](../docs/how-the-drivers-work.md)
 for the end-to-end layer model, then [`../docs/dev-uapis.md`](../docs/dev-uapis.md)

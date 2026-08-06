@@ -12,8 +12,8 @@ Source lives in the sibling `librga` / `librga-src` trees.
 | Developer focus | Buffer imports, format/stride flags, core-profile negotiation, fences, 10-bit layout compatibility, and the public IM2D/legacy API boundary. |
 | Owns | The librga docs under [`docs/`](docs/librga-guide.md), the exported [`patches/`](patches/), this front door, and [`keywords.md`](keywords.md). |
 | Depends on | A compatible [`../../kernel-drivers/rga/`](../../kernel-drivers/rga/README.md) `/dev/rga` ABI, dma-buf allocation/access, and consuming tests or media applications. |
-| Code lives in | `librga` (upstream `airockchip/librga` lineage) and the patched `librga-src` (`github.com/yisding/librga` `main` @ `26a50ef`). |
-| Current state | Scale/color-convert has FFmpeg evidence, and the direct librga probes now distinguish the exercised P010/NV15 cases from the still-broader P010/P210 shipping claim. The exported source patches remain paired with kernel-side 10-bit layout changes; the [P010/P210 contract](docs/librga-p010-p210-rkrga.md) owns the evidence and shipping boundary. |
+| Code lives in | The upstream `airockchip/librga` lineage and the public patched fork; [`../../packaging/ppa/build-source-packages.sh`](../../packaging/ppa/build-source-packages.sh) owns the intended package checkout and commit. |
+| Evidence boundary | The [P010/P210 contract](docs/librga-p010-p210-rkrga.md) owns exercised formats, paired kernel requirements, and shipping limits; status owns the public runtime verdict. |
 
 ## Scoped docs
 

@@ -8,7 +8,7 @@
 | Developer focus | The RK3588 BootROM → DDR init → SPL → TF-A → U-Boot proper chain, U-Boot's own device tree and environment, OS discovery, Rockchip image packaging, and the differences between the Armbian, Radxa, and upstream trees. |
 | Owns | The durable U-Boot primer, version comparison, debugging method, warm-reset ramoops-retention boundary, and boot-firmware vocabulary. Dated observations and raw captures still enter through [`../findings/`](../findings/README.md); destructive board operations remain in [`../scripts/`](../scripts/README.md). |
 | Depends on | Rockchip's immutable BootROM, an RK3588 DDR-training binary or TPL, TF-A BL31, the selected U-Boot source/configuration, and recoverable storage. |
-| Current state | As of 2026-07-11, SPI → NVMe is the working baseline. The inspected Armbian 26.2.1 and 26.5.1 vendor FITs contain an empty required U-Boot control DTB, while the untested 26.5.1 current FIT contains a valid 12,752-byte DTB. A missing Radxa Makefile dependency makes a parallel-build race the leading code-supported explanation; it is not yet confirmed by the pending raw-SD hardware test. See [`../status.md` track 12](../status.md#dashboard). |
+| Evidence boundary | [`docs/version-comparison.md`](docs/version-comparison.md) owns the pinned artifact/source conclusions, [`docs/ramoops-retention.md`](docs/ramoops-retention.md) owns warm-reset evidence, and [`../status.md`](../status.md) track 12 owns the current public boot verdict and next proof. |
 
 ## Start here
 
@@ -62,8 +62,8 @@ Three distinctions prevent most reasoning mistakes:
   chain; signatures, trusted keys, verification policy, and fuses all matter.
 - No bootloader should be written to SPI or raw SD sectors merely because its
   source looks newer. Keep a verified backup and an independent recovery path.
-- The empty-control-DTB explanation remains **INFERRED** until the valid-DTB
-  26.5.1 current image is tested on the raw path with a capture.
+- A source-supported explanation or valid-looking FIT is not a board result;
+  read the comparison's trust boundary and status track 12 before relying on it.
 
 ## Source anchors
 

@@ -18,7 +18,7 @@ explanation stays at this top level.
 | Developer focus | Which work happens in userspace vs kernel, how dma-buf handles and register recipes reach `/dev/mpp_service` and `/dev/rga`, and why FFmpeg lineages use the libraries differently. |
 | Owns | The shared explanation in [`docs/how-the-userspace-libs-work.md`](docs/how-the-userspace-libs-work.md); the `mpp`/`rga` sub-projects; ABI detail cross-linked from [`../kernel-drivers/docs/dev-uapis.md`](../kernel-drivers/docs/dev-uapis.md). |
 | Depends on | Working kernel nodes from [`../kernel-drivers/`](../kernel-drivers/README.md); `video`-group access to `/dev/mpp_service`, `/dev/rga`, `/dev/dma_heap/*`; `libdrm` for DRM PRIME. |
-| Current state | Source-built MPP and librga paths have on-board evidence, but production 10-bit support is a paired kernel+librga contract rather than a library-only claim. The [P010/P210 contract](rga/docs/librga-p010-p210-rkrga.md) owns that evidence boundary; [W05](../status.md#watch-w05) owns changing PPA publication state. |
+| Evidence boundary | The [P010/P210 contract](rga/docs/librga-p010-p210-rkrga.md) owns paired kernel+librga proof; the MPP architecture owns its evidence basis; [W05](../status.md#watch-w05) owns changing PPA publication; status owns the public runtime verdict. |
 
 ## How the library package fits
 
@@ -74,6 +74,6 @@ The important division of responsibility:
 | Trap | Explanation |
 |------|-------------|
 | Device access is three nodes, not one | Non-root MPP encode needs `/dev/mpp_service` and `/dev/dma_heap/*`; RGA also needs `/dev/rga`. Install [`../kernel-drivers/scripts/99-rockchip-codec.rules`](../kernel-drivers/scripts/99-rockchip-codec.rules) or the [`../packaging/codec-udev/`](../packaging/codec-udev/README.md) deb. |
-| `librga` has source even when the official drop ships a prebuilt `.so` | The buildable source lineage is in [`../docs/gotchas.md`](../docs/gotchas.md); the current patched tree is `github.com/yisding/librga` `main` @ `26a50ef`. |
-| P010/P210 via legacy RKRGA needs librga to copy 10-bit layout fields | Older librga dropped `is_10b_compact`/`is_10b_endian` before the ioctl. See [`rga/docs/librga-p010-p210-rkrga.md`](rga/docs/librga-p010-p210-rkrga.md). The source series is exported in [`rga/patches/`](rga/patches/README.md); the live patched worktree is `../rock-5b/rockchip-userspace/librga-fork`. |
+| `librga` has source even when the official drop ships a prebuilt `.so` | The buildable source lineage is in [`../docs/gotchas.md`](../docs/gotchas.md); [`../packaging/ppa/build-source-packages.sh`](../packaging/ppa/build-source-packages.sh) owns the intended package input. |
+| P010/P210 via legacy RKRGA needs librga to copy 10-bit layout fields | Older librga dropped `is_10b_compact`/`is_10b_endian` before the ioctl. See [`rga/docs/librga-p010-p210-rkrga.md`](rga/docs/librga-p010-p210-rkrga.md); the reviewable source series is in [`rga/patches/`](rga/patches/README.md). |
 | `h264_rkmpp` does not always mean the same implementation | `ffmpeg-rockchip` and upstream FFmpeg 8.1.2 both expose rkmpp names, but the control surface differs. See [`../video-libraries/ffmpeg/docs/implementation-comparison.md`](../video-libraries/ffmpeg/docs/implementation-comparison.md). |

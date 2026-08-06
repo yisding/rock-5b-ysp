@@ -1,39 +1,49 @@
 # apps/kodi/ — hardware video decode in Kodi on RK3588
 
-Kodi 22 ("Piers") playing video decoded on the RK3588 **VDEC/RKVDEC/AV1** blocks
-instead of the CPU, by building Kodi against **our** `ffmpeg-rockchip-81`
-forward-port and letting Kodi's DRM PRIME path render the hardware frames
-zero-copy.
+This project explains how Kodi's DRM PRIME path can consume RKMPP hardware
+decoders from an external Rockchip FFmpeg build without a Kodi source patch.
 
 ## Package brief
 
 | Field | Contents |
 |-------|----------|
-| User outcome | Play H.264/HEVC/AV1 in Kodi with the RK3588 decoding in hardware — smooth 4K at a few percent CPU. The AV1 container fix is implemented but awaits its board re-test. |
-| Developer focus | How Kodi's `CDVDVideoCodecDRMPRIME` auto-selects the `*_rkmpp` decoders, how it renders `AV_PIX_FMT_DRM_PRIME` frames, and how to build Kodi against an external Rockchip FFmpeg. |
-| Owns | The build recipe, the decoder-selection analysis, the runtime settings, and the tty1 test procedure. |
-| Depends on | MPP `1375813c` and `librga` from the system PPA plus fork FFmpeg `libavcodec63` from the dedicated `rock5b-ffmpeg81-rockchip` PPA; a GBM/DRM console (KMS), GLES/EGL, libdrm/libgbm/libinput. See [`../../video-libraries/ffmpeg/README.md`](../../video-libraries/ffmpeg/README.md) and [`../../packaging/ppa/README.md`](../../packaging/ppa/README.md). |
-| Current state | Design + prerequisites validated; **the Kodi build and on-board playback have not been run yet.** See [`status.md`](../../status.md). |
+| User outcome | Build Kodi for GBM/DRM and play supported streams with RK3588 decode frames carried as DRM PRIME objects. |
+| Developer focus | Kodi decoder discovery, FFmpeg `AVCodecHWConfig`, DRM PRIME rendering, external-FFmpeg linkage, and a recoverable console test. |
+| Owns | Decoder-selection analysis and the Kodi build/run validation procedure. |
+| Depends on | A compatible RKMPP kernel/libmpp stack, the selected Rockchip FFmpeg ABI, GBM/KMS, EGL/GLES, libdrm, and input support. |
+| Evidence boundary | [`../../status.md`](../../status.md) track 11 owns the public build/playback verdict and next proof; the build guide owns the operation, not a copied package matrix here. |
 
-| Piece | What | Status |
-|-------|------|--------|
-| **Decoder selection** | Stock Kodi 22 auto-picks `h264_rkmpp`/`hevc_rkmpp`/`av1_rkmpp` via the fork's `AVCodecHWConfig` — **no Kodi patch** | ✅ analyzed, [`docs/decoder-selection.md`](docs/decoder-selection.md) |
-| **FFmpeg** | External `ffmpeg-rockchip-81` (`libavcodec63`) from `ppa:yi-ding/rock5b-ffmpeg81-rockchip`, `-DENABLE_INTERNAL_FFMPEG=OFF` | ✅ `main@be367abfe6` source and arm64 binaries published by Launchpad |
-| **MPP runtime** | PPA `1375813c` (h264/hevc `rkmpp` decode verified); board stock `750e76e` is broken | ✅ [finding](../../findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) |
-| **Build** | GBM windowing + GLES render, native cmake | ⏳ not built yet — [`docs/build-hwaccel.md`](docs/build-hwaccel.md) |
-| **Playback** | `kodi-gbm` on tty1, Prime-decoder settings on | ⏳ pending (needs `gdm` stopped) |
-| **AV1 from mp4/mkv** | mark the fork's existing extradata packet with MPP's extra-data flag so it parses `av1C` | 🛠 fixed and rebuilt; RK3588 re-test pending |
-| **PPA package** | plain `kodi` depending on the fork `libavcodec63` | ⏳ not packaged yet |
+## Technical model
+
+Kodi enumerates FFmpeg decoders and their hardware configurations. A Rockchip
+decoder that advertises `AV_PIX_FMT_DRM_PRIME` can be selected by Kodi's normal
+`CDVDVideoCodecDRMPRIME` path, and its dma-buf-backed frame can reach the GBM/DRM
+renderer without a CPU pixel copy. Generic “hardware acceleration” labels do
+not prove that this decoder was selected; logs and the exercised codec name do.
+
+The external FFmpeg ABI, MPP runtime, and Kodi binary form one compatibility
+tuple. Publication or decoder registration alone does not prove that Kodi was
+built, launched on the intended console path, or played a representative file.
 
 ## Files
 
 | Path | One-liner |
 |------|-----------|
-| [`docs/build-hwaccel.md`](docs/build-hwaccel.md) | Exact build recipe: deps, cmake flags, external FFmpeg wiring, the linuxbrew/tmpfs gotchas, settings to enable, and the tty1 test. |
-| [`docs/decoder-selection.md`](docs/decoder-selection.md) | Why stock Kodi 22 selects the `*_rkmpp` decoders with no source patch, quoting `FindDecoder`/`FindHWConfig` and the fork's `hw_configs`. |
+| [`docs/decoder-selection.md`](docs/decoder-selection.md) | Why unpatched Kodi selects the `*_rkmpp` decoders and renders DRM PRIME frames. |
+| [`docs/build-hwaccel.md`](docs/build-hwaccel.md) | Prerequisites, external-FFmpeg configure/build, GBM console launch, settings, pass/fail signals, and cleanup. |
+
+## Validate
+
+Follow [`docs/build-hwaccel.md`](docs/build-hwaccel.md) with the exact package
+and source identities selected for the run. Retain the CMake summary, linked
+FFmpeg libraries, Kodi log decoder choice, media identity, display/session
+state, playback result, and kernel log. Report the result through the findings
+intake until it is promoted to the maintained evidence owner and status track.
 
 ## See also
 
-- Origin finding: [`../../findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md`](../../findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md)
-- FFmpeg fork + PPA packaging: [`../../packaging/ppa/README.md`](../../packaging/ppa/README.md#ffmpeg)
-- State rollup: [`../../status.md`](../../status.md)
+- [`../../video-libraries/ffmpeg/`](../../video-libraries/ffmpeg/README.md) —
+  Rockchip codec mechanism, package-input route, and validation scorecard.
+- [`../../packaging/ppa/`](../../packaging/ppa/README.md) — archive topology,
+  ABI separation, and artifact reconstruction.
+- [`../../status.md`](../../status.md) — current Kodi verdict and next proof.

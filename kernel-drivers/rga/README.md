@@ -18,7 +18,7 @@ sub-project is the RGA-specific front door.
 | Owns | [`userptr-iommu.md`](docs/userptr-iommu.md), [`rga2-multisegment-parity-plan.md`](docs/rga2-multisegment-parity-plan.md), [`librga-smoke-cma-regression-plan.md`](docs/librga-smoke-cma-regression-plan.md), [`raw-physical-import-crash.md`](docs/raw-physical-import-crash.md), [`rewrite-5.10-reconciliation.md`](docs/rewrite-5.10-reconciliation.md), [`userspace-consumers.md`](docs/userspace-consumers.md), and [`keywords.md`](keywords.md); shared architecture, patches, and runtime suites remain owned by [`../`](../README.md). |
 | Depends on | RK3588 RGA device-tree/IOMMU wiring, the shared kernel infrastructure, and [`../../vendor-libraries/rga/`](../../vendor-libraries/rga/README.md) for userspace jobs. |
 | Code lives in | `linux-6.18-rkvenc*` / `rockchip-kernel` `drivers/video/rockchip/rga3/` (`multi_rga`), plus `librga`'s kernel driver. |
-| Current state | Probe, IOMMU, and the scale/color-convert path validated through FFmpeg. See [`../../status.md`](../../status.md). |
+| Evidence boundary | The import/model docs own accumulated conclusions, [`../tests/`](../tests/README.md) owns runnable gates, and [`../../status.md`](../../status.md) owns the current public kernel/RGA verdict and next proof. |
 
 ## Where to read / test
 

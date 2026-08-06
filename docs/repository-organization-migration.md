@@ -143,7 +143,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-33 | Mesa validation and MR state | Remote service is MR authority; W06 is dated cache; validation/review docs own conclusions; README routes. | Mesa README/docs, W06, status track 8, findings; preserve MR links. Security: upstream destination is public fact, but submission planning remains private. | CLOSED 2026-08-05 — router, accumulated validation, tip-pinned review, W06/status ownership, and full handoff gate complete. |
 | ORG-34 | FFmpeg validation and branch state | Remote owns moving tip; build script owns intended package input; immutable comparison pins stay in source map; project docs own measured conclusions; status/W05 own verdict/publication. | FFmpeg README/docs/findings, W04/W05/W07/W21, status track 5, PPA installer/build/checker. Security: review public fix inventory versus private submission plan. | CLOSED 2026-08-05 — evidence scorecard, frozen audits/replays, mutable-state routing, and full handoff gate complete. |
 | ORG-35 | GNOME Remote Desktop validation and branch state | Remote owns branch tip; build script owns package input; project docs own design/test conclusions; status/W05 own verdict/publication. | GRD README/docs/findings, status track 7, W05/W10, PPA and GRD pin checker. Security: review public fix inventory versus private submission plan. | CLOSED 2026-08-05 — application scorecard, compact front door, frozen replay, mutable-state routes, and full handoff gate complete. |
-| ORG-40 | Project front doors, runbooks, plans, audits, and coverage | Each project README routes stable scope/boundary/model/operation; deep docs own mechanism; runbooks own commands; plans own future ladder; coverage owns scope/first missing evidence. | Activate one project/README at a time; preserve all headings/inbound links and nearest-README completeness. Security review when the project scope requires it. | PLANNED after owner consolidation. |
+| ORG-40 | Project front doors, runbooks, plans, audits, and coverage | Each project README routes stable scope/boundary/model/operation; deep docs own mechanism; runbooks own commands; plans own future ladder; coverage owns scope/first missing evidence. | Activate one project/README at a time; preserve all headings/inbound links and nearest-README completeness. Security review when the project scope requires it. | CLOSED 2026-08-06 — taxonomy-defined project interfaces, packaging hub, operations, evidence routes, and compatibility headings handoff-gated. |
 | ORG-41 | Findings inbox promotion | Existing project/runbook/test/catalog/package owners absorb useful evidence; findings index retains deposit guidance and views of live intake only. No tombstones or permanent `findings/evidence/` archive. | Exact inbound links, generated chronology, curated topic row/count, status citations; update findings checks atomically. Security review for every kernel safety/upstream finding. | ACTIVE 2026-08-05 — all 22 legacy promotion tombstones removed; owner-based live-intake review remains. |
 | ORG-50 | Root and work-package navigation | Root README owns short task router; `work-packages.md` owns taxonomy/reading paths; project READMEs own local routes. | Root/category/project links and representative journeys; Markdown link/anchor and nearest-README checks. Security: not applicable unless content moves. | PLANNED after canonical owners stabilize. |
 | ORG-60 | Tune reporting and add targeted enforcement | Informational report owns broad candidates; structured checks own only proven high-risk assertions and retired-ID/finding-evidence invariants. | `check-repo.sh` remains sole gate; reporter/tests/check-doc-consistency/CI docs updated together. Security: reporting must not expose ignored/private material. | PLANNED; baseline false positives need classification. |
@@ -762,6 +762,38 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   ledger closure on 2026-08-05 across 437 Markdown files, 3,783 local links,
   453 anchors, all 62 regression tests, ShellCheck, documentation consistency,
   and whitespace.
+
+### ORG-40 — project front doors and document interfaces
+
+- **Audit scope:** reviewed the taxonomy-defined boot, kernel-base,
+  kernel-driver, MPP, IEP2, RGA, AV1, IOMMU, RKNPU, vendor-library, libmpp,
+  librga, FFmpeg, VA-API, Mesa, GRD, Kodi, and packaging front doors. Category
+  hubs remain indexes; test, script, patch, and package subdirectories keep
+  their operational roles rather than imitating projects.
+- **Interface normalization:** project briefs now use stable evidence-boundary
+  routes instead of copied “current state” pins, counts, package matrices, or
+  dated verdicts. `docs/work-packages.md` names that contract and owns the
+  detailed re-entry paths.
+- **Focused rewrites:** IEP2 now routes hardware/source model, safety evidence,
+  runnable tests, and public status separately. Kodi now separates decoder
+  mechanism, build/run operation, and status. Both retain every prior H2 route.
+- **Packaging disposition:** the deploy front door no longer embeds a mutable
+  FFmpeg ABI hold/downgrade recipe or chronological package diary. Stable
+  channel exclusions, recovery routes, artifact policy, and design lessons
+  remain; PPA support/install helpers own current operations. Every former
+  H2/H3 anchor remains as a useful compatibility route.
+- **Plans, audits, and coverage:** the shared interfaces and the earlier
+  rewrite/forward-port/VA-API/Mesa/FFmpeg/GRD slices already separate live plans,
+  frozen audits, operations, and accumulated evidence. Support coverage remains
+  the sole whole-board scope/first-missing-evidence inventory.
+- **Public/private review:** kernel and userspace front doors now route public
+  technical behavior and qualification only. No working hostile or
+  memory-corruption reproducer, disclosure/CVE coordination, upstream
+  destination/order, send/withhold decision, or private repository path was
+  added.
+- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
+  2026-08-06 across 415 Markdown files, 3,632 local links, 442 anchors, all 62
+  regression tests, ShellCheck, documentation consistency, and whitespace.
 
 ### ORG-41 — findings promotion batches
 

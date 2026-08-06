@@ -22,7 +22,7 @@ the top of its `README.md`:
 | Developer focus | What someone changing, reviewing, or upstreaming code should learn here. |
 | Owns | The files, patches, or docs for which this project is the front door. |
 | Depends on | The lower layers or external projects that must already work. |
-| Current state | The dated validation or known caveat, with [`../status.md`](../status.md) as the rollup. |
+| Evidence boundary | A stable route to the maintained evidence owner and [`../status.md`](../status.md), without copying mutable versions, counts, or verdicts. |
 
 ## Stack diagram
 
@@ -102,7 +102,7 @@ flowchart TB
 | Goal | Path |
 |------|------|
 | Check the repo before handoff | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) -> `bash scripts/check-repo.sh` |
-| Reconstruct a multi-finding investigation | [`../findings/` investigation trails](../findings/README.md#reconstruct-an-investigation) -> maintained project model -> [`../status.md`](../status.md) |
+| Reconstruct how an explanation changed | Maintained project model -> its evidence/audit routes -> Git history when chronology itself matters -> [`../status.md`](../status.md) for the public boundary |
 | Find an unassessed board subsystem or choose the next intake test | [`support-coverage.md`](support-coverage.md) -> [`system-baseline.md`](system-baseline.md) -> [`../findings/`](../findings/README.md) |
 | Understand or diagnose SD/SPI/U-Boot behavior | [`../boot-firmware/`](../boot-firmware/README.md) -> [debugging guide](../boot-firmware/docs/debugging.md) -> [`../status.md`](../status.md) track 12 -> [`../scripts/`](../scripts/README.md) |
 | Compare the validated 6.18 vendor path with maximum-mainline RK3588 support | [`../kernel-versions/`](../kernel-versions/README.md) -> [`../packaging/ppa/kernel-maxline/board-support.md`](../packaging/ppa/kernel-maxline/board-support.md) -> [`../status.md`](../status.md) track 13 |

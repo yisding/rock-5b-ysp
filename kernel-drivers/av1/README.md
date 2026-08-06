@@ -1,12 +1,8 @@
 # kernel-drivers/av1/ — RK3588 AV1 decode
 
-The RK3588 AV1 decode path and why it sits apart from the RKVDEC2 H.264/H.265/VP9
-driver, plus the BSP bugs porting the RKMPP AV1 backend exposed. AV1 is part of
-the forward-port kernel: `mpp_av1dec.c` plus the VSI-IOMMU provider, **hardware-
-validated bit-exact as of 2026-07-04** on board build `P1c9d` (see
-[`docs/av1-rk3588.md`](docs/av1-rk3588.md) § 2026-07-04 update). The clean-room
-MPP rewrite now contains a separate VPU981/VSI backend in both maintained
-source branches, but it has no rewrite-kernel hardware result.
+The RK3588 AV1 decode path and why its VPU981/VSI-IOMMU block sits apart from
+the RKVDEC2 H.264/H.265/VP9 driver, plus the BSP defects and clean-room design
+questions exposed while carrying that backend.
 
 ## Brief
 
@@ -17,7 +13,7 @@ source branches, but it has no rewrite-kernel hardware result.
 | Owns | [`docs/av1-rk3588.md`](docs/av1-rk3588.md), [`docs/av1-bsp-audit.md`](docs/av1-bsp-audit.md), [`docs/av1-bsp-forward-port-review-2026-07-20.md`](docs/av1-bsp-forward-port-review-2026-07-20.md), [`docs/av1-rewrite-assessment.md`](docs/av1-rewrite-assessment.md), and [`keywords.md`](keywords.md). |
 | Depends on | A kernel/DT selecting the RKMPP consumer model, VSI-IOMMU wiring, and compatible MPP/FFmpeg userspace. AV1 decode is part of the single forward-port line (`0007` plus the Verisilicon IOMMU provider in `0005`) and of both maintained rewrite source branches. |
 | Code lives in | Forward port: `linux-6.18-rkvenc-av1-fwport` branch `rk3588-video-6.18`. Rewrite: `linux-6.18-rkvenc@rk3588-rewrite-6.18` and `linux@rk3588-rewrite-mainline`. |
-| Current state | **Forward-port hardware-validated (2026-07-04):** `P1c9d` exposed AV1DEC through `/dev/mpp_service` and decoded bit-exact. **Rewrite source/build only (2026-08-04):** rebased tips `19634f4eebba` and `b296374b7520` contain byte-identical class-aware AV1/VSI/AFBC driver sources and pass the normal focused build, but no rewrite boot or AV1 decode exists. See [`docs/av1-rk3588.md`](docs/av1-rk3588.md), [`../../status.md`](../../status.md), and [`../docs/rewrite-driver-architecture/02-mpp-driver.md`](../docs/rewrite-driver-architecture/02-mpp-driver.md#39-decoder-backends-and-ccu-modes). |
+| Evidence boundary | [`docs/av1-rk3588.md`](docs/av1-rk3588.md) owns forward-port identities and proof; the rewrite architecture and validation plan own the alternative backend's source/hardware boundary; [`../../status.md`](../../status.md) owns the current public verdict and next proof. |
 
 ## Scoped docs
 

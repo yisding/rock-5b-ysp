@@ -24,7 +24,7 @@ versions, the mainline-V4L2 alternative) live in
 | Developer focus | Accelerator service/submit models, dma-buf/IOMMU lifetime, device-tree wiring, runtime ABIs, forward-port deltas, audits, and rewrite alternatives where applicable. |
 | Owns | Shared kernel docs in [`docs/`](docs/how-the-drivers-work.md); the six sub-projects; patch deliverables in [`patches/`](patches/README.md); board scripts in [`scripts/`](scripts/README.md); hardware smoke tests in [`tests/`](tests/README.md). |
 | Depends on | Armbian or vanilla 6.18 kernel build inputs, RK3588 device tree, and [`../vendor-libraries/`](../vendor-libraries/README.md). |
-| Current state | The forward-port, BSP-audit, DKMS, and rewrite tracks have different evidence boundaries and are not interchangeable kernels. [`../status.md`](../status.md) tracks their latest board result and next gate; [`docs/forward-port-status.md`](docs/forward-port-status.md) is the forward-port capability/evidence scorecard. Read those before treating an older green conformance run as an install recommendation. |
+| Evidence boundary | The forward-port, BSP-audit, DKMS, and rewrite tracks are not interchangeable. [`docs/forward-port-status.md`](docs/forward-port-status.md) owns accumulated forward-port capability evidence; the rewrite plan/architecture own that line; [`../status.md`](../status.md) owns public verdicts and next proofs. |
 
 ## How the kernel package fits
 

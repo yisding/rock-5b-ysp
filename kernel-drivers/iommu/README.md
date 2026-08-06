@@ -13,7 +13,7 @@ CCU finding from the rewrite track.
 | Owns | The four-part IOMMU/DMA explainer, [`docs/mpp-ccu-iommu-plan.md`](docs/mpp-ccu-iommu-plan.md), [`docs/rewrite-hard-ccu-finding.md`](docs/rewrite-hard-ccu-finding.md), and [`keywords.md`](keywords.md). |
 | Depends on | Rockchip IOMMU and dma-buf kernel infrastructure, effective RK3588 DT bindings, and the MPP/RGA drivers that consume the domains. |
 | Code lives in | Rockchip IOMMU + MPP service code in the sibling kernel trees (`drivers/iommu/rockchip-iommu.c`, `mpp/mpp_iommu.c`, `mpp_rkvdec2*.c`). |
-| Current state | CCU IOMMU plan implemented in the rewrite track; SOFT/HARD CCU finding resolved. See [`../docs/rewrite-drivers.md`](../docs/rewrite-drivers.md) and [`../../status.md`](../../status.md). |
+| Evidence boundary | The explainer series owns stable DMA/IOMMU contracts, the rewrite architecture and validation plan own implementation/qualification, and [`../../status.md`](../../status.md) owns the moving public verdict. |
 
 ## Explainer series (start here)
 
