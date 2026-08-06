@@ -67,7 +67,7 @@ unspecified/limited defaults to `color_range=pc` and `color_space=bt709`.
 After a clean reboot, the tested Microsoft macOS RDP client no longer showed
 the muted colors.
 
-The retained [experiment bundle](../../../findings/evidence/2026-07-28-grd-avc-fullrange709/README.md)
+The retained [experiment bundle](../evidence/2026-07-28-grd-avc-fullrange709/README.md)
 owns the exact patch, package fingerprints, metadata output, failed first
 handover timeline, and static comparison chart. The final verdict is a
 package-verified visual observation, not a colorimeter or paired-pixel result;

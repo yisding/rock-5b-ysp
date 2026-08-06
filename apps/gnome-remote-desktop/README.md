@@ -65,6 +65,7 @@ Mutter capture buffer
 | [`docs/profiling.md`](docs/profiling.md) | Dated performance, client, starvation, backpressure, and verification evidence |
 | [`docs/testing.md`](docs/testing.md) | Safe live-session and recovery playbook |
 | [`docs/validation.md`](docs/validation.md) | Accumulated capability scorecard and evidence ladder |
+| [`evidence/`](evidence/README.md) | Small project-owned artifacts retained after promotion, currently the full-range BT.709 package/metadata experiment. |
 | [`docs/audio-redirection.md`](docs/audio-redirection.md) | RDPSND/PipeWire model, measured audio, and deferred codec work |
 | [`docs/mesa-panfrost-transfer.md`](docs/mesa-panfrost-transfer.md) | GRD-facing route to the Mesa transfer investigation |
 | [`bench/`](bench/README.md) | Readback and RKMPP lifecycle benchmark tools |

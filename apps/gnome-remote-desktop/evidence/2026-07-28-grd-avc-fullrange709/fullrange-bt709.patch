@@ -30,4 +30,3 @@ diff --git a/src/grd-encode-session-ffmpeg.c b/src/grd-encode-session-ffmpeg.c
    self->avctx->thread_count = 1;
    /*
     * Load-bearing for ffmpeg-rockchip: without AV_CODEC_FLAG_LOW_DELAY its
-

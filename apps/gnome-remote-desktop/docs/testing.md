@@ -58,7 +58,7 @@ Do not activate a replacement package by running
 already logged-in remote session. A package upgrade restarts the system GRD
 daemon, while the user handover daemon and its logind session association are
 separate. In the retained
-[full-range experiment evidence](../../../findings/evidence/2026-07-28-grd-avc-fullrange709/README.md),
+[full-range experiment evidence](../evidence/2026-07-28-grd-avc-fullrange709/README.md),
 restarting the user unit inside the existing session disconnected the client;
 later manual starts returned no session from `sd_pid_get_session()`, so the
 daemon could not match the system `/Handovers/session8` object. Authentication

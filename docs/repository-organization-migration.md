@@ -880,10 +880,11 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   testing owns focus/ACK recovery, false idle charging, wake-watch versus
   handover diagnosis, clean package activation, and TLS-path safety. The VA-API
   front door owns the packed-slice-header refusal policy.
-- **Evidence and routes:** the retained full-range bundle now links directly to
-  the promoted scorecard result. The two live findings, TCP Reno finding, and
-  every project caller were repointed before deletion; the curated GRD group
-  and generated chronology were regenerated around the two live owners.
+- **Evidence and routes:** the retained full-range bundle moved from the intake
+  archive into `apps/gnome-remote-desktop/evidence/` and links directly to the
+  promoted scorecard result. The two live findings, TCP Reno finding, and every
+  project caller were repointed before deletion; the curated GRD group and
+  generated chronology were regenerated around the two live owners.
 - **Removal:** deleted ten dated intake files spanning 2026-07-18 through
   2026-08-04: starvation diagnostics, userspace encoder wedge and backpressure,
   two focus/resume diagnoses, two color experiments, the wake-watch diagnosis,

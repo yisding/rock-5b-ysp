@@ -1,7 +1,7 @@
 # GRD AVC full-range BT.709 experiment evidence
 
 This bundle supports the promoted
-[GRD full-range BT.709 validation result](../../../apps/gnome-remote-desktop/docs/validation.md#full-range-bt709-signaling).
+[GRD full-range BT.709 validation result](../../docs/validation.md#full-range-bt709-signaling).
 It preserves the small, reconstructible inputs and outputs needed to rebuild or
 repeat the experiment.
 
