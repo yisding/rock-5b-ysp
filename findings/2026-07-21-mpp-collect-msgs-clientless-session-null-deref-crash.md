@@ -69,9 +69,9 @@ below. Title/filename kept for link stability.)*
 > assertions on the trigger vector) / **STRONGLY INFERRED** (the crash site: an
 > async worker NULL-deref of a torn-down session's pending task — from the
 > delayed-fault timing plus the guarded-vs-unguarded `session->mpp` asymmetry) /
-> still **UNPROVEN at the PC** (no call trace survived — ramoops does not
-> persist across reset here; see the [ramoops
-> finding](./2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md)).
+> still **UNPROVEN at the PC** (no call trace survived on that 6.18.38-era
+> boot; the maintained [ramoops boundary](../boot-firmware/docs/ramoops-retention.md)
+> later scoped the all-zero behavior to that kernel generation).
 
 > ## 2026-07-21 UPDATE — RECURRED on `P70a5-C4ad2` (`0053`+`0054`+`0055`+`0056`). The leg-3 attribution is WRONG.
 >
@@ -329,10 +329,9 @@ at 15:11:39–40 — then the client-less collect loop and crash at 15:12:27, wi
   power-cycle wiped the DRAM-backed ramoops
   (`ramoops: using 0xd0000@0x118000`), but a later controlled test showed even
   a clean `panic=10` **self-reboot** leaves `/sys/fs/pstore` empty on this
-  board: RK3588 re-initializes DRAM on every reset and this Armbian firmware
-  does not preserve the `0x118000` window. So pstore cannot capture crashes
-  here at all — see
-  [`ramoops-not-preserved-across-warm-reset-rk3588`](./2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md).
+  6.18.38-era kernel generation. Later 6.18.40-era kernels retained the same
+  `0x118000` window with the firmware held constant; see the maintained
+  [ramoops boundary](../boot-firmware/docs/ramoops-retention.md).
   The next boot confirmed empty (`systemd-pstore.service … skipped, unmet
   condition ConditionDirectoryNotEmpty=/sys/fs/pstore`).
 - **journal: the crash line only.** The oops header

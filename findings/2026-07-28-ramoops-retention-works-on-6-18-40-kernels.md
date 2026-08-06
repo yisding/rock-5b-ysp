@@ -39,8 +39,8 @@
 2. **MEASURED: the flip coincides exactly with the 6.18.38 → 6.18.40 rebuild
    wave, with the firmware held constant.** Last measured failures: 2026-07-23,
    kernel `6.18.38-current-rockchip64`
-   ([07-24 finding §3.1](2026-07-24-bsp-vs-armbian-ramoops-gap.md), which
-   verified `systemd-pstore.service … skipped, unmet condition
+   (the maintained [retention guide](../boot-firmware/docs/ramoops-retention.md)
+   retains the audit that verified `systemd-pstore.service … skipped, unmet condition
    ConditionDirectoryNotEmpty` on every boot — i.e. genuinely empty pstore).
    Then: repo `49b115e` "follow rolling 6.18.y stable" 2026-07-25 14:59; first
    6.18.40 kernel installed 19:20 (dpkg.log) and booted 19:22:07; **first

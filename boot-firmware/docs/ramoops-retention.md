@@ -69,8 +69,8 @@ null results are the expected outcome rather than an anomaly:
 | U-Boot proper | pstore/minidump features disabled; allocations/load destinations disjoint. |
 
 The PMIC RST_FUN, `GLB_SRST_SND`, DDR-scrambling, minidump, and userspace
-hypotheses remain refuted exactly as recorded in the
-[2026-07-24 finding §3.2](../../findings/2026-07-24-bsp-vs-armbian-ramoops-gap.md).
+hypotheses remain refuted by the consolidated BSP/Armbian configuration,
+firmware, reset-register, persistent-RAM, and binary audit.
 
 ## Corrections to earlier explanations
 
@@ -129,20 +129,8 @@ ZEROED-on-38 + INTACT-on-40 confirms the kernel-side actor; then split
 upstream-stable vs patchset (6.18.38 base + new patches, or 6.18.40 base +
 old patches) before considering a commit bisect of the 2113-commit stable
 range. INTACT-on-38 means the 07-21..24 environment carried a hidden
-confound; reopen from the archived evidence. The SPL-entry temporal witness
-([2026-07-27 plan](../../findings/2026-07-27-rk3588-ramoops-next-experiment-plan.md))
-is only worth running if the A/B contradicts the kernel-scoped reading.
-
-## Evidence ledger
-
-| Date | Evidence | Role in the current conclusion |
-|------|----------|--------------------------------|
-| 2026-07-21 | [Warm-reset retention failure](../../findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md) | Initial measured failure (6.18.38 era); several mechanism claims corrected 07-24. |
-| 2026-07-24 | [BSP/Armbian comparison and consolidated audit](../../findings/2026-07-24-bsp-vs-armbian-ramoops-gap.md) | Strengthened the (era-scoped) all-zero proof; killed the PMIC/reset/DT hypotheses; its refutations stand. |
-| 2026-07-26 | [Exact DDR/TPL binary audit](../../findings/2026-07-26-rk3588-ddr-blob-ramoops-static-audit.md) | No TPL writer into the interval — now corroborates the kernel-scoped reading. |
-| 2026-07-27 | [Exact SPL binary audit](../../findings/2026-07-27-rk3588-spl-ramoops-binary-audit.md) | Closed the last recovered firmware CPU-write candidate — same corroboration. |
-| 2026-07-27 | [Next experiment plan](../../findings/2026-07-27-rk3588-ramoops-next-experiment-plan.md) | SPL-entry witness design; demoted to contingency by the 07-28 reversal. |
-| 2026-07-28 | [Retention works on 6.18.40-era kernels](../../findings/2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md) | The reversal: measured recoveries, flip timeline, blind-spot analysis, kernel A/B gate. |
-
-These findings remain the dated forensic record. This page is the maintained
-current explanation and operational boundary.
+confound; reopen from the archived evidence. The previously designed SPL-entry
+temporal witness is only worth running if the A/B contradicts the
+kernel-scoped reading. The exact old experiment chronology remains available
+through Git history; this page retains the measured era split, binary-audit
+null results, refuted mechanisms, operation, and next causal proof needed now.

@@ -926,3 +926,25 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 - **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
   2026-08-06 across 373 Markdown files, 3,477 local links, 498 anchors, all 62
   regression tests, ShellCheck, documentation consistency, and whitespace.
+
+#### Ramoops owner batch
+
+- **Classification:** retained the status-linked 2026-07-28 reversal and
+  kernel A/B gate. The earlier failure report, BSP/Armbian comparison, exact
+  DDR/TPL and SPL audits, and firmware-witness plan were superseded evidence
+  already incorporated into the maintained retention guide.
+- **Promotion and correction:** `boot-firmware/docs/ramoops-retention.md` keeps
+  the measured 6.18.38/6.18.40 era split, exact physical layout, binary-audit
+  null results, refuted mechanisms, capture operation, trust boundary, and next
+  causal proof without a second investigation chronology. Two surviving kernel
+  findings now correctly scope their empty-pstore observations to 6.18.38
+  rather than repeating the retired firmware-wide conclusion.
+- **Removal:** deleted the five 2026-07-21 through 2026-07-27 intake files and
+  regenerated the curated group and chronology around the one live finding.
+- **Public/private review:** this boot/forensic batch contains public reset,
+  firmware, pstore, and kernel-generation evidence. It adds no hostile or
+  memory-corruption reproducer, disclosure/CVE coordination, upstream
+  destination/order, or send/withhold decision.
+- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
+  2026-08-06 across 368 Markdown files, 3,442 local links, 498 anchors, all 62
+  regression tests, ShellCheck, documentation consistency, and whitespace.

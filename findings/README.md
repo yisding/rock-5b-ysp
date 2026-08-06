@@ -124,16 +124,11 @@ Power-on to Linux handoff: SPI/SD boot, FIT/DTB artifacts, and the vendor-vs-Arm
 - [`2026-07-08`](2026-07-08-armbian-26.2.1-bl31-handoff-hang.md) — Armbian 26.2.1 ROCK 5B raw bootloader hangs after BL31 handoff
 - [`2026-07-07`](2026-07-07-rock5b-spi-sd-boot-chain.md) — ROCK 5B SPI U-Boot changes how Radxa SD images boot
 
-### Ramoops and crash retention (6)
+### Ramoops and crash retention (1)
 
 Whether a crash record survives reset — and the four audits that relocated the cause.
 
 - [`2026-07-28`](2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md) — Ramoops retention works on the 6.18.40-era kernels — the all-zero failure was kernel-generation-scoped, not firmware-scoped
-- [`2026-07-27`](2026-07-27-rk3588-spl-ramoops-binary-audit.md) — Exact SPL audit closes the ordinary CPU zero-writer, not the DDR mechanism
-- [`2026-07-27`](2026-07-27-rk3588-ramoops-next-experiment-plan.md) — Ramoops next experiments: find the first boot stage that changes the bytes
-- [`2026-07-26`](2026-07-26-rk3588-ddr-blob-ramoops-static-audit.md) — RK3588 DDR blobs do not directly clear the Linux ramoops window
-- [`2026-07-24`](2026-07-24-bsp-vs-armbian-ramoops-gap.md) — BSP vs. Armbian ramoops: provisioning is not proof of retention
-- [`2026-07-21`](2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md) — Ramoops/pstore does not survive a warm reset on this ROCK 5B
 
 ### Boot hangs and board wedges (4)
 
@@ -385,8 +380,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-28-production-kernel-debug-option-audit.md`](2026-07-28-production-kernel-debug-option-audit.md) — Production kernel debug audit: four options above Armbian stock, and a 256 MiB debug allocation arriving from the shared boot environment
 - [`2026-07-28-dmabuf-debug-upstream-provenance-and-fix-options.md`](2026-07-28-dmabuf-debug-upstream-provenance-and-fix-options.md) — The DMABUF_DEBUG scatterlist defect is 100% upstream code, reported since 2022, and blocked on an unresolved dma-buf design argument
 - [`2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md`](2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md) — CONFIG_DMABUF_DEBUG's mangle_sg_table() is the system-heap page_link writer, and the dma-heap CPU-access sync dereferences it
-- [`2026-07-27-rk3588-spl-ramoops-binary-audit.md`](2026-07-27-rk3588-spl-ramoops-binary-audit.md) — Exact SPL audit closes the ordinary CPU zero-writer, not the DDR mechanism
-- [`2026-07-27-rk3588-ramoops-next-experiment-plan.md`](2026-07-27-rk3588-ramoops-next-experiment-plan.md) — Ramoops next experiments: find the first boot stage that changes the bytes
 - [`2026-07-27-rk3588-pvtm-volt-sel-measured.md`](2026-07-27-rk3588-pvtm-volt-sel-measured.md) — This ROCK 5B's BSP voltage-select index measured: L5 little / L7 both big clusters
 - [`2026-07-27-rewrite-reset-import-fixture-lockdep.md`](2026-07-27-rewrite-reset-import-fixture-lockdep.md) — Reset/import KUnit fixture missed the DCHS spinlock initialized in its sibling
 - [`2026-07-27-rewrite-mpp-preflight-freeze.md`](2026-07-27-rewrite-mpp-preflight-freeze.md) — MPP conformance froze in pre-workload state capture after KUnit poisoned the service
@@ -400,7 +393,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-27-grd-sg-corruption-reproduced-and-ioctl-capture-plan.md`](2026-07-27-grd-sg-corruption-reproduced-and-ioctl-capture-plan.md) — GRD system-heap oops reproduces 2/2 on production, and both corrupt pointers land 256 bytes below a 16 KiB boundary
 - [`2026-07-27-grd-sg-corruption-kasan-non-reproduction.md`](2026-07-27-grd-sg-corruption-kasan-non-reproduction.md) — The KASAN kernel does not reproduce the GRD system-heap oops, and is likely unable to
 - [`2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md`](2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md) — GRD's first RKMPP frame oopses on a corrupted system-heap scatterlist entry
-- [`2026-07-26-rk3588-ddr-blob-ramoops-static-audit.md`](2026-07-26-rk3588-ddr-blob-ramoops-static-audit.md) — RK3588 DDR blobs do not directly clear the Linux ramoops window
 - [`2026-07-26-rewrite-kunit-poisons-runtime-and-rga3-probe-fails.md`](2026-07-26-rewrite-kunit-poisons-runtime-and-rga3-probe-fails.md) — Failed rewrite KUnit poisoned MPP runtime while overlapping resources disabled RGA3
 - [`2026-07-26-rewrite-kunit-gate-passes.md`](2026-07-26-rewrite-kunit-gate-passes.md) — Rewrite KUnit gate passes all 232 cases on the follow-up boot
 - [`2026-07-26-rewrite-kunit-failure-root-causes.md`](2026-07-26-rewrite-kunit-failure-root-causes.md) — Rewrite KUnit failures were stale fixtures plus six driver-contract defects
@@ -416,7 +408,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-24-rga-10bit-tile-byte-stride-and-fbc-exception.md`](2026-07-24-rga-10bit-tile-byte-stride-and-fbc-exception.md) — 10-bit `vir_w` is a byte stride in TILE too — the `* 8` is a line factor, not a depth scale
 - [`2026-07-24-rewrite-driver-multi-agent-defect-audit.md`](2026-07-24-rewrite-driver-multi-agent-defect-audit.md) — Multi-agent defect audit of the rewrite drivers: 17 confirmed, 4 refuted, all fixed
 - [`2026-07-24-production-ppa-kernel-full-conformance-run.md`](2026-07-24-production-ppa-kernel-full-conformance-run.md) — Production PPA kernel (…20260723) — full driver conformance run, all gates green
-- [`2026-07-24-bsp-vs-armbian-ramoops-gap.md`](2026-07-24-bsp-vs-armbian-ramoops-gap.md) — BSP vs. Armbian ramoops: provisioning is not proof of retention
 - [`2026-07-23-rock5b-boot-hang-recurred-with-patched-plymouth.md`](2026-07-23-rock5b-boot-hang-recurred-with-patched-plymouth.md) — ROCK 5B boot hang recurred with the patched Plymouth provably in the boot path
 - [`2026-07-23-rga-scattered-userptr-unaligned-src-zero-output.md`](2026-07-23-rga-scattered-userptr-unaligned-src-zero-output.md) — RGA scattered-userptr blit silently returns all-zero output for non-16-byte-aligned source offsets
 - [`2026-07-23-forward-port-current-tip-full-validation-run.md`](2026-07-23-forward-port-current-tip-full-validation-run.md) — Forward-port current tip (`0072`) full validation run — KASAN debug build
@@ -431,7 +422,6 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-21-rga-job-vs-session-close-uaf-kasan.md`](2026-07-21-rga-job-vs-session-close-uaf-kasan.md) — RGA in-flight job outlives its session: KASAN use-after-free on the session object
 - [`2026-07-21-rga-forward-port-abi-gaps.md`](2026-07-21-rga-forward-port-abi-gaps.md) — RGA forward-port ABI replay gaps are fixed and pass booted replay
 - [`2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md`](2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md) — Root causes for the FFmpeg 10-bit/AV1 diagnostics and librga smoke failures
-- [`2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md`](2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md) — Ramoops/pstore does not survive a warm reset on this ROCK 5B
 - [`2026-07-21-mpp-collect-msgs-clientless-session-null-deref-crash.md`](2026-07-21-mpp-collect-msgs-clientless-session-null-deref-crash.md) — MPP client-less session NULL-deref hard crash — `RELEASE_FD` dereferences a NULL `session->dma`
 - [`2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md`](2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) — Mainline AV1/V4L2 vs VA-API, and why Firefox's only Rockchip hardware-decode route is VA-API
 - [`2026-07-21-forward-port-lifetime-resource-ownership-audit.md`](2026-07-21-forward-port-lifetime-resource-ownership-audit.md) — Forward-port MPP/RGA lifetime and resource-ownership audit
