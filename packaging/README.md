@@ -47,7 +47,7 @@ shipping, or operating** the artifacts.
 | [`ppa/`](ppa/README.md) | Launchpad topology, reproducible source exporters, artifact reconstruction, sign/upload/recovery operations, and the compact material-incident record. |
 | [`docs/`](docs/armbian-packaging.md) | The Armbian `media-0001` conflict + the convert-in-place / self-contained DT strategies ([`armbian-packaging.md`](docs/armbian-packaging.md)); and Armbian **patch precedence** — why you can't disable a core patch from userpatches ([`armbian-patch-precedence.md`](docs/armbian-patch-precedence.md)). |
 | [`external-workspaces.md`](external-workspaces.md) | Inventory and disposition for packaging/build artifacts in sibling `~/Code` workspaces: what is canonical source here, what is generated output, and what stays outside git. |
-| [`userspace-patches.md`](userspace-patches.md) | **Patch map for every patched userspace component** — MPP, librga, the three FFmpeg lineages, GRD, rockchip-vaapi: which source tree, whether the delta is carried as quilt patches or as a fork branch, what commit/tag it is pinned at, which PPA ships it, the procedure for adding a new patch under either model, and the pairing/base traps. |
+| [`userspace-patches.md`](userspace-patches.md) | Userspace delta policy: which components use a public fork, quilt, a pristine snapshot, or native inputs; how to add a patch; and the pairing, base, and vendor-mirror traps. Executable helpers own pins and W05 owns publication. |
 
 ## Operations runbook — running the rkmpp FFmpeg stack
 

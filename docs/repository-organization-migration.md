@@ -136,7 +136,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-11 | Watchlist cache | Remote/service/host/board is authoritative; live W-item owns dated cache/recheck/freshness only. Promote stable knowledge/internal work and retain retired anchors. | Every W01–W25 index/detail anchor and inbound W-link; pairing checker plus authority/retired-anchor report. Security review required for W19 and any memory-safety item. | CLOSED 2026-08-05 — all IDs classified, successor routes/checker valid, full handoff gate green. |
 | ORG-20 | `source-trees.md` source map | Immutable documentation/comparison pins and reconstruction only; scripts/manifests own intended inputs, project docs own mechanism/results. | All source-tree section links and file/line citations; FFmpeg/GRD checks migrate only with owning package slices. Security review for kernel source/fix material. | CLOSED 2026-08-05 — all 14 sections preserve immutable pins/reconstruction and route mutable assertions to their owners; full handoff gate passes. |
 | ORG-21 | PPA topology, package provenance, publication, and history | Package scripts own intended inputs; standard metadata owns artifacts; Launchpad/W05 own service state; runbooks own upload/sign/recovery; retain only incident/otherwise-unavailable history. | PPA/newcomer/package READMEs, installer, changelogs, W05, history links; FFmpeg/GRD pin tests and package helper checks. Security: public fix versus private submission/disclosure boundary. | CLOSED 2026-08-05 — topology, identity boundaries, mechanics, reconstruction, recovery, and incident ownership handoff-gated. |
-| ORG-22 | Userspace patch and public technical-fix inventories | Project catalogs own behavior, public patch identity/provenance, dependencies, validation; scripts own pins. Promote useful public maintenance facts and remove publication/upstream-submission copies. | `packaging/userspace-patches.md`, package/source-delta catalogs, project READMEs. Security review mandatory; private destinations/order/send-withhold/disclosure remain private. | ACTIVE 2026-08-05 — FFmpeg/GRD pin and publication copies removed; remaining packages pending. |
+| ORG-22 | Userspace patch and public technical-fix inventories | Project catalogs own behavior, public patch identity/provenance, dependencies, validation; scripts own pins. Promote useful public maintenance facts and remove publication/upstream-submission copies. | `packaging/userspace-patches.md`, package/source-delta catalogs, project READMEs. Security review mandatory; private destinations/order/send-withhold/disclosure remain private. | CLOSED 2026-08-05 — delta policy, project catalogs, input owner, maintenance traps, and public/private boundary handoff-gated. |
 | ORG-30 | Rewrite validation workstream | `rewrite-validation-plan.md` owns the plan; `tests/rewrite-conformance.md` owns operations and delegates; existing project docs own accumulated result; validation index routes only. Freeze or remove audits after promotion. | Rewrite status/finding/plan/audit/index/runbook links and private-harness references; findings and nearest-README checks. Security review mandatory for fuzzing, destructive PoCs, and memory safety. | CLOSED 2026-08-05 — canonical plan/operation/evidence/verdict owners, router-only index, frozen audit, and state-free teaching guide handoff-gated. |
 | ORG-31 | Forward-port validation and state | Patch README owns order; patch catalog owns provenance/backport; project evidence owner owns capability; status owns public boundary; findings are intake. | `forward-port-status.md`, patch docs, status tracks 1/2, W16, runbooks/findings. Security review mandatory. | CLOSED 2026-08-05 — compact capability scorecard, mechanical series index, provenance/backport catalog, and status/W16 live owners handoff-gated. |
 | ORG-32 | VA-API validation and application route | VA-API README owns capability policy; architecture owns mechanism; app map owns consumer compatibility; status owns browser/package verdict. Promote fresh evidence, preserve superseded-plan anchors. | VA-API/app READMEs, status track 14/W18, findings, closure plans, package docs. Security: not expected; recheck if kernel safety enters. | CLOSED 2026-08-05 — policy/mechanism/consumer/live-state owners separated, closure-plan anchors preserved, and full handoff gate passed. |
@@ -595,6 +595,34 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   handoff gate passed on 2026-08-05 across 437 Markdown files, 3,758 local
   links, 450 anchors, all 62 regression tests, ShellCheck, documentation
   consistency, and whitespace.
+
+### ORG-22 — userspace delta policy and technical catalogs
+
+- **Owner map:** `packaging/userspace-patches.md` owns fork-versus-quilt policy,
+  patch-addition procedure, and cross-component maintenance traps. The source
+  build helper owns intended tuples; signed package metadata owns artifacts;
+  W05 owns publication observations; MPP, RGA, FFmpeg, GRD, VA-API, and package
+  catalogs own behavior, public provenance, dependencies, and validation.
+- **Map disposition:** removed source-tree paths presented as package truth,
+  mutable branch counts, literal pins and versions, PPA columns, publication
+  IDs, validation claims, and the copied MPP/GRD fix inventories. The compact
+  matrix now names only delta form and the responsible executable or project
+  owner.
+- **Durable procedure:** retained the rule against mixing fork and quilt,
+  byte-identical orig reuse, tuple updates, archive-content verification,
+  sequential quilt application, fork/vendor-mirror separation, librga/kernel
+  pairing, differing MPP bases, and external task-build placement.
+- **Compatibility:** every original H2/H3 route remains; the former MPP count
+  heading has an explicit successor anchor. The packaging hub now describes
+  policy and traps instead of advertising duplicated pins and PPA state.
+- **Public/private review:** the public map permits affected behavior, patch
+  identity/provenance, dependencies, and validation in project catalogs. It
+  explicitly excludes submission destination/order, send/withhold choices,
+  disclosure coordination, and working memory-corruption reproducers. No
+  private repository path or material was added.
+- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
+  2026-08-05 across 437 Markdown files, 3,767 local links, 450 anchors, all 62
+  regression tests, ShellCheck, documentation consistency, and whitespace.
 
 ### ORG-32 — VA-API policy, mechanism, and application route
 
