@@ -594,7 +594,7 @@ that was removed. The current invariant is: API/front-end code skips empty
 regions before building Gallium blits, while `u_blitter` assumes non-empty work
 and asserts that the destination axes are not zero in the fragcoord path.
 
-Follow-up branches exist but are not part of the current MR stack:
+Follow-up branches existed outside the recorded reviewed MR stack:
 
 - `zero-sized-blits-gallium` (`d8cf9625ba5`) skips empty GL/DRI copy rectangles
   in `dri2_blit_image`, `glCopyImageSubData`, and `glCopyTexSubImage*` before

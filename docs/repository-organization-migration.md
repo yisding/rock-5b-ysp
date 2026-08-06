@@ -140,7 +140,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-30 | Rewrite validation workstream | `rewrite-validation-plan.md` owns the plan; `tests/rewrite-conformance.md` owns operations and delegates; existing project docs own accumulated result; validation index routes only. Freeze or remove audits after promotion. | Rewrite status/finding/plan/audit/index/runbook links and private-harness references; findings and nearest-README checks. Security review mandatory for fuzzing, destructive PoCs, and memory safety. | CLOSED 2026-08-05 — canonical plan/operation/evidence/verdict owners, router-only index, frozen audit, and state-free teaching guide handoff-gated. |
 | ORG-31 | Forward-port validation and state | Patch README owns order; patch catalog owns provenance/backport; project evidence owner owns capability; status owns public boundary; findings are intake. | `forward-port-status.md`, patch docs, status tracks 1/2, W16, runbooks/findings. Security review mandatory. | CLOSED 2026-08-05 — compact capability scorecard, mechanical series index, provenance/backport catalog, and status/W16 live owners handoff-gated. |
 | ORG-32 | VA-API validation and application route | VA-API README owns capability policy; architecture owns mechanism; app map owns consumer compatibility; status owns browser/package verdict. Promote fresh evidence, preserve superseded-plan anchors. | VA-API/app READMEs, status track 14/W18, findings, closure plans, package docs. Security: not expected; recheck if kernel safety enters. | CLOSED 2026-08-05 — policy/mechanism/consumer/live-state owners separated, closure-plan anchors preserved, and full handoff gate passed. |
-| ORG-33 | Mesa validation and MR state | Remote service is MR authority; W06 is dated cache; validation/review docs own conclusions; README routes. | Mesa README/docs, W06, status track 8, findings; preserve MR links. Security: upstream destination is public fact, but submission planning remains private. | PLANNED. |
+| ORG-33 | Mesa validation and MR state | Remote service is MR authority; W06 is dated cache; validation/review docs own conclusions; README routes. | Mesa README/docs, W06, status track 8, findings; preserve MR links. Security: upstream destination is public fact, but submission planning remains private. | CLOSED 2026-08-05 — router, accumulated validation, tip-pinned review, W06/status ownership, and full handoff gate complete. |
 | ORG-34 | FFmpeg validation and branch state | Remote owns moving tip; build script owns intended package input; immutable comparison pins stay in source map; project docs own measured conclusions; status/W05 own verdict/publication. | FFmpeg README/docs/findings, W04/W05/W07/W21, status track 5, PPA installer/build/checker. Security: review public fix inventory versus private submission plan. | ACTIVE 2026-08-05 — source/package ownership migrated; validation consolidation pending. |
 | ORG-35 | GNOME Remote Desktop validation and branch state | Remote owns branch tip; build script owns package input; project docs own design/test conclusions; status/W05 own verdict/publication. | GRD README/docs/findings, status track 7, W05/W10, PPA and GRD pin checker. Security: review public fix inventory versus private submission plan. | ACTIVE 2026-08-05 — source/package ownership migrated; validation consolidation pending. |
 | ORG-40 | Project front doors, runbooks, plans, audits, and coverage | Each project README routes stable scope/boundary/model/operation; deep docs own mechanism; runbooks own commands; plans own future ladder; coverage owns scope/first missing evidence. | Activate one project/README at a time; preserve all headings/inbound links and nearest-README completeness. Security review when the project scope requires it. | PLANNED after owner consolidation. |
@@ -617,3 +617,37 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   2026-08-05 before ledger closure, covering 435 Markdown files, 3,749 local
   links, 428 anchors, all 62 regression tests, ShellCheck, documentation
   consistency, and whitespace.
+
+### ORG-33 — Mesa validation and MR-state route
+
+- **Owner map:** GitLab is authoritative for MR records; W06 is the only dated
+  cache of heads, mergeability, review, and selected CI; status track 8 owns
+  the public verdict/next proof; `validation.md` owns accumulated correctness,
+  performance, build, CI-classification, and workaround evidence;
+  `mr-review-findings.md` owns conclusions at immutable reviewed tips;
+  `blit-precision.md` owns the causal model.
+- **Front-door disposition:** replaced the open-MR table and 28-row
+  force-push/experiment diary with a compact project router, a stable mechanism
+  summary, evidence-owner map, and durable facts. The explicit `#mr-status`
+  compatibility route remains and sends live-state readers to W06.
+- **Validation disposition:** preserved all prior H2/H3 anchors while
+  compacting superseded candidate history and repeated run prose into
+  discriminating evidence tables, negative controls, CI root-cause
+  classification, invocation/build boundaries, and a promoted depth-bias
+  workaround/benchmark conclusion.
+- **Review disposition:** the detailed public code review remains at its
+  immutable four tips. Its introduction and verdict no longer claim current
+  CI state or schedule a next force-push; W06 owns later remote state.
+- **Status route:** track 8's unchanged next proof now links directly to W06,
+  so it cannot be mistaken for a project-README MR cache.
+- **Evidence disposition:** the stable conclusions from the July erratum,
+  geometry, and benchmark findings are promoted into the validation owner.
+  Intake files remain for the later ORG-41 owner-based deletion batch.
+- **Public/private review:** public MR URLs, reviewed code behavior, proposed
+  technical fixes, and validation conclusions remain public engineering facts.
+  No private submission destination/order, send/withhold decision,
+  disclosure/CVE coordination, or hostile reproducer was added.
+- **Validation:** the full `bash scripts/check-repo.sh` gate passed before
+  ledger closure on 2026-08-05 across 435 Markdown files, 3,737 local links,
+  434 anchors, all 62 regression tests, ShellCheck, documentation consistency,
+  and whitespace.

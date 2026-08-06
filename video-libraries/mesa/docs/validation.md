@@ -1,521 +1,232 @@
 # Validation And Performance
 
-This records what was tested while moving Mesa MR !42563 from sampled BLIT
-texture transfers to COMPUTE texture transfers and then to the selected
-`gl_FragCoord` `u_blitter` fix on Panfrost/Mali-G610. For the current MR stack,
-see [`README.md` § Status](../README.md) and
-[`blit-precision.md`](blit-precision.md).
+This is the accumulated evidence owner for the Panfrost transfer work. It
+records immutable tested shapes, discriminating signals, and boundaries.
+[W06](../../../status.md#watch-w06) owns live MR/CI state,
+[`mr-review-findings.md`](mr-review-findings.md) owns code-review conclusions,
+and [`blit-precision.md`](blit-precision.md) owns the causal model.
 
 ## Current MR And CI State (2026-07-06)
 
-The current upstream shape is four open MRs:
+**Frozen CI snapshot, not current remote state.** The recorded four-part shape
+was:
 
-| MR | Tip | Scope | Selected CI state |
-|---|---|---|---|
-| [!42563](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42563) | `833101f35ed` | Reviewed Panfrost shader-image unbind fix. | Green: x86/arm64 build plus G610 GL/piglit jobs. |
-| [!42679](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42679) | `6509025064f` | Shared `u_blitter` fragcoord TXF fix, opt-in default-off. | Green: x86 build, clang, llvmpipe, softpipe. |
-| [!42613](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42613) | `8875a22856d` | Reviewed !42563 unbind prerequisite, !42679 u_blitter fix, Panfrost opt-in, `st_TexImage` allocation-only guard, Joshua Watt's BLIT transfer enablement, and G610 `glx-copy-sub-buffer` expectation cleanup. | Force-pushed 2026-07-06; rerun pipeline 1700162 passed all four selected G610 shards. Previous tip `3ab262af7fc` was red for the two classified root causes below; `a9d6caeeb53` was red only on the stale `glx-copy-sub-buffer` expectation. |
-| [!42614](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42614) | `4c23f1db1f9` | Corrected !42613 stack plus unchanged Panfrost Gallium-test setup and wide non-pow2 u_test. | Force-pushed 2026-07-06; rerun pipeline 1700163 passed all four selected G610 shards. Previous tip `5bd122bbf07` inherited the !42613 failures. |
+| MR | Recorded tip | Scope | Evidence at that tip |
+|----|--------------|-------|----------------------|
+| [!42563](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42563) | `833101f35ed` | Panfrost trailing-image-unbind fix | Selected x86/arm64 build and G610 GL/Piglit green |
+| [!42679](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42679) | `6509025064f` | Shared default-off `u_blitter` fragcoord TXF path | Selected x86 build, clang, llvmpipe, and softpipe green |
+| [!42613](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42613) | `8875a22856d` | Prerequisite, shared fix, Panfrost opt-in, allocation guard, BLIT enablement, expectation cleanup | Pipeline 1700162: four selected G610 shards green |
+| [!42614](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42614) | `4c23f1db1f9` | Corrected stack plus Gallium setup and wide-blit test | Pipeline 1700163: four selected G610 shards green |
 
-The x86-only selection for !42679 is intentional: the new shared flag defaults
-off, so ARM/Panfrost hardware does not execute the fragcoord path until !42613
-sets `ctx->blitter->use_txf_fragcoord = dev->arch >= 6`. The hardware signal
-therefore belongs in !42613 and !42614. !42614 remains stacked on !42613 because
-the test would compile without the opt-in, but it would not validate the fixed
-Panfrost path.
-
-CI process note: `bin/ci/ci_run_n_monitor.sh --dry-run` is the useful source of
-job sets. In this environment direct helper execution could not mutate jobs
-because its default `/home/yi/.config/gitlab-token` file was absent, while
-`glab api` was authenticated. The current fallback is:
-
-```text
-ci_run_n_monitor.sh --pipeline-url <pipeline> \
-  --target 'panfrost-g610-(gl|piglit):arm64.*' --dry-run
-```
-
-Then manually `play` only the dependency jobs it names. For the 2026-07-06
-rerun that was `sanity` (already green), `debian/arm64_build`,
-`debian/arm64_test-base`, `debian/arm64_test-gl`, and `debian-arm64`, followed
-by the four G610 target shards. If using manual API calls, watch for unrelated
-jobs fanning out after dependencies finish and cancel them explicitly.
+The hardware signal belongs to !42613/!42614 because !42679's shared flag
+defaults off. This snapshot proves only those commits and selected jobs; a new
+head needs a new run. Use [W06](../../../status.md#watch-w06) before any
+upstream action.
 
 ### 2026-07-06 G610 Red-Job Classification
 
-The first selected !42613/!42614 G610 run was not an unexplained Piglit
-regression. It had two concrete root causes:
+The first selected Panfrost runs were red for two stack-integration causes,
+not for an unexplained fragcoord regression:
 
-1. The pushed Panfrost branches accidentally omitted the reviewed !42563
-   shader-image unbind fix. `panfrost_set_shader_images()` cleared resources
-   for `count + unbind_num_trailing_slots` but only cleared `count` bits from
-   `image_mask`; later image descriptor emission during a u_blitter draw could
-   dereference a NULL image resource. Local gdb for `pbo-getteximage -auto`
-   crashed in `util_image_to_sampler_view()` via `panfrost_emit_images()` and
-   `panfrost_blit()`. Re-applying the !42563 fix made the exact test pass.
-2. `max-texture-size -auto -fbo` exposed a state-tracker allocation-only upload
-   bug once Panfrost advertised BLIT transfers. `st_TexImage(..., pixels =
-   NULL)` still called `st_TexSubImage`, and the BLIT path tried to allocate a
-   full-size staging source before discovering there was no client data. Local
-   gdb showed a 16384x16384 `PIPE_FORMAT_R32G32B32A32_FLOAT` staging resource.
-   Guarding the upload with `if (pixels || unpack->BufferObj)` makes the exact
-   command pass and preserves PBO offset-zero uploads.
+1. The pushed Panfrost branches had omitted the reviewed trailing-image-unbind
+   fix. Stale `image_mask` bits could lead image emission to dereference a
+   released resource during a blitter draw.
+2. Allocation-only `st_TexImage(..., pixels = NULL)` still entered
+   `st_TexSubImage` and attempted a maximum-size staging allocation after BLIT
+   transfer enablement.
 
-This explains the apparent contradiction with earlier end-to-end testing: the
-earlier Rock 5B Piglit/dEQP runs used experimental fragcoord/targeted branches
-that still contained the unbind fix. The later four-MR review split rebuilt the
-pushed `panfrost-blit-transfers*` branches without that prerequisite, so the CI
-branch was not the same effective stack that had been tested locally.
+Restoring the prerequisite and skipping the no-data upload removed the crash
+and allocation abort. The next rerun exposed only a stale expected-fail entry:
+`glx-copy-sub-buffer` passed. After its G610 expectation was removed, the four
+selected shards passed on both recorded tips.
 
-After rebuilding the stack, local smoke on Rock 5B / Mali-G610 passes:
-
-- `ninja -C $ROCK5B_WORKSPACE/build/mesa/mesa-codex-tmp/build-g610-debug`
-- `pbo-getteximage -auto`
-- `max-texture-size -auto -fbo`
-
-Other previously red Piglit cases also stop crashing with the two fixes applied:
-`cubemap-getteximage-pbo`, `arb_direct_state_access-gettextureimage-targets -fbo`,
-`mesa_pack_invert-readpixels`, `object-namespace-pollution glGetTexImage`, and
-`getteximage-targets RECT -fbo`. Two residual non-crash
-signals need separate baseline comparison if CI still reports them:
-`large-tex -auto -fbo` reaches a later GLSL `#version 420` compile despite
-Panfrost's GL 3.1 renderer, and `gl-2.1-pbo -auto -fbo` fails only
-`test_polygon_stip` with a black-vs-white probe mismatch.
-
-The first corrected-stack rerun (`a9d6caeeb53`, pipeline 1700150) got the
-transfer/readback crash roots out of the way: `panfrost-g610-gl` 1/2 and 2/2
-passed, and `panfrost-g610-piglit` 1/2 passed. The remaining failed shard,
-`panfrost-g610-piglit` 2/2, failed only because `glx@glx-copy-sub-buffer`
-passed while `src/panfrost/ci/panfrost-g610-fails.txt` still expected `Fail`.
-That stale expectation was removed in `8875a22856d`, and the selected G610 jobs
-were restarted in pipelines 1700162 and 1700163. Both final reruns passed all
-four targeted G610 shards.
-
-Review followups that changed the patch shape after the first self-review:
-
-- Empty blits are not handled in `u_blitter`. API-front-end paths may accept
-  zero-sized copies as no-ops, but they should skip them before constructing
-  Gallium blits. Follow-up branches exist: `zero-sized-blits-gallium`
-  (`d8cf9625ba5`) and `zero-sized-blits-lavapipe` (`740be57319d`).
-- `PIPE_BUFFER` was removed from the TXF-fragcoord predicate/comment. It is a
-  real target elsewhere in Mesa, but buffer copies cannot reach this
-  render-blit TXF path.
+The negative control matters: earlier board runs had used an experimental stack
+that still contained the unbind fix, so their green result could not validate
+the later accidentally incomplete branch.
 
 ## Patch Series Shape (COMPUTE Era, Superseded)
 
-As of the 2026-07-01 rebase (branch `panfrost-transfer-blit-update`,
-commits `37ce0f3111d` + `9d7f561cd9d`), the Mesa MR has two patches:
-
-1. `panfrost: clear shader image mask on trailing unbinds`
-   (carries `Reviewed-by: Iago Toral Quiroga <itoral@igalia.com>`)
-2. `panfrost: enable compute-based texture transfers`
-   (benchmark table below is reproduced in its commit message)
-
-The first patch fixes a crash exposed by compute texture-transfer testing.
-Gallium can call:
-
-```c
-set_shader_images(..., images = NULL, count = 0,
-                  unbind_num_trailing_slots = N)
-```
-
-Panfrost released resources for `count + unbind_num_trailing_slots`, but only
-cleared `count` bits in `image_mask`. That could leave a mask bit set while the
-corresponding image resource pointer was already NULL. Later image descriptor
-emission could dereference that NULL resource.
-
-The verified Fixes trailer is:
-
-```text
-Fixes: 72ff66c3d73 ("gallium: add unbind_num_trailing_slots to set_shader_images")
-```
-
-The second patch advertises:
-
-```c
-caps->texture_transfer_modes = PIPE_TEXTURE_TRANSFER_COMPUTE;
-```
-
-It also wires:
-
-```c
-screen->base.is_compute_copy_faster = panfrost_is_compute_copy_faster;
-```
-
-That hook matters. `st_pbo_compute.c` consults
-`screen->is_compute_copy_faster(...)` on the normal non-`MESA_COMPUTE_PBO=1`
-path before using the compute readback. The Panfrost implementation mirrors the
-simple zink/radeonsi heuristic:
-
-```c
-if (cpu)
-   return (uint64_t)width * height * depth > 64 * 64;
-return false;
-```
-
-So large CPU-readback transfers use compute; small ones can stay on the CPU.
+The frozen COMPUTE-era candidate paired the independent image-unbind fix with
+`PIPE_TEXTURE_TRANSFER_COMPUTE` and a Panfrost
+`is_compute_copy_faster` heuristic. It proved GPU readback could be exact and
+fast, but was rejected as the general policy because shaders cannot write AFBC
+destinations. The evidence remains valid; the patch shape does not.
 
 ## Correctness Repro
 
-The BLIT failure is reproduced by
-[`video-libraries/mesa/reproducers/repro_blit.c`](../reproducers/repro_blit.c) on a build carrying the
-archived BLIT-advertising patch
-([`video-libraries/mesa/patches/0001-panfrost-advertise-transfer-blit-and-compute.patch`](../patches/0001-panfrost-advertise-transfer-blit-and-compute.patch)):
+The archived BLIT-advertising configuration and
+[`repro_blit.c`](../reproducers/repro_blit.c) produced:
 
 ```text
-W=16307  mismatches=15672 / 16307
+W=16307  BLIT mismatches=15672/16307
 i=1024   sampled=1023
 i=8192   sampled=8185
 i=16306  sampled=16293
+COMPUTE  mismatches=0/16307
 ```
 
-With COMPUTE transfer enabled, the same reproducer becomes exact:
-
-```text
-mismatches = 0 / 16307
-```
-
-The interpolation probe in
-[`video-libraries/mesa/reproducers/interp_probe/probe_interp.c`](../reproducers/interp_probe/probe_interp.c) explains why:
-
-```text
-smooth varying:
-  floor(interp) != i : 15672 / 16307
-  i=16306 interp=16293.28, ideal=16306.5
-
-gl_FragCoord.x:
-  floor(interp) != i : 0 / 16307
-  i=16306 interp=16306.5, ideal=16306.5
-```
-
-That isolates the failure to Mali's varying interpolation path. Both probe
-counts were re-verified on the board on 2026-07-01
-([`video-libraries/mesa/reproducers/interp_probe/README.md`](../reproducers/interp_probe/README.md)).
+The paired interpolation probe produced the same 15,672 wrong integer bins
+through a smooth varying and zero through `gl_FragCoord.x`. GL and Vulkan raw
+varying probes later reproduced the signature without `u_blitter`; ordinary
+TEX-nearest also moved with the workaround. See the
+[probe owner](../reproducers/interp_probe/README.md).
 
 ## BLIT vs COMPUTE Timing
 
-Measured on ROCK 5B / Mali-G610 MC4 with `ST_DEBUG=noreadpixcache`, on a
-build with the archived BLIT patch applied (default path = BLIT;
-`MESA_COMPUTE_PBO=1` forces COMPUTE — there was never a BLIT|COMPUTE cap
-build; see the patch's annotation block):
+On the recorded G610 build with `ST_DEBUG=noreadpixcache`, COMPUTE was exact
+and slightly faster in the focused transfer measurements:
 
-```text
-16307x1    BLIT 0.559-0.565 ms   COMPUTE 0.433-0.450 ms
-16000x1    BLIT 0.707 ms         COMPUTE 0.633 ms
-16384x1    BLIT 0.559 ms         COMPUTE 0.419 ms
-1024x1024  BLIT 15.53 ms         COMPUTE 14.81 ms
-4096x256   BLIT 15.68 ms         COMPUTE 14.81 ms
-```
+| Shape | BLIT | COMPUTE |
+|-------|------|---------|
+| 16307x1 | 0.559–0.565 ms | 0.433–0.450 ms |
+| 16000x1 | 0.707 ms | 0.633 ms |
+| 16384x1 | 0.559 ms | 0.419 ms |
+| 1024x1024 | 15.53 ms | 14.81 ms |
+| 4096x256 | 15.68 ms | 14.81 ms |
 
-In these local transfer tests, COMPUTE was not a performance regression. It was
-slightly faster and fixed the correctness issue.
+These results establish that COMPUTE was not the observed performance problem;
+they do not overcome its AFBC write limitation or predict application-wide
+speed.
 
 ## GRD Readback Timing
 
-The original GRD motivation was the software RFX path spending most of a frame
-inside a GPU-to-CPU readback. Numbers from the GRD benchmark
-[`apps/gnome-remote-desktop/bench`](../../../apps/gnome-remote-desktop/bench)
-(1080p `GL_BGRA`):
+The GRD-owned 1080p `GL_BGRA` benchmark measured:
 
-```text
-default Mesa:
-  sync glReadPixels BGRA : 19.92 ms
-  async PBO t_issue      : 22.86 ms
-  async PBO t_fence      :  0.00 ms
+| Path | Synchronous | Async issue | Async fence |
+|------|------------:|------------:|------------:|
+| Default Mesa | 19.92 ms | 22.86 ms | 0.00 ms |
+| `MESA_COMPUTE_PBO=1` | 11.01 ms | 0.15 ms | 5.13 ms |
 
-MESA_COMPUTE_PBO=1:
-  sync glReadPixels BGRA : 11.01 ms
-  async PBO t_issue      :  0.15 ms
-  async PBO t_fence      :  5.13 ms
-```
-
-That debug environment variable forced the compute path and proved the GPU-side
-detile/swizzle path was useful. The MR makes Panfrost advertise a GPU transfer
-path directly instead of depending on the debug override.
+The debug override proved GPU detile/swizzle helps the software fallback. It
+does not remove GPU-to-CPU readback or supersede hardware encode.
 
 ## dEQP Reruns
 
-After switching to `PIPE_TEXTURE_TRANSFER_COMPUTE` and rebuilding the local DRI
-target on ROCK 5B / Mali-G610:
+The selected fragcoord series reached a zero-failure 1,097-case matrix:
 
-```text
-Exact cases from the MR comment:          0 Fail/Crash, 24/25 Pass, 1/25 QualityWarning
-precision.abs.*:                          24/24 Pass
-pbo.*:                                    54/54 Pass
-texture.specification.basic_teximage2d.*: 98/98 Pass
-```
+| Set | Result |
+|-----|--------|
+| MR-comment list | 24/25 Pass, one known `acos` QualityWarning |
+| Additional cases | 16/16 Pass |
+| `precision.abs.*` | 24/24 Pass |
+| `pbo.*` | 54/54 Pass |
+| `basic_teximage2d.*` | 98/98 Pass |
+| `fbo.blit.*` | 629 Pass, 12 NotSupported |
+| `fbo.msaa.*` | 66 Pass, 4 NotSupported |
+| 2D-array / 3D color cases | 36/36 Pass each |
+| `basic_teximage3d.*` | 98/98 Pass |
 
-The one `QualityWarning` was:
+The Gallium wide-blit test passed all seven shapes on the fixed path and failed
+all seven on a negative-control build with exactly 40,884 wrong texels per
+pass. That establishes test sensitivity, not just a green result.
 
-```text
-dEQP-GLES3.functional.shaders.builtin_functions.precision.acos.mediump_fragment.vec2
-```
-
-It reproduced in an earlier clean run too (baseline worktree
-`/home/yi/Code/rock-5b/fdo/mesa-origin-main`, detached at `0983c72a7ed`), so it was not
-introduced by the transfer-mode change.
-
-The exact MR-comment case list is kept in:
-
-```text
-reproducers/mr42563-comment-failures.txt
-```
+A later rebuilt dEQP harness classified 26 PBO and 34 default-framebuffer blit
+failures as harness artifacts: zero-pixel image differences were compared
+against a negative threshold and the failure sets were bit-identical on the
+patched build, unpatched build, and shipped Mesa. Keep harness identity with
+every future matrix.
 
 ## dEQP Invocation
 
-Recorded from the `#sessionInfo commandLineParameters` lines of the surviving
-`.qpa` logs (dev box, `/home/yi/Code/rock-5b/build/mesa/mesa-codex-tmp/*.qpa`):
+The recorded surfaceless invocation was:
 
-- Binary: `deqp-gles3` from a local VK-GL-CTS "Surfaceless" target build,
-  dEQP Core release `1c51d6e4b98`; the build lived at
-  `/tmp/deqp-gles-ci/modules/gles3/deqp-gles3` on the dev box (disposable
-  location — rebuild from VK-GL-CTS with the surfaceless target to repeat).
-- Flags:
+```bash
+deqp-gles3 \
+  --deqp-surface-width=256 --deqp-surface-height=256 \
+  --deqp-surface-type=pbuffer --deqp-visibility=hidden \
+  --deqp-gl-config-name=rgba8888d24s8ms0 \
+  --deqp-log-filename=<out.qpa> \
+  --deqp-case=<case>
+```
 
-  ```bash
-  deqp-gles3 --deqp-surface-width=256 --deqp-surface-height=256 \
-    --deqp-surface-type=pbuffer --deqp-visibility=hidden \
-    --deqp-gl-config-name=rgba8888d24s8ms0 \
-    --deqp-log-filename=<out.qpa> \
-    --deqp-case=<single.case.name>          # or:
-    --deqp-caselist-file=<cases.txt>        # batch runs
-  ```
-
-- Driver selection: the same `LD_LIBRARY_PATH`/`LIBGL_DRIVERS_PATH`/
-  `GBM_BACKENDS_PATH`/`EGL_PLATFORM=surfaceless` environment as the
-  reproducers ([`video-libraries/mesa/reproducers/README.md`](../reproducers/README.md)).
+Use `--deqp-caselist-file=<cases.txt>` for batches and the environment from
+[the reproducer README](../reproducers/README.md). Reconstruct disposable
+VK-GL-CTS build state under the central external build workspace; do not rely
+on an old `/tmp` binary.
 
 ## Build Checks
 
-After restoring `panfrost_is_compute_copy_faster` and rebasing the MR branch,
-the following local build checks passed in `build-codex-main` (a meson build
-dir under `/home/yi/Code/rock-5b/build/mesa` for the working tree
-`/home/yi/Code/rock-5b/fdo/mesa`; the LLVM-22 native-file shim it
-was configured with is documented in
-[`texture-query-levels.md` § Build Notes](texture-query-levels.md)):
+The focused static-library and DRI-target builds passed with central ccache:
 
 ```bash
 CCACHE_DIR=/home/yi/Code/.ccache \
   ninja -C build-codex-main src/gallium/drivers/panfrost/libpanfrost.a
-
 CCACHE_DIR=/home/yi/Code/.ccache \
   ninja -C build-codex-main src/gallium/targets/dril/libdril_dri.so
 ```
 
-The Panfrost static-library build still emits an unrelated existing warning in
-`pan_resource.c` about ignoring `asprintf`'s return value.
+The unrelated `pan_resource.c` ignored-`asprintf` warning was not introduced by
+this work. The [rebuild guide](rebuild-and-test.md) owns the complete board
+environment and GLVND/Piglit traps.
 
 ## MR state — COMPUTE era, superseded
 
-> **Superseded.** This section captures the COMPUTE-only phase of MR !42563.
-> That direction was rejected on 2026-07-01 (AFBC), and !42563 was later
-> reduced/retitled to the reviewed shader-image unbind bugfix, with the shared
-> `gl_FragCoord` fix moving to !42679 and the panfrost opt-in to !42613. For the
-> current canonical stack see [`README.md` § Status](../README.md). The
-> correctness and timing evidence below remains valid — only the fix *shape*
-> changed.
-
-(Last verified 2026-07-01 against the local Mesa tree; the GitLab page itself
-was unreachable from the board — see [`README.md` § Status](../README.md) for
-the dated lifecycle table.)
-
-At this point in the lifecycle MR !42563 was titled:
-
-```text
-panfrost: enable compute-based texture transfers
-```
-
-The tested branch direction was COMPUTE, not BLIT:
-
-- BLIT is unsafe for Mali-G610 integer format-changing transfers because the
-  coordinate arrives through lossy `LD_VAR_IMM` interpolation.
-- COMPUTE uses exact integer invocation coordinates.
-- The local BLIT-vs-COMPUTE timings did not show a transfer-performance loss.
-- The `is_compute_copy_faster` hook is required for the normal state-tracker
-  compute path and is part of the patch.
-
-**However**, COMPUTE-only was rejected by maintainer review on 2026-07-01
-("Compute isn't the right solution. We can't write AFBC that way") — compute
-shaders cannot write AFBC-compressed destinations, so a blanket COMPUTE
-preference would break or force-decompress AFBC resources. The correctness
-and timing results above remain valid evidence; the fix shape is being
-reworked. Candidate follow-ups (local branches, 2026-07-01):
-
-- `panfrost-transfer-fragcoord-blit` (rebased to `2f6e8a6afcc`) — make the
-  sampled blit exact by deriving the TXF coordinate from `gl_FragCoord` plus
-  the blit affine
-  (see [`blit-precision.md` § Options Considered](blit-precision.md)).
-- `panfrost-transfer-targeted-fallback` (rebased to `6a292503585`) — keep
-  `PIPE_TEXTURE_TRANSFER_BLIT` but route pure-integer format-changing
-  transfers to the non-blit path in `st_cb_readpixels.c` and
-  `st_cb_texture.c` (`src_format != dst_format` and both pure-integer).
+This compatibility heading preserves the rejected candidate's evidence
+boundary. COMPUTE uses exact integer invocation coordinates and improved the
+focused readback, but blanket COMPUTE transfer was rejected because it cannot
+write AFBC. Do not use this section for live MR state; use
+[W06](../../../status.md#watch-w06).
 
 ## Outcome (2026-07-01): fragcoord branch selected
 
-On-device verification decided between the two candidates — canonical
-write-up in
-[`blit-precision.md` § On-Device Verification](blit-precision.md), probes in
-[`../reproducers/`](../reproducers/README.md). Summary:
+On-device discriminators selected the fragcoord design:
 
-```text
-repro_blit_float (RG32F -> RGBA32F via GL_RGBA+GL_FLOAT, W=16307)
-  targeted-fallback git-6a29250358:  15672/16307 corrupt (96.1%), first at 623
-  fragcoord         git-2f6e8a6afc:      0/16307
-repro_blit (RG32UI integer control)   both branches exact
-repro_blit_off (offsets 1..16000)     fragcoord exact
-probe_const (constant varying, K=1.0..16306.5)
-                                      bit-exact at every K
-repro_afbc (AFBC CPU-map staging path, unfixed Mesa 26.0.3)
-                                      clean — no pre-existing corruption
-```
+- format-changing float readback disproved a pure-integer targeted fallback;
+- offset, flip, scissor, array-layer, and 3D probes became exact;
+- vertex-constant scale/offset remained bit-exact;
+- the archived AFBC CPU-map staging control remained clean;
+- generalizing the mechanism exposed and fixed an MSAA predicate bug; and
+- the negative-control Gallium test failed every intended shape.
 
-The float case corrupts through the targeted fallback's pure-integer gate —
-the drift is format-agnostic, so the fallback is under-inclusive and was
-dropped. Branch smoke numbers (both branches, `git diff --check` clean,
-driver identity verified via `GL_VERSION` git hash):
-
-```text
-panfrost-transfer-fragcoord-blit
-  repro_blit 16307:                  0 / 16307 mismatches
-  bench_transfer 16307x1 median:     0.1794 ms, 0 mismatches
-  bench_transfer 4096x1024 median:  49.9171 ms, 0 mismatches
-
-panfrost-transfer-targeted-fallback
-  repro_blit 16307:                  0 / 16307 mismatches
-  bench_transfer 16307x1 median:     0.1668 ms, 0 mismatches
-  bench_transfer 4096x1024 median:  47.6324 ms, 0 mismatches
-```
-
-The reworked 6-patch series was assembled locally on 2026-07-01
-(`panfrost-transfer-blit-update`, final tip `2e50c2622aa`, 7 commits after the array-view fix; earlier validated tips `993410a8f25`/`7fedfca1204`, not pushed — see
-[`README.md` § Status](../README.md)). Its validation: full probe battery
-green including flips at non-pow2 widths (`repro_blit_flip` 12000x8 and
-16307x2, all four orientations exact), `GALLIUM_TESTS`
-`test_unscaled_blit_precision` pass (and fail on a negative-control build
-without the panfrost opt-in — 40884 wrong texels), perf A/B-equal vs the
-previous fragcoord build (16307x1 ~0.179 ms, 4096x1024 ~71 ms medians).
-
-dEQP rerun on the series build (2026-07-01, surviving local
-`deqp-gles3` at `/tmp/deqp-gles-ci`, same invocation as above) — zero
-failures across 858 tests:
-
-```text
-MR-comment case list:                     24/25 Pass, 1 QualityWarning
-  (the warning is the known pre-existing acos.mediump_fragment.vec2,
-   reproduced on clean builds before this work)
-cases2.txt (MR 38433/42563 failures):     16/16 Pass
-precision.abs.*:                          24/24 Pass
-pbo.*:                                    54/54 Pass
-texture.specification.basic_teximage2d.*: 98/98 Pass
-fbo.blit.*:                               629/641 Pass, 12 NotSupported
-```
-
-Scissored wide blits verified exact (`repro_blit_scissor.c`: 0 mismatches
-inside the scissor, 0 sentinel overwrites outside).
-
-Array-layer readbacks initially regressed (`repro_blit_array.c`:
-15672/16307 corrupt vs exact CPU path on unpatched drivers; no dEQP/piglit
-coverage). Resolved first via a single-layer 1D/2D view, then superseded
-the same day by **generalizing the fragcoord mechanism to all
-single-sample TXF targets** (1D/2D/RECT, 1D/2D arrays single- and
-multi-layer, 3D): the coordinate attribute now carries scale sign bits
-(scale is exactly +-1 for TXF), the layer/slice, and the biased offsets —
-all per-draw constants, which interpolate bit-exactly.
-
-While generalizing, a **second bug in the earlier branch revision** was
-found: the draw-side gate did not exclude MSAA sources, so every MSAA
-resolve fed sign/offset data to resolve shaders that expect texcoords —
-`dEQP-GLES3.functional.fbo.msaa.*` was **62/70 Fail**; fixed by gating on
-`nr_samples <= 1` (now 0 Fail, 66 Pass + 4 NotSupported).
-
-Final series tip: `628e599172c` (6 commits — the interim array-view commit
-was dropped as superseded). Final dEQP matrix, **zero failures across 1097
-tests**: MR-comment 24/25 + known `acos` QualityWarning; cases2 16/16;
-precision.abs 24/24; pbo 54/54; basic_teximage2d 98/98; fbo.blit 629/641 +
-12 NotSupported; fbo.msaa 66/70 + 4 NotSupported; fbo.color.tex2darray
-36/36; fbo.color.tex3d 36/36; basic_teximage3d 98/98. The u_tests case
-grew to seven checks (unflipped, flipped, single array layer, 2x
-multi-layer, 2x 3D slice); the negative control (series minus the panfrost
-opt-in) fails ALL seven with the drift signature (40884 wrong texels
-each), proving per-pass sensitivity. Probe battery and perf unchanged
-(16307x1 ~0.183 ms, 4096x1024 ~74 ms).
-
-Still needed: piglit getteximage/PBO/readpixels subsets (no local piglit
-build on the board).
+The canonical mechanics and hypotheses live in
+[`blit-precision.md`](blit-precision.md). Exact probes and expected signals
+live in [`reproducers/`](../reproducers/README.md).
 
 ## 2026-07-02 Revision: Self-Review Fixes And Revalidation
 
-A structured multi-angle review of the !42613 diff produced ten verified
-findings; all were fixed, folded into the original commits, and
-force-pushed (!42613 `51cb29834d1` -> `486b6f7002f`, !42614
-`628e599172c` -> `e9125bd526f`).
+The self-review corrected three material issues:
 
-Correctness fixes:
+1. coordinate repacking was moved beside shader selection so pack and override
+   shaders could not consume the private attribute layout;
+2. transfer advertisement and fragcoord opt-in were aligned to the same
+   supported architecture class; and
+3. zero-area copies were prevented from creating NaN scale state.
 
-1. **ZS<->color pack shaders / fs_override clobber.** The draw-side
-   fragcoord repacking fired whenever (target, samples, txf) matched,
-   but `blitter_get_fs_pack_color_zs` shaders and caller `fs_override`
-   shaders read the attribute as raw texel coordinates. The encoding
-   decision moved into `util_blitter_blit_generic`, next to fragment
-   shader selection, and is threaded through `do_blits` to the draw;
-   pack and override paths keep the plain layout. This also replaced
-   the hardcoded `nr_samples=1` at the shader-getter call sites with
-   the real sample count, so shader-side and draw-side predicates can
-   no longer diverge.
-2. **Midgard gating.** `texture_transfer_modes` was enabled for every
-   arch while the fragcoord fix only engaged on Bifrost+
-   (`fs_position_is_sysval`), leaving Midgard's transfers on the lossy
-   interpolated path. Both sites now gate on `arch >= 6`; Midgard's
-   position input goes through the same varying unit, so the fragcoord
-   path is not known to be exact there and stays off.
-3. **Zero-area blits.** `glCopyImageSubData` permits `width == 0`, and
-   `util_blitter_blit_with_txf`'s bounds test passes such boxes, so the
-   scale computation hit `0/0 = NaN` and the new
-   `assert(fabsf(scale_x) == 1.0f)` aborted debug builds. Degenerate
-   axes substitute scale 1 (no fragments are rasterized).
+It also simplified the per-draw encoding, skipped dead texcoord work, and
+aligned target predicates. Revalidation covered offsets, float/integer/array
+readback, scissor, flips, AFBC control, Gallium negative control, MSAA, focused
+dEQP, and the transfer benchmark. The
+[maintained review](mr-review-findings.md) owns remaining code-level
+should-fix items and their immutable source context.
 
-Cleanups: POSITION declared as sysval **or FS input** per
-`pipe_caps.fs_position_is_sysval` inside `ureg_load_tex` (dropping the
-implicit sysval-only contract and the fragcoord parameter threading;
-`u_blitter.h` flag documented); attribute encoding simplified from
-sign-bits + F2I/AND/AND/I2F/MAD/MAD to `x = scale_x`,
-`y = scale_y * (layer + 0.25)` — decode is one SSG plus an abs source
-modifier, and the 0.25 bias truncates away for both integer array
-layers and half-integer 3D slice centers; `get_texcoords()` skipped
-(not overwritten) in the fragcoord path; the six-target allow-list
-collapsed to the same CUBE/CUBE_ARRAY exclusion
-`util_blitter_blit_with_txf` uses.
+## Depth-bias workaround validation
 
-Reviewed and rejected as non-issues: constant-varying exactness (the
-error term scales with vertex deltas, zero for constants; verified
-empirically on 2026-07-01), cube transfers (panfrost's
-`sampler_view_target` makes u_blitter sample cubes as 2D-array views,
-which take the exact path), and the zero-fill of unused coordinate
-channels (required: TXF reads `.w` as LOD and `coord.zw` carry large
-offsets).
+The later maintainer-provided workaround enables depth bias with all numeric
+parameters zero. On the measured G610 it changes the relevant Valhall
+descriptor state without moving depth and makes raw varyings exact in both
+OpenGL and Vulkan; an ordinary nearest-texture probe follows the same result.
+The exact internal reason is inferred, not public hardware knowledge.
 
-Revalidation (build `git-e9125bd526`, Rock 5B / Mali-G610):
+Geometry sweeps disproved simple aspect thresholds of 1000 and 500: affected
+and unaffected cases overlap. The durable policy candidate is therefore scoped
+to the Panfrost internal fullscreen blitter on the affected Valhall generation,
+with a size predicate only as a maintainer-requested compromise.
 
-```text
-repro_blit 16307:                        0/16307
-repro_blit_off X0=8000:                  0 mismatches
-repro_blit_float 16307:                  0/16307
-repro_blit_array 16307:                  0/16307
-repro_blit_scissor:                      0/32612 inside, 0 sentinel hits
-repro_blit_flip 16307x8:                 0/130456 in all 4 orientations
-probe_const K=16000.25:                  0/16307 bit errors
-repro_afbc:                              0/65536
-GALLIUM_TESTS:                           test_unscaled_blit_precision pass (7/7 checks)
-bench_transfer 16307x1 (noreadpixcache): 0.578 ms median, 0 mismatches
-dEQP fbo.msaa.*:                         66 Pass / 4 NotSupported / 0 Fail
-dEQP precision.abs.*:                    24/24
-dEQP MR-comment list:                    22 Pass + known acos QualityWarning
-```
+The forced all-blit A/B made both affected R32UI geometries exact and preserved
+four ordinary controls. The final one-context, fixed-clock, balanced-order
+benchmark measured:
 
-**dEQP harness caveat:** the local dEQP at `/tmp/deqp-gles-ci` was
-rebuilt since 2026-07-01 and now fails 26 `pbo.*` and all 34 runnable
-`fbo.blit.default_framebuffer.*` cases with a **zero-pixel image
-difference judged against a negative threshold** (-9.3e-10). The same
-cases fail bit-identically on the unpatched series build and on shipped
-Mesa 26.0.3 (failure sets diffed: identical), so these are test-harness
-artifacts, not driver regressions. The 2026-07-01 "zero failures across
-1097 tests" matrix was produced by the previous dEQP build.
+| Signal | Result |
+|--------|--------|
+| Completion-side workaround cost | +0.50%; 95% interval +0.34%..+0.73% |
+| End-to-end wall cost | +0.62%; 95% interval +0.44%..+1.01% |
+| Off/off control | Interval includes zero |
+| Samples / clock checks | 6,480 non-disjoint A/B samples; 242 checks at 500 MHz |
+| Same-batch draw control | +0.451%; p10..p90 +0.081%..+0.666% |
+
+These are workload-specific microbenchmark costs. The causal, matrix, and
+timing intake remains in the linked
+[erratum](../../../findings/2026-07-22-mali-varying-depth-bias-erratum-workaround.md),
+[triangle](../../../findings/2026-07-24-mali-oblong-triangle-matrix.md), and
+[timing](../../../findings/2026-07-28-mesa-blit-benchmark-timing-boundary.md)
+findings until their ORG-41 promotion/removal batch.

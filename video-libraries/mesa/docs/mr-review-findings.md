@@ -1,7 +1,10 @@
 # MR review findings — the four-MR blit-transfer stack
 
-Structured review of the open upstream stack, performed 2026-07-06 with four
-parallel review agents plus git-level stack checks. Scope and method:
+Structured review performed 2026-07-06 against the immutable tips below, with
+four parallel review agents plus git-level stack checks. This page owns the
+resulting code-review conclusions, not later MR heads, discussions,
+mergeability, or CI; those belong to
+[W06](../../../status.md#watch-w06). Scope and method:
 
 - **!42563** `833101f35ed` — static review of the unbind fix + gallium
   cross-driver comparison (two independent passes).
@@ -27,8 +30,8 @@ parallel review agents plus git-level stack checks. Scope and method:
 | !42613 panfrost enablement | No blockers | 0 | 3 (1 CI risk, 1 residual hazard, 1 hardening) | 3 |
 | !42614 u_tests + glsl_type | No blockers, test verified both directions | 0 | 1 (message/comment wording) | 2 |
 
-No finding invalidates the current CI-green state. The highest-priority
-items before the next force-push: **!42613-SF1** (G52/G57 expectations),
+No finding invalidated the selected CI evidence at the reviewed tips. The
+highest-priority technical items were **!42613-SF1** (G52/G57 expectations),
 **!42679-S2 / !42614-M1** (root-cause wording, now contradicted by the
 [probe evidence](./blit-precision.md)), and **!42613-SF2** (residual
 staging-alloc hazard).
@@ -384,7 +387,7 @@ coverage (and no CI-breakage risk on other drivers either).
 ## What this changes in the knowledge base
 
 - The "multi-layer array + 3D blits remain lossy" limitation recorded in the
-  2026-07-01 ledger rows is obsolete for the current stack revision (see
+  2026-07-01 ledger rows is obsolete for the reviewed stack revision (see
   !42613 nits); the canonical coverage statement is now "all non-cube
   sampled targets, single-sample".
 - The root-cause wording used in the MR commit messages predates the
