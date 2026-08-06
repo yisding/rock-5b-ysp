@@ -104,7 +104,7 @@ state observed on its last-checked date.
 | W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-08-05 | Public fork `main` is `70f26d9`; recorded upstream is `e8c64dd`. W05 and track 14 own publication, installed-package, and browser state. |
 | W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-23 | The stall recurred with the parser fix installed, falsifying that loop as the sole cause. Disable Plymouth for mitigation; capture the next wedged daemon live. |
 | W22 | [RK3588 per-die voltage binning absent from mainline](#watch-w22) | 2026-07-27 | Still absent at maxline `fac7077731585`; the maintained plan and finding own the measured board entitlement and implementation consequences. |
-| W23 | [Ramoops retention reversal & the 6.18.38 kernel A/B](#watch-w23) | 2026-07-28 | **Ramoops recovers records across warm reboots on every 6.18.40-era kernel** — ≥9 recoveries in the retained journal since 2026-07-26, same firmware stack — so the documented all-zero failure is scoped to the 6.18.38-era kernels and the firmware-phase hypothesis is retired. The four-reboot kernel A/B on the still-installed `6.18.38-current` is pending; the 2026-07-27 19:38 GRD-SG oops dump is archived in `/var/lib/systemd/pstore/`. |
+| W23 | [Ramoops retention reversal & the 6.18.38 kernel A/B](#watch-w23) | 2026-07-29 | **Ramoops recovers records across warm reboots on the measured 6.18.40-era kernels** — ≥10 recoveries since 2026-07-26 on the same firmware stack, including a full oops record and a full panic record recovered after `panic=10` rebooted the board. The documented all-zero failure is scoped to the 6.18.38-era kernels and the firmware-phase hypothesis is retired; the four-reboot kernel A/B on the still-installed `6.18.38-current` remains pending. |
 | W24 | [ROCK 5B stock-Ubuntu image inputs](#watch-w24) | 2026-08-01 | Ubuntu 26.04 image/schema, Linux 6.18 LTS, and upstream U-Boot/firmware references remain the external design inputs; re-pin them before implementation. |
 
 <a id="watch-w01"></a>
@@ -523,14 +523,16 @@ state observed on its last-checked date.
   if it is checked after crashes — `systemd-pstore` archives and erases
   `/sys/fs/pstore` within seconds of every boot, which is exactly the blind
   spot that hid the working channel for two days.
-- **Last checked:** 2026-07-28
-- **State 2026-07-28:** Retention **works** on the current kernels: ≥9
-  cross-reset recoveries in the retained journal (2026-07-26 12:14 onward)
+- **Last checked:** 2026-07-29
+- **State 2026-07-29:** Retention **works** on the measured 6.18.40-era kernels:
+  ≥10 cross-reset recoveries (2026-07-26 12:14 onward)
   across `6.18.40-ysp`, `6.18.40-video-port-kasan`, and
   `6.18.40-video-rewrite-kasan`, on the unchanged
   `ddr-v1.20-b8ce94f14b / bl31-v1.48 / uboot-rmbian-201` firmware — including
-  the 2026-07-27 19:38:08 GRD-SG oops dump recovered after a clean warm
-  reboot (root-readable at `/var/lib/systemd/pstore/dmesg-ramoops-0`). The
+  the 2026-07-27 19:38:08 GRD-SG oops dump recovered after a later clean warm
+  reboot, plus the 2026-07-29 08:01:41 idle-task panic recovered after
+  `panic=10` rebooted the board. Both full records were archived under
+  `/var/lib/systemd/pstore/`. The
   2026-07-21..24 all-zero failures were real (systemd-pstore condition-skip
   lines prove pstore was genuinely empty on those boots) but every one ran on
   a 6.18.38-era kernel; the flip coincides with repo `49b115e` (2026-07-25,
@@ -542,6 +544,8 @@ state observed on its last-checked date.
   between a crash and a recovery attempt (its `0xe0000@0x110000` window
   contains and corrupts ours). Detail:
   [`findings/2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md`](./findings/2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md);
+  recovered panic:
+  [`findings/2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md`](./findings/2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md);
   maintained boundary:
   [`boot-firmware/docs/ramoops-retention.md`](./boot-firmware/docs/ramoops-retention.md).
 

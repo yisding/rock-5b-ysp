@@ -3,7 +3,8 @@
 On this ROCK 5B, the Linux ramoops window at `0x118000–0x1e7fff` **retains
 records across a software warm reset on every 6.18.40-era kernel measured
 (2026-07-26 onward)** — repeated cross-reset recoveries are on record,
-including a full oops dump. The all-zero retention failure documented here
+including a full oops dump and a later kernel panic followed by the configured
+`panic=10` reboot. The all-zero retention failure documented here
 between 2026-07-21 and 2026-07-24 was real, but it is now **scoped to the
 6.18.38-era kernels**: the failure disappeared with the 2026-07-25 rebuild
 wave (repo `49b115e`) while the firmware stack, the DTB node, the cmdline, and
@@ -13,14 +14,16 @@ TPL/SPL/BL31/U-Boot audits corroborate by having found no firmware writer.
 
 The exact fixing change is not yet identified, and "6.18.38 still fails
 today" has not been re-confirmed; both are covered by the pending kernel A/B
-(below). Details and full evidence:
-[2026-07-28 finding](../../findings/2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md).
+(below). Details and full evidence: the
+[2026-07-28 retention finding](../../findings/2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md)
+and the
+[2026-07-29 recovered-panic finding](../../findings/2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md).
 
 ## Current evidence contract
 
 | Classification | What the evidence supports |
 |----------------|----------------------------|
-| **Measured** | ≥9 cross-reset recoveries on 6.18.40-era kernels, 2026-07-26..27, same firmware (`ddr-v1.20-b8ce94f14b / bl31-v1.48 / uboot-rmbian-201`); the 2026-07-27 19:38 GRD-SG oops dump crossed a clean warm reboot and is archived in `/var/lib/systemd/pstore/`. |
+| **Measured** | ≥10 cross-reset recoveries on 6.18.40-era kernels, 2026-07-26..29, same firmware (`ddr-v1.20-b8ce94f14b / bl31-v1.48 / uboot-rmbian-201`); the 2026-07-27 19:38 GRD-SG oops dump crossed a later clean warm reboot, and the 2026-07-29 08:01 idle-task panic was recovered after `panic=10` rebooted the board. Both full records were archived in `/var/lib/systemd/pstore/`. |
 | **Measured (historical)** | On the 6.18.38-era kernels, 2026-07-21..24, the window came back all-zero after warm resets: marker probe ZEROED, Reed-Solomon silence, wrapped-console loss, with `systemd-pstore … skipped (ConditionDirectoryNotEmpty)` proving pstore genuinely empty on those boots. |
 | **Config-inspected** | The ramoops DT node is byte-identical between the failing-era and working-era DTBs; systemd-pstore enabled-stock in both eras; cmdline identical; firmware stamp unchanged. |
 | **Leading inference** | The zeroer was kernel-generation-scoped (6.18.38-era, gone in 6.18.40-era). The firmware-phase hypothesis is retired. |
@@ -101,18 +104,19 @@ For any validation gate that can oops, panic, reset, or hard-lock the kernel:
 1. **After every reboot, check `journalctl -b -u systemd-pstore` and
    `/var/lib/systemd/pstore/` (root) for recovered records.** Never treat an
    empty `/sys/fs/pstore` as meaning anything.
-2. Ramoops on the current kernels is a working capture channel for
-   oops/panic records across clean warm reboots. Keep serial (`ttyS2`,
-   1,500,000 baud) or netconsole staged for the cases DRAM cannot cover:
-   hard locks that force a power cycle, and anything before ramoops
-   registers.
+2. Ramoops on the measured 6.18.40-era kernels is a working capture channel:
+   a real oops record survived a later clean warm reboot, and a real panic
+   record survived its `panic=10` reboot. Keep serial (`ttyS2`, 1,500,000 baud)
+   or netconsole staged for cases that may produce no pstore record at all:
+   complete hard locks, resets before ramoops registers, and power loss.
 3. Cold power removal still forfeits DRAM contents; prefer warm resets when a
    record matters.
 4. Do not boot the BSP kernel between a crash and the recovery attempt — its
    overlapping window destroys the zones.
-5. `panic_on_oops=0` remains the debug-build policy (journald captures the
-   live trace and the session survives); the panic-path capture is expected
-   to work but is part of the pending A/B qualification.
+5. `panic_on_oops=0` remains the debug-build policy because journald/pstore
+   capture the live trace while the repro session survives. That policy is no
+   longer a workaround for failed retention: the independent 2026-07-29 panic
+   proves the panic-and-auto-reboot capture path too.
 
 ## Next causal experiment
 

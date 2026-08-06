@@ -191,7 +191,8 @@ write_sysctl() {
 # the repro session alive. Ramoops records ARE recovered across warm reboots
 # on the 6.18.40-era kernels (findings/2026-07-28-ramoops-retention-works-
 # on-6-18-40-kernels.md) — the earlier "does not survive" result was scoped
-# to the 6.18.38-era kernels — but the panic path is still being requalified.
+# to the 6.18.38-era kernels. A 2026-07-29 panic record also survived the
+# configured panic=10 reboot, proving the direct panic path.
 # The distributable kernel keeps the fail-fast default (panic_on_oops=1).
 kernel.panic_on_oops = 0
 EOF

@@ -23,12 +23,13 @@ function custom_kernel_config__rock5b_hard_reboot_debug() {
 	opts_val["PSTORE_DEFAULT_KMSG_BYTES"]="262144"
 
 	# Turn latent faults and stalls into logged reports. NOTE: PANIC_ON_OOPS is
-	# deliberately NOT enabled here (see opts_n below) — on RK3588 the firmware
-	# re-inits DRAM on reset, so ramoops does not survive a panic reboot
-	# (measured; see findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md).
-	# With panic_on_oops=0 a process-context oops instead prints its full trace
-	# and the board stays up long enough for journald to capture it live — how
-	# the 0058 RELEASE_FD crash was finally root-caused.
+	# deliberately NOT enabled here (see opts_n below). With panic_on_oops=0 a
+	# process-context oops prints its full trace and the board stays up long
+	# enough for journald and pstore to capture it live -- how the 0058
+	# RELEASE_FD crash was finally root-caused. Ramoops retained a real oops
+	# across a later warm reboot and a real panic across its panic=10 reboot on
+	# the measured 6.18.40-era kernels; see
+	# boot-firmware/docs/ramoops-retention.md.
 	opts_y+=(
 		"SOFTLOCKUP_DETECTOR"
 		"HARDLOCKUP_DETECTOR"
@@ -187,15 +188,15 @@ function custom_kernel_config__rock5b_hard_reboot_debug() {
 		"KFENCE"
 		"KCSAN"
 		# UBSAN must REPORT, not trap: a trap turns every violation into a
-		# BUG()/panic (and on RK3588 the ramoops region is lost on reset), so
-		# keep it off to get a logged trace with the board still up.
+		# BUG()/panic and ends the repro session. Ramoops has recovered the
+		# direct panic path too, but report mode keeps the board up for triage.
 		"UBSAN_TRAP"
 		"DEBUG_INFO_NONE"
 		"DEBUG_INFO_REDUCED"
 		# Boot with panic_on_oops=0 (default when unset): capture the live oops
-		# trace via journald instead of panicking into a ramoops region that
-		# RK3588's DRAM re-init discards on reset. Debug builds only — the
-		# distributable kernel keeps the fail-fast default.
+		# trace via journald/pstore and preserve the repro session instead of
+		# forcing a panic. Debug builds only -- the distributable kernel keeps
+		# the fail-fast default.
 		"PANIC_ON_OOPS"
 	)
 }

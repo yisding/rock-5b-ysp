@@ -13,7 +13,7 @@ Deep references this runbook composes (it links rather than duplicates):
 tables), [`../tests/conformance.md`](../tests/conformance.md)
 (conformance suites), [`debug-kernel.md`](./debug-kernel.md) (KASAN build),
 [`rewrite-validation-plan.md`](./rewrite-validation-plan.md) (rewrite-specific
-plan), [`../../packaging/ppa/kernel-maxline/README.md`](../../packaging/ppa/kernel-maxline/README.md)
+plan), [`../../kernel-versions/maxline/README.md`](../../kernel-versions/maxline/README.md)
 (maxline install/test order), and the evidence rules in
 [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md).
 
@@ -37,12 +37,16 @@ plan), [`../../packaging/ppa/kernel-maxline/README.md`](../../packaging/ppa/kern
    probes, raw physical imports, and unbind-under-load can hang or crash the
    board. Run them only with recovery staged (step 0) and, for the crash
    reproducers, only on a build you can afford to lose.
-5. **Crash traces need off-board capture.** Ramoops/pstore does **not**
-   survive an RK3588 warm reset on this firmware
-   ([maintained evidence boundary](../../boot-firmware/docs/ramoops-retention.md)).
-   Before any gate that may crash the kernel, attach serial (`ttyS2`,
-   1500000 baud) or netconsole; `journalctl -b -1` (persistent journal)
-   catches the pre-crash tail but usually not the trace.
+5. **Use both on-board and off-board crash capture.** On the measured
+   6.18.40-era kernels, ramoops retained a real oops record across a later
+   warm reboot and a real panic record across its `panic=10` reboot. After
+   every reboot, inspect
+   `journalctl -b -u systemd-pstore` and `/var/lib/systemd/pstore/`; an empty
+   `/sys/fs/pstore` is expected after the service archives and erases the RAM
+   zones. Before any destructive gate, also attach serial (`ttyS2`, 1500000
+   baud) or netconsole because complete hard locks, pre-ramoops failures, and
+   power loss can leave no on-board record.
+   See the [maintained evidence boundary](../../boot-firmware/docs/ramoops-retention.md).
 6. **Record as you go.** Every rung produces a dated artifact (per-suite log
    dirs, `summary.tsv`, dmesg scans). Results land in a dated finding, then
    the dashboards (step 9), under the
@@ -66,7 +70,7 @@ repointing or reinstalling from an SD rescue boot, so recovery is staged
   debug installer refuse to run without `RECOVERY_READY=1`, and require the
   exact `PHASH='P####-C####'` so the wrong deb set cannot be installed.
 - Maxline first boots follow the stricter recovery-first order in
-  [`kernel-maxline/README.md`](../../packaging/ppa/kernel-maxline/README.md):
+  [`maxline/README.md`](../../kernel-versions/maxline/README.md):
   install `public` before `wip`, never remove the working 6.18 kernel, keep
   physical/serial access, and prove storage, network, display, suspend, and
   **rollback** before touching any accelerator.
@@ -279,7 +283,7 @@ Per [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) and
 | Reference oracle | software decode / vendor encoder | the forward-port (dual-boot A/B, bit-exact) | n/a (subsystem support matrix) |
 | Extra required gates | GStreamer suite; RGA patch-gate probes (P010/NV15/legacy-blit/over-4G) | exact manifest booted KUnit; counter checks; paired evidence audit; KCSAN race kernel; fault-injection matrix; 72 h soak | recovery-first subsystem order; `public` before `wip`; blacklist handling for HDMI audio |
 | Perf-valid build | production combined build only | Kernel C only | production only |
-| Evidence owner | [`forward-port-status.md`](./forward-port-status.md) | [`rewrite-drivers.md` §6](./rewrite-drivers.md#6-status--citable-location) | [`kernel-maxline/README.md`](../../packaging/ppa/kernel-maxline/README.md) |
+| Evidence owner | [`forward-port-status.md`](./forward-port-status.md) | [`rewrite-drivers.md` §6](./rewrite-drivers.md#6-status--citable-location) | [`maxline/README.md`](../../kernel-versions/maxline/README.md) |
 
 ## Worked example — forward-port debug build `Pd222-C4ad2` (2026-07-22)
 

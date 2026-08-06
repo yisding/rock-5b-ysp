@@ -1,10 +1,11 @@
 # Crash-debug kernel — KASAN, lockdep, and ramoops diagnostics
 
 How to build, install, and roll back a **heavily-instrumented Armbian kernel**
-for the ROCK 5B that survives a hard crash with evidence: ramoops/pstore keeps
-the console log across the reboot, KASAN/lockdep turn latent memory and locking
-bugs into loud reports, and `panic_on_oops` + `panic=10` guarantee the box
-comes back on its own.
+for the ROCK 5B that turns diagnosable crashes into evidence: ramoops/pstore
+can keep the kernel log across a warm reboot, KASAN/lockdep turn latent memory
+and locking bugs into loud reports, and `panic=10` brings the box back after a
+panic. Hard locks, failures before ramoops registers, and power loss still need
+serial or netconsole.
 
 > Provenance: the tracked configs and install tooling live in
 > [`scripts/debug-kernel/`](../scripts/debug-kernel/); the build itself runs
@@ -28,8 +29,9 @@ comes back on its own.
   KASAN + `DEBUG_LIST`/`DMA_API_DEBUG` are what turn "occasionally weird"
   into a precise report with a stack trace. This is the natural runtime gate
   for the [`kernel-drivers/patches/cleanup-split`](../patches/cleanup-split) series.
-- Hard-reset GPU crashes (the original motivation was Panthor crashes under
-  accelerated Firefox/RDP rendering).
+- GPU crashes under accelerated Firefox/RDP rendering (the original
+  motivation); ramoops helps when the failure reaches the dump path, while a
+  complete hard lock still needs off-board capture.
 - Locking bugs: `PROVE_LOCKING` / `DEBUG_ATOMIC_SLEEP` catch e.g. the audit's
   sleep-in-atomic class statically at first execution.
 
@@ -89,7 +91,7 @@ philosophy as [Armbian packaging guide](../../packaging/docs/armbian-packaging.m
 | Group | Options | Catches |
 |-------|---------|---------|
 | Persistent crash capture | `PSTORE`, `PSTORE_RAM`, `PSTORE_CONSOLE`, `PSTORE_PMSG`, `PSTORE_FTRACE`; `PSTORE_DEFAULT_KMSG_BYTES=262144` | dmesg/console/pmsg records preserved in RAM across a reboot (built-in so pstore exists before userspace; the ftrace frontend stays compiled but has no DT RAM zone) |
-| Fail loudly, stay up | `SOFTLOCKUP_DETECTOR`, `HARDLOCKUP_DETECTOR`, `DETECT_HUNG_TASK` (timeout 60 s), `WQ_WATCHDOG`, `RCU_CPU_STALL_TIMEOUT=21` — **`PANIC_ON_OOPS` deliberately OFF** (`opts_n`) | detectors log stalls/wedges; with `panic_on_oops=0` a process-context oops prints its full trace and the board stays up for journald to capture it live, instead of panic-rebooting into a ramoops region RK3588 discards on reset |
+| Fail loudly, stay up | `SOFTLOCKUP_DETECTOR`, `HARDLOCKUP_DETECTOR`, `DETECT_HUNG_TASK` (timeout 60 s), `WQ_WATCHDOG`, `RCU_CPU_STALL_TIMEOUT=21` — **`PANIC_ON_OOPS` deliberately OFF** (`opts_n`) | detectors log stalls/wedges; with `panic_on_oops=0` a process-context oops prints its full trace and the board stays up for journald and pstore to capture it without ending the repro session |
 | Readable traces | `KALLSYMS_ALL`, `STACKTRACE`, `FRAME_POINTER`, `GDB_SCRIPTS` | symbolized stacks in the pstore dump |
 | Memory sanitizers | `KASAN` (`GENERIC`, `INLINE`, `VMALLOC`), `PAGE_OWNER`, `PAGE_POISONING`, `DEBUG_PAGEALLOC`, `PAGE_TABLE_CHECK`, `DMA_API_DEBUG(_SG)`, `DEBUG_SG`, `DEBUG_LIST`, `DEBUG_PLIST`, `DEBUG_NOTIFIERS` | UAF/OOB (the bsp-audit.md HIGH class), DMA mapping misuse (dma-buf import paths, how-the-drivers-work.md §6), corrupted lists |
 | Fault injection | `FAULT_INJECTION`, `FAULT_INJECTION_DEBUG_FS`, `FAILSLAB`, `FAIL_PAGE_ALLOC`, `FAULT_INJECTION_USERCOPY`, `FUNCTION_ERROR_INJECTION` | scoped allocation/usercopy failure tests for rewrite parser/import/control unwind paths via `ioctl-fuzz-smoke.sh` `IOCTL_FUZZ_FAIL_NTH_MAX`, plus the broader recovery-matrix work in `rewrite-validation-plan.md` §4 |
@@ -107,11 +109,14 @@ KCSAN race kernel in [`rewrite-validation-plan.md`](./rewrite-validation-plan.md
 
 ## 4. Configure ramoops diagnostics (+ persistent journal)
 
-Ramoops needs a reserved-memory region the boot chain preserves. This firmware
-stack does **not** preserve the configured interval across a warm reset, so the
-setup below is a diagnostic/experiment fixture, not a proven crash-capture
-channel. Use serial or netconsole for any gate that may reset the board; the
-maintained evidence boundary is the
+Ramoops needs a reserved-memory region the boot chain preserves. The measured
+6.18.40-era kernels recovered at least ten records across warm reboots through
+2026-07-29, including a full oops dump, so the setup below is a working crash-capture
+channel within that tested boundary. The same window came back all-zero on the
+6.18.38-era kernels. A later real kernel panic was also recovered after
+`panic=10` rebooted the board, proving the direct panic path. Keep serial or
+netconsole for complete hard locks, early failures, and power loss; the
+maintained scope and pending kernel-generation A/B are in the
 [boot-firmware retention guide](../../boot-firmware/docs/ramoops-retention.md).
 
 The debug DTB package carries `/reserved-memory/ramoops@118000`: `reg = <0x0 0x118000 0x0
@@ -136,17 +141,21 @@ configures the remaining boot/sysctl policy:
 - `/etc/modules-load.d/ramoops.conf` (harmless with the built-in driver) and
   `/etc/sysctl.d/99-ramoops-panic-on-oops.conf` (`kernel.panic_on_oops=0` —
   debug builds keep the board up on a process-context oops so journald captures
-  the live trace; ramoops does not survive an RK3588 reset).
+  the live trace and the repro session survives).
 
 Verify after reboot: `test -d /sys/module/ramoops`, `sysctl kernel.panic_on_oops`,
-`dmesg | grep -i 'ramoops\|pstore'`, `ls /sys/fs/pstore`.
+and `dmesg | grep -i 'ramoops\|pstore'`. To detect a recovered record, use
+`journalctl -b -u systemd-pstore` and inspect `/var/lib/systemd/pstore/` as
+root; `/sys/fs/pstore` is normally empty by login because the service has
+already archived and erased its records.
 
-> **Validation state (2026-07-27):** the replacement DTB and ramoops Linux
-> configuration register correctly, but the interval returns all-zero after a
-> software warm reset. Exact TPL/SPL/BL31/U-Boot audits found no direct writer;
-> the destructive actor remains unresolved. Do not treat this as a working
-> persistent store or attribute the loss to DDR training without the planned
-> early-stage witness.
+> **Validation state (2026-07-28):** the replacement DTB and ramoops Linux
+> configuration register correctly, and the 6.18.40-era kernels repeatedly
+> recover records across warm reboot. A 2026-07-27 GRD-SG oops dump survived a
+> later clean reboot, and a 2026-07-29 idle-task panic survived the configured
+> `panic=10` reboot; both were archived by `systemd-pstore`. The earlier
+> all-zero result remains valid only for the 6.18.38-era kernels, while the
+> fixing change and same-day 6.18.38/6.18.40 A/B remain open.
 
 **Persistent journal** (so the *previous boot's* userspace logs survive too):
 point `/var/log/journal` at `/var/log.hdd/journal` (Armbian's zram log
@@ -230,24 +239,27 @@ collision"). Consequences here:
 
 ## 7. Reading a crash after reboot
 
-Pstore mounts at `/sys/fs/pstore` (ramoops backend). On firmware where
-retention is independently proven, a captured crash appears as:
+Pstore mounts at `/sys/fs/pstore` (ramoops backend), but the stock
+`systemd-pstore` service normally moves recovered records to
+`/var/lib/systemd/pstore/` and erases the RAM zones before login. Read the boot
+journal first, then the archive:
 
 ```bash
-sudo ls -l /sys/fs/pstore
+sudo journalctl -b -u systemd-pstore
+sudo ls -l /var/lib/systemd/pstore
 # dmesg-ramoops-*    ← the oops/panic kmsg dump (what you usually want)
 # console-ramoops-0  ← last console output (PSTORE_CONSOLE)
 # pmsg-ramoops-0     ← userspace-written records (PSTORE_PMSG)
-sudo cat /sys/fs/pstore/dmesg-ramoops-0 | less
+sudo less /var/lib/systemd/pstore/dmesg-ramoops-0
 ```
 
-Copy the files out, **then delete them** (`sudo rm /sys/fs/pstore/*`) to free
-the ramoops slots for the next crash. Pair with `journalctl -b -1` (§4
-persistent journal) for the userspace side of the timeline. On the current
-ROCK 5B stack these files are expected to be absent after reset; an empty
-directory does not prove that no oops occurred. With
-`GDB_SCRIPTS` (§3) and BTF (§2) kept, addresses in the dump symbolize against
-the debug build's `vmlinux` in the Armbian build tree.
+If the service is disabled or has not run yet, copy records from
+`/sys/fs/pstore` before removing them to re-arm the zones. With the normal
+service, do not interpret that directory: its emptiness is expected and says
+nothing about recovery. Pair the pstore record with `journalctl -b -1` (§4
+persistent journal) for the userspace side of the timeline. With `GDB_SCRIPTS`
+(§3) and BTF (§2) kept, addresses in the dump symbolize against the debug
+build's `vmlinux` in the Armbian build tree.
 
 ## 8. Perf caveat — never benchmark under this kernel
 

@@ -67,8 +67,9 @@ Checked on this box, and the reason this is low-risk:
   machine — which is exactly what happened on boot -1 (GRD survived, the box ran
   another 37 minutes). Only a true panic reboots.
 - `pstore.backend=ramoops` + `printk.always_kmsg_dump=1`, ramoops registered at
-  `0xd0000@0x118000`, `/sys/fs/pstore` mounted. A hard death still leaves the
-  oops readable after reboot.
+  `0xd0000@0x118000`, `/sys/fs/pstore` mounted. A real oops record has crossed
+  a later warm reboot on this kernel generation; `systemd-pstore` then moves it
+  to `/var/lib/systemd/pstore/`.
 - `Storage=persistent` journald, 16 boots retained. Evidence survives reboots.
 - We are **switching to an already-installed kernel**, not installing one. No
   package is written, nothing is clobbered, and `vmlinuz.old` already points at
@@ -89,12 +90,15 @@ ls -l /boot/vmlinuz-6.18.40-ysp-rockchip64 /boot/uInitrd-6.18.40-ysp-rockchip64
 ls -ld /boot/dtb-6.18.40-ysp-rockchip64
 cat /proc/sys/kernel/tainted
 
-# Clear pstore so anything found after this run is definitely from this run
-ls /sys/fs/pstore/
+# Record the archive baseline; /sys/fs/pstore is normally empty after
+# systemd-pstore has moved and erased recovered records.
+sudo journalctl -b -u systemd-pstore --no-pager
+sudo find /var/lib/systemd/pstore -maxdepth 1 -type f -printf '%TY-%Tm-%Td %TH:%TM:%TS %f\n'
 ```
 
-If `/sys/fs/pstore/` is non-empty, save it aside first, then (as root)
-`rm -f /sys/fs/pstore/*`.
+Preserve the baseline listing with the run evidence. After the next reboot,
+new `systemd-pstore` journal lines and archive mtimes identify records from this
+run; do not use an empty `/sys/fs/pstore/` as a negative signal.
 
 The repro harness is already staged at `~/Code/tmp/sg-oops-repro/loop.sh` and
 survives the reboot.
@@ -219,10 +223,12 @@ On any hit, before rebooting:
 D=~/Code/tmp/sg-oops-repro/hit-$(date +%Y%m%d-%H%M%S); mkdir -p "$D"
 journalctl -k -b --no-pager        > "$D/kernel.log"
 journalctl -b --no-pager           > "$D/full.log"
-cp -r /sys/fs/pstore                 "$D/pstore" 2>/dev/null
+sudo cp -a /sys/fs/pstore            "$D/pstore-live"
+sudo cp -a /var/lib/systemd/pstore   "$D/pstore-archive"
 uname -r > "$D/uname"; cat /proc/sys/kernel/tainted > "$D/tainted"
 dpkg -l | grep -E "linux-image-ysp|gnome-remote|rockchip-mpp|librga" > "$D/versions"
 cat /proc/iomem > "$D/iomem" 2>/dev/null
+sudo chown -R "$(id -u):$(id -g)" "$D"
 echo "saved to $D"
 ```
 

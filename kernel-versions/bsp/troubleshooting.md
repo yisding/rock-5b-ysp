@@ -86,11 +86,12 @@ stuck `deferred_probe_work_func` worker), not a CPU spin.
 land.** On the dev box, `kernel.hung_task_timeout_secs=60` and
 `workqueue.watchdog_thresh=30` are on, and deferred probe runs on a workqueue, so
 a stuck probe *does* print `BUG: workqueue lockup` (~30 s) and a hung-task
-backtrace (~60 s) into the ring buffer. You just never see them because no console
-is attached, journald cannot flush a frozen boot, and ramoops came up empty
-(on **this firmware stack** the reserved window is zeroed across a warm reset —
-see the
-[maintained boot-firmware evidence boundary](../../boot-firmware/docs/ramoops-retention.md)).
+backtrace (~60 s) into the ring buffer. You do not see them live because no
+console is attached and journald cannot flush a frozen boot. Ramoops can only
+preserve them if a detector reaches `kmsg_dump` and the board then warm-reboots;
+a complete stall or power cycle produces no such record. On the measured
+6.18.40-era kernels the window itself does retain records across warm reboot;
+see the [maintained boot-firmware evidence boundary](../../boot-firmware/docs/ramoops-retention.md).
 `soft/hardlockup` and the NMI watchdog do **not** fire on a sleeping hang.
 
 So the triage priority is: give those dumps a durable channel, then force a fast
@@ -100,18 +101,16 @@ reboot instead of a manual wait.
    another host (`modprobe netconsole netconsole=@/,@<host>/`, or a `netconsole=`
    cmdline arg for early boot). Receives the already-armed hung-task and
    workqueue-watchdog dumps live.
-2. **Do not count on ramoops here** — the reserved window comes back **zeroed**
-   after a warm reset on this firmware stack (confirmed three independent ways),
-   so there is nothing to recover on the next boot. Earlier revisions of this
-   list advised recovering the dump with a *cold power-off*; that is **backwards
-   and was never tested** — a cold power-off removes DRAM power outright and
-   forces a full DDR re-init, while a warm reset is the only path with any
-   chance at all. Use step 1 (netconsole) or a ttyS2 serial console instead, and
-   pair with step 3 so the hang panics promptly. Since 2026-07-28 ramoops
-   *does* recover records across warm reboots on the 6.18.40-era kernels —
-   check `journalctl -b -u systemd-pstore` and `/var/lib/systemd/pstore/`,
-   never `/sys/fs/pstore` (archived-and-erased seconds after boot). The
-   remaining qualification A/B is in
+2. **Use ramoops, but keep an off-board channel.** Since 2026-07-28 ramoops
+   has recovered records across warm reboots on the measured 6.18.40-era
+   kernels. Check `journalctl -b -u systemd-pstore` and
+   `/var/lib/systemd/pstore/`, never the normally empty `/sys/fs/pstore`
+   (archived and erased seconds after boot). It still cannot record a hang
+   that never reaches `kmsg_dump`, and a cold power-off forfeits DRAM, so use
+   step 1 (netconsole) or a ttyS2 serial console as well and pair it with step
+   3 so the hang panics promptly. A real panic record has survived the
+   configured `panic=10` reboot; only the causal 6.18.38/6.18.40 A/B remains
+   open in
    [the retention guide's next-proof section](../../boot-firmware/docs/ramoops-retention.md#next-causal-experiment).
 3. **Force reboot + dump** — set `kernel.hung_task_panic=1` (default here is `0` =
    warn-only); with `panic=10` already on the cmdline the blocked task panics at

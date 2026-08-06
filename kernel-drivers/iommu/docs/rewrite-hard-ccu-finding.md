@@ -330,11 +330,11 @@ instability (that needs Layers 2–4). Pairs with the existing
   than SOFT per-core dispatch for real workloads, the tail-risk is not worth
   chasing: HARD stays a documented, tested-to-degrade-safely opt-in rather than a
   target, and the effort shrinks to Phase 0 + fallback. Cheap to answer early.
-- **Board-safety gate (before Phase 2).** HARD *will* hang during bring-up, and
-  this board's ramoops does not persist across warm reset (see
-  [the boot-firmware retention guide](../../../boot-firmware/docs/ramoops-retention.md)).
-  Serial/netconsole capture is mandatory, or every crash you are trying to
-  root-cause is lost.
+- **Board-safety gate (before Phase 2).** HARD *will* hang during bring-up.
+  Ramoops retains records across warm reboot on the measured 6.18.40-era
+  kernels, but a full-SoC stall never reaches `kmsg_dump`, so it creates no
+  record to retain. Serial/netconsole capture remains mandatory; see the
+  [boot-firmware retention guide](../../../boot-firmware/docs/ramoops-retention.md).
 
 Because the driver source is byte-identical on the 6.18 and mainline rewrite
 tips, all HARD work can be done on the 6.18 KASAN rewrite build and applies to

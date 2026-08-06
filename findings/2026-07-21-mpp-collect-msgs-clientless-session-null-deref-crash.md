@@ -117,8 +117,9 @@ below. Title/filename kept for link stability.)*
 >    consoles (`tty1`, `ttyS2`) but nothing was capturing `ttyS2`. Next step is
 >    therefore a **code audit of every client-less-reachable NULL-deref sibling**
 >    plus fail-safe hardening (as `0053`/`0054` did), and/or `pstore/blk` on the
->    boot media + `panic_on_oops=1` so `kmsg_dump` persists the ring buffer
->    across the reset the DRAM ramoops cannot survive.
+>    boot media + `panic_on_oops=1` so `kmsg_dump` persists the ring buffer.
+>    This was the recommendation for the failing 6.18.38-era environment;
+>    later 6.18.40-era kernels retained DRAM ramoops across warm reboot.
 
 > ## 2026-07-21 ROOT CAUSE PROVEN — synchronous `mpp_dma_release_fd()` NULL deref (patch `0058`). The async-worker theory below is superseded.
 >
@@ -393,17 +394,20 @@ deferred worker), but the same bug class on the sibling path, now closed.
 - **The PC is not yet proven.** The worker NULL-deref at `:1003`/`:1011` is a
   strong candidate (delayed-fault timing + guarded-vs-unguarded asymmetry +
   near-NULL offset), but no call trace survived, so it remains inference.
-- **Get the trace:** because ramoops does not persist across reset on this board
-  (see the ramoops finding), capture off-board — **serial console on `ttyS2`
-  @ 1500000** (immune to the reset) or netconsole — while re-running the
-  reproducer. A captured PC/call-trace at `mpp_task_worker_default` would
-  confirm the leg-3 crash site (and that `0053`/`0054` catch it).
+- **Get the trace:** this 6.18.38-era event produced no retained pstore record;
+  later 6.18.40-era kernels do retain ramoops across warm reboot (see the
+  maintained [ramoops boundary](../boot-firmware/docs/ramoops-retention.md)).
+  Still capture off-board — **serial console on `ttyS2` @ 1500000** or
+  netconsole — while re-running the reproducer, because a complete hard lock
+  may never reach `kmsg_dump`. A captured PC/call-trace at
+  `mpp_task_worker_default` would confirm the leg-3 crash site (and that
+  `0053`/`0054` catch it).
 - **Reproduce under KASAN (repeatable):** on the P9c12 KASAN kernel, re-run the
   VA-API + RKMPP `vp90-2-10-show-existing-frame2.webm` sequences above (the
   reporting agent warns this may crash the box again). A KASAN report on the
   client-less worker access would name the exact field and path. Do this only
-  with serial capture attached, since the fault hard-locks the board and — per
-  the ramoops finding — nothing on-board survives.
+  with serial capture attached: if the fault hard-locks before `kmsg_dump`,
+  even a retaining ramoops window has no record to recover.
 
 ## Why it matters
 

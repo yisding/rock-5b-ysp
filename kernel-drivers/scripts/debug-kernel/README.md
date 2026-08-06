@@ -58,9 +58,11 @@ boundary. The external build tree is scratch, not the source of truth.
 ### Instrumentation notes
 
 - **UBSAN runs in report mode** (`UBSAN_TRAP` off): a bounds/shift/div-zero
-  violation logs a full trace and the board stays up, rather than trapping into
-  a BUG()/panic whose ramoops region RK3588 discards on reset. It complements
-  KASAN for the in-allocation stride/offset arithmetic class KASAN can't see.
+  violation logs a full trace and the board stays up, preserving the repro
+  session rather than ending it in a panic. Ramoops has captured the direct
+  panic-and-reboot path too; report mode remains better for continued triage.
+  It complements KASAN for the in-allocation
+  stride/offset arithmetic class KASAN can't see.
 - **Bump `dma_debug_entries` for long runs.** `DMA_API_DEBUG` preallocates a
   fixed pool (~65k entries) and *silently disables itself* under heavy RGA/MPP
   DMA traffic (`DMA-API: debugging out of memory - disabling`). Boot conformance
@@ -83,8 +85,8 @@ boundary. The external build tree is scratch, not the source of truth.
 - **IOMMU page tables/domains** are exposed under `/sys/kernel/debug/iommu` for
   inspecting exactly what an RGA IOMMU fault mapped.
 - Still separate follow-ups, not in this kernel: a KCSAN race-detector flavor
-  (can't coexist with KASAN) and netconsole for the deferred-fault hard-locks
-  ramoops can't capture.
+  (can't coexist with KASAN) and netconsole for deferred-fault hard-locks that
+  never reach `kmsg_dump`, so ramoops has nothing to capture.
 
 The **rewrite flavor** builds the MPP/RGA rewrite drivers + their KUnit suites
 in while disabling the vendor forward-port drivers, mirroring the
@@ -212,18 +214,17 @@ goes to `$WORKSPACE/boot-backups/<timestamp>/`.
 
 ## Reading a crash
 
-> ⚠️ **ramoops/pstore does not survive a reset on this board — do not rely on
-> it.** The `0x118000–0x1e7fff` interval returns all-zero after a warm reset on
-> the inspected `ddr-v1.20 / bl31-v1.48 / uboot-rmbian` stack. Exact
-> TPL/SPL/BL31/U-Boot audits found no direct write into the interval; DDR
-> initialization is the leading unresolved phase, not a proven destructive
-> mechanism. BSP provisioning is not proof that a BSP stack retains records
-> either. The maintained conclusion, corrections, and next witness are in the
+> **Ramoops is a measured working channel on the 6.18.40-era kernels.** At
+> least ten records crossed warm reboots, including a full GRD-SG oops dump
+> and a full idle-task panic record recovered after `panic=10` rebooted the
+> board.
+> After every reboot, check `journalctl -b -u systemd-pstore` and the root-only
+> `/var/lib/systemd/pstore/`; the service archives records and erases
+> `/sys/fs/pstore` within seconds, so an empty live mount is not a failure.
+> Keep **off-board capture** — serial on `ttyS2` (1500000 baud) or netconsole —
+> for complete hard locks, failures before ramoops registers, and power loss. The
+> measured era split and open A/B are in the
 > [boot-firmware retention guide](../../../boot-firmware/docs/ramoops-retention.md).
-> For an actual call trace use **off-board capture** — serial console on
-> `ttyS2` (1500000 baud, USB-TTL adapter) or netconsole to a listener — which
-> records the oops before the board resets. `journalctl -b -1` still gives the
-> pre-crash tail and usually the oops *header*, but not the trace.
 
 [`ramoops-persistence-probe.sh`](ramoops-persistence-probe.sh) is the tracked
 legacy marker probe that produced the bounded warm-reset observation. Its
@@ -232,9 +233,9 @@ offsets require live-DT verification first. The script classifies bytes only —
 it does not identify the boot stage or mechanism, so interpret its output
 through the retention guide rather than its historical finding.
 
-After a panic/oops, `journalctl -b -1` holds the pre-crash tail; the pstore
-dumps that *would* pair with it are lost to the reset (above). Full workflow +
-config rationale: `../../docs/debug-kernel.md`.
+After an oops followed by a warm reboot, pair the recovered pstore dump with
+`journalctl -b -1` for the pre-crash userspace tail. Full workflow and config
+rationale: `../../docs/debug-kernel.md`.
 
 ## Restore the stock kernel
 

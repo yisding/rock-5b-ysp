@@ -47,10 +47,15 @@ explicitly disables it:
 CONFIG_PANIC_ON_OOPS=y  ->  # CONFIG_PANIC_ON_OOPS is not set
 ```
 
-This is intentional. RK3588 firmware reinitializes DRAM during reset, so the
-reserved ramoops region does not preserve the panic log. Keeping
-`panic_on_oops=0` lets a process-context oops print its trace and leaves the
-board alive long enough for persistent journald capture.
+This was intentional on the evidence available during that build: the
+6.18.38-era kernels returned the reserved ramoops window all-zero after reset.
+Later 6.18.40-era kernels retained records across warm reboot with the firmware
+held constant, including a real oops dump. The policy still keeps
+`panic_on_oops=0` because a process-context oops can print its trace to
+journald/pstore without ending the repro session. A later real panic record
+also survived its `panic=10` reboot, so this is a workflow choice rather than a
+retention workaround. See the maintained
+[retention boundary](../../boot-firmware/docs/ramoops-retention.md).
 
 Armbian compared the new generated `.config` with the previous one and printed:
 
