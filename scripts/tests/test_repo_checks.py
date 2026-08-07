@@ -577,6 +577,22 @@ class WorkspaceDefaultTests(unittest.TestCase):
             mesa_env,
         )
 
+    def test_forward_port_ppa_uses_a_dedicated_armbian_lane(self) -> None:
+        wrapper = self.shell_text("kernel-drivers/scripts/build-kernel.sh")
+        exporter = self.shell_text("packaging/ppa/build-source-packages.sh")
+
+        self.assertIn('PPA_WORKTREE_LANE="ppa-forward-port"', wrapper)
+        self.assertIn('KERNEL_EXTRA_DIR="$PPA_WORKTREE_LANE"', wrapper)
+        self.assertIn('KERNEL_PPA_REPO="$ppa_worktree"', wrapper)
+        self.assertIn("acquire_armbian_state_lock", wrapper)
+        self.assertIn("restore_ppa_shared_state", wrapper)
+        self.assertIn(
+            "6.18__rockchip64__arm64__ppa-forward-port",
+            exporter,
+        )
+        self.assertIn("make --no-print-directory -s -C", exporter)
+        self.assertIn("kernel source/version mismatch", exporter)
+
     def test_conformance_defaults_use_installed_mpp_and_librga(self) -> None:
         expected_defaults = {
             "kernel-drivers/tests/mpp-suite.sh": (

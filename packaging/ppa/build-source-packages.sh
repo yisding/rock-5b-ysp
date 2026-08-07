@@ -42,7 +42,7 @@ GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.2+rkmpp+git20260729.15.c4ef3c9}
 GRD_DELTA="${GRD_DELTA:-}"
 
 KERNEL_PPA_SOURCE="${KERNEL_PPA_SOURCE:-linux-rockchip64-ysp}"
-KERNEL_PPA_REPO="${KERNEL_PPA_REPO:-$WORKSPACE_ROOT/build/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64}"
+KERNEL_PPA_REPO="${KERNEL_PPA_REPO:-$WORKSPACE_ROOT/build/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64__ppa-forward-port}"
 KERNEL_PPA_CONFIG="${KERNEL_PPA_CONFIG:-$ROOT/packaging/ppa/kernel-forward-port/debian/config/arm64-rockchip64.config}"
 KERNEL_PPA_UPSTREAM_VERSION="${KERNEL_PPA_UPSTREAM_VERSION:-6.18.42+rk3588av1fwport20260804}"
 
@@ -100,12 +100,14 @@ and applies no source delta. GRD_DELTA remains available for reconstructing a
 historical package; multiple patch paths are colon-separated and applied in
 order.
 
-The forward-port kernel target exports the already-patched Armbian kernel
+The forward-port kernel target exports the already-patched dedicated Armbian
 worktree named by KERNEL_PPA_REPO, excluding build products and .git, then
-overlays packaging/ppa/kernel-forward-port/debian. By default it uses the
-tracked production config in that packaging directory, not the transient
-worktree .config, which may belong to the last debug build. It is intentionally
-not part of the no-argument default set because the orig tarball is large.
+overlays packaging/ppa/kernel-forward-port/debian. The ordinary entry point is
+kernel-drivers/scripts/build-kernel.sh ppa-forward-port, which stages and
+verifies that lane first; calling this exporter directly is an expert rebuild.
+By default it uses the tracked production config in that packaging directory,
+not the transient worktree .config. It is intentionally not part of the
+no-argument default set because the orig tarball is large.
 
 The alpha rewrite kernel targets archive the pinned Armbian-plus-rewrite kernel
 commits from KERNEL_ALPHA_618_REPO and KERNEL_ALPHA_72RC3_REPO, then
@@ -245,6 +247,7 @@ prepare_worktree_source() {
     local orig="$WORK/$orig_name"
     local artifact_orig="$ARTIFACTS/$orig_name"
     local force_orig="${FORCE_ORIG:-0}"
+    local kernel_version
     local source_date_epoch
 
     git -c safe.directory="$repo" -C "$repo" rev-parse --is-inside-work-tree >/dev/null
@@ -253,15 +256,24 @@ prepare_worktree_source() {
         return 1
     }
 
+    kernel_version="$(make --no-print-directory -s -C "$repo" kernelversion)"
+    case "$upstream_version" in
+        "$kernel_version"|"$kernel_version"+*) ;;
+        *)
+            echo "kernel source/version mismatch: worktree is $kernel_version, package upstream version is $upstream_version" >&2
+            return 1
+            ;;
+    esac
+
     rm -rf "$source_dir" "$upstream_tmp" "$export_list"
     mkdir -p "$source_dir" "$upstream_tmp"
 
-    # The shared Armbian worktree is also used for rewrite-composite builds,
-    # which leave untracked drivers/video/rockchip/*-rewrite/ directories and
-    # rewrite-modified tracked state behind. The 20260725 production orig
-    # shipped that state (findings/2026-07-29-production-6-18-40-orig-is-
-    # rewrite-composite-snapshot.md), so the export must never include
-    # rewrite driver paths.
+    # The dedicated PPA lane prevents normal builds from contaminating this
+    # snapshot. Keep the rewrite exclusions as defense in depth: the 20260725
+    # production orig shipped rewrite-composite state from the old shared lane
+    # (findings/2026-07-29-production-6-18-40-orig-is-rewrite-composite-
+    # snapshot.md), so an explicitly overridden or wrongly staged repo must
+    # still never export rewrite driver paths.
     git -c safe.directory="$repo" -C "$repo" ls-files --cached --others --exclude-standard |
         grep -Ev '(^|/)debian(/|$)|(^|/).*\.orig$|(^|/).*\.rej$|(^|/)\.config(\.old)?$|(^|/).*\.cmd$|(^|/).*\.o$|(^|/).*\.ko$|(^|/).*\.dtb(o)?$|(^|/)\.tmp_.*|(^|/)Module\.symvers$|(^|/)System\.map$|(^|/)modules\.(builtin|builtin\.modinfo|order)$|(^|/)built-in\.a$|^drivers/video/rockchip/(mpp|rga)-rewrite/' \
         > "$export_list"

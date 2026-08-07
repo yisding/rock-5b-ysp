@@ -122,9 +122,13 @@ Build selected targets by passing their names, for example:
 bash packaging/ppa/build-source-packages.sh mpp librga ffmpeg
 bash packaging/ppa/build-source-packages.sh ffmpeg-rockchip gnome-remote-desktop
 bash packaging/ppa/build-source-packages.sh plymouth gdm-hwenc
-bash packaging/ppa/build-source-packages.sh kernel
+bash kernel-drivers/scripts/build-kernel.sh ppa-forward-port
 bash packaging/ppa/build-source-packages.sh kernel-alpha-6.18 kernel-alpha-7.2-rc3
 ```
+
+The forward-port wrapper stages and verifies a dedicated source-only Armbian
+worktree before exporting it. Use `build-source-packages.sh kernel` directly
+only to rebuild from an already-staged lane.
 
 For native Debian builds, keep the system toolchain first so Meson sees Ubuntu
 multiarch metadata:

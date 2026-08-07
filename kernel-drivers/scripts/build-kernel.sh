@@ -33,7 +33,7 @@
 # USAGE
 #   bash build-kernel.sh <flavor>                  # build
 #   bash build-kernel.sh <flavor> --stage-only     # local flavors: prepare patches/config only
-#   bash build-kernel.sh <flavor> --patch-only     # local flavors: stage the shared kernel worktree, no compile
+#   bash build-kernel.sh <flavor> --patch-only     # local flavors: stage the selected kernel worktree, no compile
 #   bash build-kernel.sh --restore                 # reset Armbian patch archive + generated userpatches
 #   bash build-kernel.sh <flavor> --install-deps   # debug flavors: apt-install missing host deps first
 #   bash build-kernel.sh forward-port KERNEL_CONFIGURE=yes   # extra args pass through to compile.sh
@@ -185,6 +185,17 @@ ARMBIAN_KERNELPATCHDIR="${ARMBIAN_KERNELPATCHDIR:-archive/$KBRANCH}"
 ARMBIAN_KERNELBRANCH="${ARMBIAN_KERNELBRANCH:-}"
 ARMBIAN_USE_CCACHE="${ARMBIAN_USE_CCACHE:-yes}"
 ARMBIAN_CLEAN_LEVEL="${ARMBIAN_CLEAN_LEVEL:-}"
+# Armbian's supported suffix for isolating kernel source/object worktrees while
+# sharing one build checkout, bare repository, output tree, and ccache. Ordinary
+# local flavors keep the historical unsuffixed worktree for now. The canonical
+# ppa-forward-port path forces this to PPA_WORKTREE_LANE below so source uploads
+# can never snapshot the last local rewrite/debug build.
+KERNEL_EXTRA_DIR="${KERNEL_EXTRA_DIR:-}"
+PPA_WORKTREE_LANE="ppa-forward-port"
+if [ -n "$KERNEL_EXTRA_DIR" ] && [[ ! "$KERNEL_EXTRA_DIR" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+	printf 'ERROR: invalid KERNEL_EXTRA_DIR: %s\n' "$KERNEL_EXTRA_DIR" >&2
+	exit 1
+fi
 # Armbian's prepare_tmpfs_for() mounts BOTH WORKDIR and LOGDIR as tmpfs at
 # size=99% -- observed live as two mounts of 16021764k each on a board with
 # 16183596k of RAM. It is opt-out only (USE_TMPFS=no); there is no size knob.
@@ -250,6 +261,21 @@ LOCKNEST_PATCH_DEST="$UP_DIR/zz-rock5b-debug-locknest-prompt.patch"
 
 say() { printf '>>> %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+kernel_worktree_path() {
+	local extra="${1-${KERNEL_EXTRA_DIR}}"
+	local name="${KBRANCH##*-}__${SLOT_FAMILY}__arm64"
+	[ -z "$extra" ] || name="${name}__${extra}"
+	printf '%s/cache/sources/linux-kernel-worktree/%s\n' "$ARMBIAN_BUILD" "$name"
+}
+
+restore_ppa_shared_state() {
+	ROCK5B_WORKSPACE="$ROCK5B_WORKSPACE" \
+		WORKSPACE="$WORKSPACE" \
+		ARMBIAN_BUILD="$ARMBIAN_BUILD" \
+		KERNEL_EXTRA_DIR='' \
+		bash "$HERE/build-kernel.sh" --restore
+}
 
 newest_reachable_stable_tag() {
 	local series_tag tag suffix
@@ -330,10 +356,41 @@ done
 
 # --- delegated flavors ------------------------------------------------------
 case "$FLAVOR" in
-	ppa-forward-port|ppa-rewrite-6.18|ppa-rewrite-7.2-rc3|ppa-rewrite-7.2-rc5)
+	ppa-forward-port)
+		[ "$MODE" = "build" ] || die "$FLAVOR does not support --$MODE"
+		command -v flock >/dev/null || die "flock is required to serialize PPA staging/export"
+		mkdir -p "$WORKSPACE"
+		exec 8>"$WORKSPACE/.ysp-ppa-forward-port.lock"
+		flock -n 8 || die "another ppa-forward-port stage/export is already running"
+		ppa_worktree="$(kernel_worktree_path "$PPA_WORKTREE_LANE")"
+		say "staging production forward-port source in dedicated lane: $ppa_worktree"
+		if ROCK5B_WORKSPACE="$ROCK5B_WORKSPACE" \
+			WORKSPACE="$WORKSPACE" \
+			ARMBIAN_BUILD="$ARMBIAN_BUILD" \
+			KERNEL_EXTRA_DIR="$PPA_WORKTREE_LANE" \
+			ARMBIAN_USE_CCACHE=no \
+			bash "$HERE/build-kernel.sh" forward-port --patch-only; then
+			:
+		else
+			stage_status=$?
+			say "staging failed; restoring the shared Armbian patch inputs"
+			restore_ppa_shared_state || say "WARNING: shared Armbian patch-input restore also failed"
+			exit "$stage_status"
+		fi
+		if [ ! -d "$ppa_worktree" ]; then
+			restore_ppa_shared_state || true
+			die "dedicated PPA worktree missing after staging: $ppa_worktree"
+		fi
+		say "restoring shared Armbian patch inputs; the verified PPA lane remains staged"
+		restore_ppa_shared_state
+		say "exporting verified dedicated lane with packaging/ppa/build-source-packages.sh kernel"
+		KERNEL_PPA_REPO="$ppa_worktree" \
+			exec bash "$ROOT/packaging/ppa/build-source-packages.sh" kernel \
+			${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}
+		;;
+	ppa-rewrite-6.18|ppa-rewrite-7.2-rc3|ppa-rewrite-7.2-rc5)
 		[ "$MODE" = "build" ] || die "$FLAVOR does not support --$MODE"
 		case "$FLAVOR" in
-			ppa-forward-port)    target="kernel" ;;
 			ppa-rewrite-6.18)    target="kernel-alpha-6.18" ;;
 			ppa-rewrite-7.2-rc3) target="kernel-alpha-7.2-rc3" ;;
 			ppa-rewrite-7.2-rc5) target="kernel-alpha-7.2-rc5" ;;
@@ -589,6 +646,16 @@ check_debug_build_deps() {
 	fi
 }
 
+acquire_armbian_state_lock() {
+	command -v flock >/dev/null || die "flock is required to serialize Armbian patch state"
+	mkdir -p "$WORKSPACE"
+	exec 9>"$WORKSPACE/.ysp-armbian-build.lock"
+	flock -n 9 || die "another ysp Armbian kernel stage/build is already running
+    (the shared patch archive and userpatches state are single-writer)"
+}
+
+acquire_armbian_state_lock
+
 if [ "$MODE" = "restore" ]; then
 	[ ${#PASSTHROUGH[@]} -eq 0 ] || die "--restore does not accept compile arguments"
 	reset_core_patches
@@ -756,6 +823,7 @@ fi
 
 # =============================================================================
 say "STEP 5: build $FLAVOR (ccache=$ARMBIAN_USE_CCACHE; tmpfs=$ARMBIAN_USE_TMPFS; clean=${ARMBIAN_CLEAN_LEVEL:-incremental})"
+say "  kernel worktree lane: ${KERNEL_EXTRA_DIR:-default} ($(kernel_worktree_path))"
 if [ -n "$ARMBIAN_KERNELBRANCH" ]; then
 	say "  compiled kernel base: $ARMBIAN_KERNELBRANCH (explicit Armbian KERNELBRANCH)"
 else
@@ -821,6 +889,7 @@ if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
 		YSP_SOURCE_GSHA="$YSP_SOURCE_GSHA" \
 		KERNELPATCHDIR="$ARMBIAN_KERNELPATCHDIR" \
 		${ARMBIAN_LINUXFAMILY:+YSP_LINUXFAMILY="$ARMBIAN_LINUXFAMILY"} \
+		${KERNEL_EXTRA_DIR:+KERNEL_EXTRA_DIR="$KERNEL_EXTRA_DIR"} \
 		${ARMBIAN_KERNELBRANCH:+KERNELBRANCH="$ARMBIAN_KERNELBRANCH"} \
 		${ARMBIAN_CLEAN_LEVEL:+CLEAN_LEVEL="$ARMBIAN_CLEAN_LEVEL"} \
 		${PATCH_ONLY_ARG[@]+"${PATCH_ONLY_ARG[@]}"} \
@@ -843,6 +912,7 @@ else
 	# call sites drifting apart.
 	EXTRA_ARGS+=("KERNELPATCHDIR=$ARMBIAN_KERNELPATCHDIR")
 	[ -n "$ARMBIAN_LINUXFAMILY" ] && EXTRA_ARGS+=("YSP_LINUXFAMILY=$ARMBIAN_LINUXFAMILY")
+	[ -n "$KERNEL_EXTRA_DIR" ] && EXTRA_ARGS+=("KERNEL_EXTRA_DIR=$KERNEL_EXTRA_DIR")
 	./compile.sh "$FLAVOR_CONFIG_NAME" kernel \
 		KERNEL_CONFIGURE=no \
 		USE_CCACHE="$ARMBIAN_USE_CCACHE" \
@@ -868,7 +938,7 @@ if [ "$MODE" = "patch-only" ]; then
 	# is what shipped a rewrite-composite orig on 2026-07-25 and panicked the
 	# board: see findings/2026-07-29-production-6-18-40-orig-is-rewrite-composite-snapshot.md
 	say "STEP 6: staged worktree verification (patch-only; nothing was compiled)"
-	KWT="$ARMBIAN_BUILD/cache/sources/linux-kernel-worktree/${KBRANCH##*-}__${SLOT_FAMILY}__arm64"
+	KWT="$(kernel_worktree_path)"
 	[ -d "$KWT" ] || die "staged worktree missing: $KWT"
 	say "  worktree: $KWT"
 
@@ -958,7 +1028,7 @@ $(printf '%s\n' "$STILL" | sed 's/^/      /')
 		;;
 	esac
 
-	say "STAGED. The shared kernel worktree now holds the $FLAVOR series."
+	say "STAGED. The selected kernel worktree now holds the $FLAVOR series."
 	say "  Export from it with, e.g.:"
 	say "    FORCE_ORIG=1 bash packaging/ppa/build-source-packages.sh kernel"
 	exit 0

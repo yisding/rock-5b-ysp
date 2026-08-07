@@ -67,7 +67,7 @@ flavors do seed per-slot configs, deliberately, and each under its own slot name
 | `forward-port-debug` | KASAN/lockdep debug build of the forward-port kernel ("Kernel A") | same as `forward-port` | [`config-rock5b-debug-kernel.conf.sh`](../scripts/debug-kernel/config-rock5b-debug-kernel.conf.sh) + shared [instrumentation fragment](../scripts/debug-kernel/ysp-debug-instrumentation.conf.sh), seeded from `/boot/config-$(uname -r)` | `.debs`; install/hold/rollback via [`debug-kernel/`](../scripts/debug-kernel/README.md) |
 | `rewrite` | Non-debug clean-room rewrite candidate (rewrite drivers, vendor MPP/RGA off) | `../rock-5b/kernel/linux-6.18-rkvenc` (**must be on `rk3588-rewrite-6.18`, clean**) | stock Armbian `rockchip64-current` | `.debs`; install via `SLOT=video-rewrite install-combined-kernel.sh`. This is the performance-valid candidate flavor, not a production-readiness claim; current-tip hardware qualification is open. |
 | `rewrite-debug` | KASAN/lockdep debug build of the clean-room rewrite kernel (rewrite drivers + 246 KUnit cases built in, vendor MPP/RGA off) | `../rock-5b/kernel/linux-6.18-rkvenc` (**must be on `rk3588-rewrite-6.18`, clean**) | [`config-rock5b-rewrite-debug-kernel.conf.sh`](../scripts/debug-kernel/config-rock5b-rewrite-debug-kernel.conf.sh) + the same shared fragment | `.debs`; same [`debug-kernel/`](../scripts/debug-kernel/README.md) install flow |
-| `ppa-forward-port` | Unsigned source package `linux-rockchip64-ysp` for the normal PPA | patched Armbian worktree (see [`kernel-forward-port/`](../../packaging/ppa/kernel-forward-port/README.md)) | package `debian/config` | source artifacts under `packaging/ppa/out/artifacts` |
+| `ppa-forward-port` | Unsigned source package `linux-rockchip64-ysp` for the normal PPA | production patches staged automatically in the dedicated Armbian `ppa-forward-port` worktree (see [`kernel-forward-port/`](../../packaging/ppa/kernel-forward-port/README.md)) | package `debian/config` | source artifacts under `packaging/ppa/out/artifacts` |
 | `ppa-rewrite-6.18` | Unsigned source package `linux-rockchip64-ysp-alpha-6.18` (co-installable rewrite kernel) | pinned composite commit of `linux-6.18-rkvenc` (see [`kernel-rewrite-alpha-6.18/`](../../packaging/ppa/kernel-rewrite-alpha-6.18/README.md)) | package `debian/config` | source artifacts under `packaging/ppa/out/artifacts` |
 | `ppa-rewrite-7.2-rc3` | Unsigned source package `linux-rockchip64-ysp-alpha-7.2-rc3` | pinned composite commit of `linux` (see [`kernel-rewrite-alpha-7.2-rc3/`](../../packaging/ppa/kernel-rewrite-alpha-7.2-rc3/README.md)) | package `debian/config` | source artifacts under `packaging/ppa/out/artifacts` |
 | `maxline-public` / `maxline-wip` | Maximum-mainline packages pinned to Linux `7.2-rc6`, Torvalds `master@075b74841bd0` | `../rock-5b/kernel/linux` at pinned integration commits; separate `next-20260731` validation branches (see [`maxline/`](../../kernel-versions/maxline/README.md)) | maxline `config/` | `packaging/ppa/out/maxline/package-<profile>` |
@@ -84,7 +84,7 @@ Not flavors of this entry point, but part of the same delivery picture:
 
 ```bash
 build-kernel.sh <flavor> --stage-only    # regenerate + stage patches/config, no compile
-build-kernel.sh <flavor> --patch-only    # stage the shared kernel worktree, no compile
+build-kernel.sh <flavor> --patch-only    # stage the selected kernel worktree, no compile
 build-kernel.sh --restore                # reset Armbian patch archive + userpatches
 build-kernel.sh <flavor> --install-deps  # debug flavors: apt-install missing host deps
 IOMMU_DEBUG=yes build-kernel.sh forward-port          # DMA/IOMMU observability extension
@@ -110,20 +110,35 @@ automatic patch boundary is `v6.18.42`; Armbian still compiles it on the same
 rolling 6.18.42 base. `ARMBIAN_KERNELBRANCH=commit:<sha>` is the separate knob
 for pinning that compiled base.
 
-### `--patch-only`: staging the shared worktree for a source-package cut
+### `--patch-only`: staging a selected worktree for a source-package cut
 
 `--stage-only` and `--patch-only` sound alike and are not interchangeable.
 `--stage-only` prepares userpatches and core-patch exclusions and exits *before*
-`compile.sh` runs, so it never touches the shared kernel worktree.
+`compile.sh` runs, so it never touches a kernel worktree.
 `--patch-only` passes Armbian's `PATCH_ONLY=yes` through, which returns from
 `compile_kernel` immediately after `kernel_main_patching`
 (`lib/functions/compilation/kernel.sh:57`): the worktree ends up holding exactly
 this flavor's series, and nothing is compiled.
 
 That matters because `packaging/ppa/build-source-packages.sh` cuts the
-forward-port orig from that worktree, not from the flavor's git tree. Staging it
-is the only reason a *source-only* PPA upload ever needed a local build; with
-`--patch-only` it takes minutes instead of the better part of an hour.
+forward-port orig from an Armbian-patched worktree, not from the flavor's git
+tree. The canonical `ppa-forward-port` flavor now runs this staging itself with
+Armbian's `KERNEL_EXTRA_DIR=ppa-forward-port`, verifies the resulting
+`6.18__rockchip64__arm64__ppa-forward-port` lane, and exports only from that
+lane. It shares the same Armbian checkout, bare kernel repository, output tree,
+and central ccache as local builds, but it is never compiled and therefore
+cannot inherit local Kbuild objects or rewrite-only directories. Staging is the
+only reason a *source-only* PPA upload needs Armbian at all; with `--patch-only`
+it takes minutes instead of the better part of an hour.
+
+The Armbian patch archive and `userpatches/` directory remain shared mutable
+state even with separate kernel worktrees. The wrapper therefore takes a
+single-writer lock around every local stage/build/restore and a second lock
+around the complete PPA stage-plus-export sequence. After PPA staging it
+restores those shared patch inputs before exporting the durable dedicated lane.
+Concurrent invocations fail with the lock owner class instead of racing patch
+inputs. The exporter also rejects a worktree whose `make kernelversion` does not
+match the package's upstream-version prefix.
 
 Two behaviours specific to this mode:
 

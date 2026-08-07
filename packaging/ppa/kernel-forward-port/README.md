@@ -208,7 +208,7 @@ that grouped root.
 
 | Input | Default |
 |-------|---------|
-| Patched Armbian kernel worktree | `KERNEL_PPA_REPO=$WORKSPACE_ROOT/build/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
+| Patched Armbian kernel worktree | `KERNEL_PPA_REPO=$WORKSPACE_ROOT/build/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64__ppa-forward-port` |
 | Production kernel config | `KERNEL_PPA_CONFIG=$ROOT/packaging/ppa/kernel-forward-port/debian/config/arm64-rockchip64.config` |
 | Source package name | `KERNEL_PPA_SOURCE=linux-rockchip64-ysp` |
 | Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.42+rk3588av1fwport20260804` |
@@ -432,18 +432,20 @@ commands are operator-validated.
 
 ## Remaining Checklist
 
-> **Before any re-cut, stage the worktree.** `build-source-packages.sh` snapshots
-> the *shared* Armbian kernel worktree
-> (`…/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64`), which holds
-> whichever flavor's series the last `build-kernel.sh` run staged there. Export
-> immediately after `build-kernel.sh forward-port`, and verify
-> `drivers/iommu/rockchip-iommu.c` matches the fwport tree byte-for-byte with no
-> `*-rewrite` paths present. The rewrite-path exclusion added after the 2026-07-25
-> incident does **not** cover shared files, and `rockchip-iommu.c` is exactly the
-> shared file whose rewrite-branch tail
+> **Use the canonical PPA flavor for every re-cut.**
+> `build-kernel.sh ppa-forward-port` takes a PPA-sequence lock, stages and
+> verifies the production series with `--patch-only` in the dedicated
+> `…/linux-kernel-worktree/6.18__rockchip64__arm64__ppa-forward-port` lane, then
+> restores the shared patch inputs and exports that exact lane. Direct
+> `build-source-packages.sh kernel` calls use the same dedicated path by default
+> but assume it has already been staged, so they are expert rebuilds rather than
+> the ordinary entry point. The exporter rejects a kernel/package version
+> mismatch before cutting an orig. The rewrite-path
+> exclusion added after the 2026-07-25 incident does **not** cover shared files,
+> and `rockchip-iommu.c` is exactly the shared file whose rewrite-branch tail
 > [panicked the board](../../../findings/2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md).
-> Checked 2026-08-03: the patch-only staging gate completed for the 89-commit
-> forward-port tip before the `20260803` orig was exported.
+> The staging verifier therefore still compares the incident function against
+> the forward-port tree and rejects rewrite-only paths/symbols before export.
 
 **State as of 2026-08-04.** The `0001`–`0092` source at `7d53bc7a3adc` is
 Published as source publication `18656958`; remote arm64 build `33467257` and
