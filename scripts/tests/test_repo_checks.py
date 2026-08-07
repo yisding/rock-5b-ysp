@@ -6,6 +6,7 @@ import importlib.util
 import os
 import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -65,6 +66,9 @@ def load_findings_indexer():
 
 FINDINGS_INDEXER = load_findings_indexer()
 REPO_ROOT = SCRIPTS.parent
+KERNEL_ARTIFACT_PRUNER = (
+    REPO_ROOT / "kernel-drivers/scripts/prune-kernel-artifacts.py"
+)
 
 
 class RepositoryMarkdownFilesTests(unittest.TestCase):
@@ -395,6 +399,117 @@ class OperationalHelpTests(unittest.TestCase):
                     self.assertIn("usage", output.casefold())
                     self.assertIn("workspace_root", output.casefold())
                     self.assertNotIn("/home/yi/", output)
+
+
+class KernelArtifactRetentionTests(unittest.TestCase):
+    def run_pruner(
+        self, armbian_build: Path, *arguments: str
+    ) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [
+                sys.executable,
+                str(KERNEL_ARTIFACT_PRUNER),
+                "--armbian-build",
+                str(armbian_build),
+                "--min-age-hours",
+                "0",
+                *arguments,
+            ],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    def artifact(self, armbian_build: Path, build: str) -> Path:
+        path = (
+            armbian_build
+            / "output/debs"
+            / (
+                "linux-image-test-slot-rockchip64_26.08.0-trunk_arm64__"
+                f"{build}.deb"
+            )
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"fixture")
+        return path
+
+    def test_apply_keeps_newest_group_and_removes_older_group(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            armbian_build = Path(temporary) / "armbian-build"
+            old = self.artifact(armbian_build, "6.18.41-Sold-P1111-C1111")
+            new = self.artifact(armbian_build, "6.18.42-Snew-P2222-C2222")
+            os.utime(old, (100, 100))
+            os.utime(new, (200, 200))
+
+            dry_run = self.run_pruner(armbian_build, "--keep", "1")
+            self.assertEqual(dry_run.returncode, 0, dry_run.stderr)
+            self.assertIn("DELETE test-slot-rockchip64", dry_run.stdout)
+            self.assertIn("Dry run only", dry_run.stdout)
+            self.assertTrue(old.exists())
+            self.assertTrue(new.exists())
+
+            applied = self.run_pruner(armbian_build, "--keep", "1", "--apply")
+            self.assertEqual(applied.returncode, 0, applied.stderr)
+            self.assertFalse(old.exists())
+            self.assertTrue(new.exists())
+
+    def test_explicit_protection_preserves_old_group(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            armbian_build = Path(temporary) / "armbian-build"
+            old = self.artifact(armbian_build, "6.18.41-Sold-P1111-C1111")
+            new = self.artifact(armbian_build, "6.18.42-Snew-P2222-C2222")
+            os.utime(old, (100, 100))
+            os.utime(new, (200, 200))
+
+            result = self.run_pruner(
+                armbian_build,
+                "--keep",
+                "1",
+                "--protect",
+                "P1111-C1111",
+                "--apply",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(old.exists())
+            self.assertTrue(new.exists())
+
+    def test_empty_hashed_tar_is_an_orphan_not_a_recoverable_group(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            armbian_build = Path(temporary) / "armbian-build"
+            tar_path = (
+                armbian_build
+                / "output/packages-hashed"
+                / (
+                    "kernel-rockchip64-test-slot_"
+                    "6.18.42-Sempty-P0000-C0000_arm64.tar"
+                )
+            )
+            tar_path.parent.mkdir(parents=True, exist_ok=True)
+            with tarfile.open(tar_path, mode="w"):
+                pass
+
+            result = self.run_pruner(armbian_build, "--keep", "2")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("orphaned partial group", result.stdout)
+            self.assertIn("delete 1 groups", result.stdout)
+
+    def test_retired_slot_does_not_keep_its_newest_group(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            armbian_build = Path(temporary) / "armbian-build"
+            artifact = self.artifact(
+                armbian_build, "6.18.42-Sretired-P3333-C3333"
+            )
+
+            result = self.run_pruner(
+                armbian_build,
+                "--drop-slot",
+                "test-slot-rockchip64",
+                "--apply",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("retired slot", result.stdout)
+            self.assertFalse(artifact.exists())
 
 
 class WorkspaceDefaultTests(unittest.TestCase):

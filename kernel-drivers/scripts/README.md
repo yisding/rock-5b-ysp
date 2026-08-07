@@ -12,7 +12,7 @@ combined kernel, DKMS, and the PPA.
 
 > **Where the scripts run vs. build.** These scripts are the tracked source of
 > truth here; they drive an **external, gitignored build workspace**
-> (`rock5b-kernel-build`, holding the 31 GB `armbian-build` + all outputs).
+> (`rock5b-kernel-build`, holding `armbian-build` plus its caches and outputs).
 > `bootstrap-workspaces.sh` clones that workspace. Every script derives the
 > grouped root from `ROCK5B_WORKSPACE` (default `../../../rock-5b`), defaults
 > `WORKSPACE` to `$ROCK5B_WORKSPACE/build/kernel/rock5b-kernel-build`, and takes
@@ -44,7 +44,7 @@ The full prerequisite and mode chooser is canonical in
 |-------|----------|
 | User outcome | Build the combined Armbian kernel, install the exact intended debs, validate device probing, and install the canonical codec udev rule. |
 | Developer focus | Preserve the assumptions in the Armbian wrapper flow: userpatch location, `USE_CCACHE` handling, PHASH pinning, validation signals, and device-node policy. |
-| Owns | `build-kernel.sh` (the unified kernel-build entry point, see [`../docs/kernel-builds.md`](../docs/kernel-builds.md)), `install-kernel.sh` (+ the `install-combined-kernel.sh` shim), `install-kernel-hooks.sh` (installs the rewrite KUnit manifest-drift pre-commit guard into the shared kernel git dir), `validate-combined.sh`, `kernel-revert.sh`, `make-fallback-kernel-deb.sh`, `99-rockchip-codec.rules`, `bootstrap-workspaces.sh`, and the [`debug-kernel/`](debug-kernel/README.md) configs. |
+| Owns | `build-kernel.sh` (the unified kernel-build entry point, see [`../docs/kernel-builds.md`](../docs/kernel-builds.md)), `prune-kernel-artifacts.py` (bounded external-output retention), `install-kernel.sh` (+ the `install-combined-kernel.sh` shim), `install-kernel-hooks.sh` (installs the rewrite KUnit manifest-drift pre-commit guard into the shared kernel git dir), `validate-combined.sh`, `kernel-revert.sh`, `make-fallback-kernel-deb.sh`, `99-rockchip-codec.rules`, `bootstrap-workspaces.sh`, and the [`debug-kernel/`](debug-kernel/README.md) configs. |
 | Depends on | Kernel patches in [`../patches/`](../patches/README.md), Armbian build tree setup from [`install.md`](../../install.md), and validation expectations from [`../tests/`](../tests/README.md). |
 | Current state | The combined-kernel flow produced the hardware-validated board state recorded in [`status.md`](../../status.md). |
 
@@ -80,6 +80,7 @@ somewhere else.
 | `install-kernel.sh` | root | **The kernel installer** for every local flavor. You name one build with `PHASH=` and the **slot is inferred** from the deb filename (`SLOT=` only disambiguates). Refuses `current-rockchip64` (Armbian's) and `ysp-rockchip64` (the PPA). Runs the U-Boot load-address preflight, captures the current boot state, drops the obsolete rkvdec2 overlay, installs, and holds the packages. |
 | `install-combined-kernel.sh` | root | Shim → `install-kernel.sh` with `SLOT=video-port`. Kept because docs and dated findings cite it. |
 | `build-kernel.sh` | user | **Unified entry point for every ysp kernel build** — `build-kernel.sh <flavor>` with local flavors `forward-port` (production AV1 forward-port), `forward-port-debug`, and `rewrite-debug` (KASAN/lockdep debug builds), plus delegated flavors `ppa-forward-port` / `ppa-rewrite-6.18` / `ppa-rewrite-7.2-rc3` (source packages) and `maxline-public` / `maxline-wip`. The flavor map is documented in [`../docs/kernel-builds.md`](../docs/kernel-builds.md). For local flavors it finds the newest final `v6.18.x` tag reachable from the flavor tree (falling back to `v6.18`) and regenerates only that base-to-HEAD patch series; `BASE_TAG=` remains an explicit expert override. It then restores/cleans the selected built-in Armbian kernel patch archive, clears the matching userpatch archive, stages the generated patch set, **disables** the two colliding Armbian core media patches (the trees' DT is self-contained), sweeps stale heavy-debug user configs, follows Armbian's rolling `linux-6.18.y` stable branch unless `ARMBIAN_KERNELBRANCH` is deliberately set, then runs `compile.sh` and prints the new `P####-C####` hash. Debug flavors additionally stage the ramoops DT patch plus their tracked Armbian config (both sourcing the shared `debug-kernel/ysp-debug-instrumentation.conf.sh` fragment) and seed the base `.config` from the running kernel. Sweeping a *different* flavor's debug config automatically requests `CLEAN_LEVEL=make-kernel` so stale Kbuild metadata cannot leak across config classes. Ccache is on by default; set `ARMBIAN_USE_CCACHE=no` or explicitly set `ARMBIAN_CLEAN_LEVEL=make-kernel` for a clean retry. Armbian's WORKDIR/LOGDIR tmpfs is **disabled** by default (`USE_TMPFS=no`): Armbian mounts both at `size=99%`, opt-out only with no size knob, and tmpfs pages outlive the writing process, so an OOM daemon cannot recover from a tmpfs fill — set `ARMBIAN_USE_TMPFS=yes` only on a host with RAM to spare. `--restore` performs only the built-in archive reset; `--patch-only` passes Armbian's `PATCH_ONLY=yes` so patching stops before any compile, leaving the **shared kernel worktree** staged with that flavor's series — the state `packaging/ppa/build-source-packages.sh` cuts the forward-port orig from, and the reason a source-only PPA upload previously needed a full build. In that mode STEP 6 verifies the worktree instead of a deb (incident function compared body-to-body, rewrite-only symbol rejected, leftover `*-rewrite` dirs purged) and tolerates Armbian's expected non-zero exit from its artifact packer. Not to be confused with `--stage-only`, which exits before `compile.sh` and never touches the worktree. |
+| `prune-kernel-artifacts.py` | user | Applies the local kernel-artifact retention rule across `output/debs/` and `output/packages-hashed/`. It groups matching image/DTB/header/libc and hashed-cache files by slot plus exact build identity, keeps the two newest recoverable groups per slot, preserves installed matches, explicit `--protect` identities, and groups less than 24 hours old, and leaves unrecognized files untouched. It is a dry run unless `--apply` is supplied. |
 | `kernel-revert.sh` | root (SD rescue) | Get a bad board booting again: flip `/boot` symlinks (`switch`) or chroot-reinstall a good deb (`reinstall`) on the internal disk from an SD-card rescue. Subcommands `list`/`switch`/`reinstall`; target via `--auto`/`--device`/`--root`. |
 | `make-fallback-kernel-deb.sh` | user | Repackage a kernel deb (rename `Package:`, drop `Provides:`) into a **co-installable** fallback that won't clobber the primary `linux-image-current-rockchip64` — a permanent recovery kernel `kernel-revert.sh` can `switch` to. Defaults to the official 6.18.35 (26.5.1) debs. |
 | `bootstrap-workspaces.sh` | user | Reconstruct the external workspaces: clone `ARMBIAN_BRANCH` (`main` by default), harden the persistent Armbian ccache with compiler-content identity while preserving an existing size policy, clone the five conformance sources at `../tests/conformance/MANIFEST.tsv` commits, and deploy the tracked conformance skeleton. Existing checkouts are never moved and are reported as `branch@commit`; `--check` reports only. Cache rationale: [`../docs/kernel-build-ccache.md`](../docs/kernel-build-ccache.md). |
@@ -90,6 +91,43 @@ somewhere else.
 > cores `/proc/mpp_service/rkvdec-core0` and `rkvdec-core1`. The older
 > convert-in-place kernel kept Armbian's `video-codec0/1` node names.
 > `validate-combined.sh` accepts both forms.
+
+## Kernel artifact retention
+
+Armbian retains each local kernel build twice: the installable package set under
+`output/debs/` and a hashed package archive under `output/packages-hashed/`.
+Retention is by complete **slot + build identity**, not individual filename, so
+the image, DTB, headers, libc headers, hashed tar, and hashed-cache copies stay
+together.
+
+The default rule keeps the two newest recoverable groups per slot. It also keeps
+an older group when its image payload matches an installed package, when its
+identity matches a repeatable `--protect TOKEN`, or while it is less than 24
+hours old. Groups with no image or hashed tar are treated as partial orphans.
+Unknown files are reported and never removed. A live `.ysp-build-marker.*`
+blocks pruning, and all selected paths are identity- and permission-checked
+before the first deletion.
+
+Review the exact keep/delete plan first:
+
+```bash
+python3 prune-kernel-artifacts.py
+```
+
+Preserve a build cited by an active investigation, then permanently apply the
+reviewed plan:
+
+```bash
+python3 prune-kernel-artifacts.py --protect P7215-Cad24
+python3 prune-kernel-artifacts.py --protect P7215-Cad24 --apply
+```
+
+Protection tokens apply to that invocation, so repeat them on the corresponding
+`--apply` command. Use `--drop-slot SLOT` when a renamed or retired package slot
+should not retain its otherwise newest build. Use `--keep N` or
+`--min-age-hours HOURS` only for a deliberate one-off policy change. `--apply`
+unlinks the selected external build artifacts rather than moving them to trash,
+because retaining a second copy would not reclaim build space.
 
 ## Typical flow
 
