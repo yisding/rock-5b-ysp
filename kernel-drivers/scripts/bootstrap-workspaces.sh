@@ -68,6 +68,11 @@ echo
 say "1) Armbian build tree (the kernel build engine)"
 mkdir -p "$WORKSPACE"
 clone_at "$ARMBIAN_REMOTE" "$ARMBIAN_BRANCH" "" "$WORKSPACE/armbian-build"
+if [ "$CHECK" = 1 ]; then
+	WORKSPACE="$WORKSPACE" bash "$HERE/setup-ppa-armbian-worktree.sh" --check || true
+else
+	WORKSPACE="$WORKSPACE" bash "$HERE/setup-ppa-armbian-worktree.sh"
+fi
 # ccache: every build under ~/Code shares ONE store, wired by the tracked helper
 # below. The load-bearing setting it applies is compiler_check=content. Armbian
 # rebuilds its Docker image periodically (fresh `apt install gcc` => new gcc

@@ -287,13 +287,23 @@ kernel compile command.
 ## Observe every build
 
 Armbian zeroes ccache statistics immediately before each build phase and prints
-a summary afterward:
+a compact summary afterward:
 
 ```text
 Ccache result [ hit=... miss=... (...%) ]
 ```
 
-Interpret it as follows:
+That compact line is **not authoritative** on the current Armbian revision. It
+uses `direct_cache_hit` as `hit` and `direct_cache_miss` as `miss`; a direct-mode
+miss that falls back to preprocessing and finds a cached result is therefore
+misreported as a final miss. Measured on the 2026-08-07 6.18.43 rewrite-debug
+build, Armbian printed `hit=1549 miss=12556 (10%)` while `ccache --show-stats`
+reported 14,025 hits and 6 misses (99.96%): 12,476 were preprocessed hits. The
+authoritative sample was captured while the compile phase was still active;
+Armbian zeroes the shared counters again before later phases, so a query after
+the entire build may describe only module installation or an artifact restore.
+
+Interpret the authoritative stats as follows:
 
 | Result | Meaning |
 |---|---|

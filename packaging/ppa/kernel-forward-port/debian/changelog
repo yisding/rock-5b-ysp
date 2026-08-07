@@ -1,3 +1,16 @@
+linux-rockchip64-ysp (6.18.43+rk3588av1fwport20260807-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Rebase the unchanged 0001-0092 production forward-port series at
+    7d53bc7a3adc onto the 6.18.43 Armbian stable base.
+  * Keep the production config and co-installable image, DTB, and headers
+    package slots unchanged; KASAN, lockdep, and DMABUF_DEBUG remain off.
+  * Source-only validation: the dedicated PPA lane must pass the forward-port
+    IOMMU provenance comparison, reject foreign rewrite-driver paths, and
+    report Linux 6.18.43 before export. This source package has not been built
+    locally as a kernel, installed, booted, or hardware-validated.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Fri, 07 Aug 2026 10:41:54 -0700
+
 linux-rockchip64-ysp (6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1) resolute; urgency=high
 
   * Keep the 6.18.42 Armbian stable base and extend the forward-port series

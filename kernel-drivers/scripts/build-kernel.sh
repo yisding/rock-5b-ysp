@@ -84,7 +84,33 @@ ROOT="$(cd "$HERE/../.." && pwd)"                       # the ysp repository
 CODE="$(cd "$ROOT/.." && pwd)"                          # ~/Code (ysp is <CODE>/rock-5b-ysp)
 ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$CODE/rock-5b}"
 WORKSPACE="${WORKSPACE:-$ROCK5B_WORKSPACE/build/kernel/rock5b-kernel-build}"  # build scratch (armbian-build + outputs)
-ARMBIAN_BUILD="${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}"
+PRIMARY_ARMBIAN_BUILD="${PRIMARY_ARMBIAN_BUILD:-${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}}"
+PPA_ARMBIAN_BUILD="${PPA_ARMBIAN_BUILD:-$WORKSPACE/armbian-build-ppa}"
+
+# The production PPA owns a separate Armbian Git worktree. Route to it before
+# deriving any Armbian-relative paths, then re-exec once with a marker. This
+# leaves local compiles on the primary checkout and gives each track independent
+# patch/userpatch/config/output state and an independent state lock. The setup
+# helper links only cache/, where KERNEL_EXTRA_DIR keeps the kernel worktrees
+# separate and ccache already points at ~/Code/.ccache.
+ppa_track_requested=0
+for requested_arg in "$@"; do
+	[ "$requested_arg" = "ppa-forward-port" ] && ppa_track_requested=1
+done
+if [ "$ppa_track_requested" = 1 ] && [ "${YSP_PPA_ARMBIAN_TRACK:-0}" != 1 ]; then
+	PRIMARY_ARMBIAN_BUILD="$PRIMARY_ARMBIAN_BUILD" \
+		PPA_ARMBIAN_BUILD="$PPA_ARMBIAN_BUILD" \
+		WORKSPACE="$WORKSPACE" \
+		bash "$HERE/setup-ppa-armbian-worktree.sh"
+	exec env \
+		ARMBIAN_BUILD="$PPA_ARMBIAN_BUILD" \
+		PRIMARY_ARMBIAN_BUILD="$PRIMARY_ARMBIAN_BUILD" \
+		PPA_ARMBIAN_BUILD="$PPA_ARMBIAN_BUILD" \
+		YSP_PPA_ARMBIAN_TRACK=1 \
+		YSP_ARMBIAN_STATE_LOCK="$WORKSPACE/.ysp-armbian-build-ppa.lock" \
+		bash "${BASH_SOURCE[0]}" "$@"
+fi
+ARMBIAN_BUILD="${ARMBIAN_BUILD:-$PRIMARY_ARMBIAN_BUILD}"
 KERNEL_SERIES="${KERNEL_SERIES:-6.18}"
 # Local-flavor patches are BASE_TAG..HEAD. "auto" is resolved only after the
 # flavor selects KERNEL_TREE: the forward-port tree is based directly on v6.18,
@@ -535,6 +561,8 @@ stage_debug_config() {
 	# Sweep any leftover from the old, broken lib.config approach (ours only).
 	if [ -f "$LEGACY_LIBCONFIG" ] && ours_debug_ext "$LEGACY_LIBCONFIG"; then
 		rm -v "$LEGACY_LIBCONFIG" | sed 's/^/      removed stale /'
+	elif [ -f "$LEGACY_LIBCONFIG" ] && [ "${YSP_PPA_ARMBIAN_TRACK:-0}" = 1 ]; then
+		die "unmanaged $LEGACY_LIBCONFIG exists in the dedicated PPA track; refusing a source cut"
 	fi
 	if [ -f "$DEBUG_EXT" ] && ! ours_debug_ext "$DEBUG_EXT"; then
 		die "$DEBUG_EXT exists and is not ours; remove or merge from $DEBUG_HOOK_SRC by hand"
@@ -654,9 +682,10 @@ check_debug_build_deps() {
 acquire_armbian_state_lock() {
 	command -v flock >/dev/null || die "flock is required to serialize Armbian patch state"
 	mkdir -p "$WORKSPACE"
-	exec 9>"$WORKSPACE/.ysp-armbian-build.lock"
+	local state_lock="${YSP_ARMBIAN_STATE_LOCK:-$WORKSPACE/.ysp-armbian-build.lock}"
+	exec 9>"$state_lock"
 	flock -n 9 || die "another ysp Armbian kernel stage/build is already running
-    (the shared patch archive and userpatches state are single-writer)"
+    for this track (state lock: $state_lock)"
 }
 
 acquire_armbian_state_lock
@@ -870,16 +899,21 @@ trap 'rm -f "$BUILD_MARKER"' EXIT
 
 # --patch-only stops Armbian after kernel_main_patching (kernel.sh:57), so the
 # shared worktree ends up holding exactly this flavor's series and nothing is
-# compiled. That is what packaging/ppa/build-source-packages.sh snapshots for the
-# forward-port orig, and staging it is the whole reason a source-only upload ever
-# needed a local build.
+# compiled. Mark it as a non-artifact operation and bypass both local and remote
+# artifact caches. Without those controls a stale binary cache can skip patching,
+# while a cache miss makes Armbian try to tar nonexistent .debs and leave a tiny,
+# invalid tar that poisons the next staging run.
 PATCH_ONLY_ARG=()
-[ "$MODE" = "patch-only" ] && PATCH_ONLY_ARG=("PATCH_ONLY=yes")
+[ "$MODE" = "patch-only" ] && PATCH_ONLY_ARG=(
+	"PATCH_ONLY=yes"
+	"ARTIFACT_IGNORE_CACHE=yes"
+	"ARTIFACT_WILL_NOT_BUILD=yes"
+)
 
-# Under --patch-only, Armbian stops inside compile_kernel and its artifact
-# packer then fails with nothing to pack. Patching has already succeeded at
-# that point, so the exit code is not the signal -- the staged worktree is,
-# and STEP 6 verifies it. Keep -e for every other mode.
+# The staged worktree is the authoritative patch-only signal and STEP 6 verifies
+# it. Keep -e disabled around compile.sh for compatibility with older Armbian
+# revisions that do not honor the non-artifact controls; every real build still
+# requires a zero exit status below.
 set +e
 if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
 	check_debug_build_deps

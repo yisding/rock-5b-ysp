@@ -76,11 +76,19 @@ compile-verified against the rewrite-debug config:
 The KUnit manifest moved to 94 MPP + 152 RGA cases (246 total) in the paired
 ysp commit.
 
+The 2026-08-07 `rewrite-debug` integration build completed on Armbian's
+6.18.43 stable base and produced package identity
+`6.18.43-S7b92-D6d03-P3b3c-Cad24-H1c44-HK01ba-Vc222-B3ab8-R448a` from source
+stamp `gf37186832202`. The wrapper verified the packaged rewrite options and
+reported `P3b3c-Cad24`; its final config is byte-identical to the prior
+`P7215-Cad24` KASAN config. These packages are built and package-verified, not
+installed, booted, or runtime-qualified.
+
 ## Verification gate
 
-1. Install the rebuilt `rewrite-debug` debs (P/C hash from the 2026-08-07
-   build) and boot; `rewrite-kunit-log-check.sh` must show the exact 246-case
-   manifest green under KASAN.
+1. Install the rebuilt `rewrite-debug` debs with `PHASH=P3b3c-Cad24` and boot;
+   `rewrite-kunit-log-check.sh` must show the exact 246-case manifest green
+   under KASAN.
 2. Repro loop, promoted from the scratch scripts into the FFmpeg conformance
    suite on 2026-08-07: required case `ffmpeg_decode_h264_repeat_exact_load`
    (20 per-frame-hash-exact hardware decodes under 4 CPU spinners) with

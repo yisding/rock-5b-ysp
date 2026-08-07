@@ -56,8 +56,9 @@ The full prerequisite and mode chooser is canonical in
 
 ## Prerequisite: the external build workspace
 
-The build scripts expect an Armbian build tree at
-**`$WORKSPACE/armbian-build`** (default
+The local build scripts expect an Armbian build tree at
+**`$WORKSPACE/armbian-build`** and PPA staging uses its linked Git worktree at
+**`$WORKSPACE/armbian-build-ppa`** (default
 `WORKSPACE=$ROCK5B_WORKSPACE/build/kernel/rock5b-kernel-build`, gitignored, outside
 this repo). Get it with the bootstrap:
 
@@ -79,12 +80,13 @@ somewhere else.
 |--------|---------|--------------|
 | `install-kernel.sh` | root | **The kernel installer** for every local flavor. You name one build with `PHASH=` and the **slot is inferred** from the deb filename (`SLOT=` only disambiguates). Refuses `current-rockchip64` (Armbian's) and `ysp-rockchip64` (the PPA). Runs the U-Boot load-address preflight, captures the current boot state, drops the obsolete rkvdec2 overlay, installs, and holds the packages. |
 | `install-combined-kernel.sh` | root | Shim → `install-kernel.sh` with `SLOT=video-port`. Kept because docs and dated findings cite it. |
-| `build-kernel.sh` | user | **Unified entry point for every ysp kernel build and source-package cut.** Local flavors build production or KASAN/lockdep kernels; `ppa-*` flavors cut source packages; `maxline-*` flavors delegate to the pinned maximum-mainline build. `ppa-forward-port` stages and verifies production patches in its dedicated `KERNEL_EXTRA_DIR=ppa-forward-port` Armbian worktree before exporting it, while a single-writer lock protects the shared patch archive and `userpatches/`. See the complete flavor, worktree, ccache, tmpfs, patch-only, and install behavior in [`../docs/kernel-builds.md`](../docs/kernel-builds.md). |
+| `build-kernel.sh` | user | **Unified entry point for every ysp kernel build and source-package cut.** Local flavors build production or KASAN/lockdep kernels; `ppa-*` flavors cut source packages; `maxline-*` flavors delegate to the pinned maximum-mainline build. `ppa-forward-port` routes through `armbian-build-ppa`, stages and verifies production patches in its dedicated `KERNEL_EXTRA_DIR=ppa-forward-port` kernel lane, and can overlap a compile because each Armbian checkout owns its mutable patch state and lock. See the complete flavor, worktree, ccache, tmpfs, patch-only, and install behavior in [`../docs/kernel-builds.md`](../docs/kernel-builds.md). |
 | `prune-kernel-artifacts.py` | user | Applies the local kernel-artifact retention rule across `output/debs/` and `output/packages-hashed/`. It groups matching image/DTB/header/libc and hashed-cache files by slot plus exact build identity, keeps the two newest recoverable groups per slot, preserves installed matches, explicit `--protect` identities, and groups less than 24 hours old, and leaves unrecognized files untouched. It is a dry run unless host `--apply` or Docker-backed `--docker-apply` is supplied. |
 | `docker-clean-armbian-state.sh` | user + Docker | Deletes only explicitly selected artifacts, the two foreign rewrite-driver directories in one lane, or one complete named kernel worktree through the existing local Armbian Docker image. It uses narrow `cache/` or `output/` mounts, no network, a read-only container root, shared build/PPA locks, and a dry run unless `--apply` is supplied. |
 | `kernel-revert.sh` | root (SD rescue) | Get a bad board booting again: flip `/boot` symlinks (`switch`) or chroot-reinstall a good deb (`reinstall`) on the internal disk from an SD-card rescue. Subcommands `list`/`switch`/`reinstall`; target via `--auto`/`--device`/`--root`. |
 | `make-fallback-kernel-deb.sh` | user | Repackage a kernel deb (rename `Package:`, drop `Provides:`) into a **co-installable** fallback that won't clobber the primary `linux-image-current-rockchip64` — a permanent recovery kernel `kernel-revert.sh` can `switch` to. Defaults to the official 6.18.35 (26.5.1) debs. |
-| `bootstrap-workspaces.sh` | user | Reconstruct the external workspaces: clone `ARMBIAN_BRANCH` (`main` by default), harden the persistent Armbian ccache with compiler-content identity while preserving an existing size policy, clone the five conformance sources at `../tests/conformance/MANIFEST.tsv` commits, and deploy the tracked conformance skeleton. Existing checkouts are never moved and are reported as `branch@commit`; `--check` reports only. Cache rationale: [`../docs/kernel-build-ccache.md`](../docs/kernel-build-ccache.md). |
+| `setup-ppa-armbian-worktree.sh` | user | Creates or checks the linked `armbian-build-ppa` Git worktree. It shares only the primary Armbian `cache/` (one kernel mirror and central ccache), keeps mutable patch/output state independent, advances only a clean PPA track to the primary HEAD, and refuses unmanaged or dirty state. |
+| `bootstrap-workspaces.sh` | user | Reconstruct the external workspaces: clone `ARMBIAN_BRANCH` (`main` by default), create/check the separate PPA Armbian worktree, harden the persistent Armbian ccache with compiler-content identity while preserving an existing size policy, clone the five conformance sources at `../tests/conformance/MANIFEST.tsv` commits, and deploy the tracked conformance skeleton. Existing source checkouts are never moved; `--check` reports only. Cache rationale: [`../docs/kernel-build-ccache.md`](../docs/kernel-build-ccache.md). |
 | `validate-combined.sh` | root | Post-reboot: checks `/dev/mpp_service`, the four cores under `/proc/mpp_service` (`rkvenc-core0/1` + the two decoder cores, see naming note below), `/dev/rga`, and greps boot dmesg for clean probes / no faults. **Fails closed** — any ✗ exits 1, so it can gate the on-hardware tests rather than only inform a reader. |
 | `99-rockchip-codec.rules` | (install to `/etc/udev/rules.d/`) | `GROUP="video" MODE="0660"` on `/dev/mpp_service`, `/dev/dma_heap/*`, and `/dev/rga` so ffmpeg-rockchip runs **without sudo** (you must be in the `video` group; the dma-heap line is **required** — rkmpp allocates buffers there, see [gotchas](../../docs/gotchas.md)). Packaged as a deb by [`packaging/codec-udev/README.md`](../../packaging/codec-udev/README.md), which copies this file at build time — this copy is canonical. |
 
@@ -156,8 +158,9 @@ bash docker-clean-armbian-state.sh foreign-rewrite 6.18__rockchip64__arm64
 bash docker-clean-armbian-state.sh --apply foreign-rewrite 6.18__rockchip64__arm64
 ```
 
-Every action shares the kernel-build lock; deleting the dedicated
-`__ppa-forward-port` lane also shares the complete PPA stage/export lock. The
+Every action shares the state lock for its owning Armbian track; deleting the
+dedicated `__ppa-forward-port` lane also shares the complete PPA stage/export
+lock. The
 canonical `build-kernel.sh ppa-forward-port` flow automatically performs this
 complete PPA-lane removal before each fresh patch-only stage. The
 helper refuses absolute paths, traversal, symlinks, arbitrary worktree names,
@@ -166,6 +169,18 @@ resolves the configured image tag to an existing local immutable image ID and
 never pulls during cleanup. The container drops every Linux capability except
 `DAC_OVERRIDE`, the one permission needed for container root to unlink a
 root-owned child from an otherwise user-owned Armbian cache/output directory.
+
+Point `--armbian-build` at the owning track. This selects that track's state
+lock while still using the same local Docker image:
+
+```bash
+bash docker-clean-armbian-state.sh \
+  --armbian-build "$WORKSPACE/armbian-build-ppa" \
+  worktree 6.18__rockchip64__arm64__ppa-forward-port
+bash docker-clean-armbian-state.sh \
+  --armbian-build "$WORKSPACE/armbian-build-ppa" --apply \
+  worktree 6.18__rockchip64__arm64__ppa-forward-port
+```
 
 ## Typical flow
 

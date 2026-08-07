@@ -72,6 +72,9 @@ KERNEL_ARTIFACT_PRUNER = (
 ARMBIAN_DOCKER_CLEANER = (
     REPO_ROOT / "kernel-drivers/scripts/docker-clean-armbian-state.sh"
 )
+PPA_ARMBIAN_SETUP = (
+    REPO_ROOT / "kernel-drivers/scripts/setup-ppa-armbian-worktree.sh"
+)
 
 
 class RepositoryMarkdownFilesTests(unittest.TestCase):
@@ -627,6 +630,107 @@ class ArmbianDockerCleanerTests(unittest.TestCase):
         self.assertIn("--cap-add DAC_OVERRIDE", cleaner)
         self.assertIn("src=$ARMBIAN_BUILD/output,dst=/armbian/output", cleaner)
         self.assertIn("src=$ARMBIAN_BUILD/cache,dst=/armbian/cache", cleaner)
+        self.assertIn('"armbian-build-ppa"', cleaner)
+        self.assertIn(".ysp-armbian-build-ppa.lock", cleaner)
+
+
+class PpaArmbianWorktreeTests(unittest.TestCase):
+    def run_setup(
+        self, workspace: Path, *arguments: str
+    ) -> subprocess.CompletedProcess[str]:
+        environment = os.environ.copy()
+        environment["WORKSPACE"] = str(workspace)
+        return subprocess.run(
+            ["bash", str(PPA_ARMBIAN_SETUP), *arguments],
+            cwd=REPO_ROOT,
+            env=environment,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    def make_primary(self, workspace: Path) -> Path:
+        primary = workspace / "armbian-build"
+        primary.mkdir(parents=True)
+        subprocess.run(["git", "init", "--quiet", str(primary)], check=True)
+        subprocess.run(
+            ["git", "-C", str(primary), "config", "user.email", "test@example.com"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(primary), "config", "user.name", "Test"],
+            check=True,
+        )
+        (primary / "tracked").write_text("one\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(primary), "add", "tracked"], check=True)
+        subprocess.run(
+            ["git", "-C", str(primary), "commit", "--quiet", "-m", "initial"],
+            check=True,
+        )
+        return primary
+
+    def test_setup_creates_synced_worktree_with_shared_cache_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary) / "kernel-build"
+            primary = self.make_primary(workspace)
+
+            result = self.run_setup(workspace)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            ppa = workspace / "armbian-build-ppa"
+            self.assertEqual(
+                subprocess.run(
+                    ["git", "-C", str(ppa), "rev-parse", "HEAD"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ).stdout,
+                subprocess.run(
+                    ["git", "-C", str(primary), "rev-parse", "HEAD"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ).stdout,
+            )
+            self.assertTrue((ppa / "cache").is_symlink())
+            self.assertEqual((ppa / "cache").resolve(), (primary / "cache").resolve())
+            self.assertTrue((ppa / "output").is_dir())
+            self.assertFalse((ppa / "output").is_symlink())
+
+            checked = self.run_setup(workspace, "--check")
+            self.assertEqual(checked.returncode, 0, checked.stderr)
+
+    def test_check_reports_missing_track_without_creating_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary) / "kernel-build"
+            self.make_primary(workspace)
+
+            result = self.run_setup(workspace, "--check")
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("MISSING PPA Armbian worktree", result.stdout)
+            self.assertFalse((workspace / "armbian-build-ppa").exists())
+            self.assertFalse(
+                (workspace / ".ysp-armbian-worktree-setup.lock").exists()
+            )
+
+    def test_setup_refuses_to_advance_a_dirty_ppa_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary) / "kernel-build"
+            primary = self.make_primary(workspace)
+            self.assertEqual(self.run_setup(workspace).returncode, 0)
+            ppa = workspace / "armbian-build-ppa"
+
+            (ppa / "tracked").write_text("dirty\n", encoding="utf-8")
+            (primary / "tracked").write_text("two\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(primary), "add", "tracked"], check=True)
+            subprocess.run(
+                ["git", "-C", str(primary), "commit", "--quiet", "-m", "next"],
+                check=True,
+            )
+
+            result = self.run_setup(workspace)
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("tracked modifications", result.stderr)
 
 
 class WorkspaceDefaultTests(unittest.TestCase):
@@ -698,9 +802,15 @@ class WorkspaceDefaultTests(unittest.TestCase):
         wrapper = self.shell_text("kernel-drivers/scripts/build-kernel.sh")
         exporter = self.shell_text("packaging/ppa/build-source-packages.sh")
 
+        self.assertIn('PPA_ARMBIAN_BUILD="${PPA_ARMBIAN_BUILD:-', wrapper)
+        self.assertIn("setup-ppa-armbian-worktree.sh", wrapper)
+        self.assertIn(".ysp-armbian-build-ppa.lock", wrapper)
+        self.assertIn("unmanaged $LEGACY_LIBCONFIG", wrapper)
         self.assertIn('PPA_WORKTREE_LANE="ppa-forward-port"', wrapper)
         self.assertIn('KERNEL_EXTRA_DIR="$PPA_WORKTREE_LANE"', wrapper)
         self.assertIn('KERNEL_PPA_REPO="$ppa_worktree"', wrapper)
+        self.assertIn('"ARTIFACT_IGNORE_CACHE=yes"', wrapper)
+        self.assertIn('"ARTIFACT_WILL_NOT_BUILD=yes"', wrapper)
         self.assertIn("acquire_armbian_state_lock", wrapper)
         self.assertIn("restore_ppa_shared_state", wrapper)
         self.assertIn("docker-clean-armbian-state.sh", wrapper)

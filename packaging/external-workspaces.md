@@ -26,7 +26,7 @@ implicit source.
 
 | Area | Canonical source in this repo | External inputs used to build/export |
 |------|-------------------------------|--------------------------------------|
-| Armbian kernel build scripts | [`../kernel-drivers/scripts/`](../kernel-drivers/scripts/README.md) | `/home/yi/Code/rock-5b/build/kernel/rock5b-kernel-build/armbian-build` clone and caches |
+| Armbian kernel build scripts | [`../kernel-drivers/scripts/`](../kernel-drivers/scripts/README.md) | `/home/yi/Code/rock-5b/build/kernel/rock5b-kernel-build/armbian-build` local-build checkout, linked `armbian-build-ppa` source-staging checkout, and shared caches |
 | Non-AV1 validated kernel patch pair | [`../kernel-drivers/patches/`](../kernel-drivers/patches/README.md) | `linux-6.18-rkvenc*` development trees |
 | AV1/RK3588 forward-port patch series | [`../kernel-drivers/patches/forward-port-rk3588/`](../kernel-drivers/patches/forward-port-rk3588/README.md) | `/home/yi/Code/rock-5b/build/kernel/rock5b-kernel-build/forward-port/patches/` |
 | Debug Armbian config | [`../kernel-drivers/scripts/debug-kernel/config-rock5b-debug-kernel.conf.sh`](../kernel-drivers/scripts/debug-kernel/config-rock5b-debug-kernel.conf.sh) | formerly only in `armbian-build/userpatches/` |
@@ -39,6 +39,7 @@ implicit source.
 | External path | Current disposition |
 |---------------|---------------------|
 | `/home/yi/Code/rock-5b/build/kernel/rock5b-kernel-build` | Scratch workspace, about `44G` at audit time. `armbian-build/cache` and `armbian-build/output` dominate it. Keep outside git. |
+| `/home/yi/Code/rock-5b/build/kernel/rock5b-kernel-build/armbian-build-ppa` | Disposable linked Armbian Git worktree for PPA source staging. It owns mutable patch/output state and links `cache/` to the primary checkout; reconstruct with `kernel-drivers/scripts/setup-ppa-armbian-worktree.sh`. |
 | `/home/yi/Code/rock-5b/build/kernel/rock5b-kernel-build/forward-port/patches` | Imported as source text to `kernel-drivers/patches/forward-port-rk3588/`. |
 | `/home/yi/Code/rock-5b/build/kernel/rock5b-kernel-build/forward-port/fallback` | Generated fallback `.deb`s. Do not copy into git. |
 | `/home/yi/Code/rock-5b/build/kernel/rock5b-kernel-build/forward-port/official-src` | Downloaded official Armbian `.deb`s. Do not copy into git. |

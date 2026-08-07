@@ -126,9 +126,11 @@ bash kernel-drivers/scripts/build-kernel.sh ppa-forward-port
 bash packaging/ppa/build-source-packages.sh kernel-alpha-6.18 kernel-alpha-7.2-rc3
 ```
 
-The forward-port wrapper stages and verifies a dedicated source-only Armbian
-worktree before exporting it. Use `build-source-packages.sh kernel` directly
-only to rebuild from an already-staged lane.
+The forward-port wrapper routes through the separate `armbian-build-ppa` Git
+worktree, then stages and verifies its dedicated source-only kernel lane before
+exporting it. Its mutable Armbian inputs and lock are independent from a local
+compile. Use `build-source-packages.sh kernel` directly only to rebuild from an
+already-staged lane.
 
 For native Debian builds, keep the system toolchain first so Meson sees Ubuntu
 multiarch metadata:

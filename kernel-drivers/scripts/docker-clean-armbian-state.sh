@@ -204,8 +204,15 @@ if [ -n "${YSP_ARMBIAN_LOCK_FD:-}" ]; then
 	[ -e "/proc/$$/fd/$YSP_ARMBIAN_LOCK_FD" ] || die "inherited Armbian lock descriptor is not open"
 	flock -n "$YSP_ARMBIAN_LOCK_FD" || die "inherited Armbian state lock is not held"
 else
-	exec 9>"$WORKSPACE/.ysp-armbian-build.lock"
-	flock -n 9 || die "another ysp Armbian kernel stage/build/cleanup is already running"
+	if [ -n "${YSP_ARMBIAN_STATE_LOCK:-}" ]; then
+		state_lock="$YSP_ARMBIAN_STATE_LOCK"
+	elif [ "${ARMBIAN_BUILD##*/}" = "armbian-build-ppa" ]; then
+		state_lock="$WORKSPACE/.ysp-armbian-build-ppa.lock"
+	else
+		state_lock="$WORKSPACE/.ysp-armbian-build.lock"
+	fi
+	exec 9>"$state_lock"
+	flock -n 9 || die "another ysp Armbian stage/build/cleanup owns this track: $state_lock"
 fi
 
 TARGETS=()

@@ -67,7 +67,7 @@ flavors do seed per-slot configs, deliberately, and each under its own slot name
 | `forward-port-debug` | KASAN/lockdep debug build of the forward-port kernel ("Kernel A") | same as `forward-port` | [`config-rock5b-debug-kernel.conf.sh`](../scripts/debug-kernel/config-rock5b-debug-kernel.conf.sh) + shared [instrumentation fragment](../scripts/debug-kernel/ysp-debug-instrumentation.conf.sh), seeded from `/boot/config-$(uname -r)` | `.debs`; install/hold/rollback via [`debug-kernel/`](../scripts/debug-kernel/README.md) |
 | `rewrite` | Non-debug clean-room rewrite candidate (rewrite drivers, vendor MPP/RGA off) | `../rock-5b/kernel/linux-6.18-rkvenc` (**must be on `rk3588-rewrite-6.18`, clean**) | stock Armbian `rockchip64-current` | `.debs`; install via `SLOT=video-rewrite install-combined-kernel.sh`. This is the performance-valid candidate flavor, not a production-readiness claim; current-tip hardware qualification is open. |
 | `rewrite-debug` | KASAN/lockdep debug build of the clean-room rewrite kernel (rewrite drivers + 246 KUnit cases built in, vendor MPP/RGA off) | `../rock-5b/kernel/linux-6.18-rkvenc` (**must be on `rk3588-rewrite-6.18`, clean**) | [`config-rock5b-rewrite-debug-kernel.conf.sh`](../scripts/debug-kernel/config-rock5b-rewrite-debug-kernel.conf.sh) + the same shared fragment | `.debs`; same [`debug-kernel/`](../scripts/debug-kernel/README.md) install flow |
-| `ppa-forward-port` | Unsigned source package `linux-rockchip64-ysp` for the normal PPA | production patches staged automatically in the dedicated Armbian `ppa-forward-port` worktree (see [`kernel-forward-port/`](../../packaging/ppa/kernel-forward-port/README.md)) | package `debian/config` | source artifacts under `packaging/ppa/out/artifacts` |
+| `ppa-forward-port` | Unsigned source package `linux-rockchip64-ysp` for the normal PPA | production patches staged automatically by the separate `armbian-build-ppa` checkout in its `ppa-forward-port` kernel lane (see [`kernel-forward-port/`](../../packaging/ppa/kernel-forward-port/README.md)) | package `debian/config` | source artifacts under `packaging/ppa/out/artifacts` |
 | `ppa-rewrite-6.18` | Unsigned source package `linux-rockchip64-ysp-alpha-6.18` (co-installable rewrite kernel) | pinned composite commit of `linux-6.18-rkvenc` (see [`kernel-rewrite-alpha-6.18/`](../../packaging/ppa/kernel-rewrite-alpha-6.18/README.md)) | package `debian/config` | source artifacts under `packaging/ppa/out/artifacts` |
 | `ppa-rewrite-7.2-rc3` | Unsigned source package `linux-rockchip64-ysp-alpha-7.2-rc3` | pinned composite commit of `linux` (see [`kernel-rewrite-alpha-7.2-rc3/`](../../packaging/ppa/kernel-rewrite-alpha-7.2-rc3/README.md)) | package `debian/config` | source artifacts under `packaging/ppa/out/artifacts` |
 | `maxline-public` / `maxline-wip` | Maximum-mainline packages pinned to Linux `7.2-rc6`, Torvalds `master@075b74841bd0` | `../rock-5b/kernel/linux` at pinned integration commits; separate `next-20260731` validation branches (see [`maxline/`](../../kernel-versions/maxline/README.md)) | maxline `config/` | `packaging/ppa/out/maxline/package-<profile>` |
@@ -103,11 +103,11 @@ from the automatic boundary.
 
 This patch boundary does **not** choose the kernel Armbian compiles. The
 forward-port tree correctly exports its 92 commits from `v6.18`, and Armbian
-then applies those patches to its rolling `linux-6.18.y` checkout — 6.18.42 at
-the 2026-08-05 tips. The rewrite tree already contains the 6.18.42 stable
+then applies those patches to its rolling `linux-6.18.y` checkout — 6.18.43 at
+the 2026-08-07 tips. The rewrite tree already contains the 6.18.42 stable
 history, so its
 automatic patch boundary is `v6.18.42`; Armbian still compiles it on the same
-rolling 6.18.42 base. `ARMBIAN_KERNELBRANCH=commit:<sha>` is the separate knob
+rolling 6.18.43 base. `ARMBIAN_KERNELBRANCH=commit:<sha>` is the separate knob
 for pinning that compiled base.
 
 ### `--patch-only`: staging a selected worktree for a source-package cut
@@ -118,29 +118,59 @@ for pinning that compiled base.
 `--patch-only` passes Armbian's `PATCH_ONLY=yes` through, which returns from
 `compile_kernel` immediately after `kernel_main_patching`
 (`lib/functions/compilation/kernel.sh:57`): the worktree ends up holding exactly
-this flavor's series, and nothing is compiled.
+this flavor's series, and nothing is compiled. It also passes
+`ARTIFACT_IGNORE_CACHE=yes` and `ARTIFACT_WILL_NOT_BUILD=yes`. Those are
+Armbian's native controls for a non-artifact operation: staging cannot be
+silently replaced by a stale binary-cache hit, and the artifact layer does not
+try to archive nonexistent `.deb`s after patching.
 
 That matters because `packaging/ppa/build-source-packages.sh` cuts the
 forward-port orig from an Armbian-patched worktree, not from the flavor's git
-tree. The canonical `ppa-forward-port` flavor now runs this staging itself with
-Armbian's `KERNEL_EXTRA_DIR=ppa-forward-port`. It first removes any previous
-copy of that lane through the local Armbian Docker image, including its Git
-worktree record, then creates, patches, and verifies the resulting
-`6.18__rockchip64__arm64__ppa-forward-port` lane, and exports only from that
-lane. It shares the same Armbian checkout, bare kernel repository, output tree,
-and central ccache as local builds, but it is never compiled and therefore
-cannot inherit local Kbuild objects or rewrite-only directories. Staging is the
-only reason a *source-only* PPA upload needs Armbian at all; with `--patch-only`
-it takes minutes instead of the better part of an hour.
+tree. `setup-ppa-armbian-worktree.sh` creates a linked Armbian Git worktree at
+`$WORKSPACE/armbian-build-ppa`; bootstrap runs it automatically, and the
+canonical `ppa-forward-port` flavor checks it before every source cut. The PPA
+checkout owns its `patch/`, `userpatches/`, config, output/log, and temporary
+state. Only `cache/` is linked to the primary checkout, preserving the single
+kernel Git mirror and the central ccache. Within that cache,
+`KERNEL_EXTRA_DIR=ppa-forward-port` gives PPA staging its own kernel source
+worktree.
 
-The Armbian patch archive and `userpatches/` directory remain shared mutable
-state even with separate kernel worktrees. The wrapper therefore takes a
-single-writer lock around every local stage/build/restore and a second lock
-around the complete PPA stage-plus-export sequence. After PPA staging it
-restores those shared patch inputs before exporting the durable dedicated lane.
-Concurrent invocations fail with the lock owner class instead of racing patch
-inputs. The exporter also rejects a worktree whose `make kernelversion` does not
-match the package's upstream-version prefix.
+The wrapper first removes any previous PPA kernel lane through the local
+Armbian Docker image, including its Git worktree record, then creates, patches,
+and verifies
+`6.18__rockchip64__arm64__ppa-forward-port` and exports only from that lane.
+Local builds and PPA staging now take different Armbian-state locks, so the PPA
+patch-only run, export, signing, and upload can proceed while an already-staged
+kernel compiles. Git's shared repository still serializes its own brief ref and
+worktree metadata updates; the two long operations no longer share mutable
+patch inputs or a wrapper lock. The complete PPA sequence retains its own lock,
+so two source cuts cannot race each other.
+
+Measured on 2026-08-07, the primary Armbian checkout was 312 MiB excluding
+cache/output, including a 101 MiB shared Git database. The installed linked
+checkout measures 203 MiB (allow about 0.2–0.4 GiB as logs evolve). The 1.8 GiB
+PPA kernel lane already existed in the prior design, and source export plus
+independent extraction remain about 2.3 GiB + 2.1 GiB transient; the change
+does not duplicate those. A fully duplicated kernel mirror would add another
+3.8 GiB and is intentionally avoided.
+
+The installed layout was exercised before handoff: a fresh PPA lane checkout
+and all 92 forward-port patches completed in 493 seconds while the 6.18.43
+`rewrite-debug` KASAN `make -j12` remained active in the primary track. The PPA
+verifier matched both IOMMU helpers, found zero rewrite paths, and the
+non-artifact controls left no hashed-cache tar in the PPA output.
+
+Setup and inspection are idempotent:
+
+```bash
+bash kernel-drivers/scripts/setup-ppa-armbian-worktree.sh
+bash kernel-drivers/scripts/setup-ppa-armbian-worktree.sh --check
+```
+
+The setup advances a clean detached PPA worktree to the primary Armbian HEAD,
+but refuses tracked modifications or an unmanaged cache path. The exporter also
+rejects a kernel worktree whose `make kernelversion` does not match the
+package's upstream-version prefix.
 
 Docker owns the files it creates inside these worktrees. If a lane becomes
 suspect, remove the complete lane and its Git registration through the
@@ -153,17 +183,19 @@ untracked file or interrupted-build product can survive into a later orig.
 
 Two behaviours specific to this mode:
 
-- **Armbian exits non-zero and that is expected.** Once patching stops early its
-  artifact packer has nothing to pack and fails. Patching has already succeeded
-  by then, so the exit code is not the signal — the staged worktree is, and
-  STEP 6 verifies it. Every other mode still fails hard on a failed compile.
+- **The staged worktree is the authoritative result.** Current Armbian honors
+  the non-artifact controls and exits zero after patching. Older revisions may
+  still enter their artifact packer, find no `.deb`s, and exit non-zero after a
+  successful patch pass; the wrapper reports that compatibility case and STEP 6
+  still verifies the staged tree. Every real compile remains gated by its exit
+  status.
 - **STEP 6 verifies the worktree instead of a deb**, which is the check a full
   build never performed and whose absence
   [shipped a rewrite-composite orig and panicked the board](../../findings/2026-07-29-production-6-18-40-orig-is-rewrite-composite-snapshot.md).
   It compares `rockchip_iommu_set_fault_handler()` body-to-body against the
-  flavor tree, rejects a forward-port staging that carries the rewrite-only
-  `rockchip_iommu_sync_fault_handler`, and purges leftover `*-rewrite` driver
-  directories from a previous flavor's build.
+  flavor tree, judges `rockchip_iommu_sync_fault_handler` against that selected
+  tree instead of assuming which flavor owns it, and purges leftover
+  `*-rewrite` driver directories from a previous flavor's build.
 
 Do **not** whole-file compare the worktree against a flavor tree. The worktree is
 an Armbian stable base plus Armbian's patches plus the series; a flavor tree may

@@ -3,7 +3,30 @@
 This directory owns the source-package path for the co-installable ROCK 5B
 forward-port kernel.
 
-**Uploaded 2026-08-04 (latest):** `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1`
+**Published 2026-08-07 (candidate):** `6.18.43+rk3588av1fwport20260807-0ubuntu1~rk1`
+— the unchanged `0001`–`0092` production forward-port tip `7d53bc7a3adc`
+rebased by Armbian onto Linux 6.18.43. Dedicated-lane patch-only staging
+matched the production tree's IOMMU implementation and found zero
+`*-rewrite` paths. A fresh `.dsc` extraction reports Linux 6.18.43, carries
+the exact production config, enables RKVENC2, RKVDEC2, and IEP2, and leaves
+KASAN, lockdep, and `DMABUF_DEBUG` off. `dscverify --nosigcheck` validates all
+payload checksums, and direct GPG checks validate the `.dsc`, `.buildinfo`,
+and source `.changes` signatures from `0FDDE6BC…AA2228E6`.
+
+`dput` completed at 11:19 PDT and wrote
+`linux-rockchip64-ysp_6.18.43+rk3588av1fwport20260807-0ubuntu1~rk1_source.ppa.upload`.
+Launchpad Published source publication at 11:50 PDT
+[`18661703`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18661703)
+and arm64 build
+[`33477272`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33477272),
+which completed successfully at 12:08 PDT. Launchpad Published all three arm64
+binaries — `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and
+`linux-headers-ysp-rockchip64` — at 12:33 PDT, so this exact version is now the
+normal PPA's install candidate. It has not been installed, booted, or
+hardware-validated; the installed and exercised 6.18.42 packages remain the
+runtime-qualified production baseline until that happens.
+
+**Previous 2026-08-04 upload:** `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1`
 — the `0001`–`0092` forward-port tip `7d53bc7a3adc`, adding the RGA
 request-config lifetime fix, non-sleeping IOMMU fault-callback quiescence, and
 RKVDEC2 soft-CCU recovery ordering. Strict checkpatch and the affected-object
@@ -198,7 +221,7 @@ The package remains conservative and recovery-friendly:
 | Binary packages | Co-installable names first: `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and `linux-headers-ysp-rockchip64`. A later drop-in package can replace `linux-image-current-rockchip64` after boot/revert testing. |
 | Architecture | `arm64` only. |
 | Kernel variant | Armbian `rockchip64-current` 6.18 worktree with the self-contained-DT RK3588 MPP/RGA/AV1/IEP2 forward port applied. The older convert-in-place combined kernel can use the same source-package shape later if needed. |
-| Upload state | Current `6.18.42` source and all three arm64 binaries are Published. Earlier successful and failed build identities remain in the release history below. |
+| Upload state | Candidate `6.18.43` source and all three arm64 binaries are Published; `6.18.42` remains the installed and hardware-validated baseline. Earlier successful and failed build identities remain in the release history below. |
 
 ## Source Inputs
 
@@ -208,10 +231,10 @@ that grouped root.
 
 | Input | Default |
 |-------|---------|
-| Patched Armbian kernel worktree | `KERNEL_PPA_REPO=$WORKSPACE_ROOT/build/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64__ppa-forward-port` |
+| Patched Armbian kernel worktree | `KERNEL_PPA_REPO=$WORKSPACE_ROOT/build/kernel/rock5b-kernel-build/armbian-build-ppa/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64__ppa-forward-port` |
 | Production kernel config | `KERNEL_PPA_CONFIG=$ROOT/packaging/ppa/kernel-forward-port/debian/config/arm64-rockchip64.config` |
 | Source package name | `KERNEL_PPA_SOURCE=linux-rockchip64-ysp` |
-| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.42+rk3588av1fwport20260804` |
+| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.43+rk3588av1fwport20260807` |
 
 The exporter copies the patched worktree contents, including Armbian patch
 changes and untracked patch-added files, while excluding `.git`, `.config`,
@@ -433,10 +456,11 @@ commands are operator-validated.
 ## Remaining Checklist
 
 > **Use the canonical PPA flavor for every re-cut.**
-> `build-kernel.sh ppa-forward-port` takes a PPA-sequence lock, stages and
+> `build-kernel.sh ppa-forward-port` routes through the separate
+> `armbian-build-ppa` Git worktree, takes a PPA-sequence lock, and stages and
 > verifies the production series with `--patch-only` in the dedicated
 > `…/linux-kernel-worktree/6.18__rockchip64__arm64__ppa-forward-port` lane, then
-> restores the shared patch inputs and exports that exact lane. Direct
+> restores that track's patch inputs and exports the exact lane. Direct
 > `build-source-packages.sh kernel` calls use the same dedicated path by default
 > but assume it has already been staged, so they are expert rebuilds rather than
 > the ordinary entry point. The exporter rejects a kernel/package version
@@ -445,16 +469,19 @@ commands are operator-validated.
 > and `rockchip-iommu.c` is exactly the shared file whose rewrite-branch tail
 > [panicked the board](../../../findings/2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md).
 > The staging verifier therefore still compares the incident function against
-> the forward-port tree and rejects rewrite-only paths/symbols before export.
+> the forward-port tree and rejects paths or shared-file symbols that the
+> selected forward-port tree does not own before export.
 
-**State as of 2026-08-04.** The `0001`–`0092` source at `7d53bc7a3adc` is
-Published as source publication `18656958`; remote arm64 build `33467257` and
-all three binaries are Published. The exact image, DTB, and headers are
+**State as of 2026-08-07.** The unchanged `0001`–`0092` source at
+`7d53bc7a3adc` is Published on the 6.18.43 base as source publication
+`18661703`; remote arm64 build `33477272` succeeded and all three binaries are
+Published. Those newer packages are not installed or runtime-qualified. The
+exact 6.18.42 image, DTB, and headers from source publication `18656958` remain
 installed and booted as `6.18.42-ysp-rockchip64`. Broad native and independent
 VA-API campaigns plus bounded kernel-log scans and production soaks are recorded
-in the production validation finding. The kernel functional/recovery verdict
-is green, with the decode fd-span oracle explicitly non-green; the debug and
-integration boundaries below remain.
+in the production validation finding. The 6.18.42 functional/recovery verdict
+is green, with the decode fd-span oracle explicitly non-green; the 6.18.43 boot
+and hardware gates plus the existing debug/integration boundaries remain.
 
 1. Build exact `0092` under KASAN/lockdep and pass the RGA
    cancellation/session-close and decoder recovery/reset-contention gates.
