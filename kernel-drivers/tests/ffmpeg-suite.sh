@@ -30,6 +30,8 @@ FFMPEG_RUN_8K=${FFMPEG_RUN_8K:-0}
 FFMPEG_RUN_STRESS=${FFMPEG_RUN_STRESS:-0}
 FFMPEG_SOAK_SECONDS=${FFMPEG_SOAK_SECONDS:-1800}
 FFMPEG_STRESS_LOOPS=${FFMPEG_STRESS_LOOPS:-100}
+FFMPEG_REPEAT_EXACT_ITER=${FFMPEG_REPEAT_EXACT_ITER:-20}
+FFMPEG_REPEAT_EXACT_LOAD_JOBS=${FFMPEG_REPEAT_EXACT_LOAD_JOBS:-4}
 FFMPEG_PSNR_THRESHOLD=${FFMPEG_PSNR_THRESHOLD:-35}
 # Installed MPP/librga are the conformance default. "auto" and "staged" remain
 # available for an explicit comparison with STAGE/FFMPEG_STAGED_LD_LIBRARY_PATH.
@@ -62,6 +64,7 @@ ffmpeg_decode_vp9_to_null
 ffmpeg_psnr_h264_decode_inf
 ffmpeg_psnr_hevc_decode_inf
 ffmpeg_psnr_vp9_decode_inf
+ffmpeg_decode_h264_repeat_exact_load
 ffmpeg_encode_h264_options
 ffmpeg_encode_hevc_options
 ffmpeg_transcode_h264_to_hevc_rkrga
@@ -85,6 +88,7 @@ diagnostic_cases_default="
 ffmpeg_transcode_h264_afbc_rga_to_hevc
 ffmpeg_hevc_main10_p010_rga
 ffmpeg_decode_h264_resolution_change
+ffmpeg_decode_h264_repeat_exact_fp0
 "
 
 if [ "$FFMPEG_REQUIRE_AV1" = "1" ]; then
@@ -774,6 +778,84 @@ decode_psnr_inf()
 	assert_psnr_inf "$CURRENT_LOG"
 }
 
+# Repeated bit-exact hardware H.264 decode under background CPU load: the
+# promoted scratch repro for the rewrite scheduler's same-session dual-core
+# dispatch race
+# (findings/2026-08-07-rewrite-mpp-same-session-dual-core-dispatch-race.md).
+# On the unfixed kernel roughly half of loaded iterations decode against a
+# partially written reference, while the -fast_parse 0 control -- identical
+# load, but MPP serializes same-session submission -- stays clean, which is
+# what discriminates a dispatch-order regression from general decode
+# breakage.  Per-frame MD5s keep the artifact small and name the first
+# divergent frame on a mismatch.
+run_decode_repeat_exact()
+{
+	local case_name=$1
+	shift
+	local input
+	local safe_case
+	local ref_md5
+	local hw_md5
+	local ref_hashes
+	local hw_hashes
+	local first_bad_frame
+	local load_pids=()
+	local bad=0
+	local i
+
+	input=$(ensure_input h264)
+	safe_case=$(sanitize "$(case_runtime_name "$case_name")")
+	ref_md5="$OUT/artifacts/$safe_case-ref.framemd5"
+	hw_md5="$OUT/artifacts/$safe_case-hw.framemd5"
+
+	rm -f "$ref_md5" "$hw_md5"
+	run_ffmpeg -i "$input" -map 0:v:0 -an -pix_fmt yuv420p \
+		-fps_mode passthrough -f framemd5 "$ref_md5"
+	# Compare only the per-frame checksum column.  The framemd5 rows also
+	# carry dts/pts, and elementary-stream timestamp jitter differs between
+	# the software and RKMPP legs without discriminating corruption (the
+	# 2026-08-06 finding measured that explicitly), so whole-line
+	# comparison would fail bit-exact decodes on metadata alone.
+	ref_hashes=$(awk '$0 !~ /^#/ { print $NF }' "$ref_md5")
+
+	# The race needs CPU contention to fire reliably; the payload runs in
+	# suite_run_strict's subshell, so this EXIT trap owns spinner cleanup
+	# on every pass, fail, and errexit path without touching suite traps.
+	for ((i = 1; i <= FFMPEG_REPEAT_EXACT_LOAD_JOBS; i++)); do
+		( while :; do :; done ) &
+		load_pids+=($!)
+	done
+	# shellcheck disable=SC2064
+	trap "kill ${load_pids[*]} 2>/dev/null || true" EXIT
+
+	for ((i = 1; i <= FFMPEG_REPEAT_EXACT_ITER; i++)); do
+		run_ffmpeg \
+			-hwaccel rkmpp -hwaccel_output_format drm_prime \
+			-c:v h264_rkmpp "$@" -i "$input" \
+			-map 0:v:0 -an \
+			-vf "hwdownload,format=nv12,format=yuv420p" \
+			-fps_mode passthrough -f framemd5 "$hw_md5"
+		hw_hashes=$(awk '$0 !~ /^#/ { print $NF }' "$hw_md5")
+		if [ "$hw_hashes" = "$ref_hashes" ]; then
+			echo "iteration $i/$FFMPEG_REPEAT_EXACT_ITER: bit-exact"
+			continue
+		fi
+		bad=$((bad + 1))
+		first_bad_frame=$(awk '
+			FNR == NR { if ($0 !~ /^#/) ref[++n] = $NF; next }
+			$0 !~ /^#/ { i++; if (i > n || $NF != ref[i]) { print i; exit } }
+		' "$ref_md5" "$hw_md5")
+		echo "iteration $i/$FFMPEG_REPEAT_EXACT_ITER: MISMATCH from frame ${first_bad_frame:-truncated-output}"
+		if [ "$bad" -le 3 ]; then
+			cp "$hw_md5" "$OUT/artifacts/$safe_case-bad-$bad.framemd5"
+		fi
+	done
+
+	echo "mismatching iterations: $bad/$FFMPEG_REPEAT_EXACT_ITER"
+	record_artifact required "$case_name" framemd5-reference "$ref_md5"
+	[ "$bad" -eq 0 ]
+}
+
 encoded_psnr_against_testsrc()
 {
 	local output=$1
@@ -1120,6 +1202,8 @@ case_known()
 	ffmpeg_psnr_hevc_decode_inf | \
 	ffmpeg_psnr_vp9_decode_inf | \
 	ffmpeg_psnr_av1_decode_inf | \
+	ffmpeg_decode_h264_repeat_exact_load | \
+	ffmpeg_decode_h264_repeat_exact_fp0 | \
 	ffmpeg_encode_h264_options | \
 	ffmpeg_encode_hevc_options | \
 	ffmpeg_transcode_h264_to_hevc_rkrga | \
@@ -1244,6 +1328,12 @@ run_case_payload()
 		;;
 	ffmpeg_psnr_vp9_decode_inf)
 		decode_psnr_inf "$case_name" vp9
+		;;
+	ffmpeg_decode_h264_repeat_exact_load)
+		run_decode_repeat_exact "$case_name"
+		;;
+	ffmpeg_decode_h264_repeat_exact_fp0)
+		run_decode_repeat_exact "$case_name" -fast_parse 0
 		;;
 	ffmpeg_psnr_av1_decode_inf)
 		decode_psnr_inf "$case_name" av1

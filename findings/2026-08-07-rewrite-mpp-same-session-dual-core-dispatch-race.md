@@ -81,9 +81,17 @@ ysp commit.
 1. Install the rebuilt `rewrite-debug` debs (P/C hash from the 2026-08-07
    build) and boot; `rewrite-kunit-log-check.sh` must show the exact 246-case
    manifest green under KASAN.
-2. Repro loop: 2 × `ITER=20 LOAD=1 repro.sh` (H.264 hash-exact against the
-   software reference) must be 40/40 clean where the unfixed kernel failed
-   ~9/20; `repro-fp0.sh` stays the clean control. Watch
+2. Repro loop, promoted from the scratch scripts into the FFmpeg conformance
+   suite on 2026-08-07: required case `ffmpeg_decode_h264_repeat_exact_load`
+   (20 per-frame-hash-exact hardware decodes under 4 CPU spinners) with
+   diagnostic control `ffmpeg_decode_h264_repeat_exact_fp0` (identical load,
+   MPP `-fast_parse 0` serialized submission);
+   `FFMPEG_REPEAT_EXACT_ITER`/`FFMPEG_REPEAT_EXACT_LOAD_JOBS` tune them. On
+   unfixed `g67f323aebdf3` the required case measured 2/20 mismatching
+   iterations, both diverging from frame 2 — the exact race fingerprint —
+   while the control passed 20/20, so the pair discriminates a
+   dispatch-order regression from general decode breakage. The fixed kernel
+   must pass the required case twice plus the control. Watch
    `rkvdec_bus_not_idle_count` and confirm per-core debugfs deltas still show
    both cores used (the fix must not silently serialize onto one core).
 3. Full FFmpeg suite replay on rewrite-kasan with the bit-exact H.264/HEVC
