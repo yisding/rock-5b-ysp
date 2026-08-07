@@ -92,12 +92,10 @@ CMAKE_BUILD_TYPE="$CMAKE_BUILD_TYPE" \
 JOBS="$JOBS" \
 	"$CONFORMANCE_ROOT/scripts/build-librga-samples.sh"
 
-# These sample directories are present in the current airockchip/librga source
-# tree but are not wired into samples/CMakeLists.txt. Build them explicitly so
-# the required conformance matrix stays aligned with the rewrite ABI ledger.
-for sample_dir in gauss_demo palette_demo; do
-	build_one "$SRC_ROOT/$sample_dir" "$BUILD_ROOT/$sample_dir"
-done
+# This sample directory is present in the current airockchip/librga source tree
+# but is not wired into samples/CMakeLists.txt. Build it explicitly so the
+# opt-in vendor-heap matrix stays available.
+build_one "$SRC_ROOT/gauss_demo" "$BUILD_ROOT/gauss_demo"
 
 missing=0
 while IFS= read -r case_name; do

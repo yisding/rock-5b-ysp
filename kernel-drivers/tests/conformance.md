@@ -426,16 +426,16 @@ pass only when the same log contains the official sample's explicit terminal
 `running success!` message. Its default **required** set includes the in-repo
 `ysp_librga_smoke` direct-userspace artifact case plus official copy/FBC/tile/
 splice, crop/resize, CSC/gray, alpha/colorkey/global-alpha, rotate/flip,
-async/fence, core config, malloc/system-dma/DRM allocator, mosaic, ROP, and
-palette samples. Thirteen official samples that hard-code the absent vendor
+async/fence, core config, malloc/system-dma/DRM allocator, and ROP samples.
+Thirteen official samples that hard-code the absent vendor
 heap nodes `/dev/dma_heap/system-uncached` or `system-uncached-dma32` are not
 run by default; set `LIBRGA_ENABLE_VENDOR_HEAP_CASES=1` on a kernel that exposes
 those heap types to add the UV-downsample, full-CSC, fill/rectangle, OSD,
 vendor-heap allocator, padding, and Gaussian samples back as required cases.
 Use `build-librga-samples-full.sh`, not only the external bundle's top-level
 sample build, because the pinned `airockchip/librga` CMake omits `gauss_demo`
-and `palette_demo` from `samples/CMakeLists.txt`; the helper keeps both the
-default palette and opt-in Gaussian binaries available. `ysp_librga_smoke`
+from `samples/CMakeLists.txt`; the helper keeps the opt-in Gaussian binaries
+available. `ysp_librga_smoke`
 writes deterministic raw
 destination artifacts for direct `imcopy`, dma-buf import/copy, fd-backed
 `imcvtcolor`, async `imresize`, crop, flip, legacy
@@ -450,6 +450,14 @@ Its default
 **diagnostic** set records environment-specific, outside-slice, or
 not-installed-by-top-level cases without failing the whole run:
 physical-contiguous DRM, Android GraphicBuffer, RV1106 CMA, and CFA samples.
+Three official samples are absent from both default classes because they do not
+measure the kernel: librga rejects the RGBA5551-alpha and mosaic cases before
+an ioctl, while `rga_palette_demo` emits a malformed CSC field on 1.10.6_[3]
+and an unbound LUT-update/apply sequence on both 1.10.5 and 1.10.6. The palette
+sample also declares success without comparing output pixels to its LUT. The
+[palette finding](../../findings/2026-08-06-librga-palette-demo-is-not-kernel-conformance.md)
+records the request differential and the deferred userspace/same-core fix;
+strict rewrite rejection remains the default contract.
 The direct smoke logs the physical-address import probe without submitting a
 physical-address job; set `LIBRGA_SMOKE_EXPECT_PHYSICAL_REJECT=1` only on a
 rewrite-negative run where accepting that import should be a failure. It also

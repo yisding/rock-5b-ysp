@@ -53,7 +53,7 @@ layout, feature, and command-emission code.
 | `rk_rga_service` | module init | hardware/import/session registries, fence context, counters |
 | `rk_rga_hw` | platform probe | one RGA core, queue, active job, MMIO/IRQ/power/recovery |
 | `rk_rga_session` | `/dev/rga` `open()` | import IDR, request IDR, submitted-job list, close/dispatch state |
-| `rk_rga_import` | import ioctl or direct request preparation | DMA-BUF or pinned user pages, provenance, and the primary persistent USERPTR mapping when one exists |
+| `rk_rga_import` | import ioctl or direct request preparation | DMA-BUF or pinned user pages, size, provenance, and logical identity; no hardware mapping |
 | `rk_rga_request` | request create/config | copied tasks, imports, acquire fences, Gaussian coefficients |
 | `rk_rga_job` | request submit or legacy blit | immutable task snapshot, imports, mappings, command buffer, fences, progress |
 | `rk_rga_job_mapping` | per task/core execution | role-specific DMA attachment or userptr mapping for one hardware core |
@@ -135,20 +135,23 @@ device-specific view of its contents. The first can outlive many jobs. The
 second ends when the task completes or the selected hardware disappears.
 
 DMA-BUF exporters may move storage after an attachment is unmapped. RGA cores
-may also have different DMA/IOMMU contexts. DMA-BUF attachments are therefore
-created and destroyed per job/task mapping for the selected core. USERPTR has
-one additional as-built compromise: import setup may retain a primary mapping
-and `map_hw` reference so repeated work on that core can reuse the pinned-page
-view; execution on another core builds a job-owned mapping instead. Core
-removal detaches that persistent USERPTR mapping while the import continues to
-own the pinned pages. This selected-device state inside `rk_rga_import` is one
-of the ownership seams the target `rk_rga_exec_map` refactor separates.
+may also have different DMA/IOMMU contexts. Both DMA-BUF and USERPTR execution
+views are therefore created and destroyed per job/task mapping for the selected
+core. An import's `iova` field is a non-hardware identity until rebasing replaces
+it with a selected-core address. USERPTR import pins pages, but deliberately
+does not choose a core or install an IOMMU mapping.
+
+That distinction is also a power-domain invariant. The selected core is powered
+before any job mapping is established, because the Rockchip IOMMU can skip its
+TLB shootdown while runtime-suspended. Every mapping is released while the same
+core is still powered, before its power reference is dropped.
 
 For each job-owned imported image role:
 
-1. take `import->map_lock`;
-2. reject an import invalidated by hardware removal;
-3. attach/map it to the selected core's DMA device;
+1. reuse an existing job mapping only for the same import and selected core;
+2. build a USERPTR SG/IOMMU view, or serialize DMA-BUF attachment setup with
+   `import->map_lock`;
+3. map it to the selected core's DMA device;
 4. verify the selected core's mapped-memory contract: one contiguous span for
    RGA3, or complete page-granular coverage for RGA2's internal MMU;
 5. record physical/DMA extents for alias checks;
@@ -329,9 +332,9 @@ freed.
 The start path is:
 
 ```text
-prepare task mappings
+power core
+  -> prepare selected-core task mappings
   -> sync USERPTR for device
-  -> power core
   -> allocate/reuse job-owned coherent command buffer
   -> emit RGA2 or RGA3 command words
   -> verify cmd_ready
@@ -383,11 +386,10 @@ but independent tasks packed into one request do not execute concurrently.
 The architectural tradeoff and current userspace calling patterns are analyzed
 in [rewrite drivers](../rewrite-drivers.md#multi-task-request-model).
 
-Fresh DMA-BUF and non-primary USERPTR execution mappings are created for every
-task. A reused primary USERPTR mapping still gets task-scoped synchronization
-and copyback obligations. This keeps role/direction and completion ordering
-corresponding to the operation currently executing even though the as-built
-import object may retain one device mapping.
+Fresh DMA-BUF and USERPTR execution mappings are created for every task. This
+keeps selected-device identity, role/direction, synchronization, copyback, and
+completion ordering tied to the operation currently executing. No import-level
+mapping survives between tasks.
 
 ### 4.13 IRQ completion
 
@@ -406,9 +408,10 @@ The IRQ thread:
 3. cancels timeout ownership;
 4. records hardware elapsed time;
 5. resets the core on a hardware error;
-6. powers down;
-7. synchronizes USERPTR for CPU;
-8. unmaps all task mappings, completing copyback;
+6. synchronizes USERPTR for CPU;
+7. unmaps all task mappings, completing copyback and IOTLB invalidation while
+   the core/IOMMU power domain is live;
+8. powers down;
 9. either advances/requeues the next task or completes the job;
 10. dispatches the next queued job.
 
@@ -463,12 +466,10 @@ Hardware removal follows a different drain:
 3. abort pending acquire jobs that no longer have a compatible core;
 4. unregister and flush IOMMU-fault work;
 5. abort queued/active jobs;
-6. detach persistent USERPTR mappings whose `map_hw` is this core; DMA-BUF
-   imports have no persistent attachment to invalidate;
-7. let surviving pending work reselect a compatible core and create fresh
+6. let surviving pending work reselect a compatible core and create fresh
    per-execution mappings;
-8. wait until the hardware refcount returns to the probe owner;
-9. balance/free IRQ state and disable runtime PM.
+7. wait until the hardware refcount returns to the probe owner;
+8. balance/free IRQ state and disable runtime PM.
 
 Removal waits for logical references before devres can release MMIO.
 
@@ -477,20 +478,19 @@ Removal waits for logical references before devres can release MMIO.
 | Lock | Protects | Context |
 |------|----------|---------|
 | `service.hw_lock` | hardware registry, versions, core selection/removal | process/workqueue |
-| `service.import_lock` | global list used to detach mappings on core removal | process/workqueue |
+| `service.import_lock` | import capability registry | process/workqueue |
 | `service.session_lock` | global session registry used for removal scans | process/workqueue |
 | `service.fault_lock` | IOMMU fault-handler hardware list | fault callback safe spinlock |
 | `service.fence_lock` | release-fence sequence numbers | IRQ-safe spinlock |
 | `session.lock` | import/request IDRs and request configuration | process context |
 | `session.job_lock` | closing flag, submitted jobs, dispatch handoffs | IRQ-safe spinlock |
-| `import.map_lock` | persistent mapping, invalidation, exporter attachment state | process/workqueue |
+| `import.map_lock` | import reference acquisition and DMA-BUF attachment setup | process/workqueue |
 | `hw.run_lock` | start, completion, recovery, abort, removal | process/IRQ thread |
 | `hw.job_lock` | queue, active/timeout job, generations, IRQ-visible state | hard IRQ and process |
 
-Two important nesting patterns are:
+One important nesting pattern is:
 
 ```text
-service.import_lock -> import.map_lock
 hw.run_lock -> hw.job_lock
 ```
 

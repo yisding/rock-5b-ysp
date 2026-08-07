@@ -222,7 +222,6 @@ rga_allocator_malloc_demo
 rga_allocator_dma_cache_demo
 rga_allocator_drm_demo
 rga_rop_demo
-rga_palette_demo
 "
 
 # These official samples hard-code vendor-only heap nodes that are absent on
@@ -244,12 +243,16 @@ rga_gauss_demo
 rga_gauss_matrix_demo
 "
 
-# Rockchip librga 1.10.6_[3] rejects these RK3588 operations in its own
-# capability check before submitting an ioctl. They therefore cannot measure
-# either the BSP or rewrite kernel and do not belong in the conformance matrix.
-rockchip_gated_cases_default="
+# These official samples do not provide a kernel conformance signal. The alpha
+# and mosaic cases are rejected by librga 1.10.6_[3] before an ioctl. The new
+# palette sample submits a malformed CSC field, uses an unbound stateful
+# LUT-update/apply pair, and does not verify its output pixels. Keep all three
+# out of both default classes; RGA_REQUIRED_CASES remains available for an
+# intentional userspace-compatibility experiment.
+rockchip_nonconformance_cases_default="
 rga_alpha_rgba5551_demo
 rga_mosaic_demo
+rga_palette_demo
 "
 
 diagnostic_cases_default="
@@ -289,9 +292,9 @@ validate_librga_case_lists()
 
 	listed_cases="$required_cases_default
 $diagnostic_cases_default"
-	for case_name in $rockchip_gated_cases_default; do
+	for case_name in $rockchip_nonconformance_cases_default; do
 		if printf '%s\n' "$listed_cases" | grep -qx -- "$case_name"; then
-			printf 'FAIL: Rockchip-gated case leaked into defaults: %s\n' \
+			printf 'FAIL: Rockchip non-conformance case leaked into defaults: %s\n' \
 				"$case_name" >&2
 			return 1
 		fi

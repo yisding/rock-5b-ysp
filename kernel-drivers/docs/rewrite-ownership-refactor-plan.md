@@ -131,7 +131,7 @@ driver can therefore state the invariant only by auditing every caller.
 | Current object | Useful ownership already present | State that is still at the wrong altitude |
 |---|---|---|
 | `rk_rga_session` | per-open imports, requests, jobs, close barrier | little should move out; this is already the correct user-ownership boundary |
-| `rk_rga_import` | retained buffer identity, provenance, pages and refcount | also carries selected-device mapping state for userptr, coupling a session capability to hardware removal and global import serialization |
+| `rk_rga_import` | retained buffer identity, provenance, pages and refcount; selected-device USERPTR mapping state was removed on 2026-08-06 | long-term USERPTR pin accounting remains absent, and execution maps are still fields of the broad job rather than a distinct execution object |
 | `rk_rga_request` | configured request and retained inputs | mutable raw tasks remain the representation later validators and emitters inspect |
 | `rk_rga_job` | submitted lifetime, session link and final result | owns all tasks, all mappings, current-task hardware, command allocation, acquire callbacks, release fence, timing and recovery state |
 | `rk_rga_hw` | private MMIO, clocks, reset, queue and active slot | active slot points at the whole multi-task job rather than the current execution unit |
@@ -319,6 +319,13 @@ is owned by one task execution, or by an explicitly cached map object keyed by
 `(import, device, domain generation)` if measurements justify caching. Hardware
 remove invalidates cached maps through their own registry without changing the
 identity or pin lifetime of the import.
+
+The 2026-08-06 USERPTR power-order fix completes the ownership half of this
+target without introducing a new type: imports now retain only logical
+identity/backing, and `rk_rga_job_mapping` owns every selected-core USERPTR or
+DMA-BUF execution view. Mapping begins after core power-on and teardown finishes
+before power-off. Extracting that state into `rk_rga_exec_map` remains a type
+and retirement-engine cleanup, not a prerequisite for the corrected lifetime.
 
 Do not hold `rga->import_lock` while pinning pages or building an IOMMU mapping.
 Create the candidate privately, take the lock only to recheck removal and
@@ -537,8 +544,10 @@ with no job/power/import/callback counter leak.
    the job orchestrator.
 4. Let only the orchestrator advance `current_task`, complete the job, and
    signal the release fence.
-5. Split import capabilities from device/domain execution maps and shorten the
-   global import-lock window.
+5. **Ownership complete; type cleanup remains:** import capabilities are split
+   from device/domain execution maps and mapping work no longer runs under the
+   global import lock. A later `rk_rga_exec_map` extraction can make the
+   already-correct lifetime structural.
 6. Encapsulate acquire callbacks in `rk_rga_acquire_set` without changing their
    zero-crossing protocol.
 

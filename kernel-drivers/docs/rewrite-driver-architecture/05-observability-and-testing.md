@@ -18,6 +18,14 @@ MPP exposes `rk_mpp_rewrite` debugfs state including:
 - bound hardware/support masks;
 - a recent-event ring with lifecycle and error events.
 
+The stable userspace discovery surface remains under `/proc/mpp_service`:
+`supports-cmd` plus its `support_cmd` alias enumerate command values, while
+`supports-device` lists each currently usable AV1DEC, RKVDEC, and RKVENC type
+and its nonzero validated hardware ID in the BSP text format. The device list
+comes from the same live support state as the query ioctls; conformance
+preflight uses it to reject a boot missing a required backend before workload
+results can be misread.
+
 The MPP `state` file is observational, not part of the workload ABI. Its
 hardware-list and scheduler snapshots use `mutex_trylock()` and return
 `-EBUSY` when either protected structure is changing. This keeps a diagnostic

@@ -8,8 +8,8 @@
 > flow in [`03-bsp-iommu-code.md`](03-bsp-iommu-code.md) first.
 >
 > Source anchors: forward port `rk3588-video-6.18@7d53bc7a3adc`, rewrite 6.18
-> `rk3588-rewrite-6.18@571e261b26f79`, and rewrite mainline
-> `rk3588-rewrite-mainline@5db5ddf046825`. The latest rewrite RGA2 changes are
+> `rk3588-rewrite-6.18@67f323aebdf39`, and rewrite mainline
+> `rk3588-rewrite-mainline@7a6d4cb075a67`. The latest rewrite RGA changes are
 > compile-verified but not yet boot-verified; that boundary is preserved below.
 
 ## The rule that prevents most porting mistakes
@@ -275,13 +275,17 @@ For every buffer path and every selectable core:
 
 ## Current RGA verification boundary
 
-The 2026-08-05 rewrite fixes at `571e261b26f79` / `5db5ddf046825` pass strict
-checkpatch, source-identity audit, and the warning-fatal clean-archive build.
-They are not yet runtime-proven. The next exact-tip 6.18 boot must show:
+The 2026-08-05 RGA2 fixes at `571e261b26f79` / `5db5ddf046825` and the
+2026-08-06 selected-core USERPTR mapping fix at `67f323aebdf39` /
+`7a6d4cb075a67` pass source-identity audit and warning-fatal normal plus
+KASAN/fault-injection clean-archive builds. They are not yet runtime-proven.
+The next exact-tip 6.18 boot must show:
 
 - the plain-system-heap demo succeeds after matched RGA2 DMA-BUF map-failure and
   RGA3 reroute counters;
 - RGA2 USERPTR map and internal-MMU preparation failure counters remain zero;
+- the GStreamer parallel roundtrip has zero RGA IOMMU-fault and IRQ-error
+  deltas now that USERPTR mapping is bracketed by selected-core power;
 - exact KUnit/MPP contracts still pass; and
 - no new IOMMU fault, timeout, DMA-debug, or content mismatch appears.
 

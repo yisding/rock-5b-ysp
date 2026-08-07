@@ -175,10 +175,11 @@ Vendor MPP/rkvenc/rkvdec forward-ported to 6.18 — defects, audits, and whole-t
 - [`2026-07-17`](2026-07-17-forward-port-conformance-preflight-oops.md) — Forward-port conformance preflight Oopsed before the first MPP case
 - [`2026-07-16`](2026-07-16-rockchip-bsp-driver-quality.md) — Rockchip BSP driver quality is feature-strong but below mature mainline robustness
 
-### Kernel RGA: memory contracts and 10-bit ABI (16)
+### Kernel RGA: memory contracts and 10-bit ABI (17)
 
 The `/dev/rga` driver — session lifetime, userptr/dma-buf imports, and the 10-bit stride convention.
 
+- [`2026-08-06`](2026-08-06-librga-palette-demo-is-not-kernel-conformance.md) — librga's palette demo does not provide a kernel conformance signal
 - [`2026-08-02`](2026-08-02-rga3-forward-port-small-geometry-discriminator.md) — Forward-port RGA3 passes the repeated small-geometry AFBC-to-P010 dropped-write discriminator
 - [`2026-07-31`](2026-07-31-rga3-afbc-p010-dropped-destination-write.md) — RGA3 AFBC NV15→P010 returns success without writing the destination at small picture sizes
 - [`2026-07-31`](2026-07-31-rga-userptr-dmabuf-multisegment-contracts.md) — RGA multi-segment memory contract: the BSP relies on 5.10/6.1 IOMMU coalescing; newer drivers validate or remap
@@ -196,10 +197,12 @@ The `/dev/rga` driver — session lifetime, userptr/dma-buf imports, and the 10-
 - [`2026-07-20`](2026-07-20-rga2-unmapped-page-table-dma-sync.md) — RGA2 syncs page-table memory through an unmapped DMA address
 - [`2026-07-17`](2026-07-17-rga-session-close-uaf.md) — RGA session-close force-free ignores refcounts; a leaked test handle exposed it as a kernel Oops
 
-### Clean-room rewrite drivers (23)
+### Clean-room rewrite drivers (25)
 
 The from-scratch MPP/RGA replacement: reviews, soft-CCU wedges, and reset/lifecycle races.
 
+- [`2026-08-06`](2026-08-06-rewrite-rga-userptr-map-before-power-iommu-fault.md) — Rewrite RGA USERPTR imports mapped before core power and left a stale IOTLB entry
+- [`2026-08-06`](2026-08-06-mpp-rewrite-missing-supports-device-proc.md) — MPP rewrite omitted the BSP `supports-device` proc inventory
 - [`2026-08-06`](2026-08-06-rga-rop-identity-transform-gate.md) — RGA rewrite's ROP gate mistook librga's identity cosine for rotation
 - [`2026-08-05`](2026-08-05-rewrite-rga2-dmabuf-userptr-bounce-followup.md) — RGA2 bounce follow-up: reroute incompatible DMA-BUFs and preserve USERPTR page offsets
 - [`2026-08-05`](2026-08-05-rewrite-rga-librga-swiotlb-fence-status.md) — Rewrite RGA librga failures: SWIOTLB segments, fd-zero fences, and sample status
@@ -328,6 +331,9 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 
 <!-- findings-index:start -->
 - [`2026-08-06-rga-rop-identity-transform-gate.md`](2026-08-06-rga-rop-identity-transform-gate.md) — RGA rewrite's ROP gate mistook librga's identity cosine for rotation
+- [`2026-08-06-rewrite-rga-userptr-map-before-power-iommu-fault.md`](2026-08-06-rewrite-rga-userptr-map-before-power-iommu-fault.md) — Rewrite RGA USERPTR imports mapped before core power and left a stale IOTLB entry
+- [`2026-08-06-mpp-rewrite-missing-supports-device-proc.md`](2026-08-06-mpp-rewrite-missing-supports-device-proc.md) — MPP rewrite omitted the BSP `supports-device` proc inventory
+- [`2026-08-06-librga-palette-demo-is-not-kernel-conformance.md`](2026-08-06-librga-palette-demo-is-not-kernel-conformance.md) — librga's palette demo does not provide a kernel conformance signal
 - [`2026-08-06-armbian-rock5b-u-boot-console-options.md`](2026-08-06-armbian-rock5b-u-boot-console-options.md) — Armbian ROCK 5B vendor U-Boot disables its only interactive console
 - [`2026-08-05-rewrite-rga2-dmabuf-userptr-bounce-followup.md`](2026-08-05-rewrite-rga2-dmabuf-userptr-bounce-followup.md) — RGA2 bounce follow-up: reroute incompatible DMA-BUFs and preserve USERPTR page offsets
 - [`2026-08-05-rewrite-rga-librga-swiotlb-fence-status.md`](2026-08-05-rewrite-rga-librga-swiotlb-fence-status.md) — Rewrite RGA librga failures: SWIOTLB segments, fd-zero fences, and sample status

@@ -195,11 +195,11 @@ owns the public verdict.
 
 | Snapshot | Pin and base | Historical relationships |
 |----------|--------------|--------------------------|
-| 6.18 rewrite, 2026-08-05 | `rk3588-rewrite-6.18@571e261b26f79` on `v6.18.42@856a9b51680c` | pre-rebase backup `33c30ec6989e`; forward-port oracle `rk3588-video-6.18@12a7da02bea83`; pre-forward-port backup `40cf22629cf63` |
-| Mainline rewrite, 2026-08-05 | `rk3588-rewrite-mainline@5db5ddf046825` on `v7.2-rc6@075b74841bd0` | prior backups `9e503f6b16df` and `5bae68d8381c` |
+| 6.18 rewrite, 2026-08-06 | `rk3588-rewrite-6.18@67f323aebdf39` on `v6.18.42@856a9b51680c` | pre-rebase backup `33c30ec6989e`; forward-port oracle `rk3588-video-6.18@12a7da02bea83`; pre-forward-port backup `40cf22629cf63` |
+| Mainline rewrite, 2026-08-06 | `rk3588-rewrite-mainline@7a6d4cb075a67` on `v7.2-rc6@075b74841bd0` | prior backups `9e503f6b16df` and `5bae68d8381c` |
 | Upstream-style RGA3 comparison | `rk3588-rewrite-mainline@180ee72a9a80` | detailed in §9 |
 
-The two 2026-08-05 snapshots had byte-identical tracked MPP/RGA rewrite
+The two 2026-08-06 snapshots had byte-identical tracked MPP/RGA rewrite
 sources, Kconfig, ABI ledgers, and UAPI when recorded. Treat that as a dated
 comparison assertion, not a claim about later branch heads.
 
