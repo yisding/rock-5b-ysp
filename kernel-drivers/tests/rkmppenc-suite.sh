@@ -366,11 +366,12 @@ record_artifact()
 	local path=$4
 	local bytes
 	local sha
+	local metadata
 
-	[ -f "$path" ] || return 1
-	bytes=$(stat -c%s "$path")
-	[ "$bytes" -gt 0 ] || return 1
-	sha=$(sha256sum "$path" | awk '{ print $1 }')
+	if ! metadata=$(suite_artifact_metadata "$path"); then
+		return 1
+	fi
+	IFS=$'\t' read -r bytes sha <<< "$metadata"
 	printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
 		"$PROFILE" "$class" "$case_name" "$kind" "$bytes" "$sha" "$path" \
 		>> "$artifact_summary"
@@ -415,12 +416,12 @@ run_case()
 	end=$(suite_now_ns)
 	elapsed=$(suite_elapsed_s "$start" "$end")
 
-	printf "%s\n" "$status" > "$status_file"
 	if [ "$status" -eq 0 ]; then
 		if [ -n "$CASE_ARTIFACT" ]; then
 			if ! record_artifact "$class" "$case_name" \
 				"$CASE_ARTIFACT_KIND" "$CASE_ARTIFACT"; then
 				printf "artifact missing or empty: %s\n" "$CASE_ARTIFACT" >> "$log"
+				status=1
 				if [ "$class" = "required" ]; then
 					result=fail
 					failed=1
@@ -439,6 +440,7 @@ run_case()
 		result=fail
 		failed=1
 	fi
+	printf "%s\n" "$status" > "$status_file"
 
 	printf "%s\t%s\t%s\t%s\t%s\t%s\n" \
 		"$PROFILE" "$class" "$case_name" "$status" "$elapsed" "$result" \

@@ -741,22 +741,24 @@ record_case_artifacts()
 	local path
 	local bytes
 	local sha
+	local metadata
+	local invalid=0
 
 	for idx in "${!CASE_ARTIFACT_PATHS[@]}"; do
 		kind=${CASE_ARTIFACT_KINDS[$idx]}
 		path=${CASE_ARTIFACT_PATHS[$idx]}
-		if [ -f "$path" ]; then
-			bytes=$(wc -c < "$path" | tr -d '[:space:]')
-			sha=$(sha256sum "$path" | awk '{ print $1 }')
-		else
-			bytes=missing
-			sha=missing
+		if ! metadata=$(suite_artifact_metadata "$path"); then
+			invalid=1
+			continue
 		fi
+		IFS=$'\t' read -r bytes sha <<< "$metadata"
 
 		printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
 			"$PROFILE" "$CURRENT_CLASS" "$CURRENT_CASE" "$kind" \
 			"$bytes" "$sha" "$path" >> "$artifact_summary"
 	done
+
+	return "$invalid"
 }
 
 write_command_file()
@@ -859,10 +861,18 @@ run_case()
 		;;
 	esac
 
-	printf "%s\n" "$status" > "$status_file"
 	if [ "$status" -eq 0 ]; then
-		result=pass
-		record_case_artifacts
+		if record_case_artifacts 2>> "$log"; then
+			result=pass
+		else
+			status=1
+			if [ "$class" = "diagnostic" ]; then
+				result=diagnostic-fail
+			else
+				result=fail
+				failed=1
+			fi
+		fi
 	elif [ "$status" -eq 124 ]; then
 		result=timeout
 		if [ "$class" = "required" ]; then
@@ -874,6 +884,7 @@ run_case()
 		result=fail
 		failed=1
 	fi
+	printf "%s\n" "$status" > "$status_file"
 
 	record_summary "$class" "$case_name" "$status" "$elapsed" "$result"
 	suite_progress "case $class/$case_name: done result=$result elapsed=${elapsed}s"

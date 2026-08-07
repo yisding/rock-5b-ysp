@@ -435,6 +435,8 @@ record_case_artifacts()
 	local kind
 	local bytes
 	local sha
+	local metadata
+	local invalid=0
 
 	if [ "$RGA_CAPTURE_ARTIFACTS" != "1" ] || [ ! -d "$dir" ]; then
 		return
@@ -443,12 +445,17 @@ record_case_artifacts()
 	while IFS= read -r file; do
 		kind=$(basename "$file")
 		kind=${kind%.bin}
-		bytes=$(wc -c < "$file" | tr -d '[:space:]')
-		sha=$(sha256sum "$file" | awk '{ print $1 }')
+		if ! metadata=$(suite_artifact_metadata "$file"); then
+			invalid=1
+			continue
+		fi
+		IFS=$'\t' read -r bytes sha <<< "$metadata"
 		printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
 			"$PROFILE" "$class" "$case_name" "$kind" \
 			"$bytes" "$sha" "$file" >> "$artifact_summary"
 	done < <(find "$dir" -maxdepth 1 -type f -name '*.bin' | sort)
+
+	return "$invalid"
 }
 
 run_case()
@@ -513,16 +520,26 @@ run_case()
 	if [ "$case_name" != "ysp_librga_smoke" ]; then
 		status=$(classify_librga_sample_status "$status" "$log")
 	fi
-	printf "%s\n" "$status" > "$status_file"
 	if [ "$status" = "0" ]; then
-		result=pass
-		record_case_artifacts "$class" "$case_name" "$case_artifact_dir"
+		if record_case_artifacts "$class" "$case_name" \
+			"$case_artifact_dir" 2>> "$log"; then
+			result=pass
+		else
+			status=1
+			if [ "$class" = "diagnostic" ]; then
+				result=diagnostic-fail
+			else
+				result=fail
+				failed=1
+			fi
+		fi
 	elif [ "$class" = "diagnostic" ]; then
 		result=diagnostic-fail
 	else
 		result=fail
 		failed=1
 	fi
+	printf "%s\n" "$status" > "$status_file"
 
 	printf "%s\t%s\t%s\t%s\t%s\t%s\n" \
 		"$PROFILE" "$class" "$case_name" "$status" "$elapsed" "$result" \

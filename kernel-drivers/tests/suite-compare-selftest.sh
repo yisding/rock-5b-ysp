@@ -186,6 +186,7 @@ check_artifact_compare()
 	local cand_dir="$TMP_ROOT/$label-cand"
 	local out_good="$TMP_ROOT/$label-artifacts.good"
 	local out_bad="$TMP_ROOT/$label-artifacts.bad"
+	local out_empty="$TMP_ROOT/$label-artifacts.empty"
 	local out_missing="$TMP_ROOT/$label-artifacts.missing"
 	local out_legacy="$TMP_ROOT/$label-artifacts.legacy"
 	local status
@@ -216,6 +217,21 @@ check_artifact_compare()
 		exit 1
 	fi
 	grep -q "artifact-mismatch" "$out_bad"
+
+	sed -i $'s/\t4\t/\t0\t/' "$base_dir/artifacts.tsv" \
+		"$cand_dir/artifacts.tsv"
+	set +e
+	BASELINE_SUMMARY="$base_dir/summary.tsv" \
+		CANDIDATE_SUMMARY="$cand_dir/summary.tsv" \
+		REQUIRE_ARTIFACTS=1 \
+		bash "$TEST_DIR/$script" > "$out_empty"
+	status=$?
+	set -e
+	if [ "$status" -eq 0 ]; then
+		echo "$label zero-byte artifacts unexpectedly passed" >&2
+		exit 1
+	fi
+	grep -q "artifact-empty" "$out_empty"
 
 	rm -f "$cand_dir/artifacts.tsv"
 	set +e

@@ -325,8 +325,16 @@ check_artifacts()
 		return 1
 	fi
 
-	if ! awk 'NR > 1 { found = 1 } END { exit found ? 0 : 1 }' "$artifacts"; then
-		printf "empty artifact manifest: profile=%s suite=%s path=%s\n" \
+	if ! awk -F '\t' '
+		NR == 1 { next }
+		{
+			found = 1;
+			if ($5 !~ /^[1-9][0-9]*$/ || $6 == "" || $6 == "missing")
+				invalid = 1;
+		}
+		END { exit found && !invalid ? 0 : 1 }
+	' "$artifacts"; then
+		printf "empty or invalid artifact manifest: profile=%s suite=%s path=%s\n" \
 			"$profile" "$suite" "$artifacts" >&2
 		return 1
 	fi
@@ -875,6 +883,17 @@ EOF
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
 		REQUIRE_DMESG_EVIDENCE=1 \
 		RUN_COMPARATORS=1 PERF_MAX_RATIO=1.25 "$SELF" >/dev/null
+
+	sed -i 's/gstreamer_required\toutput\t4\t/gstreamer_required\toutput\t0\t/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-gstreamer-suite/artifacts.tsv"
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="gstreamer" \
+		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
+		RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
+		printf "selftest expected zero-byte artifact audit to fail\n" >&2
+		return 1
+	fi
+	sed -i 's/gstreamer_required\toutput\t0\t/gstreamer_required\toutput\t4\t/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-gstreamer-suite/artifacts.tsv"
 
 	sed -i 's/status\tclean/status\tfatal/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-mpp-suite/dmesg-scan.tsv"

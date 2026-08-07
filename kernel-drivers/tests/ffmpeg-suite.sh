@@ -156,10 +156,12 @@ record_artifact()
 	local bytes
 	local sha
 	local report_case
+	local metadata
 
-	[ -f "$path" ] || return 1
-	bytes=$(stat -c%s "$path")
-	sha=$(sha256sum "$path" | awk '{ print $1 }')
+	if ! metadata=$(suite_artifact_metadata "$path"); then
+		return 1
+	fi
+	IFS=$'\t' read -r bytes sha <<< "$metadata"
 	report_case=$(case_runtime_name "$case_name")
 	printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
 		"$PROFILE" "$class" "$report_case" "$kind" "$bytes" "$sha" "$path" \
@@ -1360,7 +1362,7 @@ run_case()
 	start=$(suite_now_ns)
 	CURRENT_CLASS=$class
 	set +e
-	run_case_payload "$case_name" > "$log" 2>&1
+	suite_run_strict "$log" run_case_payload "$case_name"
 	status=$?
 	if [ "$status" -eq 0 ]; then
 		scan_fault_log "$log"

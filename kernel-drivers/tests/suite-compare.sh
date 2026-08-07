@@ -220,6 +220,9 @@ if [ -f "$BASELINE_ARTIFACTS" ] && [ -f "$CANDIDATE_ARTIFACTS" ]; then
 			if (bb == "missing" || cb == "missing" ||
 			    bs == "missing" || cs == "missing")
 				verdict = "artifact-missing";
+			else if (bb !~ /^[1-9][0-9]*$/ ||
+			         cb !~ /^[1-9][0-9]*$/)
+				verdict = "artifact-empty";
 			else if (bb != cb || bs != cs)
 				verdict = "artifact-mismatch";
 

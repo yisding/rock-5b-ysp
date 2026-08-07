@@ -109,6 +109,60 @@ suite_elapsed_s()
 	}'
 }
 
+# Run a multi-step case payload with errexit enabled inside an isolated shell.
+# Suite runners disable errexit briefly so they can capture and classify the
+# payload status.  Without this inner boundary, a failed validation step can be
+# overwritten by a later successful command and the case is falsely recorded
+# as passing.
+suite_run_strict()
+{
+	local log=$1
+	shift
+
+	(
+		set -e
+		"$@"
+	) > "$log" 2>&1
+}
+
+# Print the byte count and SHA-256 for one persisted artifact.  A successful
+# producer that leaves an empty file has not produced conformance evidence.
+suite_artifact_metadata()
+{
+	local path=$1
+	local bytes
+	local sha
+
+	if [ ! -f "$path" ]; then
+		printf 'artifact is missing: %s\n' "$path" >&2
+		return 1
+	fi
+	if ! bytes=$(wc -c < "$path" | tr -d '[:space:]'); then
+		printf 'could not read artifact size: %s\n' "$path" >&2
+		return 1
+	fi
+	case "$bytes" in
+	''|*[!0-9]*)
+		printf 'invalid artifact size %q: %s\n' "$bytes" "$path" >&2
+		return 1
+		;;
+	0)
+		printf 'artifact is empty: %s\n' "$path" >&2
+		return 1
+		;;
+	esac
+	if ! sha=$(sha256sum "$path" | awk '{ print $1 }'); then
+		printf 'could not hash artifact: %s\n' "$path" >&2
+		return 1
+	fi
+	if [ -z "$sha" ]; then
+		printf 'artifact hash is empty: %s\n' "$path" >&2
+		return 1
+	fi
+
+	printf '%s\t%s\n' "$bytes" "$sha"
+}
+
 suite_dmesg_capture()
 {
 	local target=$1

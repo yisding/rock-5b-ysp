@@ -162,4 +162,46 @@ if [ "$(id -u)" != "0" ]; then
 	fi
 fi
 
+# Multi-step payloads must preserve the first unhandled failure even though the
+# caller has disabled errexit to collect the status.
+strict_log="$TMP_ROOT/strict.log"
+strict_after="$TMP_ROOT/strict-after"
+strict_payload()
+{
+	printf 'before failure\n'
+	false
+	printf 'after failure\n' > "$strict_after"
+}
+set +e
+suite_run_strict "$strict_log" strict_payload
+strict_status=$?
+set -e
+if [ "$strict_status" -eq 0 ] || [ -e "$strict_after" ]; then
+	echo "strict payload boundary masked an intermediate failure" >&2
+	exit 1
+fi
+grep -q 'before failure' "$strict_log"
+
+# Artifact metadata is emitted only for nonempty regular files.
+artifact_good="$TMP_ROOT/artifact.good"
+artifact_empty="$TMP_ROOT/artifact.empty"
+printf 'data' > "$artifact_good"
+: > "$artifact_empty"
+artifact_metadata=$(suite_artifact_metadata "$artifact_good")
+case "$artifact_metadata" in
+4$'\t'[0-9a-f][0-9a-f]*) ;;
+*)
+	printf 'unexpected artifact metadata: %s\n' "$artifact_metadata" >&2
+	exit 1
+	;;
+esac
+if suite_artifact_metadata "$artifact_empty" >/dev/null 2>&1; then
+	echo "empty artifact unexpectedly produced metadata" >&2
+	exit 1
+fi
+if suite_artifact_metadata "$TMP_ROOT/artifact.missing" >/dev/null 2>&1; then
+	echo "missing artifact unexpectedly produced metadata" >&2
+	exit 1
+fi
+
 echo "suite common selftest passed"
