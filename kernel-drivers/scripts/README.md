@@ -44,7 +44,7 @@ The full prerequisite and mode chooser is canonical in
 |-------|----------|
 | User outcome | Build the combined Armbian kernel, install the exact intended debs, validate device probing, and install the canonical codec udev rule. |
 | Developer focus | Preserve the assumptions in the Armbian wrapper flow: userpatch location, `USE_CCACHE` handling, PHASH pinning, validation signals, and device-node policy. |
-| Owns | `build-kernel.sh` (the unified kernel-build entry point, see [`../docs/kernel-builds.md`](../docs/kernel-builds.md)), `prune-kernel-artifacts.py` (bounded external-output retention), `install-kernel.sh` (+ the `install-combined-kernel.sh` shim), `install-kernel-hooks.sh` (installs the rewrite KUnit manifest-drift pre-commit guard into the shared kernel git dir), `validate-combined.sh`, `kernel-revert.sh`, `make-fallback-kernel-deb.sh`, `99-rockchip-codec.rules`, `bootstrap-workspaces.sh`, and the [`debug-kernel/`](debug-kernel/README.md) configs. |
+| Owns | `build-kernel.sh` (the unified kernel-build entry point, see [`../docs/kernel-builds.md`](../docs/kernel-builds.md)), `prune-kernel-artifacts.py` (bounded external-output retention), `docker-clean-armbian-state.sh` (allowlisted removal of Docker-owned artifacts/worktrees), `install-kernel.sh` (+ the `install-combined-kernel.sh` shim), `install-kernel-hooks.sh` (installs the rewrite KUnit manifest-drift pre-commit guard into the shared kernel git dir), `validate-combined.sh`, `kernel-revert.sh`, `make-fallback-kernel-deb.sh`, `99-rockchip-codec.rules`, `bootstrap-workspaces.sh`, and the [`debug-kernel/`](debug-kernel/README.md) configs. |
 | Depends on | Kernel patches in [`../patches/`](../patches/README.md), Armbian build tree setup from [`install.md`](../../install.md), and validation expectations from [`../tests/`](../tests/README.md). |
 | Current state | The combined-kernel flow produced the hardware-validated board state recorded in [`status.md`](../../status.md). |
 
@@ -80,7 +80,8 @@ somewhere else.
 | `install-kernel.sh` | root | **The kernel installer** for every local flavor. You name one build with `PHASH=` and the **slot is inferred** from the deb filename (`SLOT=` only disambiguates). Refuses `current-rockchip64` (Armbian's) and `ysp-rockchip64` (the PPA). Runs the U-Boot load-address preflight, captures the current boot state, drops the obsolete rkvdec2 overlay, installs, and holds the packages. |
 | `install-combined-kernel.sh` | root | Shim → `install-kernel.sh` with `SLOT=video-port`. Kept because docs and dated findings cite it. |
 | `build-kernel.sh` | user | **Unified entry point for every ysp kernel build and source-package cut.** Local flavors build production or KASAN/lockdep kernels; `ppa-*` flavors cut source packages; `maxline-*` flavors delegate to the pinned maximum-mainline build. `ppa-forward-port` stages and verifies production patches in its dedicated `KERNEL_EXTRA_DIR=ppa-forward-port` Armbian worktree before exporting it, while a single-writer lock protects the shared patch archive and `userpatches/`. See the complete flavor, worktree, ccache, tmpfs, patch-only, and install behavior in [`../docs/kernel-builds.md`](../docs/kernel-builds.md). |
-| `prune-kernel-artifacts.py` | user | Applies the local kernel-artifact retention rule across `output/debs/` and `output/packages-hashed/`. It groups matching image/DTB/header/libc and hashed-cache files by slot plus exact build identity, keeps the two newest recoverable groups per slot, preserves installed matches, explicit `--protect` identities, and groups less than 24 hours old, and leaves unrecognized files untouched. It is a dry run unless `--apply` is supplied. |
+| `prune-kernel-artifacts.py` | user | Applies the local kernel-artifact retention rule across `output/debs/` and `output/packages-hashed/`. It groups matching image/DTB/header/libc and hashed-cache files by slot plus exact build identity, keeps the two newest recoverable groups per slot, preserves installed matches, explicit `--protect` identities, and groups less than 24 hours old, and leaves unrecognized files untouched. It is a dry run unless host `--apply` or Docker-backed `--docker-apply` is supplied. |
+| `docker-clean-armbian-state.sh` | user + Docker | Deletes only explicitly selected artifacts, the two foreign rewrite-driver directories in one lane, or one complete named kernel worktree through the existing local Armbian Docker image. It uses narrow `cache/` or `output/` mounts, no network, a read-only container root, shared build/PPA locks, and a dry run unless `--apply` is supplied. |
 | `kernel-revert.sh` | root (SD rescue) | Get a bad board booting again: flip `/boot` symlinks (`switch`) or chroot-reinstall a good deb (`reinstall`) on the internal disk from an SD-card rescue. Subcommands `list`/`switch`/`reinstall`; target via `--auto`/`--device`/`--root`. |
 | `make-fallback-kernel-deb.sh` | user | Repackage a kernel deb (rename `Package:`, drop `Provides:`) into a **co-installable** fallback that won't clobber the primary `linux-image-current-rockchip64` — a permanent recovery kernel `kernel-revert.sh` can `switch` to. Defaults to the official 6.18.35 (26.5.1) debs. |
 | `bootstrap-workspaces.sh` | user | Reconstruct the external workspaces: clone `ARMBIAN_BRANCH` (`main` by default), harden the persistent Armbian ccache with compiler-content identity while preserving an existing size policy, clone the five conformance sources at `../tests/conformance/MANIFEST.tsv` commits, and deploy the tracked conformance skeleton. Existing checkouts are never moved and are reported as `branch@commit`; `--check` reports only. Cache rationale: [`../docs/kernel-build-ccache.md`](../docs/kernel-build-ccache.md). |
@@ -120,14 +121,51 @@ reviewed plan:
 ```bash
 python3 prune-kernel-artifacts.py --protect P7215-Cad24
 python3 prune-kernel-artifacts.py --protect P7215-Cad24 --apply
+python3 prune-kernel-artifacts.py --protect P7215-Cad24 --docker-apply
 ```
 
 Protection tokens apply to that invocation, so repeat them on the corresponding
-`--apply` command. Use `--drop-slot SLOT` when a renamed or retired package slot
-should not retain its otherwise newest build. Use `--keep N` or
-`--min-age-hours HOURS` only for a deliberate one-off policy change. `--apply`
-unlinks the selected external build artifacts rather than moving them to trash,
-because retaining a second copy would not reclaim build space.
+apply command. `--apply` unlinks through the host and is sufficient when the
+artifact parent directories are writable; `--docker-apply` sends the same
+identity-checked retention plan through `docker-clean-armbian-state.sh`, using
+the local Armbian image for root-owned Docker directories. Use `--drop-slot
+SLOT` when a renamed or retired package slot should not retain its otherwise
+newest build. Use `--keep N` or `--min-age-hours HOURS` only for a deliberate
+one-off policy change. Both apply modes permanently unlink the selected
+external artifacts rather than moving them to trash, because retaining a
+second copy would not reclaim build space.
+
+## Docker-owned Armbian state cleanup
+
+Do not recursively `chown` Armbian's kernel cache: the next containerized build
+would create root-owned files again, and mixed ownership makes failure modes
+harder to reason about. Use the same local Armbian build image to remove a
+suspect lane completely, including its Git worktree registration. Review first:
+
+```bash
+bash docker-clean-armbian-state.sh worktree 6.18__rockchip64__arm64
+bash docker-clean-armbian-state.sh --apply worktree 6.18__rockchip64__arm64
+```
+
+The next build recreates that lane from the shared bare kernel repository. To
+remove only stale rewrite directories that block a forward-port provenance
+check, keep the lane and use the narrower action:
+
+```bash
+bash docker-clean-armbian-state.sh foreign-rewrite 6.18__rockchip64__arm64
+bash docker-clean-armbian-state.sh --apply foreign-rewrite 6.18__rockchip64__arm64
+```
+
+Every action shares the kernel-build lock; deleting the dedicated
+`__ppa-forward-port` lane also shares the complete PPA stage/export lock. The
+canonical `build-kernel.sh ppa-forward-port` flow automatically performs this
+complete PPA-lane removal before each fresh patch-only stage. The
+helper refuses absolute paths, traversal, symlinks, arbitrary worktree names,
+and artifact paths outside `output/debs/` and `output/packages-hashed/`. It
+resolves the configured image tag to an existing local immutable image ID and
+never pulls during cleanup. The container drops every Linux capability except
+`DAC_OVERRIDE`, the one permission needed for container root to unlink a
+root-owned child from an otherwise user-owned Armbian cache/output directory.
 
 ## Typical flow
 

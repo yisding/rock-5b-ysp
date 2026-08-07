@@ -123,7 +123,9 @@ this flavor's series, and nothing is compiled.
 That matters because `packaging/ppa/build-source-packages.sh` cuts the
 forward-port orig from an Armbian-patched worktree, not from the flavor's git
 tree. The canonical `ppa-forward-port` flavor now runs this staging itself with
-Armbian's `KERNEL_EXTRA_DIR=ppa-forward-port`, verifies the resulting
+Armbian's `KERNEL_EXTRA_DIR=ppa-forward-port`. It first removes any previous
+copy of that lane through the local Armbian Docker image, including its Git
+worktree record, then creates, patches, and verifies the resulting
 `6.18__rockchip64__arm64__ppa-forward-port` lane, and exports only from that
 lane. It shares the same Armbian checkout, bare kernel repository, output tree,
 and central ccache as local builds, but it is never compiled and therefore
@@ -139,6 +141,15 @@ restores those shared patch inputs before exporting the durable dedicated lane.
 Concurrent invocations fail with the lock owner class instead of racing patch
 inputs. The exporter also rejects a worktree whose `make kernelversion` does not
 match the package's upstream-version prefix.
+
+Docker owns the files it creates inside these worktrees. If a lane becomes
+suspect, remove the complete lane and its Git registration through the
+allowlisted [Docker cleanup helper](../scripts/README.md#docker-owned-armbian-state-cleanup)
+rather than recursively changing ownership; Armbian will recreate it from the
+shared bare repository. The same helper backs the retention tool's
+`--docker-apply` mode for root-owned output artifacts. The canonical PPA path
+does this complete lane refresh automatically before every source cut, so no
+untracked file or interrupted-build product can survive into a later orig.
 
 Two behaviours specific to this mode:
 

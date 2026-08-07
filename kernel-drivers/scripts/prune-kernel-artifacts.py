@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import io
 import os
 import re
@@ -32,6 +33,7 @@ HASHED_TAR_RE = re.compile(
     r"^kernel-(?P<family>rockchip64|rockchip-rk3588)-(?P<branch>[^_]+)_"
     r"(?P<build>[0-9].+)_arm64\.tar$"
 )
+DOCKER_CLEANER = Path(__file__).with_name("docker-clean-armbian-state.sh")
 
 
 @dataclass(frozen=True)
@@ -311,12 +313,14 @@ def remove_empty_children(root: Path) -> None:
             pass
 
 
-def apply_deletions(groups: list[BuildGroup], roots: tuple[Path, Path]) -> None:
-    artifacts = sorted(
+def planned_artifacts(groups: list[BuildGroup]) -> list[Artifact]:
+    return sorted(
         (artifact for group in groups for artifact in group.artifacts),
         key=lambda artifact: str(artifact.path),
     )
 
+
+def verify_deletions(artifacts: list[Artifact], require_writable: bool) -> None:
     for artifact in artifacts:
         metadata = artifact.path.lstat()
         identity = (
@@ -333,12 +337,72 @@ def apply_deletions(groups: list[BuildGroup], roots: tuple[Path, Path]) -> None:
         )
         if not stat.S_ISREG(metadata.st_mode) or identity != planned:
             raise RuntimeError(f"artifact changed after planning: {artifact.path}")
-        if not os.access(artifact.path.parent, os.W_OK | os.X_OK):
-            raise PermissionError(f"artifact directory is not writable: {artifact.path.parent}")
+        if require_writable and not os.access(
+            artifact.path.parent, os.W_OK | os.X_OK
+        ):
+            raise PermissionError(
+                f"artifact directory is not writable: {artifact.path.parent}"
+            )
+
+
+def apply_deletions(groups: list[BuildGroup], roots: tuple[Path, Path]) -> None:
+    artifacts = planned_artifacts(groups)
+    verify_deletions(artifacts, require_writable=True)
 
     for artifact in artifacts:
         artifact.path.unlink()
 
+    for root in roots:
+        remove_empty_children(root)
+
+
+def apply_docker_deletions(
+    groups: list[BuildGroup],
+    roots: tuple[Path, Path],
+    armbian_build: Path,
+    cleaner: Path,
+    state_lock_fd: int,
+) -> None:
+    artifacts = planned_artifacts(groups)
+    verify_deletions(artifacts, require_writable=False)
+    if not artifacts:
+        return
+
+    relative_paths: list[str] = []
+    for artifact in artifacts:
+        try:
+            relative = artifact.path.relative_to(armbian_build)
+        except ValueError as error:
+            raise RuntimeError(
+                f"artifact escaped the Armbian checkout: {artifact.path}"
+            ) from error
+        relative_paths.append(str(relative))
+
+    environment = os.environ.copy()
+    environment["YSP_ARMBIAN_LOCK_FD"] = str(state_lock_fd)
+    result = subprocess.run(
+        [
+            str(cleaner),
+            "--armbian-build",
+            str(armbian_build),
+            "--apply",
+            "artifacts",
+            *relative_paths,
+        ],
+        check=False,
+        env=environment,
+        pass_fds=(state_lock_fd,),
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Docker cleanup helper exited {result.returncode}: {cleaner}"
+        )
+    remaining = [artifact.path for artifact in artifacts if artifact.path.exists()]
+    if remaining:
+        raise RuntimeError(
+            "Docker cleanup left planned artifacts behind: "
+            + ", ".join(str(path) for path in remaining)
+        )
     for root in roots:
         remove_empty_children(root)
 
@@ -387,10 +451,25 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "and explicitly protected groups still win; repeatable"
         ),
     )
-    parser.add_argument(
+    apply_group = parser.add_mutually_exclusive_group()
+    apply_group.add_argument(
         "--apply",
         action="store_true",
         help="permanently remove the artifacts selected by the displayed plan",
+    )
+    apply_group.add_argument(
+        "--docker-apply",
+        action="store_true",
+        help=(
+            "remove the selected artifacts through the local Armbian Docker "
+            "image (handles Docker-owned directories)"
+        ),
+    )
+    parser.add_argument(
+        "--docker-cleaner",
+        type=Path,
+        default=DOCKER_CLEANER,
+        help=argparse.SUPPRESS,
     )
     args = parser.parse_args(argv)
     if args.keep < 0:
@@ -413,6 +492,18 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if not any(root.is_dir() for root in roots):
         print(f"error: no kernel artifact directories under: {output}", file=sys.stderr)
+        return 2
+
+    lock_path = armbian_build.parent / ".ysp-armbian-build.lock"
+    state_lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o664)
+    try:
+        fcntl.flock(state_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(state_lock_fd)
+        print(
+            "error: another ysp Armbian kernel stage/build/cleanup is already running",
+            file=sys.stderr,
+        )
         return 2
 
     markers = sorted(armbian_build.parent.glob(".ysp-build-marker.*"))
@@ -474,16 +565,36 @@ def main(argv: list[str] | None = None) -> int:
         f"{human_size(delete_bytes)}."
     )
 
-    if not args.apply:
-        print("Dry run only; re-run with --apply to permanently remove DELETE entries.")
+    if not args.apply and not args.docker_apply:
+        print(
+            "Dry run only; re-run with --apply or --docker-apply to permanently "
+            "remove DELETE entries."
+        )
         return 0
 
     try:
-        apply_deletions(deleted_groups, roots)
+        if args.docker_apply:
+            cleaner = args.docker_cleaner.expanduser().resolve()
+            if not cleaner.is_file() or not os.access(cleaner, os.X_OK):
+                raise RuntimeError(
+                    f"Docker cleanup helper is missing or not executable: {cleaner}"
+                )
+            apply_docker_deletions(
+                deleted_groups,
+                roots,
+                armbian_build,
+                cleaner,
+                state_lock_fd,
+            )
+        else:
+            apply_deletions(deleted_groups, roots)
     except (FileNotFoundError, PermissionError, RuntimeError) as error:
         print(f"error: retention plan was not applied: {error}", file=sys.stderr)
         return 1
-    print(f"Removed {delete_files} files ({human_size(delete_bytes)} logical size).")
+    method = " via the Armbian Docker image" if args.docker_apply else ""
+    print(
+        f"Removed {delete_files} files ({human_size(delete_bytes)} logical size){method}."
+    )
     return 0
 
 

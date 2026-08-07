@@ -69,6 +69,9 @@ REPO_ROOT = SCRIPTS.parent
 KERNEL_ARTIFACT_PRUNER = (
     REPO_ROOT / "kernel-drivers/scripts/prune-kernel-artifacts.py"
 )
+ARMBIAN_DOCKER_CLEANER = (
+    REPO_ROOT / "kernel-drivers/scripts/docker-clean-armbian-state.sh"
+)
 
 
 class RepositoryMarkdownFilesTests(unittest.TestCase):
@@ -511,6 +514,120 @@ class KernelArtifactRetentionTests(unittest.TestCase):
             self.assertIn("retired slot", result.stdout)
             self.assertFalse(artifact.exists())
 
+    def test_docker_apply_uses_the_same_retention_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            armbian_build = root / "armbian-build"
+            old = self.artifact(armbian_build, "6.18.41-Sold-P1111-C1111")
+            new = self.artifact(armbian_build, "6.18.42-Snew-P2222-C2222")
+            os.utime(old, (100, 100))
+            os.utime(new, (200, 200))
+            cleaner = root / "fake-docker-cleaner.sh"
+            cleaner.write_text(
+                "#!/usr/bin/env bash\n"
+                "set -euo pipefail\n"
+                "armbian=\n"
+                "while [ $# -gt 0 ]; do\n"
+                "  case $1 in\n"
+                "    --armbian-build) armbian=$2; shift 2 ;;\n"
+                "    --apply) shift ;;\n"
+                "    artifacts) shift; break ;;\n"
+                "    *) exit 2 ;;\n"
+                "  esac\n"
+                "done\n"
+                "for relative in \"$@\"; do rm -f -- \"$armbian/$relative\"; done\n",
+                encoding="utf-8",
+            )
+            cleaner.chmod(0o755)
+
+            result = self.run_pruner(
+                armbian_build,
+                "--keep",
+                "1",
+                "--docker-apply",
+                "--docker-cleaner",
+                str(cleaner),
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(old.exists())
+            self.assertTrue(new.exists())
+            self.assertIn("via the Armbian Docker image", result.stdout)
+
+
+class ArmbianDockerCleanerTests(unittest.TestCase):
+    def run_cleaner(
+        self, armbian_build: Path, *arguments: str
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                "bash",
+                str(ARMBIAN_DOCKER_CLEANER),
+                "--armbian-build",
+                str(armbian_build),
+                *arguments,
+            ],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    def test_artifact_cleanup_is_dry_run_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            armbian_build = Path(temporary) / "armbian-build"
+            artifact = armbian_build / "output/debs/root-owned.deb"
+            artifact.parent.mkdir(parents=True)
+            artifact.write_bytes(b"fixture")
+
+            result = self.run_cleaner(
+                armbian_build,
+                "artifacts",
+                "output/debs/root-owned.deb",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(artifact.exists())
+            self.assertIn("dry run only", result.stdout)
+
+    def test_artifact_cleanup_rejects_traversal(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            armbian_build = Path(temporary) / "armbian-build"
+            (armbian_build / "output/debs").mkdir(parents=True)
+
+            result = self.run_cleaner(
+                armbian_build,
+                "artifacts",
+                "output/debs/../outside",
+            )
+
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("outside the allowlist", result.stderr)
+
+    def test_worktree_cleanup_rejects_non_armbian_lane_names(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            armbian_build = Path(temporary) / "armbian-build"
+            armbian_build.mkdir(parents=True)
+
+            result = self.run_cleaner(
+                armbian_build,
+                "worktree",
+                "scratch-or-parent-directory",
+            )
+
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("invalid kernel worktree lane", result.stderr)
+
+    def test_container_has_a_narrow_runtime_and_mount_surface(self) -> None:
+        cleaner = ARMBIAN_DOCKER_CLEANER.read_text(encoding="utf-8")
+
+        self.assertIn("--network none", cleaner)
+        self.assertIn("--read-only", cleaner)
+        self.assertIn("--cap-drop ALL", cleaner)
+        self.assertIn("--cap-add DAC_OVERRIDE", cleaner)
+        self.assertIn("src=$ARMBIAN_BUILD/output,dst=/armbian/output", cleaner)
+        self.assertIn("src=$ARMBIAN_BUILD/cache,dst=/armbian/cache", cleaner)
+
 
 class WorkspaceDefaultTests(unittest.TestCase):
     def shell_text(self, relative: str) -> str:
@@ -586,6 +703,8 @@ class WorkspaceDefaultTests(unittest.TestCase):
         self.assertIn('KERNEL_PPA_REPO="$ppa_worktree"', wrapper)
         self.assertIn("acquire_armbian_state_lock", wrapper)
         self.assertIn("restore_ppa_shared_state", wrapper)
+        self.assertIn("docker-clean-armbian-state.sh", wrapper)
+        self.assertIn("YSP_PPA_LOCK_FD=8", wrapper)
         self.assertIn(
             "6.18__rockchip64__arm64__ppa-forward-port",
             exporter,

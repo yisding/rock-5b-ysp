@@ -363,6 +363,11 @@ case "$FLAVOR" in
 		exec 8>"$WORKSPACE/.ysp-ppa-forward-port.lock"
 		flock -n 8 || die "another ppa-forward-port stage/export is already running"
 		ppa_worktree="$(kernel_worktree_path "$PPA_WORKTREE_LANE")"
+		if [ -d "$ppa_worktree" ]; then
+			say "discarding the previous dedicated PPA lane before a fresh source cut"
+			YSP_PPA_LOCK_FD=8 bash "$HERE/docker-clean-armbian-state.sh" \
+				--armbian-build "$ARMBIAN_BUILD" --apply worktree "${ppa_worktree##*/}"
+		fi
 		say "staging production forward-port source in dedicated lane: $ppa_worktree"
 		if ROCK5B_WORKSPACE="$ROCK5B_WORKSPACE" \
 			WORKSPACE="$WORKSPACE" \
@@ -1017,12 +1022,13 @@ if [ "$MODE" = "patch-only" ]; then
 		fi
 		STILL=$(find "$KWT/drivers/video/rockchip" -maxdepth 1 -name '*-rewrite' 2>/dev/null)
 		if [ -n "$STILL" ]; then
-			# shellcheck disable=SC2086  # deliberate split: one sudo line, all paths
 			die "foreign driver dirs remain in the worktree and could not be
     removed (root-owned build products from a previous rewrite build):
 $(printf '%s\n' "$STILL" | sed 's/^/      /')
-    Remove them as root, then re-run this command:
-      sudo rm -rf $(printf '%s ' $STILL)"
+    Remove only those allowlisted paths through the Armbian Docker image after
+    this build exits, then re-run this command:
+      bash $HERE/docker-clean-armbian-state.sh --armbian-build '$ARMBIAN_BUILD' foreign-rewrite '${KWT##*/}'
+      bash $HERE/docker-clean-armbian-state.sh --armbian-build '$ARMBIAN_BUILD' --apply foreign-rewrite '${KWT##*/}'"
 		fi
 		say "  OK: no *-rewrite paths in the worktree"
 		;;
