@@ -196,7 +196,7 @@ For a kernel replacing a validated one, finish with the comparators
 (`*-suite-compare.sh`) against the last validated run: any required
 baseline-pass that the candidate fails, artifact SHA mismatch, or slowdown
 beyond `PERF_MAX_RATIO` is a regression. The rewrite additionally requires
-its paired-evidence audit (`rewrite-evidence-audit.sh`) and 244 green booted
+its paired-evidence audit (`rewrite-evidence-audit.sh`) and 246 green booted
 KUnit cases — see
 [`rewrite-validation-plan.md`](./rewrite-validation-plan.md) §7 for its full
 definition of done.

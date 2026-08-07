@@ -5,6 +5,16 @@
 > Date: 2026-08-06
 > Trust: MEASURED, SOURCE-INSPECTED, ROOT-CAUSED, FIX-RUNTIME-VERIFIED, PARTIAL
 
+> **Corrected 2026-08-07 by** [the same-session dual-core dispatch race
+> finding](./2026-08-07-rewrite-mpp-same-session-dual-core-dispatch-race.md).
+> The intermittent H.26x corruption left open here is root-caused to the
+> rewrite driver's same-session dual-core rkvdec dispatch and a driver fix is
+> committed. MPP `a8b19653` is exonerated by a 9/20-vs-9/20 revision
+> differential with a 0/20 `-fast_parse 0` control; the "clean immediate
+> repeats" below were luck — under background CPU load the race fires in
+> roughly half of runs, so this file's MPP-revision table does not
+> discriminate the defect.
+
 ## Result
 
 The `rewrite-kasan` run rooted at
