@@ -328,6 +328,26 @@ build_dec_custom_case()
 	maybe_dec_output "$case_name" "${MPP_DEC_OUTPUT:-}"
 }
 
+# mpi_enc_mt_test with more than one channel never opens the -o path;
+# mpi_enc_utils.c gives each channel <dir>/chn<N>_<basename> instead.
+register_enc_artifacts()
+{
+	local exe=$1
+	local instances=$2
+	local output=$3
+	local chn=0
+
+	if [ "$exe" != "mpi_enc_mt_test" ] || [ "$instances" -le 1 ]; then
+		register_artifact encoded "$output"
+		return
+	fi
+	while [ "$chn" -lt "$instances" ]; do
+		register_artifact encoded \
+			"$(dirname "$output")/chn${chn}_$(basename "$output")"
+		chn=$((chn + 1))
+	done
+}
+
 build_enc_case()
 {
 	local exe=$1
@@ -359,7 +379,7 @@ build_enc_case()
 		-v f
 		-o "$output"
 	)
-	register_artifact encoded "$output"
+	register_enc_artifacts "$exe" "$instances" "$output"
 	if [ "$exe" = "mpi_enc_mt_test" ]; then
 		CMD+=(-s "$instances")
 	fi
@@ -397,7 +417,7 @@ build_enc_custom_case()
 		-v f
 		-o "$output"
 	)
-	register_artifact encoded "$output"
+	register_enc_artifacts "$exe" "$MPP_INSTANCES" "$output"
 	if [ "$exe" = "mpi_enc_mt_test" ]; then
 		CMD+=(-s "$MPP_INSTANCES")
 	fi
