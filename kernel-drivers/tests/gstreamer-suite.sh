@@ -151,6 +151,7 @@ generated_transcode_h264_to_h265
 generated_transcode_h265_to_h264
 generated_transcode_h264_rga_to_h265
 generated_transcode_h264_dmabuf_to_h265
+generated_transcode_h265_dmabuf_to_h264
 caps_renegotiate_h264_nv12
 caps_renegotiate_h265_nv12
 event_flush_enc_h264
@@ -2504,6 +2505,9 @@ build_case_command()
 	generated_transcode_h264_dmabuf_to_h265)
 		CMD=(__builtin_generated_transcode h264 mpph265enc dma-feature=true)
 		;;
+	generated_transcode_h265_dmabuf_to_h264)
+		CMD=(__builtin_generated_transcode h265 mpph264enc dma-feature=true)
+		;;
 	generated_dec_h264_display_dmabuf)
 		CMD=(__builtin_generated_display_decode h264 dmabuf)
 		;;
@@ -2553,10 +2557,10 @@ build_case_command()
 		build_event_encode force-key-unit mpph265enc
 		;;
 	event_flush_dec_h264)
-		CMD=(__builtin_event_generated_decode h264 flush)
+		CMD=(__builtin_event_generated_decode h264 flush-seek)
 		;;
 	event_flush_dec_h265)
-		CMD=(__builtin_event_generated_decode h265 flush)
+		CMD=(__builtin_event_generated_decode h265 flush-seek)
 		;;
 	eos_loop_enc_h264)
 		build_eos_loop_encode mpph264enc
@@ -2962,7 +2966,8 @@ run_case_payload()
 		;;
 	generated_transcode_h264_to_h265 | generated_transcode_h265_to_h264 | \
 	generated_transcode_h264_rga_to_h265 | \
-	generated_transcode_h264_dmabuf_to_h265 | generated_transcode_vp9_to_h264 | \
+	generated_transcode_h264_dmabuf_to_h265 | \
+	generated_transcode_h265_dmabuf_to_h264 | generated_transcode_vp9_to_h264 | \
 	generated_transcode_av1_to_h264 | generated_transcode_vp8_to_h264 | \
 	generated_transcode_h263_to_h264 | generated_transcode_mpeg2_to_h264 | \
 	generated_transcode_mpeg4_to_h264)
@@ -3056,7 +3061,8 @@ runtime_dispatch_validated()
 	eos_loop_dec_h264 | eos_loop_dec_h265 | \
 	generated_transcode_h264_to_h265 | generated_transcode_h265_to_h264 | \
 	generated_transcode_h264_rga_to_h265 | \
-	generated_transcode_h264_dmabuf_to_h265 | generated_transcode_vp9_to_h264 | \
+	generated_transcode_h264_dmabuf_to_h265 | \
+	generated_transcode_h265_dmabuf_to_h264 | generated_transcode_vp9_to_h264 | \
 	generated_transcode_av1_to_h264 | generated_transcode_vp8_to_h264 | \
 	generated_transcode_h263_to_h264 | generated_transcode_mpeg2_to_h264 | \
 	generated_transcode_mpeg4_to_h264 | \

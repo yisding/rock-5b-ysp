@@ -596,7 +596,8 @@ paths:
   `generated_transcode_h264_mp4_to_h265`,
   `generated_transcode_h265_mp4_to_h264`,
   `generated_transcode_h264_rga_to_h265`,
-  `generated_transcode_h264_dmabuf_to_h265`;
+  `generated_transcode_h264_dmabuf_to_h265`,
+  `generated_transcode_h265_dmabuf_to_h264`;
 - `caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`;
 - `event_flush_enc_h264`, `event_flush_enc_h265`,
   `event_force_key_enc_h264`, `event_force_key_enc_h265`,
@@ -729,9 +730,13 @@ separately cover the current H.264/H.265 plugin properties that update
 the current plugin path that leaves `prep:ver_stride` unaligned for RKVENC.
 The event cases use the staged `gstreamer-event-harness` helper to wait until
 `mpph264enc`, `mpph265enc`, or `mppvideodec` has produced data, then require
-more output afterward. The flush cases send `FLUSH_START`/`FLUSH_STOP` to the
-element's sink pad and directly drive JeffyCN's `GstVideoEncoder.flush` and
-`GstVideoDecoder.flush` hooks, which call `mpi->reset()`. The force-key-unit
+more output afterward. The encoder flush cases send
+`FLUSH_START`/`FLUSH_STOP` to the element's sink pad and directly drive
+JeffyCN's `GstVideoEncoder.flush` hook, which calls `mpi->reset()`. Decoder
+flush cases exercise the same target-pad reset, restore the active segment
+cleared by `FLUSH_STOP(TRUE)`, and then seek to a keyframe before requiring
+post-flush output; resuming mid-GOP without that segment and reference point is
+not a valid compressed-stream restart. The force-key-unit
 encoder cases send a `GstForceKeyUnit` upstream event from the downstream peer
 toward the encoder src pad, covering the plugin path that marks the next frame
 as forced-key and calls `MPP_ENC_SET_IDR_FRAME`.
@@ -859,7 +864,8 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_transcode_h264_mp4_to_h265`,
 `generated_transcode_h265_mp4_to_h264`,
 `generated_transcode_h264_rga_to_h265`,
-`generated_transcode_h264_dmabuf_to_h265`, `generated_transcode_vp9_to_h264`,
+`generated_transcode_h264_dmabuf_to_h265`,
+`generated_transcode_h265_dmabuf_to_h264`, `generated_transcode_vp9_to_h264`,
 `caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`,
 `enc_h264_control_props`, `enc_h265_control_props`,
 `enc_h264_qp_profile_props`, `enc_h265_qp_props`,
@@ -975,7 +981,7 @@ logs.
 | Test | Needs |
 |------|-------|
 | `build-mpp-tests.sh` | optional legacy-comparison builder; no device access and writes staged MPP library/tests under `../rock-5b/build/rockchip-conformance/out/mpp` |
-| `build-gstreamer-rockchip.sh` | no device access; needs installed MPP, librga, and GStreamer development `.pc` files by default; explicit `MPP_PREFIX`/`PKG_SHIM` values select a staged comparison. It also builds `gstreamer-event-harness` into the GStreamer prefix. `GST_EVENT_HARNESS_VALIDATE_BUILD=1` compiles only the event harness and returns `77` when the GStreamer development `.pc` files are absent. |
+| `build-gstreamer-rockchip.sh` | no device access; needs a Git source checkout plus installed MPP, librga, and GStreamer development `.pc` files by default. It archives the pinned source into a content-keyed disposable directory beside `BUILD_DIR`, applies [`patches/gstreamer-rockchip/`](./patches/gstreamer-rockchip/README.md), and leaves the checkout untouched; `GST_ROCKCHIP_PATCH_DIR=` selects an intentional unpatched comparison. Explicit `MPP_PREFIX`/`PKG_SHIM` values select staged dependencies. It also builds `gstreamer-event-harness` into the GStreamer prefix. `GST_EVENT_HARNESS_VALIDATE_BUILD=1` compiles only the event harness and returns `77` when the GStreamer development `.pc` files are absent. |
 | `run-conformance.sh` | same device and dependency access as the selected catalog rows. `--target` selects BSP, forward-port, or rewrite drivers; `--configuration` independently selects production, KASAN, or KCSAN. The standard set is system-info, ABI, MPP, librga, GStreamer, and FFmpeg on every target. Rewrite adds KUnit and counter gates automatically. `--include` adds compatible focused tests, `--only` narrows by ID, `--plan` is board-free, and `--validate` checks catalog, parser, builder, comparator, and audit wiring. |
 | `rewrite-kunit-log-check.sh` | runtime mode reads `/sys/kernel/debug/kunit/{rk_mpp_rewrite,rockchip-rga-rewrite}/results`, requires exactly 84 + 148 cases with no fail/skip, extracts and scans the complete boot KUnit interval with the shared fatal regex, requires live lockdep, and optionally writes the correlated `KUNIT_REPORT` artifact set; `--selftest` is device-free. |
 | `rewrite-kunit-source-audit.py` | device-free lexical audit of both embedded KUnit regions; the checked TSV baselines existing singleton, FD/raw-allocation, stack-async, manual-list, and fatal-before-cleanup signals, while any new signal or cross-tree mismatch fails. `rewrite-build-gate.sh` runs it before every profile. |

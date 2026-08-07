@@ -292,10 +292,11 @@ libavcodec VA-API consumers without per-application RKMPP codec patches.
 - [`2026-08-04`](2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md) — Google Chrome reaches rockchip-vaapi; green H.264 was a retained pre-decode DMA-BUF, and the source fix preserves that storage
 - [`2026-08-04`](2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md) — Enabling IEP2 broke interlaced VA-API decode by un-masking a driver defect: MPP's decoder deinterlacer is 1:N, VA-API decode is 1:1
 
-### FFmpeg, MPP userspace, and Kodi (1)
+### FFmpeg, MPP userspace, and Kodi (2)
 
 The userspace codec libraries and the media applications that consume them.
 
+- [`2026-08-06`](2026-08-06-rewrite-kasan-media-suite-userspace-fixes-and-intermittent-h264.md) — Rewrite KASAN media rerun fixes two GStreamer userspace gaps but exposes intermittent H.26x decode output
 - [`2026-07-30`](2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md) — FFmpeg RKMPP async-frame lifetime fix clears reset/close double release
 
 ### Build, packaging, and provenance (8)
@@ -332,6 +333,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 <!-- findings-index:start -->
 - [`2026-08-06-rga-rop-identity-transform-gate.md`](2026-08-06-rga-rop-identity-transform-gate.md) — RGA rewrite's ROP gate mistook librga's identity cosine for rotation
 - [`2026-08-06-rewrite-rga-userptr-map-before-power-iommu-fault.md`](2026-08-06-rewrite-rga-userptr-map-before-power-iommu-fault.md) — Rewrite RGA USERPTR imports mapped before core power and left a stale IOTLB entry
+- [`2026-08-06-rewrite-kasan-media-suite-userspace-fixes-and-intermittent-h264.md`](2026-08-06-rewrite-kasan-media-suite-userspace-fixes-and-intermittent-h264.md) — Rewrite KASAN media rerun fixes two GStreamer userspace gaps but exposes intermittent H.26x decode output
 - [`2026-08-06-mpp-rewrite-missing-supports-device-proc.md`](2026-08-06-mpp-rewrite-missing-supports-device-proc.md) — MPP rewrite omitted the BSP `supports-device` proc inventory
 - [`2026-08-06-librga-palette-demo-is-not-kernel-conformance.md`](2026-08-06-librga-palette-demo-is-not-kernel-conformance.md) — librga's palette demo does not provide a kernel conformance signal
 - [`2026-08-06-armbian-rock5b-u-boot-console-options.md`](2026-08-06-armbian-rock5b-u-boot-console-options.md) — Armbian ROCK 5B vendor U-Boot disables its only interactive console

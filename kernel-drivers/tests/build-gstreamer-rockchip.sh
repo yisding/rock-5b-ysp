@@ -9,6 +9,7 @@ REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
 CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/build/rockchip-conformance"}
 SRC_ROOT=${GST_ROCKCHIP_SRC:-"$CONFORMANCE_ROOT/sources/jeffycn-gstreamer-rockchip"}
+GST_ROCKCHIP_PATCH_DIR=${GST_ROCKCHIP_PATCH_DIR-"$TEST_DIR/patches/gstreamer-rockchip"}
 BUILD_DIR=${BUILD_DIR:-"$CONFORMANCE_ROOT/build/jeffycn-gstreamer-rockchip-mpp"}
 PREFIX=${PREFIX:-"$CONFORMANCE_ROOT/out/gstreamer-rockchip"}
 # Installed development packages are the default. Set MPP_PREFIX and/or
@@ -25,6 +26,64 @@ VPXALPHADEC_FEATURE=${VPXALPHADEC_FEATURE:-auto}
 JOBS=${JOBS:-$(nproc)}
 CC=${CC:-cc}
 PKG_CONFIG=${PKG_CONFIG:-pkg-config}
+
+prepare_plugin_source()
+{
+	local patch patch_digest source_commit staged_src tmp_dir
+	local -a patches=()
+
+	if [ -z "$GST_ROCKCHIP_PATCH_DIR" ] ||
+		[ ! -d "$GST_ROCKCHIP_PATCH_DIR" ]; then
+		printf '%s\n' "$SRC_ROOT"
+		return 0
+	fi
+
+	while IFS= read -r patch; do
+		patches+=("$patch")
+	done < <(find "$GST_ROCKCHIP_PATCH_DIR" -maxdepth 1 -type f \
+		-name '*.patch' -print | sort)
+	if [ "${#patches[@]}" -eq 0 ]; then
+		printf '%s\n' "$SRC_ROOT"
+		return 0
+	fi
+
+	if ! source_commit=$(git -C "$SRC_ROOT" rev-parse --verify 'HEAD^{commit}'); then
+		echo "Cannot apply maintained patches: $SRC_ROOT is not a Git checkout" >&2
+		return 2
+	fi
+	patch_digest=$(
+		for patch in "${patches[@]}"; do
+			sha256sum "$patch" | cut -d' ' -f1
+		done | sha256sum | cut -d' ' -f1
+	)
+	staged_src="${BUILD_DIR}.source-${source_commit:0:12}-${patch_digest:0:12}"
+	if [ -d "$staged_src" ]; then
+		printf '%s\n' "$staged_src"
+		return 0
+	fi
+
+	mkdir -p "$(dirname "$BUILD_DIR")"
+	tmp_dir=$(mktemp -d \
+		"$(dirname "$BUILD_DIR")/.gstreamer-rockchip-source.XXXXXX")
+	if ! git -C "$SRC_ROOT" archive "$source_commit" | tar -x -C "$tmp_dir"; then
+		rm -rf "$tmp_dir"
+		echo "Failed to stage JeffyCN GStreamer source" >&2
+		return 2
+	fi
+	for patch in "${patches[@]}"; do
+		echo "Applying maintained GStreamer patch: $(basename "$patch")" >&2
+		if ! git -C "$tmp_dir" apply "$patch"; then
+			rm -rf "$tmp_dir"
+			return 2
+		fi
+	done
+	if ! mv "$tmp_dir" "$staged_src"; then
+		rm -rf "$tmp_dir"
+		return 2
+	fi
+
+	printf '%s\n' "$staged_src"
+}
 
 build_event_harness()
 {
@@ -57,6 +116,8 @@ if [ ! -d "$SRC_ROOT" ]; then
 	echo "Missing GStreamer Rockchip source directory: $SRC_ROOT" >&2
 	exit 2
 fi
+
+ACTIVE_SRC_ROOT=$(prepare_plugin_source)
 
 dependency_pc_path=${PKG_CONFIG_PATH:-}
 if [ -n "$PKG_SHIM" ]; then
@@ -120,7 +181,7 @@ if [ -d "$BUILD_DIR" ]; then
 	setup_args+=(--wipe)
 fi
 
-meson setup "$BUILD_DIR" "$SRC_ROOT" \
+meson setup "$BUILD_DIR" "$ACTIVE_SRC_ROOT" \
 	--prefix "$PREFIX" \
 	--libdir lib \
 	-Drockchipmpp="$ROCKCHIPMPP_FEATURE" \

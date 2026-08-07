@@ -1,0 +1,47 @@
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 6 Aug 2026 22:00:00 -0700
+Subject: [PATCH] rockchipmpp: advertise DMABuf input for H.26x encoders
+
+The shared MPP encoder path already imports a single DMABuf-backed
+GstMemory through gst_mpp_allocator_import_gst_memory(), and the JPEG
+encoder advertises the matching memory-feature caps.  The H.264 and H.265
+pad templates omit those caps, so negotiation rejects DMABuf output from
+mppvideodec before the existing import path can run.
+
+Advertise the same formats and size limits for DMABuf-backed raw video.
+
+---
+ gst/rockchipmpp/gstmpph264enc.c | 3 +++
+ gst/rockchipmpp/gstmpph265enc.c | 3 +++
+ 2 files changed, 6 insertions(+)
+
+diff --git a/gst/rockchipmpp/gstmpph264enc.c b/gst/rockchipmpp/gstmpph264enc.c
+index e3fb0d7..3ff17f4 100644
+--- a/gst/rockchipmpp/gstmpph264enc.c
++++ b/gst/rockchipmpp/gstmpph264enc.c
+@@ -106,6 +106,9 @@ GST_STATIC_PAD_TEMPLATE ("sink",
+     GST_PAD_ALWAYS,
+     GST_STATIC_CAPS ("video/x-raw,"
+         "format = (string) { " MPP_H264_ENC_FORMATS " }, "
++        GST_MPP_H264_ENC_SIZE_CAPS ";"
++        "video/x-raw(memory:DMABuf),"
++        "format = (string) { " MPP_H264_ENC_FORMATS " }, "
+         GST_MPP_H264_ENC_SIZE_CAPS));
+ 
+ #define GST_TYPE_MPP_H264_ENC_PROFILE (gst_mpp_h264_enc_profile_get_type ())
+diff --git a/gst/rockchipmpp/gstmpph265enc.c b/gst/rockchipmpp/gstmpph265enc.c
+index 22bfc78..f64cd08 100644
+--- a/gst/rockchipmpp/gstmpph265enc.c
++++ b/gst/rockchipmpp/gstmpph265enc.c
+@@ -89,6 +89,9 @@ static GstStaticPadTemplate gst_mpp_h265_enc_sink_template =
+     GST_PAD_ALWAYS,
+     GST_STATIC_CAPS ("video/x-raw,"
+         "format = (string) { " MPP_H265_ENC_FORMATS " }, "
++        GST_MPP_H265_ENC_SIZE_CAPS ";"
++        "video/x-raw(memory:DMABuf),"
++        "format = (string) { " MPP_H265_ENC_FORMATS " }, "
+         GST_MPP_H265_ENC_SIZE_CAPS ";"));
+ 
+ static void
+-- 
+2.43.0

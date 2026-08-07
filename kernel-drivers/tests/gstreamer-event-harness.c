@@ -102,6 +102,8 @@ static void finish_success(struct harness *h)
 
 static gboolean do_flush(struct harness *h)
 {
+	const GstSegment *segment;
+	GstEvent *segment_event;
 	GstPad *sink;
 	gboolean ok;
 
@@ -111,10 +113,28 @@ static gboolean do_flush(struct harness *h)
 		return FALSE;
 	}
 
+	/*
+	 * FLUSH_STOP(TRUE) resets GstVideoDecoder's segment state.  Because this
+	 * harness injects the flush directly at the target instead of driving a
+	 * pipeline seek, upstream does not send the new SEGMENT that would
+	 * normally precede resumed buffers.  Preserve the active segment and
+	 * replay it after the time-resetting flush so the stream remains valid.
+	 */
+	segment_event = gst_pad_get_sticky_event(sink, GST_EVENT_SEGMENT, 0);
+	if (!segment_event) {
+		gst_object_unref(sink);
+		fail(h, "target sink pad has no active segment before flush");
+		return FALSE;
+	}
+	gst_event_parse_segment(segment_event, &segment);
+
 	ok = gst_pad_send_event(sink, gst_event_new_flush_start());
 	if (ok)
 		ok = gst_pad_send_event(sink, gst_event_new_flush_stop(TRUE));
+	if (ok)
+		ok = gst_pad_send_event(sink, gst_event_new_segment(segment));
 
+	gst_event_unref(segment_event);
 	gst_object_unref(sink);
 	if (!ok) {
 		fail(h, "target flush event was rejected");
