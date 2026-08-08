@@ -1,14 +1,15 @@
 # Rewrite MPP scheduler races same-session frames across both rkvdec cores; ordering + CCU-conformance fix committed
 
 > Scope: `mpp-rewrite` kernel driver rkvdec2 dual-core dispatch; FFmpeg RKMPP conformance track 5
-> Source: `../rock-5b/kernel/linux-6.18-rkvenc` @ `67f323aebdf3` — `mpp_rewrite.c`
+> Source: `../rock-5b/kernel/linux-6.18-rkvenc` @ `c20fc8c1cbf76` — `mpp_rewrite.c`
 > `rk_mpp_scheduler_take_job()`, `rk_mpp_hw_get_for_client()`,
 > `rk_mpp_rkvdec2_start_ccu_job()`; vendor comparison `rockchip-kernel`
 > `mpp_rkvdec2_link.c` `rkvdec2_hard_ccu_enqueue()`; fixes `93e94526a695`,
-> `3caf851241c2`, `f37186832202` (branch `rk3588-rewrite-6.18`)
+> `3caf851241c2`, `f37186832202`, `8fdb00c973403` (branch
+> `rk3588-rewrite-6.18`); mainline mirror through `1698424efc46e`
 > Date: 2026-08-07
-> Trust: MEASURED, SOURCE-INSPECTED, CONFIRMED (root cause); COMPILE-VERIFIED
-> (fixes; boot + repro gate below still pending)
+> Trust: MEASURED, SOURCE-INSPECTED, CONFIRMED (unsafe same-session overlap);
+> COMPILE-VERIFIED (successor serialization fix; boot + repro pending)
 
 > **Update 2026-08-07 evening (kernel #8 `gf37186832202` booted):** the fix
 > reduces but does not eliminate the failure class. The promoted
@@ -32,6 +33,19 @@
 > surfacing on HEVC decode this run rather than on the h264 repeat-exact gate.
 > dmesg clean. Same run also failed the RGA3 vpp case solo (separate defect, see
 > [rga3 vpp corruption](2026-08-07-rga3-cross-process-vpp-corruption-lead.md)).
+
+> **Source follow-up 2026-08-08:** kernel #8 proves that preserving start order
+> while allowing two frames from one decode session to overlap is not sufficient.
+> Commit `8fdb00c973403` now gives RKVDEC sessions a dispatch token: the scheduler
+> claims it while taking a job under `sched_lock` and releases it after full
+> completion/hardware drop, or after RESET_SESSION proves an aborted dispatch
+> can no longer start or own hardware. Reset failure keeps the token held
+> fail-closed. A session therefore has at most one dispatched
+> decode job, while jobs from independent sessions can still use both cores in
+> parallel. Mainline commit `1698424efc46e` is byte-identical. Both maintained
+> trees pass warning-fatal clean-archive `normal` and `test-disabled` builds, the
+> exact 94 MPP + 152 RGA manifest, and the 308-signal source audit. This successor
+> has not been packaged, booted, or runtime-qualified.
 
 ## Result
 
@@ -76,8 +90,8 @@ luck — under background CPU load the race fires in roughly half of runs.
 
 ## Fix
 
-Three commits on `rk3588-rewrite-6.18` (`67f323aebdf3..f37186832202`), each
-compile-verified against the rewrite-debug config:
+Four commits on `rk3588-rewrite-6.18` (`67f323aebdf3..8fdb00c973403`), each
+compile-verified:
 
 1. `93e94526a695` — **keep same-session jobs in dispatch order.** The
    scheduler stamps a session when a scan passes over one of its queued jobs
@@ -95,6 +109,14 @@ compile-verified against the rewrite-debug config:
    proof the recovery path already demanded. Timeouts are counted
    (`rkvdec_bus_not_idle_count` in debugfs and the procfs error line) and
    warned, not failed. New KUnit case `rk_mpp_rkvdec2_wait_bus_idle_kunit`.
+4. `8fdb00c973403` — **serialize dispatched decode work per session.** The
+   kernel #8 residual falsified the assumption in step 1 that ordered
+   same-session overlap was safe. RKVDEC alone now holds a per-session token
+   from scheduler dispatch through complete hardware retirement; RESET_SESSION
+   releases it only after abort proves the dispatch retired. Encoder jobs and
+   independent decoder sessions retain the existing cross-core scheduling.
+   The existing `rk_mpp_scheduler_session_start_order_kunit` case now proves
+   that a second same-session job cannot dispatch until the first completes.
 
 The KUnit manifest moved to 94 MPP + 152 RGA cases (246 total) in the paired
 ysp commit.
@@ -104,12 +126,15 @@ The 2026-08-07 `rewrite-debug` integration build completed on Armbian's
 `6.18.43-S7b92-D6d03-P3b3c-Cad24-H1c44-HK01ba-Vc222-B3ab8-R448a` from source
 stamp `gf37186832202`. The wrapper verified the packaged rewrite options and
 reported `P3b3c-Cad24`; its final config is byte-identical to the prior
-`P7215-Cad24` KASAN config. These packages are built and package-verified, not
-installed, booted, or runtime-qualified.
+`P7215-Cad24` KASAN config. Source stamp `gf37186832202` subsequently booted as
+kernel #8 and produced the residual observations above. The successor
+`8fdb00c973403` serialization fix is compile-verified only and has no package or
+runtime evidence yet.
 
 ## Verification gate
 
-1. Install the rebuilt `rewrite-debug` debs with `PHASH=P3b3c-Cad24` and boot;
+1. Build, install, and boot a new `rewrite-debug` package from exact source
+   `c20fc8c1cbf76` (which includes `8fdb00c973403`);
    `rewrite-kunit-log-check.sh` must show the exact 246-case manifest green
    under KASAN.
 2. Repro loop, promoted from the scratch scripts into the FFmpeg conformance
@@ -124,19 +149,20 @@ installed, booted, or runtime-qualified.
    dispatch-order regression from general decode breakage. The fixed kernel
    must pass the required case twice plus the control. Watch
    `rkvdec_bus_not_idle_count` and confirm per-core debugfs deltas still show
-   both cores used (the fix must not silently serialize onto one core).
+   both cores used across the workload. Sequential use by one session is now
+   intentional; independent sessions must remain able to occupy both cores.
 3. Full FFmpeg suite replay on rewrite-kasan with the bit-exact H.264/HEVC
    gates required, per the 2026-08-06 finding's boundary.
 
 ## Boundary
 
-Not yet booted or repro-verified — the trust line stays COMPILE-VERIFIED for
-the fixes until the gate above runs. The three fixes land together, so a clean
-result will not attribute which was necessary; if corruption persists with
-ordering enforced, in-order dual-core overlap itself is unsafe in the rewrite
-(CCU work-mode coupling is the next suspect) — that discrimination was the
-point of enforcing start order in the driver. Whether the skip-head dispatch
-was a regression or always latent is open (no decoder-driver commit landed
-between the validated 6.18.42 and failing 6.18.43 builds; all ten were
-RGA-side), and the hard-CCU IOTLB and bus-idle gaps were closed as
-vendor-conformance hardening, not as proven contributors to this corruption.
+Kernel #8 booted and falsified the first three-commit fix as complete closure;
+the fourth, per-session serialization step is not yet booted or repro-verified.
+A clean exact-tip run would validate the revised unsafe-overlap explanation but
+still would not isolate the hard-CCU IOTLB and bus-idle changes, which remain
+vendor-conformance hardening rather than proven contributors. If corruption
+persists with the token held until hardware retirement, the next suspect is
+state outside the scheduler's session boundary rather than overtaking or
+same-session overlap. Whether the original skip-head behavior was always latent
+is open; no decoder-driver commit landed between the validated 6.18.42 and the
+first failing 6.18.43 build.

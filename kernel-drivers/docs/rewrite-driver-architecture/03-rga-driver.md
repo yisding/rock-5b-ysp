@@ -338,6 +338,7 @@ power core
   -> allocate/reuse job-owned coherent command buffer
   -> emit RGA2 or RGA3 command words
   -> verify cmd_ready
+  -> dma_wmb() to publish the coherent command image
   -> write hardware command address/config
   -> arm timeout
   -> start
@@ -361,7 +362,8 @@ least-common-denominator path. Examples include:
   error-status handling.
 
 An emitter clears the command buffer first and sets `cmd_ready` only after all
-required words are present. Backend start refuses to run an unready buffer.
+required words are present. Backend start refuses to run an unready buffer and
+orders every command-image store before the MMIO doorbell with `dma_wmb()`.
 
 This is another useful pattern: a partially emitted command is never
 distinguishable from a complete one merely because allocation succeeded.

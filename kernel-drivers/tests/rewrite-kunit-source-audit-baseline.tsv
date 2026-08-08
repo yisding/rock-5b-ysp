@@ -219,6 +219,10 @@ manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_release_power_transfer_kunit	1	list_add_tail(&to->rkvdec_ccu_node, &ccu->rkvdec_ccu_jobs);
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_vp9_translate_validate_kunit	1	list_add_tail(&import->link, &session.imports);
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_scheduler_skips_recovery_failed_kunit	1	list_add_tail(&job->sched_link, &srv->queued_jobs);
+manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_scheduler_session_start_order_kunit	1	list_add_tail(&job1->sched_link, &srv->queued_jobs);
+manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_scheduler_session_start_order_kunit	1	list_add_tail(&job2->sched_link, &srv->queued_jobs);
+manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_scheduler_session_start_order_kunit	1	list_add_tail(&other->sched_link, &srv->queued_jobs);
+manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_scheduler_session_start_order_kunit	2	list_add_tail(&other->sched_link, &srv->queued_jobs);
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_session_abort_jobs_kunit	1	list_add_tail(&active->session_link, &session.active_jobs);
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_session_abort_jobs_kunit	1	list_add_tail(&queued->sched_link, &srv.queued_jobs);
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_session_abort_jobs_kunit	1	list_add_tail(&queued->session_link, &session.active_jobs);

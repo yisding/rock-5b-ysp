@@ -230,6 +230,13 @@ Queue publication takes references for both the session-visible active list and
 the service scheduler list. The scheduler work item removes a runnable job,
 then calls the backend's `submit()` method.
 
+RKVDEC additionally holds one dispatch token per session from scheduler take
+until complete hardware retirement. This forbids even in-order overlap between
+frames of one decode session, while independent sessions can still occupy both
+decoder cores. RESET_SESSION releases the token only after abort proves that
+the dispatch can no longer start or own hardware; an unproved stop keeps it
+held fail-closed.
+
 MPP uses a small backend interface:
 
 ```c
@@ -385,8 +392,9 @@ Completion:
 2. stores the result and changes state to `DONE` under the session lock;
 3. releases DCHS/link resources;
 4. drops the hardware reference;
-5. wakes the session waitqueue;
-6. schedules the next queued work.
+5. releases any RKVDEC session-dispatch token;
+6. wakes the session waitqueue;
+7. schedules the next queued work.
 
 The session's active-job list preserves userspace submission order.
 `POLL_HW_FINISH` waits until the first job is done, removes it from that list,

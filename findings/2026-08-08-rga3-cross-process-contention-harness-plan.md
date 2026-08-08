@@ -17,6 +17,16 @@
 > aggressor ingredients demote to "does concurrency *raise* the already-nonzero
 > solo rate." The sections below are updated to lead with #0.
 
+> **Implementation-order update 2026-08-08:** source inspection found that the
+> rewrite rang the RGA start doorbell without first publishing the completed
+> coherent command image. The `dma_wmb()` fix is at 6.18 `c20fc8c1cbf76`
+> (mainline `09e39082007dd`) and is compile-verified only. Build and boot that
+> exact tip before investing in a larger harness; run the same solo victim loop
+> at depths 2 and 0 there. If corruption persists, the rate harness remains the
+> next discriminator. If it clears, retain a bounded repeat as the regression
+> gate, but do not call the barrier causal until the red/green comparison is
+> reproduced.
+
 ## Result
 
 This is the plan for a purpose-built harness that provokes the
@@ -271,24 +281,24 @@ catch it if a variant escalates.
 
 ## Verification gate
 
-The smallest useful run is now a driver experiment, not just a harness
-self-test: loop the solo victim (`RGA3_SAME_CORE=0`) ~20× at `async_depth=2`,
-then again at `async_depth=0`, on `#8`-class hardware. Given the ~2/2 recent
+The smallest useful run is now a fixed-tip driver experiment, not just a
+harness self-test: build and boot exact 6.18 source `c20fc8c1cbf76`, then loop
+the solo victim (`RGA3_SAME_CORE=0`) ~20× at `async_depth=2` and again at
+`async_depth=0`. Given the ~2/2 recent
 full-run base rate, depth 2 should reproduce a `corrupt` verdict quickly; the
-result at depth 0 is the discriminator (rate collapse ⇒ intra-process pipelining
-is the mechanism). Harness health is a non-INCONCLUSIVE verdict with
-proof-of-power satisfied and a reported rate.
+first discriminator is whether the fixed depth-2 run still corrupts. If it
+does, the result at depth 0 tests intra-process pipelining. Harness health is a
+non-INCONCLUSIVE verdict with proof-of-power satisfied and a reported rate.
 
 ## Follow-up
 
 Because the bug reproduces solo, the near-term repro no longer needs the full
-harness — a tight solo loop of the victim case at `async_depth` 2 vs 0 answers
-the mechanism question first, and can be run before the harness is written.
-Implementation order: (1) confirm what `/sys/kernel/debug/rkrga` exposes for
-per-core dispatch/job counts (decides measured vs upper-bound power); (2) run the
-solo `async_depth` bisection; (3) build the harness with ingredient #0 as
+harness. Implementation order: (1) package and boot exact fixed tip
+`c20fc8c1cbf76`; (2) confirm what `/sys/kernel/debug/rkrga` exposes for per-core
+dispatch/job counts (decides measured vs upper-bound power); (3) run the solo
+`async_depth` bisection; (4) build the harness with ingredient #0 as
 default, wiring the per-frame floor + byte gate + victim-fault detector by
-factoring `encoded_psnr_against_input()` into a shared checker; (4) add the
+factoring `encoded_psnr_against_input()` into a shared checker; (5) add the
 aggressor amplifiers only if the solo rate needs an upper bound under
 multi-client load. Register it beside `rewrite-reset-contention.sh` in
 `run-root-gates.sh` if it earns a place.

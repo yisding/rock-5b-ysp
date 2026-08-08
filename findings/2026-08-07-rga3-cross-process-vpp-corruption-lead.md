@@ -1,9 +1,10 @@
 # RGA3 vpp_rkrga output corruption — first seen cross-process, now reproduced solo; not root-caused
 
 > Scope: rewrite RGA driver (`rk_rga_rewrite`) RGA3 job isolation; ffmpeg-rockchip `vpp_rkrga` crop+transpose
-> Source: runtime on `6.18.43-video-rewrite-kasan-rockchip64` `#8 gf37186832202`; suite logs `logs/rewrite/20260807-224358-ffmpeg-suite` (vpp `average:12.718429`) and a 22:47 single-case run (`average:13.063727`); solo full-conformance repros `20260807-204828-ffmpeg-suite` (`average:8.558860`) and `20260808-081340-ffmpeg-suite` (`average:12.479600`)
+> Source: runtime on `6.18.43-video-rewrite-kasan-rockchip64` `#8 gf37186832202`; suite logs `logs/rewrite/20260807-224358-ffmpeg-suite` (vpp `average:12.718429`) and a 22:47 single-case run (`average:13.063727`); solo full-conformance repros `20260807-204828-ffmpeg-suite` (`average:8.558860`) and `20260808-081340-ffmpeg-suite` (`average:12.479600`); source candidate `c20fc8c1cbf76` / mainline mirror `09e39082007dd`
 > Date: 2026-08-07 (updated 2026-08-08)
-> Trust: MEASURED, PARTIAL; concurrency-necessity **FALSIFIED** 2026-08-08
+> Trust: MEASURED, SOURCE-INSPECTED, PARTIAL; concurrency-necessity
+> **FALSIFIED** 2026-08-08; candidate fix COMPILE-VERIFIED only
 
 > **Corrected 2026-08-08 — the concurrency-necessary premise is falsified.** The
 > vpp case reproduced this corruption in two consecutive **solo** full
@@ -24,6 +25,17 @@
 > `rga3_core0`) is the minimal contended condition — the revised
 > [contention-harness plan](2026-08-08-rga3-cross-process-contention-harness-plan.md)
 > makes a solo victim loop with an `async_depth` bisection its first experiment.
+
+> **Source follow-up 2026-08-08:** `rk_rga_backend_start()` completed the
+> coherent command image and immediately rang the MMIO doorbell without a DMA
+> write barrier. Coherent allocation supplies visibility, but does not order the
+> last CPU command writes before device start. Commit `c20fc8c1cbf76` adds
+> `dma_wmb()` after command emission and before `rk_rga_hw_start()`; mainline
+> mirror `09e39082007dd` is byte-identical. This is a real publication-ordering
+> defect and is a plausible explanation for a pipelined job consuming stale
+> command words, but no runtime evidence yet ties it to these corrupt frames.
+> Both maintained tips pass warning-fatal clean-archive `normal` and
+> `test-disabled` builds. Retest the exact fixed tip before attributing cause.
 
 ## Result
 
@@ -54,7 +66,11 @@ under multi-client scheduling rather than a detected fault.
 
 ## Boundary
 
-Not root-caused and no minimal repro yet, but the search space narrowed as of
+Not runtime-root-caused and no minimal repro yet. Source inspection found a
+missing command-publication barrier and the fix compiles on both maintained
+kernel lines, but it has not been packaged or booted; a clean fixed-tip run is
+required before upgrading it from candidate to confirmed cause. If corruption
+persists, the search space remains narrowed as of
 2026-08-08: the corruption fires **single-client**, so the trigger is not
 cross-process interleaving. The bisection now starts from a solo victim loop and
 asks whether the case's own `async_depth=2` pipelining is sufficient (toggle it

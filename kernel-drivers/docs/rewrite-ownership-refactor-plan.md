@@ -18,15 +18,16 @@ The priority is **ownership before convention**:
 4. postpone broad file moves, naming cleanup, and test rationalization until
    the ownership graph has stopped changing.
 
-> **Status — 2026-08-04:** this remains a target architecture, not an
+> **Status — 2026-08-08:** this remains a target architecture, not an
 > implementation description. Maintained tips are
-> `rk3588-rewrite-6.18@19634f4eebba` and
-> `rk3588-rewrite-mainline@b296374b7520`; the normal clean-source object/DTB
-> gate passes on both, and their tracked rewrite/Kconfig/ABI/uAPI files are
-> byte-identical. The August adversarial fixes and the August 4 RGA
-> request/KUnit repair did not add `rk_mpp_cluster`, `rk_mpp_activation`,
-> `rk_rga_task_exec`, or `rk_rga_acquire_set`. None of the migration phases
-> below has started.
+> `rk3588-rewrite-6.18@c20fc8c1cbf76` and
+> `rk3588-rewrite-mainline@09e39082007dd`; warning-fatal clean-source `normal`
+> and `test-disabled` object/DTB gates pass on both, and their tracked
+> rewrite/Kconfig/ABI/uAPI files are byte-identical. The current source adds a
+> per-session RKVDEC dispatch token and an RGA command-publication barrier, but
+> still has no `rk_mpp_cluster`, `rk_mpp_activation`, `rk_rga_task_exec`, or
+> `rk_rga_acquire_set`. None of the migration phases below has started, and the
+> current tips remain unbooted.
 
 The plan was derived from `linux-6.18-rkvenc` branch
 `rk3588-rewrite-6.18@8042f13c54591` on 2026-08-01 and was rechecked for

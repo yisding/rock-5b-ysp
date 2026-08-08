@@ -1,9 +1,19 @@
 # Rewrite RGA cannot run a valid overlay blend chain: RGA2 SWIOTLB segment limit and a deterministic RGA3 IOMMU fault
 
 > Scope: rewrite RGA driver (`rk_rga_rewrite`) blend/composite chains, exercised through ffmpeg-rockchip `overlay_rkrga`
-> Source: runtime on `6.18.43-video-rewrite-kasan-rockchip64` `#8 gf37186832202`; ffmpeg-rockchip-81 `git-2026-07-11`; librga `26a50ef`; repro logs `~/Code/tmp/ffmpeg-rkrga-regression/ovl-rga*.log`
+> Source: runtime on `6.18.43-video-rewrite-kasan-rockchip64` `#8 gf37186832202`; ffmpeg-rockchip-81 `git-2026-07-11`; librga `26a50ef`; repro logs `~/Code/tmp/ffmpeg-rkrga-regression/ovl-rga*.log`; source candidate `c20fc8c1cbf76` / mainline mirror `09e39082007dd`
 > Date: 2026-08-07
-> Trust: MEASURED, PARTIAL
+> Trust: MEASURED, SOURCE-INSPECTED, PARTIAL; RGA3 candidate fix
+> COMPILE-VERIFIED only
+
+> **Source follow-up 2026-08-08:** the rewrite started RGA hardware immediately
+> after writing its coherent command image, without the `dma_wmb()` needed to
+> publish all command words before the MMIO doorbell. Commits `c20fc8c1cbf76`
+> (6.18) and `09e39082007dd` (mainline) add that barrier and pass warning-fatal
+> clean-archive `normal` and `test-disabled` builds. A stale address word is a
+> plausible explanation for the deterministic RGA3 fault, but this remains a
+> source candidate until the exact fixed tip runs the chain. The change does
+> not address the separate RGA2 1 MiB SWIOTLB mapping limitation.
 
 ## Result
 
@@ -52,12 +62,12 @@ untagged-1080p graph mixes `IM_YUV_TO_RGB_BT601_LIMIT` legs with an
 
 ## Boundary
 
-Neither gap is root-caused in driver source yet. Whether the RGA3 fault is a
-multi-plane/offset import gap, a stale mapping, or an active-rect
-stride issue is undetermined; the RGA debugfs `iommu_fault_count` delta was
-not captured. Vendor-kernel behavior on the identical chain has not been
-compared, so "hardware cannot do this" is not excluded for the RGA2 leg,
-though the SWIOTLB segment failure is a software addressing/bounce policy
-issue independent of RGA capability. The conformance overlay case's software
-composite reference and threshold have not been runtime-validated because no
-strategy currently completes.
+The RGA3 leg now has a concrete source-level ordering candidate, but it is not
+runtime-root-caused: the fixed tip is unbooted, and a persistent fault would
+still require capturing the submitted command image, mapping ranges, and
+`iommu_fault_count` delta to distinguish an import-range, stale-mapping, or
+active-rect/stride error. The RGA2 leg remains open and needs a staging design
+that avoids asking SWIOTLB for a 1 MiB segment; the command barrier cannot help
+it. Vendor-kernel behavior on the identical chain has not been compared. The
+conformance overlay case's software composite reference and threshold also
+remain unvalidated because no strategy currently completes.
