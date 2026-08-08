@@ -2682,6 +2682,7 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\tjob = hw->active_job;\n"
                     "\thw[0].active_job = job;\n"
                     "\tif (job->rkvdec_session_dispatch) job = NULL;\n"
+                    "\tjob->rkvdec_ccu_powered = false;\n"
                     "\treset_control_bulk_reset(1, NULL);\n"
                     "\treset_control_rearm(hw->resets);\n"
                 ),
@@ -2689,6 +2690,7 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\treset_control_deassert(NULL);\n"
                     "\tfake.active_job = NULL;\n"
                     "\tjob->rkvdec_session_dispatch = false;\n"
+                    "\tfake.rkvdec_ccu_powered = false;\n"
                 ),
             )
             changed = self.run_audit(tree, baseline)
@@ -2696,12 +2698,14 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("NEW\tmpp-active-slot-access", changed.stderr)
             self.assertIn("NEW\tmpp-active-slot-write", changed.stderr)
             self.assertIn("NEW\tmpp-dispatch-lease-access", changed.stderr)
+            self.assertIn("NEW\tmpp-power-field", changed.stderr)
             self.assertIn("NEW\tmpp-reset-control", changed.stderr)
             self.assertIn("reset_control_bulk_reset", changed.stderr)
             self.assertIn("reset_control_rearm", changed.stderr)
             self.assertNotIn("reset_control_deassert", changed.stderr)
             self.assertNotIn("fake.active_job", changed.stderr)
             self.assertNotIn("rkvdec_session_dispatch = false", changed.stderr)
+            self.assertNotIn("fake.rkvdec_ccu_powered", changed.stderr)
 
             baseline.write_text(
                 baseline_text.replace("# source-head\tunknown", "# source-head\tdeadbeef"),
