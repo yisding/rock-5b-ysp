@@ -22,12 +22,13 @@ The priority is **ownership before convention**:
 > implementation description. Phase 0 now has a checked, source-pinned
 > production inventory covering the failure-prone ownership writers plus the
 > debug counter and event schema. Maintained tips are
-> `rk3588-rewrite-6.18@fe9edef36346c` and
-> `rk3588-rewrite-mainline@9a25b02ba4d68`. Their pre-refactor ancestors passed
+> `rk3588-rewrite-6.18@fd068ad6aae65` and
+> `rk3588-rewrite-mainline@a0dd1f6d68bd6`. Their pre-refactor ancestors passed
 > the warning-fatal clean-source `normal` and `test-disabled` object/DTB gates;
 > the immediately preceding `f80d216cfb83b`/`3a2a540553cce` tips also compiled
-> every touched MPP/RGA object. The current assertion-only tips have not been
-> compiled because the operator deferred builds, and their tracked
+> every touched MPP/RGA object. The current tips now pass warning-fatal
+> clean-archive `normal` and `test-disabled` builds of both IOMMU providers,
+> both rewrite objects, and the Rock 5B DTB; their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. The current source adds a
 > per-session RKVDEC dispatch token and an RGA command-publication barrier, but
 > still has no `rk_mpp_cluster`, `rk_mpp_activation`, `rk_rga_task_exec`, or
@@ -51,9 +52,9 @@ The priority is **ownership before convention**:
 > object through snapshot closure. Reason arbitration therefore remains
 > deferred until the activation/task-execution migration can provide that
 > owner.
-> The current tips remain unbuilt and unbooted; full build, install, and reboot
-> qualification are intentionally deferred. No Phase 2 migration may start
-> until that qualification passes.
+> The current tips remain unpackaged and unbooted; a full kernel-package build,
+> install, reboot, and hardware qualification remain deferred. No Phase 2
+> migration may start until that qualification passes.
 
 The plan was derived from `linux-6.18-rkvenc` branch
 `rk3588-rewrite-6.18@8042f13c54591` on 2026-08-01 and was rechecked for
@@ -636,13 +637,14 @@ Acceptance: the same immutable source archive reproduces both builds and every
 known baseline result has an evidence path. Ordinarily, an exact source tip
 must boot before Phase 1 and pass the red/green same-session H.26x loop plus the
 solo RGA3 vpp and overlay-chain replays. On 2026-08-08 the operator explicitly
-deferred full build, install, and reboot qualification, so Phase 1 source-only
+deferred full package, install, and reboot qualification, so Phase 1 source-only
 write funnels and assertion-only contract checks may land provisionally after
 mirrored-source identity, strict checkpatch, and the device-free gates. The
-preceding object builds are adjacency evidence, not build proof for the current
-tips. They remain unqualified, and Phase 2 must not start, until those deferred
-build and hardware gates pass. If either corruption persists, land and qualify
-its narrow fix before advancing beyond provisional funnels.
+exact current tips now pass the focused warning-fatal `normal` and
+`test-disabled` provider/rewrite-object/DTB builds, but remain unqualified, and
+Phase 2 must not start, until the deferred package, boot, KUnit-runtime, and
+hardware gates pass. If either corruption persists, land and qualify its narrow
+fix before advancing beyond provisional funnels.
 
 ### Phase 1 — create write funnels without changing behavior
 
