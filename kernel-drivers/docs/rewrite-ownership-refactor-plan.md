@@ -65,6 +65,7 @@ MPP service
 └── session
     └── job (accepted user transaction and result)
         └── activation (one admitted hardware lifetime)
+            ├── session dispatch lease
             ├── cluster/power lease
             ├── selected core and active generation
             ├── immutable register image
@@ -254,12 +255,33 @@ Embed an activation in `rk_mpp_job` first. It owns:
 
 - a reference to the accepted job, selected core, cluster and DMA group;
 - the active generation and absolute watchdog deadline;
+- the RKVDEC session-dispatch lease acquired by the scheduler for this attempt;
 - power and group leases;
 - DCHS/CCU/link participation acquired for this run;
 - IRQ and fault snapshots associated with the generation;
-- `PREPARED`, `PUBLISHED`, `RUNNING`, `RETIRING`, `RETRYING`, `RETIRED`, and
-  `QUARANTINED` state; and
+- `PREPARED`, `PUBLISHED`, `RUNNING`, `RETIRING`, `RETIRED`, `QUARANTINED`,
+  and `RECLAIMABLE` state; and
 - the one terminal result claimed for the activation.
+
+An activation is one hardware **attempt**, not one logical job across retries.
+The scheduler acquires the session-dispatch lease under its admission lock before
+removing an RKVDEC job from the queue and transfers that lease to the activation.
+Normal retirement releases it only after the exact hardware generation has left
+the active slot and all DMA-capable backend participation is quiescent. An abort
+may release it only after proving that the dispatch cannot still start or own
+hardware. Reset or stop failure transfers the lease to quarantine instead of
+reopening the session. Encoder jobs do not acquire this lease, and independent
+decoder sessions remain eligible for different cores.
+
+Retry creates a fresh activation with a new monotonic generation and a new
+deadline; it never moves an old activation through a `RETRYING` state. Before
+the old activation becomes `RECLAIMABLE`, it transfers the session lease under
+the admission lock directly to the new attempt or to a typed retry-handoff owner
+that keeps the session closed while embedded storage drains. There is no
+release/reacquire window in which a later same-session job can overtake the
+retry. If a backend needs an old attempt to remain addressable for delayed work,
+allocate attempts separately or retain the embedded storage until every
+asynchronous reference drains.
 
 Change `rk_mpp_hw::active_job` and `timeout_job` to activation pointers only
 after all access is behind slot helpers. IRQ, timeout, IOMMU fault, session
@@ -274,7 +296,10 @@ claim activation + reason
   -> recover cluster/reset domain
   -> refresh or isolate DMA group
   -> choose retry, fail, or quarantine
-  -> release mappings/link/DCHS/power leases
+  -> if retry and quiesced: transfer the session lease to the new attempt/handoff owner
+     and release only old-attempt resources after quiescence
+  -> else if final and quiesced: release mappings/link/DCHS/power/session leases
+  -> else: transfer every DMA-reachable resource and lease to quarantine
   -> publish job state and wake poll/fence waiters
   -> release hardware and kick the scheduler
 ```
@@ -285,7 +310,26 @@ the common tail.
 
 This is the right home for the current generation and absolute-deadline fields.
 It also replaces the need for each path to remember DCHS release, CCU power
-transfer, timeout cancellation, IOMMU refresh, and scheduler wakeup separately.
+transfer, session-dispatch release, timeout cancellation, IOMMU refresh, and
+scheduler wakeup separately.
+
+### Quarantine owns what cannot safely be released
+
+Quarantine is an owner, not merely a terminal enum. A quarantined activation or
+task execution transfers its exact slot/generation identity, command or register
+image, execution mappings, imported-buffer and scratch references, DMA-group or
+domain references, power/cluster participation, and any session-dispatch lease
+that still excludes successor work into a refcounted tombstone. No destructor
+may free DMA-reachable storage merely because the userspace job has been failed.
+
+The transition engine may signal the user-visible job after that transfer is
+complete, but close, cancel, remove, and unbind must not bypass the tombstone.
+Admission remains disabled for the affected session, core, cluster, or device as
+appropriate. Resources become releasable only after a later positive stop/reset
+and translation-isolation proof; otherwise the tombstone intentionally survives
+until reboot. Debugfs counters must distinguish live, released-after-proof, and
+reboot-only quarantines, and the removal gate must prove that no callback or
+worker can reach freed driver state through a retained tombstone.
 
 ### Builder and sealed MPP image
 
@@ -353,8 +397,11 @@ active generation, IRQ snapshots, or per-task timing.
 
 ### `rk_rga_task_exec`: one task, one selected core, one retirement
 
-Add a task-execution object, initially embedded in `rk_rga_job` and reused only
-after it reaches `RETIRED`. It owns:
+Add a refcounted task-execution object, initially embedded in `rk_rga_job` and
+reused only after it reaches `RECLAIMABLE`. `RETIRED` means that its result is
+decided; it is not proof that delayed IRQ, timeout, fault, or acquire/copyback
+work has dropped the object. Every asynchronous edge carries both an execution
+reference and its monotonic generation cookie. The object owns:
 
 - one validated task plan;
 - eligible hardware mask and selected `rk_rga_hw` reference;
@@ -363,7 +410,14 @@ after it reaches `RETIRED`. It owns:
 - userptr device/CPU synchronization and copyback obligation;
 - power reference, active generation, timeout deadline, IRQ/fault status and
   measured hardware time; and
-- one transition from active to retired.
+- one transition from active through `RETIRED` to either `RECLAIMABLE` or
+  `QUARANTINED`.
+
+As with MPP, a retry or fallback is a new execution attempt and generation, not
+reinitialization of a `RETIRED` object. The old attempt reaches `RECLAIMABLE`
+only after its active slot, timers, callbacks, work items, and backend references
+are gone. Generation wrap must be treated as an explicit drain/reinitialize
+event rather than allowing an old asynchronous event to acquire a new attempt.
 
 Change `rk_rga_hw::active_job` to `active_exec`. Then
 `rk_rga_hw_finish_job_locked()`, `rk_rga_hw_recover_active()`, timeout, IOMMU
@@ -372,12 +426,15 @@ job orchestrator handles the result:
 
 ```text
 execution retired successfully
+  -> drain asynchronous references to RECLAIMABLE
   -> destroy execution resources
   -> advance current_task
   -> build/select/queue next execution
 
 execution retired with failure
-  -> destroy execution resources
+  -> drain asynchronous references to RECLAIMABLE or transfer to quarantine
+  -> if reclaimable: destroy execution resources
+     else: leave them owned by the quarantine tombstone
   -> complete whole job and signal release fence
 ```
 
@@ -420,17 +477,67 @@ immutable command image owned by the task execution. This phase removes the
 rotation and validator/emitter twin class after the lifetime refactor has made
 the execution boundary explicit.
 
+The plan and execution-map type must also preserve the known RGA2 staging
+boundary. Each role records whether it is direct-mapped or staged, the original
+and execution extents, copy-in requirements, copyback requirements, and the
+owner of staging storage. This does not preselect the fix for the current 1 MiB
+SWIOTLB segment limitation; it prevents that later fix from bypassing task
+ownership or inventing a second teardown path.
+
+### Publish and start is one linearized owner operation
+
+Sealing an image is necessary but does not publish it to hardware. Each backend
+gets one typed `publish_and_start()` owner operation with this contract:
+
+1. mappings, power/cluster leases, and an immutable image are complete;
+2. the exact object pointer and generation are installed in the active slot and
+   the state becomes `PUBLISHED`;
+3. IRQ ownership and the absolute watchdog for that generation are armed;
+4. all coherent descriptor/command stores are ordered with the DMA barrier
+   required by the architecture and backend;
+5. the state becomes `RUNNING` before the doorbell so an immediate IRQ observes
+   a runnable generation; and
+6. the MMIO start/doorbell write is the final operation.
+
+An error before the doorbell retires the published generation through the same
+engine; no caller clears the slot or tears down mappings privately. Backends may
+specialize the required DMA/MMIO barrier, but they may not expose a raw start
+write to callers. Source audit must reject every RKVDEC/RKVENC/RGA START or
+doorbell write outside these owner operations.
+
 ## One transition engine per active object
 
 MPP activation and RGA task execution should follow the same rule even if they
 do not share C code:
 
 1. a small slot lock protects only pointer, generation, IRQ snapshot, and claim;
-2. the winning trigger records a reason and moves the object to `RETIRING`;
+2. the winning trigger moves the object to `RETIRING`, while eligible concurrent
+   triggers merge typed reason bits and immutable hardware snapshots;
 3. a sleepable engine owns stop/reset/refresh and all slow teardown;
 4. the engine publishes exactly one retry, final result, or quarantine; and
 5. object destruction happens only after callbacks, worker references, and the
    active slot are gone.
+
+The reason set is not first-writer-wins. While the engine drains IRQs and proves
+quiescence, exact-generation adapters may add evidence. Before releasing any
+resource or publishing a user result, the engine closes reason collection at a
+documented snapshot point and applies one common policy:
+
+| Evidence at the snapshot | Outcome precedence |
+|---|---|
+| stop, reset, or translation isolation is unproved | quarantine; dominates every user-visible result |
+| IOMMU fault, fatal hardware error, or reset failure | hardware failure; dominates DONE, timeout, and cancellation |
+| watchdog expiry without stronger evidence | timeout failure; dominates a later uncorroborated DONE |
+| remove, shutdown, session abort, or explicit cancel | the corresponding terminal cancellation/removal result |
+| clean DONE with none of the above | success |
+
+A DONE snapshot captured before a cancellation claim may complete successfully;
+the reverse ordering cancels. Encode that ordering in the slot claim sequence,
+not wall-clock timestamps. Evidence arriving after the snapshot is diagnostic
+unless it proves that DMA quiescence was falsely assumed, in which case it may
+still escalate the object to quarantine but never downgrade a fault to success.
+KUnit must exercise every pairwise trigger order, including DONE+ERROR,
+DONE+timeout, timeout+fault, cancel+DONE, remove+IRQ, and fault+shutdown.
 
 Triggers are adapters:
 
@@ -454,16 +561,25 @@ with `lockdep_assert_held()` in owner methods. A workable hierarchy is:
 | Lock class | Protects | Rules |
 |---|---|---|
 | service topology mutex | registries and membership publication | never held across pinning, DMA mapping, runtime PM, reset, or worker drain |
+| scheduler/admission mutex | queued work, scan order, and session-dispatch lease transfer | never held across backend submit, transition-engine work, or waiter wakeup |
+| session/job mutex | session-visible job registry, result, and whole-request sequencing | never acquired from a hardware IRQ adapter; hand state to the engine/orchestrator instead of nesting across waits |
 | cluster transition mutex | CCU admission, group power, group recovery | only cluster methods take it; no ioctl parser or emitter does |
+| DMA-group transition mutex | domain membership, refresh epoch, and isolation/quarantine result | never nests inside an import/map registry lock or live-DMA map construction |
 | hardware run mutex | one core's sleepable start/retire operation | never substitutes for a cluster/reset-domain invariant |
 | reset-domain mutex | reset-control operations and reset state | innermost sleepable leaf; no allocation or callbacks |
 | active-slot spinlock | active pointer, generation, claim and status snapshot | bounded; no MMIO requiring clocks to stay live unless the IRQ-safe register lease is held |
 | IRQ raw lock | a bounded registers-live/aux-MMIO lease | no allocation, callback, refcount destructor, or unbounded loop |
+| acquire-set spinlock | callback records, pending zero-crossing, cancel/result claim | callbacks take only this lock; no job/session/hardware lock acquisition or destructor |
 | import/map mutex | one import or cached-map registry | never held across page pinning or a whole candidate map build |
 
 This table is a target to validate with lockdep, not permission to mechanically
 nest every row. If hardware forces a reverse acquisition, change the object
 API so one owner hands off state rather than adding an exception comment.
+Write the actual partial-order edges beside the table, including which pairs are
+deliberately non-nesting, and assign lockdep class keys to repeated per-core,
+per-cluster, per-session, and per-acquire-set instances. Transition engines and
+worker drains must assert that no scheduler, session, acquire-set, or import/map
+lock is held before sleeping.
 
 ## Refactor sequence
 
@@ -475,23 +591,35 @@ from phase 1 until the ownership and hardware gates for phase 5 pass.
 - Pin the exact 6.18 and mainline rewrite tips and prove the tracked driver,
   UAPI, ABI, Kconfig, and test manifests are byte-identical where intended.
 - Record build, KUnit, boot, normal workload, reset-contention, recovery, and
-  differential-oracle results separately. A known failure is acceptable if it
-  is named; an unrecorded baseline is not.
+  differential-oracle results separately. A known failure is acceptable only
+  when it is deterministic, bounded, attributed, and outside the invariants the
+  next phase will preserve. Intermittent silent corruption, unexplained DMA or
+  IOMMU faults, an unproved stop, and an unbooted exact tip are blockers rather
+  than acceptable red baselines.
 - Generate inventories of every direct reset-control call, active-slot write,
-  power-reference field, IOMMU refresh/isolation call, MPP terminal entry, RGA
-  task-advance call, command-buffer writer, and raw-task emitter.
+  session-dispatch lease write, power-reference field, IOMMU refresh/isolation
+  call, MPP terminal entry, RGA task-advance call, command-buffer writer, raw
+  start/doorbell write, and raw-task emitter.
 - Freeze the expected debug counters and event fields used by hardware gates.
 
 Acceptance: the same immutable source archive reproduces both builds and every
-known baseline result has an evidence path.
+known baseline result has an evidence path. For the current source line, exact
+6.18 `c20fc8c1cbf76` must boot before Phase 1 and pass the red/green same-session
+H.26x loop plus the solo RGA3 vpp and overlay-chain replays. If either corruption
+persists, land and qualify its narrow fix before beginning ownership migration.
 
 ### Phase 1 — create write funnels without changing behavior
 
 - Wrap every MPP reset call in a reset-domain operation, even while the wrapper
   initially delegates to the current implementation.
 - Put active-slot reads/writes behind typed helpers for both drivers.
+- Put RKVDEC session-dispatch acquire/transfer/release behind one lease API.
+- Put every hardware start write behind a temporary `publish_and_start()` funnel
+  that records the active generation and performs the existing barrier/order.
 - Put MPP power lease acquisition/release, IOMMU refresh/isolation, and RGA
   execution-map teardown behind singular APIs.
+- Put terminal-reason merge, snapshot closure, and outcome selection behind one
+  transition API even while old terminal tails still perform slow work.
 - Add assertions that old fields and new embedded-object views agree. Keep the
   assertions until the last old-field user is removed.
 
@@ -521,42 +649,54 @@ new owner reports, including the paths that previously reset without refresh.
 
 1. Embed and initialize `rk_mpp_activation` in the current job.
 2. Move generation, absolute deadline, selected hardware, CCU/DCHS/link and
-   power leases into it.
+   power and session-dispatch leases into it.
 3. Change the hardware slot from job to activation in one reviewable commit,
    keeping adapter helpers for old callers.
 4. Route IRQ, timeout, fault, abort, close, remove and shutdown to one transition
    engine.
-5. Delete duplicate terminal tails only after source audit proves every trigger
+5. Make retry allocate a new attempt/generation; make quarantine transfer
+   resources into a tombstone; and require `RECLAIMABLE` before embedded reuse.
+6. Delete duplicate terminal tails only after source audit proves every trigger
    reaches the engine.
 
 Design the activation for rkvdec2 retry and group recovery from the beginning;
 do not prove a simplified type on rkvenc2 and then add bypass fields for CCU.
 
-Acceptance: generation-replacement KUnit tests, DCHS and slice cases, CCU retry
-tests, fault/timeout/abort races under KASAN+KCSAN+lockdep, and hardware recovery
-with no job/power/import/callback counter leak.
+Acceptance: generation-replacement and pairwise reason-arbitration KUnit tests,
+DCHS and slice cases, CCU retry tests, session-dispatch abort/reset races,
+fault/timeout/abort races under KASAN+KCSAN+lockdep, and hardware recovery with
+no job/power/import/callback counter leak. Forced stop/reset failure must retain
+the expected tombstone and dispatch lease rather than reporting a false leak-free
+success.
 
 ### Phase 4 — split RGA task execution from the whole job
 
 1. Embed `rk_rga_task_exec` and move selected hardware, mappings, MMU table,
    command allocation, userptr sync state, timing, generation and IRQ status.
-2. Change the hardware slot to an execution pointer.
-3. Make one retirement engine destroy the execution and return one result to
-   the job orchestrator.
-4. Let only the orchestrator advance `current_task`, complete the job, and
+2. Give every async edge an execution reference plus generation cookie and add
+   the `RETIRED` to `RECLAIMABLE` drain boundary.
+3. Change the hardware slot to an execution pointer.
+4. Make one retirement engine destroy or quarantine the execution and return
+   one result to the job orchestrator.
+5. Let only the orchestrator advance `current_task`, create retries/fallbacks,
+   complete the job, and
    signal the release fence.
-5. **Ownership complete; type cleanup remains:** import capabilities are split
+6. **Ownership complete; type cleanup remains:** import capabilities are split
    from device/domain execution maps and mapping work no longer runs under the
    global import lock. A later `rk_rga_exec_map` extraction can make the
    already-correct lifetime structural.
-6. Encapsulate acquire callbacks in `rk_rga_acquire_set` without changing their
+7. Model direct and staged execution maps, including copy-in/copyback ownership,
+   without yet selecting the RGA2 1 MiB staging implementation.
+8. Encapsulate acquire callbacks in `rk_rga_acquire_set` without changing their
    zero-crossing protocol.
 
 Acceptance: multi-task success and every-task-position failure through IRQ,
 timeout, fault, cancel, close and unbind; RGA3-to-RGA2 fallback; userptr
 head/tail copyback; mapping failure at each allocation point; acquire abort at
-each callback-arming point; and zero live map/pin/fence/job counters after each
-run.
+each callback-arming point; immediate IRQ after doorbell; delayed old-generation
+IRQ/timeout/fault after a successor starts; and zero live map/pin/fence/job
+counters after each run. Quarantine-injection cases instead require an exact,
+accounted tombstone whose resources remain pinned until isolation proof or reboot.
 
 ### Phase 5 — make validation and emission one-way
 
@@ -565,13 +705,16 @@ run.
   end to end before broad feature families.
 - Convert emitters by semantic family and delete raw-task access as each family
   moves.
+- Replace the temporary start funnels with owner-specific MPP activation and RGA
+  execution `publish_and_start()` operations.
 - Add independently specified golden command/register expectations and the
   byte-exact forward-port differential.
 
 Acceptance: no MPP backend receives a mutable register image; no RGA emitter
 receives `struct rga_req`; source audit rejects both regressions. The open
 byte-exact FBC/AFBC and real-hardware geometry questions remain hardware gates,
-not conclusions inferred from a new type.
+not conclusions inferred from a new type. Immediate-completion injection must
+prove an IRQ cannot observe an unpublished image, unarmed timeout, or stale slot.
 
 ### Phase 6 — split files and rationalize tests
 
@@ -604,11 +747,18 @@ Extend the existing source audit so these become build/repository failures:
 - MPP CCU member walks, coordinator `run_lock`, or group power arrays outside
   cluster code;
 - MPP active-slot assignment outside activation helpers;
+- MPP session-dispatch lease mutation outside scheduler/activation helpers;
 - MPP reset success followed by re-admission without a recorded refresh,
   power-cycle proof, or isolation outcome;
 - writes through an MPP sealed-image pointer;
+- MPP or RGA start/doorbell MMIO outside `publish_and_start()`;
+- active-object state, terminal-reason, or generation mutation outside slot and
+  transition helpers;
 - RGA active-slot assignment outside task-execution helpers;
 - RGA execution mapping or command cleanup from the whole-job destructor;
+- activation or task-execution reinitialization before `RECLAIMABLE`;
+- teardown of DMA-reachable mappings, commands, imports, power, or dispatch
+  leases from a quarantined object without a stop/isolation proof;
 - RGA `current_task++` outside the job orchestrator;
 - an RGA emitter accepting `struct rga_req` or reading raw request flags; and
 - fence callbacks pointing directly at a broad job after acquire-set migration.
@@ -624,9 +774,13 @@ read every exception.
 | sibling reset/deassert and gated-register MMIO | measured wedge fixed by domain lock; hard-IRQ architecture remains a residual concern | reset domain + cluster + IRQ-safe register lease | repeated two-core reset contention and UART/ramoops-clean recovery |
 | decoder self-reset and missing IOMMU refresh twins | hardware semantics measured; five software reset paths found without refresh; exact restore need remains hardware-sensitive | cluster recovery + DMA group reset effect | counters correlate reset effects to refresh/isolation; post-error decode remains correct |
 | CCU/DCHS power and retirement twins | several fixed call-site omissions and group power carried by each job | cluster power lease + activation | soft/hard CCU retry/abort/remove matrix, DCHS multi-core stress |
+| same-session RKVDEC overlap | ordered overlap still corrupted kernel #8; current narrow fix holds a session token through hardware retirement | session-dispatch lease owned by activation/quarantine | exact-tip H.26x red/green loop, reset-session race, and independent-session dual-core proof |
 | post-validation MPP register writes | RCB instance fixed; recurrence is structurally possible while image stays mutable | sealed image owned by activation | source gate: no post-seal writer; byte-exact oracle |
 | RGA multi-task recovery | one omission fixed by a common helper; current job still mixes task and request lifetime | task execution + job orchestrator | fail each task position through every terminal trigger |
+| coherent command publication before START | source defect fixed with an RGA `dma_wmb()`; runtime causality for current corruption remains open | activation/execution `publish_and_start()` | immediate-IRQ injection plus exact-tip RGA3 vpp/overlay red-green replay |
+| retry, delayed callback, and quarantine ABA | generation checks exist, but broad job storage and terminal tails still permit ambiguous reuse/retention | refcounted attempt + reason engine + quarantine tombstone | delayed old-generation event matrix and forced unproved-stop retention |
 | RGA userptr import serialization and pin budget | source-inspected global-lock window and missing locked-memory accounting | import capability + execution/cached map | concurrent import/release/remove stress and resource-limit tests |
+| RGA2 large-segment staging | 1 MiB system-heap mapping exceeds the current SWIOTLB segment policy; implementation remains open | direct/staged execution map owned by task execution | copy-in/copyback fault matrix and exact pixels without a second teardown path |
 | RGA validator/emitter geometry or feature mismatch | multiple twin fixes; three compressed-layout questions still need hardware | immutable validated task plan | golden commands plus real small/rotated/compressed pixel cases |
 | acquire-fence close/cancel lifetime | current protocol reviewed clean but spans many fields and contexts | acquire set | callback-arm failure matrix, close/cancel/KCSAN stress |
 
@@ -635,7 +789,8 @@ read every exception.
 A practical first series should stop before touching RGA validation or broad
 file layout:
 
-1. add generated writer/terminal-path inventories and baseline evidence pins;
+1. add generated writer/terminal/start/dispatch-lease inventories and baseline
+   evidence pins, including the exact-tip booted red/green gates;
 2. introduce MPP reset-domain operation wrappers with no behavior change;
 3. expand the reset-domain object and migrate every direct reset writer;
 4. construct cluster membership and expose read-only topology diagnostics;
@@ -644,11 +799,14 @@ file layout:
 6. return reset effects and require DMA-group refresh/isolation before
    re-admission;
 7. add the IRQ-safe reset/register epoch check;
-8. embed `rk_mpp_activation` and move generation/deadline/lease state;
-9. convert the active slot and terminal triggers;
-10. consolidate retirement and remove the old paths;
-11. run and record the full MPP object/refcount plus board recovery gate; and
-12. only then start the analogous RGA task-execution series.
+8. funnel the existing session-dispatch token and every START write through
+   typed owner helpers;
+9. embed `rk_mpp_activation` and move generation/deadline/lease state;
+10. convert the active slot, reason arbitration, and terminal triggers;
+11. add fresh-attempt retry, `RECLAIMABLE`, and quarantine tombstones;
+12. consolidate retirement and remove the old paths;
+13. run and record the full MPP object/refcount plus board recovery gate; and
+14. only then start the analogous RGA task-execution series.
 
 Each numbered item may need several commits, but no commit should combine a
 new object, a behavior fix, and broad code motion. When migration exposes a
@@ -662,14 +820,26 @@ The ownership refactor is complete when all of these are true:
 
 - every shared MPP reset, CCU power, recovery, IOMMU refresh, and quarantine
   transition has one object owner;
+- every RKVDEC scheduler dispatch holds exactly one typed session lease until
+  safe retirement or transfers it to quarantine;
 - each MPP hardware slot contains one activation, and every terminal trigger
   reaches its single transition engine;
 - each RGA hardware slot contains one task execution, while the job owns only
   whole-request sequencing, result, and fences;
+- each retry/fallback creates a fresh monotonic attempt, and no activation or
+  execution storage is reused before `RECLAIMABLE`;
+- terminal reasons use the documented merge/snapshot/precedence policy, with no
+  clean result able to hide stronger fault evidence;
+- unproved stop/isolation transfers all DMA-reachable resources to an accounted
+  quarantine tombstone instead of freeing them;
 - buffer identity/pinning is independent of a selected RGA device mapping;
+- RGA execution maps structurally represent direct versus staged ownership and
+  copy-in/copyback obligations;
 - no RGA global registry lock is held across page pinning or map construction;
 - MPP submission consumes a sealed image and RGA emission consumes a validated
   plan;
+- every backend publishes the exact active generation and complete image through
+  one barrier-correct `publish_and_start()` operation before its doorbell;
 - source-audit rules reject direct writers and raw-representation leaks;
 - temporary mirror fields and adapters are gone;
 - both rewrite branches remain mechanically replayed and byte-compared; and
