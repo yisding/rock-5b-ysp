@@ -1,6 +1,6 @@
 # Rewrite ownership inventory; new signals fail, resolved signals are allowed.
-# source-head	7d04b30f9f180844a526d1fbcb875e279adfe239
-# source-head	bdabeb7f8a92dc430a83a754aef89c9822dfcf19
+# source-head	3a2a540553cceb78e0f39d6af52c7ff61e345a8b
+# source-head	f80d216cfb83b0062a23b46acd2781f90d1857d3
 # category	source	function	ordinal	normalized source signal
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	enum rk_mpp_debug_event_type { RK_MPP_DEBUG_REQUEST_FAIL, RK_MPP_DEBUG_SELECT_FAIL, RK_MPP_DEBUG_TRANSLATE_FAIL, RK_MPP_DEBUG_RCB_FAIL, RK_MPP_DEBUG_SUBMIT_FAIL, RK_MPP_DEBUG_POLL_FAIL, RK_MPP_DEBUG_QUEUED, RK_MPP_DEBUG_DISPATCH, RK_MPP_DEBUG_STARTED, RK_MPP_DEBUG_IRQ, RK_MPP_DEBUG_DONE, RK_MPP_DEBUG_TIMEOUT, RK_MPP_DEBUG_IOMMU_FAULT, RK_MPP_DEBUG_ABORT, RK_MPP_DEBUG_SPURIOUS_IRQ, };
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	struct rk_mpp_debug_event { u64 seq; u64 timestamp_ns; u64 data; u32 session_id; u32 job_id; u32 client_type; u32 irq_status; s32 core_id; s32 result; u8 type; char hw_name[20]; char dev_name[32]; };
@@ -216,6 +216,10 @@ rga-active-slot-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw
 rga-active-slot-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_install_active_locked	1	if (!hw->active_generation) hw->active_generation++;
 rga-active-slot-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_restore_active_locked	1	hw->active_job = job;
 rga-active-slot-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_take_active_locked	1	hw->active_job = NULL;
+rga-command-release	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_alloc_cmd	1	if (rk_rga_check_iova_span(job->cmd_dma, job->cmd_size, "command buffer", true)) { rk_rga_job_free_cmd(job);
+rga-command-release	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_alloc_cmd	1	rk_rga_job_free_cmd(job);
+rga-command-release	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_free	1	rk_rga_job_free_cmd(job);
+rga-command-release	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_free_cmd	1	dma_free_coherent(job->cmd_dev, job->cmd_size, job->cmd_vaddr, job->cmd_dma);
 rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_alpha_bitmap	1	static int rk_rga2_emit_alpha_bitmap(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga2_format_info *pat_fmt) {
 rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_color_fill	1	static int rk_rga2_emit_color_fill(struct rk_rga_job *job) {
 rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_color_key	1	static void rk_rga2_emit_color_key(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga2_bitblt_profile *profile) {
@@ -234,6 +238,26 @@ rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_emit
 rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_emit_wr	1	static int rk_rga3_emit_wr(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga3_format_info *dst_fmt, u32 wr_mode, bool apply_dst_offset) {
 rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_alloc_cmd	1	static int rk_rga_job_alloc_cmd(struct rk_rga_job *job, struct rk_rga_hw *hw) {
 rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_emit_cmd	1	static int rk_rga_job_emit_cmd(struct rk_rga_hw *hw, struct rk_rga_job *job) {
+rga-exec-map-owner	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_backend_start	1	err_release: rk_rga_job_release_execution_mappings_powered(job, hw);
+rga-exec-map-owner	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_abort_jobs	1	rk_rga_job_release_execution_mappings_powered(active, hw);
+rga-exec-map-owner	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_abort_session_jobs	1	rk_rga_job_release_execution_mappings_powered(active, hw);
+rga-exec-map-owner	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_recover_active	1	rk_rga_job_release_execution_mappings_powered(job, hw);
+rga-exec-map-owner	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_irq_thread	1	rk_rga_job_release_execution_mappings_powered(job, hw);
+rga-exec-map-owner	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_complete	1	rk_rga_job_discard_execution_mappings(job);
+rga-exec-map-owner	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_discard_execution_mappings	1	__rk_rga_job_release_execution_mappings(job);
+rga-exec-map-owner	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_free	1	rk_rga_job_discard_execution_mappings(job);
+rga-exec-map-owner	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_release_execution_mappings_powered	1	} __rk_rga_job_release_execution_mappings(job);
+rga-map-release-primitive	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	__rk_rga_job_release_execution_mappings	1	if (mapping->attach) dma_buf_detach(mapping->import->dmabuf, mapping->attach);
+rga-map-release-primitive	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	__rk_rga_job_release_execution_mappings	1	if (mapping->sgt && mapping->userptr) { rk_rga_unmap_userptr_sgt(mapping->import->rga, mapping->dev, mapping->sgt, mapping->userptr_view, mapping->domain, mapping->iova, mapping->iova_size, mapping->page_offset, mapping->iommu_mapped);
+rga-map-release-primitive	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	__rk_rga_job_release_execution_mappings	1	rk_rga_job_release_rga2_mmu(job);
+rga-map-release-primitive	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	__rk_rga_job_release_execution_mappings	1	} else if (mapping->sgt) { dma_buf_unmap_attachment_unlocked(mapping->attach, mapping->sgt, mapping->dma_dir);
+rga-map-release-primitive	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_map_import	1	dma_buf_detach(import->dmabuf, attach);
+rga-map-release-primitive	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_map_import	2	dma_buf_detach(import->dmabuf, attach);
+rga-map-release-primitive	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_map_import	3	dma_buf_detach(import->dmabuf, attach);
+rga-map-release-primitive	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_map_import	1	dma_buf_unmap_attachment_unlocked(attach, sgt, dma_dir);
+rga-map-release-primitive	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_map_import	2	dma_buf_unmap_attachment_unlocked(attach, sgt, dma_dir);
+rga-map-release-primitive	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_map_import	1	if (ret) { dma_buf_unmap_attachment_unlocked(attach, sgt, dma_dir);
+rga-map-release-primitive	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_map_import	1	} dma_buf_detach(import->dmabuf, attach);
 rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_alpha_bitmap	1	static int rk_rga2_emit_alpha_bitmap(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga2_format_info *pat_fmt) {
 rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_color_fill	1	static int rk_rga2_emit_color_fill(struct rk_rga_job *job) {
 rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_color_key	1	static void rk_rga2_emit_color_key(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga2_bitblt_profile *profile) {

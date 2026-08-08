@@ -67,6 +67,19 @@ MPP_TERMINAL_RE = re.compile(
 RGA_TASK_ADVANCE_RE = re.compile(
     r"\b[A-Za-z_]\w*->current_task\s*(?:\+\+|--|[+\-*/]?=(?!=))"
 )
+RGA_EXEC_MAP_OWNER_RE = re.compile(
+    r"\b(?:__rk_rga_job_release_execution_mappings|"
+    r"rk_rga_job_(?:release_execution_mappings_powered|"
+    r"discard_execution_mappings))\s*\("
+)
+RGA_MAP_RELEASE_PRIMITIVE_RE = re.compile(
+    r"\b(?:rk_rga_unmap_userptr_sgt|dma_buf_unmap_attachment(?:_unlocked)?|"
+    r"dma_buf_detach|rk_rga_job_(?:clear|release)_rga2_mmu)\s*\("
+)
+RGA_COMMAND_RELEASE_RE = re.compile(
+    r"\brk_rga_job_free_cmd\s*\(|"
+    r"\bdma_free_coherent\s*\([^;]*\bcmd_(?:dev|size|vaddr|dma)\b"
+)
 RGA_COMMAND_WRITE_RE = re.compile(
     r"\brk_rga_cmd_write\s*\(|"
     r"\b(?:memset|memcpy)\s*\(\s*[A-Za-z_]\w*->cmd_vaddr\b"
@@ -340,6 +353,12 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                         (
                             ("rga-active-slot-access", ACTIVE_SLOT_ACCESS_RE),
                             ("rga-active-slot-write", ACTIVE_SLOT_WRITE_RE),
+                            ("rga-exec-map-owner", RGA_EXEC_MAP_OWNER_RE),
+                            (
+                                "rga-map-release-primitive",
+                                RGA_MAP_RELEASE_PRIMITIVE_RE,
+                            ),
+                            ("rga-command-release", RGA_COMMAND_RELEASE_RE),
                             ("rga-task-advance", RGA_TASK_ADVANCE_RE),
                             ("start-doorbell-write", RGA_START_WRITE_RE),
                         )

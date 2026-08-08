@@ -2578,7 +2578,13 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
         / "rewrite-ownership-source-audit.py"
     )
 
-    def make_tree(self, root: Path, extra_mpp: str = "", extra_kunit: str = "") -> None:
+    def make_tree(
+        self,
+        root: Path,
+        extra_mpp: str = "",
+        extra_kunit: str = "",
+        extra_rga: str = "",
+    ) -> None:
         mpp = root / "drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c"
         rga = root / "drivers/video/rockchip/rga-rewrite/rga_rewrite.c"
         mpp.parent.mkdir(parents=True, exist_ok=True)
@@ -2615,6 +2621,11 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
         rga.write_text(
             "enum rk_rga_debug_event_type { RK_RGA_DEBUG_JOB_FAIL };\n"
             "struct rk_rga_debug_event { u8 type; };\n"
+            "static void rga_map_owner(struct rk_rga_job *job)\n"
+            "{\n"
+            "\tdma_buf_detach(NULL, NULL);\n"
+            "\t__rk_rga_job_release_execution_mappings(job);\n"
+            "}\n"
             "static void rk_rga2_emit_src(struct rk_rga_job *job,\n"
             "\t\t\t     const struct rga_req *task)\n"
             "{\n"
@@ -2624,10 +2635,19 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "{\n"
             "\thw->active_job = job;\n"
             "\tjob->current_task++;\n"
+            "\trk_rga_job_release_execution_mappings_powered(job, hw);\n"
+            "\trk_rga_job_free_cmd(job);\n"
             "\trk_rga_write(hw, 1, RK_RGA3_CMD_CTRL);\n"
+            f"{extra_rga}"
             "}\n"
             "#if IS_ENABLED(CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST)\n"
-            "static void rga_fixture(struct kunit *test) { }\n"
+            "static void rga_fixture(struct kunit *test)\n"
+            "{\n"
+            "\tdma_buf_unmap_attachment(NULL, NULL, 0);\n"
+            "\trk_rga_job_discard_execution_mappings(NULL);\n"
+            "\tdma_free_coherent(job->cmd_dev, job->cmd_size,\n"
+            "\t\t\t  job->cmd_vaddr, job->cmd_dma);\n"
+            "}\n"
             "#endif\n",
             encoding="utf-8",
         )
@@ -2661,6 +2681,13 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("mpp-dispatch-lease-access", baseline_text)
             self.assertIn("rga-active-slot-access", baseline_text)
             self.assertIn("rga-raw-task-emitter", baseline_text)
+            self.assertIn("rga-exec-map-owner", baseline_text)
+            self.assertIn("rga-map-release-primitive", baseline_text)
+            self.assertIn("rga-command-release", baseline_text)
+            self.assertIn(
+                "__rk_rga_job_release_execution_mappings", baseline_text
+            )
+            self.assertNotIn("rga_fixture", baseline_text)
             self.assertIn("rkvdec_ccu_powered_core_count", baseline_text)
             self.assertIn("rkvdec_ccu_powered = true", baseline_text)
             self.assertIn("mpp-irq-ack-write", baseline_text)
@@ -2698,6 +2725,12 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\tiommu_flush_iotlb_all(NULL);\n"
                     "\tfake.result = 0;\n"
                 ),
+                extra_rga=(
+                    "\tdma_buf_unmap_attachment(NULL, NULL, 0);\n"
+                    "\trk_rga_job_discard_execution_mappings(job);\n"
+                    "\tdma_free_coherent(job->cmd_dev, job->cmd_size,\n"
+                    "\t\t\t  job->cmd_vaddr, job->cmd_dma);\n"
+                ),
             )
             changed = self.run_audit(tree, baseline)
             self.assertEqual(changed.returncode, 1)
@@ -2708,6 +2741,9 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("NEW\tmpp-iommu-backend-op", changed.stderr)
             self.assertIn("NEW\tmpp-job-lifecycle-write", changed.stderr)
             self.assertIn("NEW\tmpp-reset-control", changed.stderr)
+            self.assertIn("NEW\trga-exec-map-owner", changed.stderr)
+            self.assertIn("NEW\trga-map-release-primitive", changed.stderr)
+            self.assertIn("NEW\trga-command-release", changed.stderr)
             self.assertIn("reset_control_bulk_reset", changed.stderr)
             self.assertIn("reset_control_rearm", changed.stderr)
             self.assertNotIn("reset_control_deassert", changed.stderr)
@@ -2716,6 +2752,10 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertNotIn("fake.rkvdec_ccu_powered", changed.stderr)
             self.assertNotIn("iommu_flush_iotlb_all", changed.stderr)
             self.assertNotIn("fake.result", changed.stderr)
+            self.assertEqual(
+                changed.stderr.count("dma_buf_unmap_attachment(NULL"), 1
+            )
+            self.assertEqual(changed.stderr.count("job->cmd_vaddr"), 1)
 
             baseline.write_text(
                 baseline_text.replace("# source-head\tunknown", "# source-head\tdeadbeef"),
