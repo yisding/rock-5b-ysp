@@ -36,8 +36,14 @@ The priority is **ownership before convention**:
 > now retire through a power-asserting owner, while completion and destruction
 > accept only an already-empty execution and warn on a missed powered teardown.
 > MPP terminal result/DONE publication also has one session-lock-aware owner;
-> reason arbitration and snapshot closure remain deferred until an activation
-> transition owner exists.
+> the 432-signal production audit now freezes every current IRQ, fault,
+> watchdog, activation-timing, terminal/admission-state, and outcome writer plus
+> direct RGA terminal entry.
+> Independent review found no behavior-preserving terminal transition wrapper:
+> both drivers reuse a job across generations, and neither retains a retiring
+> object through snapshot closure. Reason arbitration therefore remains
+> deferred until the activation/task-execution migration can provide that
+> owner.
 > The current tips remain unbooted;
 > full build, install, and reboot qualification are intentionally deferred while
 > behavior-preserving write funnels continue.
@@ -611,10 +617,11 @@ from phase 1 until the ownership and hardware gates for phase 5 pass.
   than acceptable red baselines.
 - Generate inventories of every direct reset-control call, active-slot write,
   session-dispatch lease write, power-reference field, IOMMU refresh/isolation
-  call and raw backend operation, job lifecycle/outcome write, MPP terminal
-  entry, RGA task-advance call, execution-map owner/release primitive,
-  command-buffer writer/release, raw start/doorbell or IRQ-ack write, and
-  raw-task emitter.
+  call and raw backend operation, job lifecycle/outcome write and publication,
+  IRQ/fault/watchdog snapshot write, activation-timing and
+  terminal/admission-state write, MPP/RGA terminal entry, RGA task-advance
+  call, execution-map owner/release primitive, command-buffer writer/release,
+  raw start/doorbell or IRQ-ack write, and raw task emitter.
 - Freeze the expected debug counters and event fields used by hardware gates.
 
 Acceptance: the same immutable source archive reproduces both builds and every
@@ -637,13 +644,19 @@ qualify its narrow fix before advancing beyond provisional funnels.
   that records the active generation and performs the existing barrier/order.
 - Put MPP power lease acquisition/release, IOMMU refresh/isolation, and RGA
   execution-map teardown behind singular APIs.
-- Put terminal-reason merge, snapshot closure, and outcome selection behind one
-  transition API even while old terminal tails still perform slow work.
+- Freeze every terminal/admission-state, IRQ/fault/watchdog snapshot,
+  activation-timing, outcome, and terminal-entry mutation. Do not put them
+  behind a stateless job wrapper: introduce the real transition API only with a
+  retained, generation-tagged activation/task-execution object that can define
+  snapshot closure.
 - Add assertions that old fields and new embedded-object views agree. Keep the
   assertions until the last old-field user is removed.
 
-Acceptance: source-audit allowlists show no direct writer outside the owning
-module/section; compiled behavior and hardware counters are unchanged.
+Acceptance: source-audit allowlists show no unreviewed direct writer outside
+the current owning module/section; compiled behavior and hardware counters are
+unchanged. The source-only Phase 1 boundary is provisional until the deferred
+exact-tip build, boot, and hardware gates pass; no Phase 2 migration may begin
+before then.
 
 ### Phase 2 — make MPP reset and cluster ownership real
 

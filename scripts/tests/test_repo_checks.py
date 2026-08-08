@@ -2603,6 +2603,12 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\trk_mpp_hw_refresh_iommu(hw, job);\n"
             "\tvsi_iommu_refresh(hw->dev);\n"
             "\tjob->result = -EINPROGRESS;\n"
+            "\thw->irq_status = 1;\n"
+            "\thw->iommu_fault_pending = true;\n"
+            "\thw->recovery_failed = true;\n"
+            "\thw->timeout_job = job;\n"
+            "\tjob->hw_start_ns = 1;\n"
+            "\trk_mpp_job_publish_outcome(job, 0);\n"
             "\trk_mpp_job_complete(job, 0);\n"
             "\twritel(1, hw->regs[0] + RK_MPP_RKVENC_START_BASE);\n"
             "\twritel(job->rkvdec_ccu_cfg_done, "
@@ -2613,6 +2619,12 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "#if IS_ENABLED(CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST)\n"
             "static void mpp_fixture(struct kunit *test)\n"
             "{\n"
+            "\thw->av1_start_ns = 99;\n"
+            "\thw->iommu_fault_generation = 99;\n"
+            "\thw->terminally_stopped = true;\n"
+            "\thw->timeout_generation = 99;\n"
+            "\tjob->hw_elapsed_ns += 99;\n"
+            "\trk_mpp_job_publish_outcome_locked(job, -EIO);\n"
             f"{extra_kunit}"
             "}\n"
             "#endif\n",
@@ -2637,6 +2649,13 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\tjob->current_task++;\n"
             "\trk_rga_job_release_execution_mappings_powered(job, hw);\n"
             "\trk_rga_job_free_cmd(job);\n"
+            "\tjob->irq_result = 0;\n"
+            "\thw->iommu_fault_generation = 1;\n"
+            "\thw->recovery_failed = true;\n"
+            "\thw->timeout_job = job;\n"
+            "\tjob->hw_start_ns = 1;\n"
+            "\tWRITE_ONCE(job->result, 0);\n"
+            "\trk_rga_hw_recover_active(hw, false, NULL, 0);\n"
             "\trk_rga_write(hw, 1, RK_RGA3_CMD_CTRL);\n"
             f"{extra_rga}"
             "}\n"
@@ -2647,6 +2666,15 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\trk_rga_job_discard_execution_mappings(NULL);\n"
             "\tdma_free_coherent(job->cmd_dev, job->cmd_size,\n"
             "\t\t\t  job->cmd_vaddr, job->cmd_dma);\n"
+            "\tjob->irq_seen = true;\n"
+            "\thw->iommu_fault_generation = 99;\n"
+            "\thw->removing = true;\n"
+            "\thw->timeout_generation = 99;\n"
+            "\tjob->hw_elapsed_ns += 99;\n"
+            "\tsmp_store_release(&job->done, true);\n"
+            "\trk_rga_hw_abort_jobs(hw, -EIO);\n"
+            "\trk_rga_hw_restore_active_after_reset_failure(NULL, NULL, true);\n"
+            "\trk_rga_job_abort_pending_acquire(NULL, -EFAULT);\n"
             "}\n"
             "#endif\n",
             encoding="utf-8",
@@ -2691,6 +2719,19 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("rkvdec_ccu_powered_core_count", baseline_text)
             self.assertIn("rkvdec_ccu_powered = true", baseline_text)
             self.assertIn("mpp-irq-ack-write", baseline_text)
+            self.assertIn("mpp-irq-snapshot-write", baseline_text)
+            self.assertIn("mpp-fault-snapshot-write", baseline_text)
+            self.assertIn("mpp-terminal-state-write", baseline_text)
+            self.assertIn("mpp-watchdog-snapshot-write", baseline_text)
+            self.assertIn("mpp-outcome-publish-entry", baseline_text)
+            self.assertIn("mpp-activation-timing-write", baseline_text)
+            self.assertIn("rga-irq-snapshot-write", baseline_text)
+            self.assertIn("rga-fault-snapshot-write", baseline_text)
+            self.assertIn("rga-terminal-state-write", baseline_text)
+            self.assertIn("rga-job-outcome-write", baseline_text)
+            self.assertIn("rga-watchdog-snapshot-write", baseline_text)
+            self.assertIn("rga-activation-timing-write", baseline_text)
+            self.assertIn("rga-terminal-entry", baseline_text)
             self.assertIn("start-doorbell-write", baseline_text)
             self.assertIn("RK_MPP_RKVDEC_CCU_CFG_DONE_BASE", baseline_text)
             self.assertFalse(
@@ -2714,6 +2755,13 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\tjob->rkvdec_ccu_powered = false;\n"
                     "\tiommu_attach_group(NULL, NULL);\n"
                     "\tjob->state = RK_MPP_JOB_DONE;\n"
+                    "\thws[0]->av1_start_ns = 2;\n"
+                    "\thw[0].iommu_fault_generation = 2;\n"
+                    "\t(*hw).terminally_stopped = true;\n"
+                    "\thw->online = false;\n"
+                    "\thws[0]->timeout_generation = 2;\n"
+                    "\t(*job).hw_elapsed_ns += 2;\n"
+                    "\trk_mpp_job_publish_outcome_locked(job, -EIO);\n"
                     "\treset_control_bulk_reset(1, NULL);\n"
                     "\treset_control_rearm(hw->resets);\n"
                 ),
@@ -2724,12 +2772,31 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\tfake.rkvdec_ccu_powered = false;\n"
                     "\tiommu_flush_iotlb_all(NULL);\n"
                     "\tfake.result = 0;\n"
+                    "\thw->irq_status = 88;\n"
+                    "\thw->iommu_fault_pending = false;\n"
+                    "\thw->terminal_power_drained = true;\n"
+                    "\tfake.online = true;\n"
+                    "\thw->timeout_deadline_generation = 88;\n"
+                    "\tjob->hw_start_ns = 88;\n"
+                    "\trk_mpp_job_publish_outcome(job, -ECANCELED);\n"
                 ),
                 extra_rga=(
                     "\tdma_buf_unmap_attachment(NULL, NULL, 0);\n"
                     "\trk_rga_job_discard_execution_mappings(job);\n"
                     "\tdma_free_coherent(job->cmd_dev, job->cmd_size,\n"
                     "\t\t\t  job->cmd_vaddr, job->cmd_dma);\n"
+                    "\tjobs[0]->irq_seen = true;\n"
+                    "\thw[0].iommu_fault_generation = 2;\n"
+                    "\t(*hw).removing = true;\n"
+                    "\thws[0]->timeout_generation = 2;\n"
+                    "\t(*job).hw_elapsed_ns += 2;\n"
+                    "\t(*job).result = -EIO;\n"
+                    "\tsmp_store_release(&job->done, true);\n"
+                    "\trk_rga_hw_abort_jobs(hw, -EIO);\n"
+                    "\trk_rga_hw_restore_active_after_reset_failure(\n"
+                    "\t\thw, job, false);\n"
+                    "\trk_rga_job_abort_pending_acquire(job, -EIO);\n"
+                    "\trk_rga_session_abort_hw_jobs(NULL, -EIO);\n"
                 ),
             )
             changed = self.run_audit(tree, baseline)
@@ -2740,18 +2807,45 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("NEW\tmpp-power-field", changed.stderr)
             self.assertIn("NEW\tmpp-iommu-backend-op", changed.stderr)
             self.assertIn("NEW\tmpp-job-lifecycle-write", changed.stderr)
+            self.assertIn("NEW\tmpp-irq-snapshot-write", changed.stderr)
+            self.assertIn("NEW\tmpp-fault-snapshot-write", changed.stderr)
+            self.assertIn("NEW\tmpp-terminal-state-write", changed.stderr)
+            self.assertIn("NEW\tmpp-watchdog-snapshot-write", changed.stderr)
+            self.assertIn("NEW\tmpp-outcome-publish-entry", changed.stderr)
+            self.assertIn("NEW\tmpp-activation-timing-write", changed.stderr)
             self.assertIn("NEW\tmpp-reset-control", changed.stderr)
             self.assertIn("NEW\trga-exec-map-owner", changed.stderr)
             self.assertIn("NEW\trga-map-release-primitive", changed.stderr)
             self.assertIn("NEW\trga-command-release", changed.stderr)
+            self.assertIn("NEW\trga-irq-snapshot-write", changed.stderr)
+            self.assertIn("NEW\trga-fault-snapshot-write", changed.stderr)
+            self.assertIn("NEW\trga-terminal-state-write", changed.stderr)
+            self.assertIn("NEW\trga-job-outcome-write", changed.stderr)
+            self.assertIn("NEW\trga-watchdog-snapshot-write", changed.stderr)
+            self.assertIn("NEW\trga-activation-timing-write", changed.stderr)
+            self.assertIn("NEW\trga-terminal-entry", changed.stderr)
             self.assertIn("reset_control_bulk_reset", changed.stderr)
             self.assertIn("reset_control_rearm", changed.stderr)
+            self.assertIn("hw->online = false", changed.stderr)
+            self.assertIn(
+                "rk_rga_hw_restore_active_after_reset_failure", changed.stderr
+            )
+            self.assertIn("rk_rga_job_abort_pending_acquire", changed.stderr)
+            self.assertIn("rk_rga_session_abort_hw_jobs", changed.stderr)
+            self.assertIn("(*job).result = -EIO", changed.stderr)
             self.assertNotIn("reset_control_deassert", changed.stderr)
             self.assertNotIn("fake.active_job", changed.stderr)
             self.assertNotIn("rkvdec_session_dispatch = false", changed.stderr)
             self.assertNotIn("fake.rkvdec_ccu_powered", changed.stderr)
+            self.assertNotIn("fake.online", changed.stderr)
             self.assertNotIn("iommu_flush_iotlb_all", changed.stderr)
             self.assertNotIn("fake.result", changed.stderr)
+            self.assertNotIn("irq_status = 88", changed.stderr)
+            self.assertNotIn("timeout_deadline_generation = 88", changed.stderr)
+            self.assertNotIn("hw_start_ns = 88", changed.stderr)
+            self.assertNotIn("job, -ECANCELED", changed.stderr)
+            self.assertNotIn("iommu_fault_generation = 99", changed.stderr)
+            self.assertNotIn("NULL, NULL, true", changed.stderr)
             self.assertEqual(
                 changed.stderr.count("dma_buf_unmap_attachment(NULL"), 1
             )

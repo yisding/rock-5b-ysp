@@ -30,6 +30,29 @@ FUNCTION_RE = re.compile(
 )
 CONTROL_WORDS = {"if", "for", "while", "switch"}
 
+POINTER_FIELD_TARGET = (
+    r"(?:\b[A-Za-z_]\w*(?:\s*\[[^\]]+\])?\s*->|"
+    r"\(\s*\*\s*[A-Za-z_]\w*\s*\)\s*\.)"
+)
+FIELD_TARGET = (
+    rf"(?:{POINTER_FIELD_TARGET}|"
+    r"\b[A-Za-z_]\w*(?:\s*\[[^\]]+\])?\s*\.)"
+)
+FIELD_MUTATION = r"(?:\+\+|--|[+\-*/%|&^]?=(?!=))"
+
+
+def field_write_re(
+    fields: str,
+    publishers: str = "WRITE_ONCE",
+    target: str = FIELD_TARGET,
+) -> re.Pattern[str]:
+    """Match direct and first-argument publisher writes to named fields."""
+
+    return re.compile(
+        rf"(?:{target}(?:{fields})\s*{FIELD_MUTATION}|"
+        rf"\b(?:{publishers})\s*\(\s*&?[^,]*\b(?:{fields})\b)"
+    )
+
 RESET_CALL_RE = re.compile(
     r"\breset_control_(?:(?:bulk_)?(?:assert|deassert|reset)|rearm)\s*\("
 )
@@ -57,8 +80,26 @@ MPP_IOMMU_RE = re.compile(
 MPP_IOMMU_BACKEND_RE = re.compile(
     r"\b(?:vsi_iommu_refresh|iommu_flush_iotlb_all|iommu_attach_group)\s*\("
 )
-MPP_JOB_LIFECYCLE_WRITE_RE = re.compile(
-    r"\b[A-Za-z_]\w*->(?:result|state)\s*=(?!=)"
+MPP_JOB_LIFECYCLE_WRITE_RE = field_write_re(r"result|state")
+MPP_IRQ_SNAPSHOT_WRITE_RE = field_write_re(
+    r"irq_status|av1_afbc_armed_generation|av1_afbc_status_generation|"
+    r"av1_start_ns|av1_afbc_status_ns|av1_vcd_irq_ns|rkvenc_slice_done|"
+    r"rkvenc_slice_overflow"
+)
+MPP_FAULT_SNAPSHOT_WRITE_RE = field_write_re(
+    r"iommu_fault_pending|iommu_fault_generation"
+)
+MPP_TERMINAL_STATE_WRITE_RE = field_write_re(
+    r"canceled|online|recovery_failed|terminally_stopped|"
+    r"terminal_power_drained"
+)
+MPP_WATCHDOG_SNAPSHOT_WRITE_RE = field_write_re(
+    r"timeout_job|timeout_generation|timeout_deadline_generation|"
+    r"timeout_deadline"
+)
+MPP_ACTIVATION_TIMING_WRITE_RE = field_write_re(r"hw_start_ns|hw_elapsed_ns")
+MPP_OUTCOME_PUBLISH_RE = re.compile(
+    r"\brk_mpp_job_publish_outcome(?:_locked)?\s*\("
 )
 MPP_TERMINAL_RE = re.compile(
     r"\b(?:rk_mpp_job_complete|rk_mpp_hw_stop_active|"
@@ -79,6 +120,31 @@ RGA_MAP_RELEASE_PRIMITIVE_RE = re.compile(
 RGA_COMMAND_RELEASE_RE = re.compile(
     r"\brk_rga_job_free_cmd\s*\(|"
     r"\bdma_free_coherent\s*\([^;]*\bcmd_(?:dev|size|vaddr|dma)\b"
+)
+RGA_IRQ_SNAPSHOT_WRITE_RE = field_write_re(
+    r"intr_status|hw_status|cmd_status|work_cycle|parse_status|irq_result|"
+    r"irq_seen"
+)
+RGA_FAULT_SNAPSHOT_WRITE_RE = field_write_re(r"iommu_fault_generation")
+RGA_TERMINAL_STATE_WRITE_RE = field_write_re(r"recovery_failed|removing")
+RGA_JOB_OUTCOME_WRITE_RE = field_write_re(
+    r"result|done",
+    publishers=r"WRITE_ONCE|smp_store_release",
+    target=POINTER_FIELD_TARGET,
+)
+RGA_WATCHDOG_SNAPSHOT_WRITE_RE = field_write_re(
+    r"timeout_job|timeout_generation"
+)
+RGA_ACTIVATION_TIMING_WRITE_RE = field_write_re(r"hw_start_ns|hw_elapsed_ns")
+RGA_TERMINAL_RE = re.compile(
+    r"\b(?:rk_rga_job_complete(?:_queued)?|rk_rga_hw_finish_job_locked|"
+    r"rk_rga_hw_(?:recover_active|restore_active_after_reset_failure|"
+    r"abort_(?:queued_jobs|jobs|session_jobs)|reset_for_recovery)|"
+    r"rk_rga_job_abort_pending_acquire|"
+    r"rk_rga_session_abort_pending_acquire_jobs|"
+    r"rk_rga_session_abort_incompatible_pending_acquire_jobs(?:_slow)?|"
+    r"rk_rga_abort_incompatible_pending_acquire_jobs|"
+    r"rk_rga_session_abort_hw_jobs)\s*\("
 )
 RGA_COMMAND_WRITE_RE = re.compile(
     r"\brk_rga_cmd_write\s*\(|"
@@ -343,6 +409,30 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                                 "mpp-job-lifecycle-write",
                                 MPP_JOB_LIFECYCLE_WRITE_RE,
                             ),
+                            (
+                                "mpp-irq-snapshot-write",
+                                MPP_IRQ_SNAPSHOT_WRITE_RE,
+                            ),
+                            (
+                                "mpp-fault-snapshot-write",
+                                MPP_FAULT_SNAPSHOT_WRITE_RE,
+                            ),
+                            (
+                                "mpp-terminal-state-write",
+                                MPP_TERMINAL_STATE_WRITE_RE,
+                            ),
+                            (
+                                "mpp-watchdog-snapshot-write",
+                                MPP_WATCHDOG_SNAPSHOT_WRITE_RE,
+                            ),
+                            (
+                                "mpp-outcome-publish-entry",
+                                MPP_OUTCOME_PUBLISH_RE,
+                            ),
+                            (
+                                "mpp-activation-timing-write",
+                                MPP_ACTIVATION_TIMING_WRITE_RE,
+                            ),
                             ("mpp-terminal-entry", MPP_TERMINAL_RE),
                             ("mpp-irq-ack-write", MPP_IRQ_ACK_WRITE_RE),
                             ("start-doorbell-write", MPP_START_WRITE_RE),
@@ -359,6 +449,31 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                                 RGA_MAP_RELEASE_PRIMITIVE_RE,
                             ),
                             ("rga-command-release", RGA_COMMAND_RELEASE_RE),
+                            (
+                                "rga-irq-snapshot-write",
+                                RGA_IRQ_SNAPSHOT_WRITE_RE,
+                            ),
+                            (
+                                "rga-fault-snapshot-write",
+                                RGA_FAULT_SNAPSHOT_WRITE_RE,
+                            ),
+                            (
+                                "rga-terminal-state-write",
+                                RGA_TERMINAL_STATE_WRITE_RE,
+                            ),
+                            (
+                                "rga-job-outcome-write",
+                                RGA_JOB_OUTCOME_WRITE_RE,
+                            ),
+                            (
+                                "rga-watchdog-snapshot-write",
+                                RGA_WATCHDOG_SNAPSHOT_WRITE_RE,
+                            ),
+                            (
+                                "rga-activation-timing-write",
+                                RGA_ACTIVATION_TIMING_WRITE_RE,
+                            ),
+                            ("rga-terminal-entry", RGA_TERMINAL_RE),
                             ("rga-task-advance", RGA_TASK_ADVANCE_RE),
                             ("start-doorbell-write", RGA_START_WRITE_RE),
                         )
