@@ -105,6 +105,10 @@ audit_kunit_source() {
   python3 "$TEST_DIR/rewrite-kunit-source-audit.py" "$@"
 }
 
+audit_ownership_source() {
+  python3 "$TEST_DIR/rewrite-ownership-source-audit.py" "$@"
+}
+
 check_cross_tree_identity() {
   local relative
 
@@ -411,22 +415,32 @@ main() {
 
   case "$which" in
   audit)
+    check_clean_tree "$KERNEL_6_18"
+    check_clean_tree "$KERNEL_MAINLINE"
+    audit_ownership_source "$KERNEL_6_18" "$KERNEL_MAINLINE"
     audit_kunit_source "$KERNEL_6_18" "$KERNEL_MAINLINE"
     check_cross_tree_identity
     check_kunit_manifest "$KERNEL_6_18"
     check_kunit_manifest "$KERNEL_MAINLINE"
     ;;
   6.18)
+    check_clean_tree "$KERNEL_6_18"
+    audit_ownership_source "$KERNEL_6_18"
     audit_kunit_source "$KERNEL_6_18"
     check_kunit_manifest "$KERNEL_6_18"
     build_one "6.18" "$KERNEL_6_18"
     ;;
   mainline)
+    check_clean_tree "$KERNEL_MAINLINE"
+    audit_ownership_source "$KERNEL_MAINLINE"
     audit_kunit_source "$KERNEL_MAINLINE"
     check_kunit_manifest "$KERNEL_MAINLINE"
     build_one "mainline" "$KERNEL_MAINLINE"
     ;;
   all)
+    check_clean_tree "$KERNEL_6_18"
+    check_clean_tree "$KERNEL_MAINLINE"
+    audit_ownership_source "$KERNEL_6_18" "$KERNEL_MAINLINE"
     audit_kunit_source "$KERNEL_6_18" "$KERNEL_MAINLINE"
     check_cross_tree_identity
     check_kunit_manifest "$KERNEL_6_18"

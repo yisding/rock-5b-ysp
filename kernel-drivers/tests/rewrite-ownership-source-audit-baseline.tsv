@@ -1,0 +1,219 @@
+# Rewrite ownership inventory; new signals fail, resolved signals are allowed.
+# source-head	60b078ebc6b46bab65939687b81337c0fa26b54f
+# source-head	84d957b1e41cc0049dc5048f5af5c9df9a1357fa
+# category	source	function	ordinal	normalized source signal
+debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	enum rk_mpp_debug_event_type { RK_MPP_DEBUG_REQUEST_FAIL, RK_MPP_DEBUG_SELECT_FAIL, RK_MPP_DEBUG_TRANSLATE_FAIL, RK_MPP_DEBUG_RCB_FAIL, RK_MPP_DEBUG_SUBMIT_FAIL, RK_MPP_DEBUG_POLL_FAIL, RK_MPP_DEBUG_QUEUED, RK_MPP_DEBUG_DISPATCH, RK_MPP_DEBUG_STARTED, RK_MPP_DEBUG_IRQ, RK_MPP_DEBUG_DONE, RK_MPP_DEBUG_TIMEOUT, RK_MPP_DEBUG_IOMMU_FAULT, RK_MPP_DEBUG_ABORT, RK_MPP_DEBUG_SPURIOUS_IRQ, };
+debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	struct rk_mpp_debug_event { u64 seq; u64 timestamp_ns; u64 data; u32 session_id; u32 job_id; u32 client_type; u32 irq_status; s32 core_id; s32 result; u8 type; char hw_name[20]; char dev_name[32]; };
+debug-event-schema	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	<file-scope>	1	enum rk_rga_debug_event_type { RK_RGA_DEBUG_REJECT_VALIDATE, RK_RGA_DEBUG_REJECT_CONFIG, RK_RGA_DEBUG_REJECT_SUBMIT, RK_RGA_DEBUG_REJECT_EMIT, RK_RGA_DEBUG_JOB_FAIL, RK_RGA_DEBUG_JOB_REROUTE, };
+debug-event-schema	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	<file-scope>	1	struct rk_rga_debug_event { u64 seq; u64 timestamp_ns; s32 result; s32 rga3_result; s32 rga2_result; const void *job; const void *session; u32 task_index; u32 render_mode; u8 type; char hw_name[20]; };
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_debugfs_create_atomic64	1	debugfs_create_file(name, 0444, rk_mpp_srv.debugfs_root, value, &rk_mpp_debugfs_atomic64_fops);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_debugfs_create_core_counts	1	debugfs_create_atomic_t(name, 0444, rk_mpp_srv.debugfs_root, &counters[client][i]);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_debugfs_create_core_times	1	rk_mpp_debugfs_create_atomic64(name, &counters[client][i]);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("aborted_job_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.aborted_job_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("av1_afbc_after_vcd_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.av1_afbc_after_vcd_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("av1_afbc_before_vcd_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.av1_afbc_before_vcd_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("av1_afbc_irq_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.av1_afbc_irq_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("av1_afbc_not_observed_at_quiesce_count", 0444, rk_mpp_srv.debugfs_root, av1_not_observed_at_quiesce);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("av1_afbc_not_observed_at_vcd_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.av1_afbc_not_observed_at_vcd_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("av1_afbc_observed_at_quiesce_count", 0444, rk_mpp_srv.debugfs_root, av1_observed_at_quiesce);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("av1_afbc_observed_at_vcd_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.av1_afbc_observed_at_vcd_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("av1_afbc_prestart_status_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.av1_afbc_prestart_status_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("av1_afbc_stale_status_timeout_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.av1_afbc_stale_status_timeout_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("av1_reset_idle_unproven_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.av1_reset_idle_unproven_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("completed_job_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.completed_job_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("dispatched_job_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.dispatched_job_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("failed_job_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.failed_job_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("import_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.import_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("ioctl_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.ioctl_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("iommu_fault_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.iommu_fault_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("iommu_idle_fault_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.iommu_idle_fault_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("iommu_refresh_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.iommu_refresh_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("irq_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.irq_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("queued_job_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.queued_job_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("recovery_failure_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.recovery_failure_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("rejected_job_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.rejected_job_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("reset_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.reset_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("reset_deassert_contended_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.reset_deassert_contended_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("reset_deassert_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.reset_deassert_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("rkvdec_bus_not_idle_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.rkvdec_bus_not_idle_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("scheduled_job_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.scheduled_job_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("spurious_irq_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.spurious_irq_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("started_job_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.started_job_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("submitted_job_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.submitted_job_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("timeout_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.timeout_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_atomic_t("unsupported_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.unsupported_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_file("events", 0600, rk_mpp_srv.debugfs_root, &rk_mpp_srv, &rk_mpp_debug_events_fops);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_file("state", 0400, rk_mpp_srv.debugfs_root, &rk_mpp_srv, &rk_mpp_debug_state_fops);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_u32("bound_hw_count", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.bound_hw_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_u32("hw_support", 0444, rk_mpp_srv.debugfs_root, &rk_mpp_srv.hw_support);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	debugfs_create_u32("trace_mask", 0644, rk_mpp_srv.debugfs_root, &rk_mpp_srv.debug_trace_mask);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	rk_mpp_debugfs_create_atomic64("av1_vcd_to_afbc_observed_max_ns", av1_observed_max_ns);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	rk_mpp_debugfs_create_atomic64("hw_max_ns", &rk_mpp_srv.hw_max_ns);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	rk_mpp_debugfs_create_atomic64("hw_total_ns", &rk_mpp_srv.hw_total_ns);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	rk_mpp_debugfs_create_core_counts("dispatched", rk_mpp_srv.dispatched_core_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	rk_mpp_debugfs_create_core_counts("reset", rk_mpp_srv.reset_core_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	rk_mpp_debugfs_create_core_counts("reset_deassert", rk_mpp_srv.reset_deassert_core_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	rk_mpp_debugfs_create_core_counts("scheduled", rk_mpp_srv.scheduled_core_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	rk_mpp_debugfs_create_core_counts("started", rk_mpp_srv.started_core_count);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	rk_mpp_debugfs_create_core_times("hw_max_ns", rk_mpp_srv.hw_max_core_ns);
+debug-interface-registration	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_runtime_register	1	rk_mpp_debugfs_create_core_times("hw_total_ns", rk_mpp_srv.hw_total_core_ns);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_debugfs_create_atomic64	1	debugfs_create_file(name, 0444, rk_rga.debugfs_root, value, &rk_rga_debugfs_atomic64_fops);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_debugfs_create_core_counts	1	debugfs_create_atomic_t(name, 0444, rk_rga.debugfs_root, &counters[i]);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_debugfs_create_core_times	1	rk_rga_debugfs_create_atomic64(name, &counters[i]);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_debugfs_create_route_b	1	debugfs_create_atomic_t("active", 0444, dir, &rk_rga.route_b_active_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_debugfs_create_route_b	1	debugfs_create_atomic_t("attempt", 0444, dir, &rk_rga.route_b_attempt_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_debugfs_create_route_b	1	debugfs_create_atomic_t("ok", 0444, dir, &rk_rga.route_b_ok_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_debugfs_create_route_b	1	debugfs_create_bool("force_remap", 0600, dir, &rk_rga.route_b_force_remap);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("cmd_alloc_count", 0444, rk_rga.debugfs_root, &rk_rga.cmd_alloc_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("completed_job_count", 0444, rk_rga.debugfs_root, &rk_rga.completed_job_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("dispatched_job_count", 0444, rk_rga.debugfs_root, &rk_rga.dispatched_job_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("dmabuf_rga2_map_failure_count", 0444, rk_rga.debugfs_root, &rk_rga.dmabuf_rga2_map_failure_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("dmabuf_rga2_reroute_count", 0444, rk_rga.debugfs_root, &rk_rga.dmabuf_rga2_reroute_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("import_count", 0444, rk_rga.debugfs_root, &rk_rga.import_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("ioctl_count", 0444, rk_rga.debugfs_root, &rk_rga.ioctl_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("iommu_fault_count", 0444, rk_rga.debugfs_root, &rk_rga.iommu_fault_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("iommu_refresh_count", 0444, rk_rga.debugfs_root, &rk_rga.iommu_refresh_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("irq_count", 0444, rk_rga.debugfs_root, &rk_rga.irq_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("irq_error_count", 0444, rk_rga.debugfs_root, &rk_rga.irq_error_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("irq_spurious_count", 0444, rk_rga.debugfs_root, &rk_rga.irq_spurious_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("irq_thread_count", 0444, rk_rga.debugfs_root, &rk_rga.irq_thread_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("power_cycle_count", 0444, rk_rga.debugfs_root, &rk_rga.power_cycle_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("prepared_job_count", 0444, rk_rga.debugfs_root, &rk_rga.prepared_job_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("recovery_failure_count", 0444, rk_rga.debugfs_root, &rk_rga.recovery_failure_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("release_fence_count", 0444, rk_rga.debugfs_root, &rk_rga.release_fence_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("rga2_config_error_count", 0444, rk_rga.debugfs_root, &rk_rga.rga2_config_error_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("rga2_last_config_intr", 0444, rk_rga.debugfs_root, &rk_rga.rga2_last_config_intr);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("rga2_last_parse_status", 0444, rk_rga.debugfs_root, &rk_rga.rga2_last_parse_status);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("scheduled_job_count", 0444, rk_rga.debugfs_root, &rk_rga.scheduled_job_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("shadow_head_active_count", 0444, rk_rga.debugfs_root, &rk_rga.shadow_head_active_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("shadow_setup_failure_count", 0444, rk_rga.debugfs_root, &rk_rga.shadow_setup_failure_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("shadow_tail_active_count", 0444, rk_rga.debugfs_root, &rk_rga.shadow_tail_active_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("started_job_count", 0444, rk_rga.debugfs_root, &rk_rga.started_job_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("timeout_count", 0444, rk_rga.debugfs_root, &rk_rga.timeout_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("unsupported_count", 0444, rk_rga.debugfs_root, &rk_rga.unsupported_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("userptr_rga2_map_attempt_count", 0444, rk_rga.debugfs_root, &rk_rga.userptr_rga2_map_attempt_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("userptr_rga2_map_failure_count", 0444, rk_rga.debugfs_root, &rk_rga.userptr_rga2_map_failure_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("userptr_rga2_mmu_mapping_count", 0444, rk_rga.debugfs_root, &rk_rga.userptr_rga2_mmu_mapping_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_atomic_t("userptr_rga2_mmu_prepare_failure_count", 0444, rk_rga.debugfs_root, &rk_rga.userptr_rga2_mmu_prepare_failure_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_file("events", 0444, rk_rga.debugfs_root, &rk_rga, &rk_rga_debug_events_fops);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_u32("hw_count", 0444, rk_rga.debugfs_root, &rk_rga.hw_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	debugfs_create_u32("trace_mask", 0644, rk_rga.debugfs_root, &rk_rga.debug_trace_mask);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	rk_rga_debugfs_create_atomic64("hw_max_ns", &rk_rga.hw_max_ns);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	rk_rga_debugfs_create_atomic64("hw_total_ns", &rk_rga.hw_total_ns);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	rk_rga_debugfs_create_atomic64("shadow_copy_from_bytes", &rk_rga.shadow_copy_from_bytes);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	rk_rga_debugfs_create_atomic64("shadow_copy_to_bytes", &rk_rga.shadow_copy_to_bytes);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	rk_rga_debugfs_create_core_counts("dispatched", rk_rga.dispatched_core_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	rk_rga_debugfs_create_core_counts("scheduled", rk_rga.scheduled_core_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	rk_rga_debugfs_create_core_counts("started", rk_rga.started_core_count);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	rk_rga_debugfs_create_core_times("hw_max_ns", rk_rga.hw_max_core_ns);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	rk_rga_debugfs_create_core_times("hw_total_ns", rk_rga.hw_total_core_ns);
+debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	rk_rga_debugfs_create_route_b();
+mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	__rk_mpp_hw_restore_active_job	1	if (!hw->active_job) { hw->active_job = job;
+mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_begin_active_job	1	hw->active_generation++;
+mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_begin_active_job	1	hw->active_job = job;
+mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_begin_active_job	1	if (!hw->active_generation) hw->active_generation++;
+mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_clear_active_job	1	hw->active_job = NULL;
+mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_prepare_active_retry	1	if (!hw->active_generation) hw->active_generation++;
+mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_prepare_active_retry	1	if (hw->active_job == match) { hw->active_generation++;
+mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_active_if	1	hw->active_job = NULL;
+mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_active_if_generation	1	hw->active_job = NULL;
+mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_active_job	1	if (job) { hw->active_job = NULL;
+mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_iommu_fault_job	1	hw->active_job = NULL;
+mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_irq_job	1	if (job) hw->active_job = NULL;
+mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_scheduler_release_session	1	job->rkvdec_session_dispatch = false;
+mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_scheduler_release_session	1	session->rkvdec_dispatch_active = false;
+mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_scheduler_take_job	1	job->rkvdec_session_dispatch = true;
+mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_scheduler_take_job	1	session->rkvdec_dispatch_active = true;
+mpp-iommu-transition	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_recover_active	1	if (iommu_fault) { refresh_ret = rk_mpp_hw_refresh_iommu(hw, job);
+mpp-iommu-transition	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_recover_active	1	} if (iommu_fault) { refresh_ret = rk_mpp_hw_refresh_iommu(hw, NULL);
+mpp-iommu-transition	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_terminal_isolate	1	dma_ret = rk_mpp_dma_group_isolate(hw, -EIO);
+mpp-iommu-transition	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_prepare_ccu_retry_job	1	ret = rk_mpp_hw_refresh_iommu(hw, job);
+mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_collect_stop_cores	1	i++) complete &= rk_mpp_rkvdec2_add_stop_core( cores, count, job->rkvdec_ccu_powered_cores[i]);
+mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_move_powered_ccu_cores	1	from->rkvdec_ccu_powered_cores[i] = NULL;
+mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_move_powered_ccu_cores	1	i++) { to->rkvdec_ccu_powered_cores[i] = from->rkvdec_ccu_powered_cores[i];
+mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_power_off_ccu_cores	1	i++) { struct rk_mpp_hw *hw = job->rkvdec_ccu_powered_cores[i];
+mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_power_off_ccu_cores	1	job->rkvdec_ccu_powered_cores[i] = NULL;
+mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_power_on_ccu_cores	1	job->rkvdec_ccu_powered_cores[i] = cores[i];
+mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_start_ccu_job	1	i++) { struct rk_mpp_hw *core = job->rkvdec_ccu_powered_cores[i];
+mpp-reset-control	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_domain_assert	1	return reset_control_assert(hw->resets);
+mpp-reset-control	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_domain_deassert	1	return reset_control_deassert(hw->resets);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_submit	1	if (start_failed_untrusted && active_owned) { stop_ret = rk_mpp_hw_stop_active(hw);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_thread	1	if (irq_status & RK_MPP_AV1_ERR_MASK) { reset_ret = rk_mpp_hw_stop_active(hw);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_thread	1	rk_mpp_job_complete(job, ret);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_active	1	rk_mpp_job_complete(job, result);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_active	1	stop_ret = rk_mpp_hw_stop_active(hw);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_active_recovery_locked	1	rk_mpp_job_complete(job, result);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_active_recovery_locked	1	stop_ret = rk_mpp_hw_stop_active(hw);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_ccu_active_dependents	1	i++) { if (deps[i] != skip) rk_mpp_hw_abort_active_recovery_locked(deps[i], result);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_ccu_dependents	1	abort_ret = rk_mpp_hw_abort_active_recovery_locked(deps[i], -ENODEV);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_job	1	else reset_ret = rk_mpp_hw_stop_active(hw);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_queued_matching	1	rk_mpp_job_complete(job, result);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_iommu_fault_work	1	rk_mpp_hw_recover_active(hw, true, NULL, 0);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_recover_active	1	else reset_ret = rk_mpp_hw_stop_active(hw);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_recover_active	1	rk_mpp_job_complete(job, result);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_remove	1	if (!dma_unquiesced) { stop_ret = rk_mpp_hw_abort_active(hw, -ENODEV);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_shutdown	1	retry_stop: stop_ret = rk_mpp_hw_abort_active(hw, -ESHUTDOWN);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_timeout_work	1	rk_mpp_hw_recover_active(hw, false, job, generation);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_drain_ccu_done_jobs	1	rk_mpp_job_complete(job, ret);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_drain_ccu_done_jobs	1	} if (ccu_error) reset_ret = rk_mpp_hw_stop_active(hw);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_prepare_ccu_retry_job	1	ret = rk_mpp_hw_stop_active(hw);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_reset_soft_ccu_job	1	if (!ccu || !rk_mpp_hw_reg_range_valid(ccu, 0, RK_MPP_RKVDEC_CCU_CORE_IDLE_BASE, sizeof(u32)) || !rk_mpp_hw_reg_range_valid(ccu, 0, RK_MPP_RKVDEC_CCU_CORE_ERR_BASE, sizeof(u32))) { return rk_mpp_hw_stop_active(hw);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_reset_soft_ccu_job	1	ret = rk_mpp_hw_stop_active(hw);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_thread	1	rk_mpp_job_complete(job, ret);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvenc2_thread	1	if (rk_mpp_rkvenc2_irq_needs_reset(irq_status)) { reset_ret = rk_mpp_hw_stop_active(hw);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvenc2_thread	1	rk_mpp_job_complete(job, ret);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_scheduler_work	1	rk_mpp_job_complete(job, ret);
+rga-active-slot-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_abort_jobs	1	hw->active_job = NULL;
+rga-active-slot-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_abort_session_jobs	1	hw->active_job = NULL;
+rga-active-slot-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_dispatch	1	hw->active_generation++;
+rga-active-slot-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_dispatch	1	if (!hw->active_generation) hw->active_generation++;
+rga-active-slot-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_dispatch	1	if (!recovery_failed) { hw->active_job = job;
+rga-active-slot-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_dispatch	1	if (hw->active_job == job) hw->active_job = NULL;
+rga-active-slot-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_recover_active	1	hw->active_job = NULL;
+rga-active-slot-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_restore_active_after_reset_failure	1	if (!hw->active_job) { hw->active_job = job;
+rga-active-slot-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_take_active	1	hw->active_job = NULL;
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_alpha_bitmap	1	static int rk_rga2_emit_alpha_bitmap(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga2_format_info *pat_fmt) {
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_color_fill	1	static int rk_rga2_emit_color_fill(struct rk_rga_job *job) {
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_color_key	1	static void rk_rga2_emit_color_key(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga2_bitblt_profile *profile) {
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_color_palette	1	static int rk_rga2_emit_color_palette(struct rk_rga_job *job) {
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_dst	1	static int rk_rga2_emit_dst(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga2_format_info *dst_fmt, const struct rk_rga2_format_info *pat_fmt, bool src1_a1555_alpha, const struct rk_rga2_transform *transform) {
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_mmu	1	static void rk_rga2_emit_mmu(struct rk_rga_job *job) {
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_osd	1	static int rk_rga2_emit_osd(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga2_format_info *pat_fmt) {
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_simple_bitblt	1	static int rk_rga2_emit_simple_bitblt(struct rk_rga_job *job) {
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_src	1	static int rk_rga2_emit_src(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga2_format_info *src_fmt, const struct rk_rga2_transform *transform) {
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_src1_base	1	static int rk_rga2_emit_src1_base(struct rk_rga_job *job, const struct rga_img_info_t *img, const struct rk_rga2_format_info *fmt) {
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_update_palette	1	static int rk_rga2_emit_update_palette(struct rk_rga_job *job) {
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_emit_alpha_overlap	1	static int rk_rga3_emit_alpha_overlap(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga3_bitblt_profile *profile) {
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_emit_no_blend_overlap	1	static void rk_rga3_emit_no_blend_overlap(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga3_bitblt_profile *profile) {
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_emit_overlap	1	static void rk_rga3_emit_overlap(struct rk_rga_job *job, const struct rk_rga3_format_info *src_fmt, const struct rk_rga3_format_info *dst_fmt) {
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_emit_read_window	1	static int rk_rga3_emit_read_window(struct rk_rga_job *job, const struct rga_img_info_t *img, const struct rk_rga3_format_info *rd_fmt, const struct rk_rga3_format_info *dst_fmt, u32 rd_mode, u32 rotate_flags, u32 dst_w, u32 dst_h, u32 base, bool align_src_size, u8 yuv2rgb_mode, bool rotate_dst_size) {
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_emit_wr	1	static int rk_rga3_emit_wr(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga3_format_info *dst_fmt, u32 wr_mode, bool apply_dst_offset) {
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_alloc_cmd	1	static int rk_rga_job_alloc_cmd(struct rk_rga_job *job, struct rk_rga_hw *hw) {
+rga-command-writer	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_emit_cmd	1	static int rk_rga_job_emit_cmd(struct rk_rga_hw *hw, struct rk_rga_job *job) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_alpha_bitmap	1	static int rk_rga2_emit_alpha_bitmap(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga2_format_info *pat_fmt) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_color_fill	1	static int rk_rga2_emit_color_fill(struct rk_rga_job *job) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_color_key	1	static void rk_rga2_emit_color_key(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga2_bitblt_profile *profile) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_color_palette	1	static int rk_rga2_emit_color_palette(struct rk_rga_job *job) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_dst	1	static int rk_rga2_emit_dst(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga2_format_info *dst_fmt, const struct rk_rga2_format_info *pat_fmt, bool src1_a1555_alpha, const struct rk_rga2_transform *transform) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_mmu	1	static void rk_rga2_emit_mmu(struct rk_rga_job *job) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_osd	1	static int rk_rga2_emit_osd(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga2_format_info *pat_fmt) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_simple_bitblt	1	static int rk_rga2_emit_simple_bitblt(struct rk_rga_job *job) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_src	1	static int rk_rga2_emit_src(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga2_format_info *src_fmt, const struct rk_rga2_transform *transform) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_emit_update_palette	1	static int rk_rga2_emit_update_palette(struct rk_rga_job *job) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_emit_alpha_bitblt	1	static int rk_rga3_emit_alpha_bitblt(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga3_bitblt_profile *profile) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_emit_alpha_overlap	1	static int rk_rga3_emit_alpha_overlap(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga3_bitblt_profile *profile) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_emit_no_blend_overlap	1	static void rk_rga3_emit_no_blend_overlap(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga3_bitblt_profile *profile) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_emit_overlap_bitblt	1	static int rk_rga3_emit_overlap_bitblt(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga3_bitblt_profile *profile) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_emit_simple_bitblt	1	static int rk_rga3_emit_simple_bitblt(struct rk_rga_job *job) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_emit_win0	1	static int rk_rga3_emit_win0(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga3_format_info *src_fmt, const struct rk_rga3_format_info *dst_fmt, u32 rd_mode, u32 rotate_flags) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_emit_wr	1	static int rk_rga3_emit_wr(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga3_format_info *dst_fmt, u32 wr_mode, bool apply_dst_offset) {
+rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_emit_cmd	1	static int rk_rga_job_emit_cmd(struct rk_rga_hw *hw, struct rk_rga_job *job) {
+rga-task-advance	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_advance_task	1	job->current_task++;
+start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_irq	1	writel(0, hw->regs[0] + RK_MPP_AV1_IRQ_BASE);
+start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_start	1	writel(start_value, hw->regs[0] + RK_MPP_AV1_IRQ_BASE);
+start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_start	2	writel(start_value, hw->regs[0] + RK_MPP_AV1_IRQ_BASE);
+start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_start_soft_ccu_job	1	writel(start_value | RK_MPP_RKVDEC_START_EN, hw->regs[0] + RK_MPP_RKVDEC_START_BASE);
+start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_start_soft_ccu_job	2	writel(start_value | RK_MPP_RKVDEC_START_EN, hw->regs[0] + RK_MPP_RKVDEC_START_BASE);
+start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvenc2_submit	1	writel(start_value, hw->regs[0] + RK_MPP_RKVENC_START_BASE);
+start-doorbell-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_start_hw	1	rk_rga_write(hw, rk_rga_read(hw, RK_RGA2_CMD_CTRL) | RK_RGA2_CMD_CTRL_CMD_LINE_ST, RK_RGA2_CMD_CTRL);
+start-doorbell-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_start_hw	1	rk_rga_write(hw, RK_RGA3_CMD_CTRL_LINE_START, RK_RGA3_CMD_CTRL);

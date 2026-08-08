@@ -513,6 +513,11 @@ load_catalog()
 					"$argument" "$id" >&2
 				return 1
 				esac
+			if [ "$id" != "$argument" ]; then
+				printf 'builtin catalog id %s must match its argument %s\n' \
+					"$id" "$argument" >&2
+				return 1
+			fi
 			;;
 		suite)
 			case "$argument" in mpp|librga|gstreamer|ffmpeg|rkmppenc) ;; *)
@@ -1608,6 +1613,13 @@ printf 'Stage results: %s\n\n' "$RUN_RESULTS"
 
 if [ "$ACTION" = validate ]; then
 	run_validation
+	if [ "${#FAILED_STAGE_IDS[@]}" -ne 0 ]; then
+		printf 'Conformance harness validation failed stages: %s\n' \
+			"${FAILED_STAGE_IDS[*]}" >&2
+		finalize_run 1 \
+			"Device-free validation failed stages: ${FAILED_STAGE_IDS[*]}"
+		exit 1
+	fi
 	printf "\nConformance harness validation passed\n"
 	finalize_run 0 "All device-free validation stages passed"
 	exit 0

@@ -2294,6 +2294,64 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("expected 9 tab-separated fields, found 10", result.stderr)
 
+    def test_catalog_rejects_builtin_semantic_substitution(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            catalog = Path(temporary) / "TESTS.tsv"
+            rows = self.catalog.read_text(encoding="utf-8").splitlines()
+            rows = [
+                row.replace("kunit\tboot\trewrite\tall\tyes\tbuiltin\tkunit\t", "kunit\tboot\trewrite\tall\tyes\tbuiltin\tsystem-info\t")
+                for row in rows
+            ]
+            catalog.write_text("\n".join(rows) + "\n", encoding="utf-8")
+            result = self.run_plan(
+                "--target",
+                "rewrite",
+                "--configuration",
+                "production",
+                env={"CONFORMANCE_CATALOG": str(catalog)},
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "builtin catalog id kunit must match its argument system-info",
+            result.stderr,
+        )
+
+    def test_validate_continue_cannot_finalize_failed_stage_as_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            command_env = os.environ.copy()
+            command_env.update(
+                {
+                    "CONFORMANCE_ROOT": temporary,
+                    "REQUIRE_FORBIDDEN_COUNTERS": "0",
+                }
+            )
+            result = subprocess.run(
+                [
+                    "bash",
+                    str(self.runner),
+                    "--target",
+                    "rewrite",
+                    "--configuration",
+                    "production",
+                    "--validate",
+                    "--continue",
+                ],
+                cwd=REPO_ROOT,
+                env=command_env,
+                capture_output=True,
+                text=True,
+            )
+            ledgers = list(Path(temporary).glob("logs/**/*.tsv"))
+            result_ledgers = [
+                path for path in ledgers if path.name.endswith("-results.tsv")
+            ]
+            self.assertEqual(len(result_ledgers), 1, ledgers)
+            ledger = result_ledgers[0].read_text(encoding="utf-8")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("validate.counter-defaults\trequired\tfail", ledger)
+        self.assertIn("overall\trun\tfail\t1", ledger)
+        self.assertNotIn("overall\trun\tpass", ledger)
+
     def test_vendor_bsp_series_are_autodetected(self) -> None:
         for release in ("5.10.221-vendor", "6.1.99-vendor", "6.6.80-vendor"):
             with self.subTest(release=release):
@@ -2510,6 +2568,133 @@ class RewriteKunitSourceAuditTests(unittest.TestCase):
             self.assertIn("NEW\tfd-acquisition", audited.stderr)
             self.assertIn("NEW\tfatal-before-cleanup-action", audited.stderr)
             self.assertIn("NEW\tproduction-singleton-access", audited.stderr)
+
+
+class RewriteOwnershipSourceAuditTests(unittest.TestCase):
+    audit = (
+        REPO_ROOT
+        / "kernel-drivers"
+        / "tests"
+        / "rewrite-ownership-source-audit.py"
+    )
+
+    def make_tree(self, root: Path, extra_mpp: str = "", extra_kunit: str = "") -> None:
+        mpp = root / "drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c"
+        rga = root / "drivers/video/rockchip/rga-rewrite/rga_rewrite.c"
+        mpp.parent.mkdir(parents=True, exist_ok=True)
+        rga.parent.mkdir(parents=True, exist_ok=True)
+        mpp.write_text(
+            "enum rk_mpp_debug_event_type { RK_MPP_DEBUG_DONE };\n"
+            "struct rk_mpp_debug_event { u8 type; };\n"
+            "static void mpp_paths(struct rk_mpp_hw *hw, struct rk_mpp_job *job)\n"
+            "{\n"
+            "\treset_control_assert(hw->resets);\n"
+            "\thw->active_job = job;\n"
+            "\tjob->rkvdec_session_dispatch = true;\n"
+            "\tjob->rkvdec_ccu_powered_cores[0] = hw;\n"
+            "\trk_mpp_hw_refresh_iommu(hw, job);\n"
+            "\trk_mpp_job_complete(job, 0);\n"
+            "\twritel(1, hw->regs[0] + RK_MPP_RKVENC_START_BASE);\n"
+            f"{extra_mpp}"
+            "}\n"
+            "#if IS_ENABLED(CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST)\n"
+            "static void mpp_fixture(struct kunit *test)\n"
+            "{\n"
+            f"{extra_kunit}"
+            "}\n"
+            "#endif\n",
+            encoding="utf-8",
+        )
+        rga.write_text(
+            "enum rk_rga_debug_event_type { RK_RGA_DEBUG_JOB_FAIL };\n"
+            "struct rk_rga_debug_event { u8 type; };\n"
+            "static void rk_rga2_emit_src(struct rk_rga_job *job,\n"
+            "\t\t\t     const struct rga_req *task)\n"
+            "{\n"
+            "\trk_rga_cmd_write(job, RK_RGA2_SRC_INFO_OFFSET, task->render_mode);\n"
+            "}\n"
+            "static void rga_paths(struct rk_rga_hw *hw, struct rk_rga_job *job)\n"
+            "{\n"
+            "\thw->active_job = job;\n"
+            "\tjob->current_task++;\n"
+            "\trk_rga_write(hw, 1, RK_RGA3_CMD_CTRL);\n"
+            "}\n"
+            "#if IS_ENABLED(CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST)\n"
+            "static void rga_fixture(struct kunit *test) { }\n"
+            "#endif\n",
+            encoding="utf-8",
+        )
+
+    def run_audit(
+        self, tree: Path, baseline: Path, *options: str
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                sys.executable,
+                str(self.audit),
+                "--baseline",
+                str(baseline),
+                *options,
+                str(tree),
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+    def test_inventory_is_source_bound_and_catches_new_reset_writer(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tree = root / "linux"
+            baseline = root / "baseline.tsv"
+            self.make_tree(tree)
+            updated = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(updated.returncode, 0, updated.stderr)
+            baseline_text = baseline.read_text(encoding="utf-8")
+            self.assertIn("rga-raw-task-emitter", baseline_text)
+
+            known = self.run_audit(tree, baseline)
+            self.assertEqual(known.returncode, 0, known.stderr)
+
+            self.make_tree(
+                tree,
+                extra_mpp="\treset_control_reset(hw->resets);\n",
+                extra_kunit="\treset_control_deassert(NULL);\n",
+            )
+            changed = self.run_audit(tree, baseline)
+            self.assertEqual(changed.returncode, 1)
+            self.assertIn("NEW\tmpp-reset-control", changed.stderr)
+            self.assertNotIn("reset_control_deassert", changed.stderr)
+
+            baseline.write_text(
+                baseline_text.replace("# source-head\tunknown", "# source-head\tdeadbeef"),
+                encoding="utf-8",
+            )
+            wrong_head = self.run_audit(tree, baseline)
+            self.assertEqual(wrong_head.returncode, 1)
+            self.assertIn("source HEAD unknown is not pinned", wrong_head.stderr)
+
+    def test_whole_category_disappearance_fails_until_rebaselined(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tree = root / "linux"
+            baseline = root / "baseline.tsv"
+            self.make_tree(tree)
+            updated = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(updated.returncode, 0, updated.stderr)
+
+            source = tree / "drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c"
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "\treset_control_assert(hw->resets);\n", ""
+                ),
+                encoding="utf-8",
+            )
+            missing = self.run_audit(tree, baseline)
+            self.assertEqual(missing.returncode, 1)
+            self.assertIn(
+                "baseline categories disappeared: mpp-reset-control",
+                missing.stderr,
+            )
 
 
 if __name__ == "__main__":
