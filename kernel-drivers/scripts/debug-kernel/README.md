@@ -36,9 +36,11 @@ The two debug configs additionally source the shared
 [`ysp-debug-instrumentation.conf.sh`](ysp-debug-instrumentation.conf.sh)
 fragment, so both carry byte-identical KASAN/lockdep/DMA-debug instrumentation.
 The Armbian extension [`ysp-build-stamp.sh`](ysp-build-stamp.sh) is installed
-for every flavor; it puts the real wall-clock build time into `uname -v`, which
-Armbian otherwise pins to the kernel revision date — leaving every rebuild of
-one base indistinguishable from the last.
+for every flavor; it puts the real wall-clock build time and parenthesized
+source identity into `uname -v`, which Armbian otherwise pins to the kernel
+revision date — leaving every rebuild of one base indistinguishable from the
+last. The parentheses keep `KBUILD_BUILD_TIMESTAMP` parseable by the kernel's
+initramfs and tar helpers while preserving the identity in the compiled string.
 For either flavor, `build-kernel.sh` regenerates and stages the flavor's
 complete patch series from its automatically selected newest reachable
 `v6.18.x` stable tag (or `v6.18` fallback), then installs the config, the

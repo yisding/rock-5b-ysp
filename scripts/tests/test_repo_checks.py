@@ -822,6 +822,32 @@ class WorkspaceDefaultTests(unittest.TestCase):
         self.assertIn("make --no-print-directory -s -C", exporter)
         self.assertIn("kernel source/version mismatch", exporter)
 
+    def test_rewrite_debug_build_verifies_its_test_instrumentation(self) -> None:
+        wrapper = self.shell_text("kernel-drivers/scripts/build-kernel.sh")
+        rewrite_debug = wrapper.split("\trewrite-debug)", 1)[1].split(
+            "\t\t;;", 1
+        )[0]
+        for symbol in (
+            "CONFIG_KUNIT",
+            "CONFIG_KUNIT_DEBUGFS",
+            "CONFIG_KUNIT_DEFAULT_ENABLED",
+            "CONFIG_KUNIT_AUTORUN_ENABLED",
+            "CONFIG_KASAN",
+            "CONFIG_PROVE_LOCKING",
+            "CONFIG_DEBUG_LOCK_ALLOC",
+            "CONFIG_ROCKCHIP_MPP_REWRITE",
+            "CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST",
+            "CONFIG_ROCKCHIP_RGA_REWRITE",
+            "CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST",
+        ):
+            with self.subTest(symbol=symbol):
+                self.assertIn(symbol, rewrite_debug)
+
+        stamp = self.shell_text(
+            "kernel-drivers/scripts/debug-kernel/ysp-build-stamp.sh"
+        )
+        self.assertIn('stamp="${stamp} (g${YSP_SOURCE_GSHA})"', stamp)
+
     def test_conformance_defaults_use_installed_mpp_and_librga(self) -> None:
         expected_defaults = {
             "kernel-drivers/tests/mpp-suite.sh": (

@@ -10,7 +10,7 @@
 # on and the conflicting vendor forward-port drivers are forced off, mirroring
 # the validated rewrite package config
 # (packaging/ppa/kernel-rewrite-alpha-6.18/debian/config). KUNIT is promoted to
-# =y so the 232 built-in rewrite KUnit cases run at boot under KASAN and can be
+# =y so the 246 built-in rewrite KUnit cases run at boot under KASAN and can be
 # persisted via rewrite-kunit-log-check.sh.
 #
 # This config intentionally starts from userpatches/linux-rockchip64-current.config,

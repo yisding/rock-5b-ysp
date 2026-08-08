@@ -31,19 +31,26 @@
 
 # The timestamp also carries the source identity when build-kernel.sh passes
 # YSP_SOURCE_GSHA=<sha12> (the KERNEL_TREE HEAD its patch series was generated
-# from): " g<sha>" is appended so `uname -v` ends with the commit, and the
-# rewrite-kunit-log-check.sh identity gate parses it from there. The release
+# from): " (g<sha>)" is appended so `uname -v` ends with the commit, and the
+# rewrite-kunit-log-check.sh identity gate parses it from there. Parentheses
+# make the suffix a valid RFC-style date comment too; kernel initramfs and tar
+# helpers parse KBUILD_BUILD_TIMESTAMP as a date even though mkcompile_h also
+# embeds the original string. The release
 # string (`uname -r`) deliberately stays untouched: Armbian's deb packaging
 # derives ${kernel_version_family} independently as
 # ${version}-${BRANCH}-${LINUXFAMILY} (kernel-debs.sh:52) and hard-fails on
 # any LOCALVERSION divergence — measured, not theorized, 2026-07-30. UTS
-# version is capped at 64 bytes; date -R (~31) + " g" + 12 hex fits.
+# version is capped at 64 bytes; date -R (~31) + " (g" + 12 hex + ")" fits.
 function custom_kernel_make_params__ysp_real_build_stamp() {
 	declare stamp
 	stamp="$(LC_ALL=C date -R)"
 	if [[ -n "${YSP_SOURCE_GSHA:-}" ]]; then
-		stamp="${stamp} g${YSP_SOURCE_GSHA}"
-		display_alert "ysp-build-stamp" "source identity in uname -v: g${YSP_SOURCE_GSHA}" "info"
+		stamp="${stamp} (g${YSP_SOURCE_GSHA})"
+		display_alert "ysp-build-stamp" "source identity in uname -v: (g${YSP_SOURCE_GSHA})" "info"
+	fi
+	if ! LC_ALL=C date -d "$stamp" >/dev/null 2>&1; then
+		display_alert "ysp-build-stamp" "invalid KBUILD_BUILD_TIMESTAMP: ${stamp}" "err"
+		return 1
 	fi
 	display_alert "ysp-build-stamp" "real build timestamp: ${stamp}" "info"
 	common_make_params_quoted+=("KBUILD_BUILD_TIMESTAMP=${stamp}")

@@ -498,7 +498,13 @@ case "$FLAVOR" in
 		FLAVOR_IS_DEBUG=1
 		FLAVOR_BRANCH="video-rewrite-kasan"
 		FLAVOR_BRANCH_GUARD="rk3588-rewrite-6.18"
-		FLAVOR_VERIFY_CONFIGS="${FLAVOR_VERIFY_CONFIGS:-CONFIG_ROCKCHIP_MPP_REWRITE CONFIG_ROCKCHIP_RGA_REWRITE}"
+		FLAVOR_VERIFY_CONFIGS="${FLAVOR_VERIFY_CONFIGS:-CONFIG_KUNIT \
+			CONFIG_KUNIT_DEBUGFS CONFIG_KUNIT_DEFAULT_ENABLED \
+			CONFIG_KUNIT_AUTORUN_ENABLED CONFIG_KASAN CONFIG_PROVE_LOCKING \
+			CONFIG_DEBUG_LOCK_ALLOC CONFIG_ROCKCHIP_MPP_REWRITE \
+			CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST \
+			CONFIG_ROCKCHIP_RGA_REWRITE \
+			CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST}"
 		;;
 	"")
 		[ "$MODE" = "restore" ] || { usage >&2; exit 2; }
@@ -716,10 +722,11 @@ fi
 
 resolve_base_tag
 
-# Bind the built release string to the source the series is generated from:
-# the ysp-build-stamp extension appends -g<sha> to LOCALVERSION, so `uname -r`
-# self-identifies the commit and rewrite-kunit-log-check.sh's identity gate
-# can verify a booted kernel against its tree without md5-vs-deb archaeology.
+# Bind the built version string to the source the series is generated from:
+# the ysp-build-stamp extension appends (g<sha>) to KBUILD_BUILD_TIMESTAMP, so
+# `uname -v` self-identifies the commit and rewrite-kunit-log-check.sh's
+# identity gate can verify a booted kernel against its tree without
+# md5-vs-deb archaeology. The release/package slot remains unchanged.
 YSP_SOURCE_GSHA="$(git -C "$KERNEL_TREE" rev-parse --short=12 HEAD)"
 
 # =============================================================================

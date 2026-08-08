@@ -52,9 +52,13 @@ The priority is **ownership before convention**:
 > object through snapshot closure. Reason arbitration therefore remains
 > deferred until the activation/task-execution migration can provide that
 > owner.
-> The current tips remain unpackaged and unbooted; a full kernel-package build,
-> install, reboot, and hardware qualification remain deferred. No Phase 2
-> migration may start until that qualification passes.
+> The exact 6.18 tip is now compiled and packaged as the inspected
+> `6.18.43-S7b92-D6d03-P910c-Cad24-H1c44-HK01ba-Vc222-B3ab8-R448a`
+> `rewrite-debug` artifact set. The full build has no error or failed target;
+> its 35 rewrite warnings are confined to oversized embedded KUnit fixture
+> frames under generic KASAN, with no production rewrite warning. The package
+> remains uninstalled and unbooted; reboot and hardware qualification are
+> deferred. No Phase 2 migration may start until that qualification passes.
 
 The plan was derived from `linux-6.18-rkvenc` branch
 `rk3588-rewrite-6.18@8042f13c54591` on 2026-08-01 and was rechecked for
@@ -637,14 +641,16 @@ Acceptance: the same immutable source archive reproduces both builds and every
 known baseline result has an evidence path. Ordinarily, an exact source tip
 must boot before Phase 1 and pass the red/green same-session H.26x loop plus the
 solo RGA3 vpp and overlay-chain replays. On 2026-08-08 the operator explicitly
-deferred full package, install, and reboot qualification, so Phase 1 source-only
-write funnels and assertion-only contract checks may land provisionally after
+deferred install and reboot qualification, so Phase 1 source-only write funnels
+and assertion-only contract checks could land provisionally after
 mirrored-source identity, strict checkpatch, and the device-free gates. The
-exact current tips now pass the focused warning-fatal `normal` and
-`test-disabled` provider/rewrite-object/DTB builds, but remain unqualified, and
-Phase 2 must not start, until the deferred package, boot, KUnit-runtime, and
-hardware gates pass. If either corruption persists, land and qualify its narrow
-fix before advancing beyond provisional funnels.
+exact current tips pass the focused warning-fatal `normal` and `test-disabled`
+provider/rewrite-object/DTB builds; the 6.18 tip also produced a full inspected
+`rewrite-debug` package set. The package's only rewrite warnings are 35
+oversized KUnit fixture frames under KASAN, not production functions. Phase 2
+must not start until the deferred boot, KUnit-runtime, and hardware gates pass.
+If either corruption persists, land and qualify its narrow fix before advancing
+beyond provisional funnels.
 
 ### Phase 1 — create write funnels without changing behavior
 
@@ -671,8 +677,8 @@ fix before advancing beyond provisional funnels.
 Acceptance: source-audit allowlists show no unreviewed direct writer outside
 the current owning module/section. Qualification must then prove compiled
 behavior and hardware counters unchanged. The source-only Phase 1 boundary is
-provisional until the deferred exact-tip build, boot, and hardware gates pass;
-no Phase 2 migration may begin before then.
+provisional until the deferred exact-tip boot and hardware gates pass; no
+Phase 2 migration may begin before then.
 
 ### Phase 2 — make MPP reset and cluster ownership real
 

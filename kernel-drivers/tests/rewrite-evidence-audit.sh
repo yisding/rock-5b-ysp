@@ -931,7 +931,7 @@ EOF
 		printf "selftest expected unbound kernel identity to fail\n" >&2
 		return 1
 	fi
-	sed -i 's/kernel_version\t#1 SMP selftest/kernel_version\t#1 SMP selftest g0123456789ab/' \
+	sed -i 's/kernel_version\t#1 SMP selftest/kernel_version\t#1 SMP selftest (g0123456789ab)/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit-dmesg-scan.tsv"
 	if ! CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
 		REQUIRE_KUNIT_EVIDENCE=1 REQUIRE_ARTIFACTS=1 \
@@ -940,7 +940,7 @@ EOF
 		printf "selftest expected uname -v gsha binding to pass\n" >&2
 		return 1
 	fi
-	sed -i 's/kernel_version\t#1 SMP selftest g0123456789ab/kernel_version\t#1 SMP selftest/' \
+	sed -i 's/kernel_version\t#1 SMP selftest (g0123456789ab)/kernel_version\t#1 SMP selftest/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit-dmesg-scan.tsv"
 	sed -i 's/6\.18\.0-rewrite\t/6.18.0-rewrite-g0123456789ab\t/g' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv"

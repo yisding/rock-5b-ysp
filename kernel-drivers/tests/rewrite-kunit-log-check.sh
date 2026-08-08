@@ -171,12 +171,15 @@ check_identity()
 		release_commit=$(printf "%s\n" "$KUNIT_KERNEL_RELEASE" |
 			sed -n 's/.*-g\([0-9a-fA-F]\{12,40\}\)\([.-].*\)\?$/\1/p')
 		if [ -z "$release_commit" ]; then
-			# The ysp-build-stamp extension appends " g<sha>" to the
+			# The ysp-build-stamp extension appends " (g<sha>)" to the
 			# build timestamp (`uname -v`) instead of the release
 			# string, which Armbian's deb packaging derives
-			# independently and rejects when diverged.
+			# independently and rejects when diverged. Accept the old
+			# unparenthesized form so already-built evidence remains valid.
 			release_commit=$(printf "%s\n" "$KUNIT_KERNEL_VERSION" |
-				sed -n 's/.* g\([0-9a-fA-F]\{12,40\}\)$/\1/p')
+				sed -n \
+					-e 's/.* g\([0-9a-fA-F]\{12,40\}\)$/\1/p' \
+					-e 's/.* (g\([0-9a-fA-F]\{12,40\}\))$/\1/p')
 		fi
 		KUNIT_SOURCE_COMMIT=$(printf "%s" "$release_commit" |
 			tr 'A-F' 'a-f')
@@ -410,6 +413,20 @@ selftest()
 	sed -i '/WARNING: suite init poisoned the boot/d' "$KUNIT_DMESG_SOURCE"
 	KUNIT_DEBUGFS_ROOT="$tmp_root" KUNIT_REPORT="$tmp_root/result.tsv" \
 		"$0" >/dev/null
+	if ! KUNIT_SOURCE_COMMIT= \
+		KUNIT_KERNEL_RELEASE=6.18.0-rewrite \
+		KUNIT_KERNEL_VERSION='#1 SMP selftest (g0123456789ab)' \
+		KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
+		echo "parenthesized uname -v source identity unexpectedly failed" >&2
+		return 1
+	fi
+	if ! KUNIT_SOURCE_COMMIT= \
+		KUNIT_KERNEL_RELEASE=6.18.0-rewrite \
+		KUNIT_KERNEL_VERSION='#1 SMP selftest g0123456789ab' \
+		KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
+		echo "legacy uname -v source identity unexpectedly failed" >&2
+		return 1
+	fi
 	for artifact in result.tsv result-journal.txt result-fatal.txt \
 		result-dmesg-scan.tsv; do
 		if [ ! -e "$tmp_root/$artifact" ]; then
