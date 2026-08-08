@@ -305,10 +305,11 @@ The userspace codec libraries and the media applications that consume them.
 - [`2026-08-06`](2026-08-06-rewrite-kasan-media-suite-userspace-fixes-and-intermittent-h264.md) — Rewrite KASAN media rerun fixes two GStreamer userspace gaps but exposes intermittent H.26x decode output
 - [`2026-07-30`](2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md) — FFmpeg RKMPP async-frame lifetime fix clears reset/close double release
 
-### Build, packaging, and provenance (8)
+### Build, packaging, and provenance (9)
 
 How an artifact was actually built — and the times that turned out to be the bug.
 
+- [`2026-08-08`](2026-08-08-forward-port-boot-dtb-symlink-mismatch.md) — Forward-port kernel booted the mainline DTB: `/boot/dtb` and `/boot/Image` split across co-installed branches
 - [`2026-08-04`](2026-08-04-forward-port-sd-rescue-rollback-used.md) — Forward-port kernel rollback has been performed through an SD rescue boot
 - [`2026-08-01`](2026-08-01-stock-ubuntu-rock5b-successor-architecture.md) — A ROCK 5B-only Ubuntu successor should keep Resolute userspace stock and own the board kernel and firmware
 - [`2026-07-29`](2026-07-29-production-6-18-40-orig-is-rewrite-composite-snapshot.md) — The production 6.18.40 `20260725` orig is a rewrite-composite worktree snapshot, not the validated forward-port series
@@ -338,6 +339,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 
 <!-- findings-index:start -->
 - [`2026-08-08-rga3-cross-process-contention-harness-plan.md`](2026-08-08-rga3-cross-process-contention-harness-plan.md) — Plan: a dedicated RGA3 cross-process contention harness that provokes and honestly detects the silent vpp corruption
+- [`2026-08-08-forward-port-boot-dtb-symlink-mismatch.md`](2026-08-08-forward-port-boot-dtb-symlink-mismatch.md) — Forward-port kernel booted the mainline DTB: `/boot/dtb` and `/boot/Image` split across co-installed branches
 - [`2026-08-07-rga3-cross-process-vpp-corruption-lead.md`](2026-08-07-rga3-cross-process-vpp-corruption-lead.md) — RGA3 vpp_rkrga output corruption — first seen cross-process, now reproduced solo; not root-caused
 - [`2026-08-07-rewrite-rkvdec-drm-prime-duplicate-frame-regression.md`](2026-08-07-rewrite-rkvdec-drm-prime-duplicate-frame-regression.md) — Rewrite rkvdec zero-copy decode duplicates frames after the #8 scheduler/completion fixes
 - [`2026-08-07-rewrite-rga-blend-chain-swiotlb-and-rga3-iommu-fault.md`](2026-08-07-rewrite-rga-blend-chain-swiotlb-and-rga3-iommu-fault.md) — Rewrite RGA cannot run a valid overlay blend chain: RGA2 SWIOTLB segment limit and a deterministic RGA3 IOMMU fault

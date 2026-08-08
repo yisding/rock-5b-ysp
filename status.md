@@ -99,7 +99,8 @@ state observed on its last-checked date.
 | W06 | [Mesa MR stack](#watch-w06) | 2026-08-04 | Four MRs still open; the rebase need moved from !42679 to !42614. |
 | W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-08-04 | `main` unchanged, but `ffmpeg-80` and `ffmpeg-81` both moved; their replay evidence is stale. |
 | W10 | [GRD release and recovery branches](#watch-w10) | 2026-08-04 | Release remains `c4ef3c9`; the unshipped forced-IDR recovery branch remains `100da72`. Package/board state routes to W05 and track 7. |
-| W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-08-04 | The board boots `6.18.42-ysp-rockchip64`, with exact matching image/DTB/headers installed. W05 owns moving publication state; track 1 and the linked findings own validation. |
+| W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-08-08 | `6.18.43-ysp-rockchip64` is now installed and booted, but on 2026-08-08 it booted the wrong (mainline `current`) DTB — see [W25](#watch-w25). W05 owns moving publication state; track 1 and the linked findings own validation. |
+| W26 | [Co-installed kernel branches split `/boot/dtb` vs `/boot/Image`](#watch-w26) | 2026-08-08 | The `ysp` kernel booted the `current` branch's mainline DTB, so the vendor MPP/RGA drivers created no devices; `/boot/dtb` and `/boot/Image` resolved to different branches by last-writer-wins during a two-branch dpkg upgrade. Fix (repoint symlink + reboot) pending hardware confirmation. |
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-08-02 | Refreshed against current proposal mail, Torvalds master, linux-next, and subsystem-next refs; future “maximum current” claims still require another deliberate audit. |
 | W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-08-05 | Public fork `main` is `70f26d9`; recorded upstream is `e8c64dd`. W05 and track 14 own publication, installed-package, and browser state. |
 | W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-23 | The stall recurred with the parser fix installed, falsifying that loop as the sole cause. Disable Plymouth for mitigation; capture the next wedged daemon live. |
@@ -381,9 +382,16 @@ state observed on its last-checked date.
   and booted debug build can silently carry different kernel-fix tails. Keep the
   exported patch tail and the claimed production gate aligned with the exact
   KASAN evidence.
-- **Last checked:** 2026-08-04
-- **State 2026-08-04:** The board boots `6.18.42-ysp-rockchip64`; installed
-  image, DTB, and headers match source package
+- **Last checked:** 2026-08-08
+- **State 2026-08-08:** `6.18.43-ysp-rockchip64` (source
+  `6.18.43+rk3588av1fwport20260807-0ubuntu1~rk1`) is now installed and booted,
+  but on first bring-up it loaded the wrong (mainline `current`) DTB, so the
+  vendor MPP/RGA drivers created no devices and conformance could not run — see
+  [W26](#watch-w26) and
+  [`findings/2026-08-08-forward-port-boot-dtb-symlink-mismatch.md`](./findings/2026-08-08-forward-port-boot-dtb-symlink-mismatch.md).
+  A clean forward-port conformance run on 6.18.43 is therefore still pending.
+- **State 2026-08-04:** The board booted `6.18.42-ysp-rockchip64`; installed
+  image, DTB, and headers matched source package
   `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1`, whose maintained/exported
   source identity is `7d53bc7a3adc` / `0001`–`0092`. W05 owns current
   Launchpad publication. The
@@ -588,3 +596,30 @@ state observed on its last-checked date.
   owns the mechanism, repair, validation result, trust, and boundary. [W05](#watch-w05)
   remains the dated cache for Launchpad publication state, and dashboard track
   9 remains the public package/runtime rollup.
+
+<a id="watch-w26"></a>
+### W26 — Co-installed kernel branches split `/boot/dtb` vs `/boot/Image`
+
+- **Authority:** board — the ROCK 5B's `/boot` symlinks and installed kernel
+  package set.
+- **Recheck:** After any kernel package operation on a board with more than one
+  `linux-image`/`linux-dtb` branch installed, confirm `/boot/dtb` and
+  `/boot/Image` resolve to the **same** branch as `uname -r`, and that
+  `/dev/mpp_service` and `/dev/rga` exist before trusting a conformance run.
+- **Freshness:** Unknown after any `apt upgrade`/`dpkg` run that reconfigures a
+  `linux-dtb-*` or `linux-image-*` package.
+- **Why recheck:** Each branch's postinst unconditionally repoints its shared
+  global symlink (`/boot/dtb` from the dtb package, `/boot/Image` from the image
+  package) to its own version — last-writer-wins, with no default-kernel concept.
+  When two branches are configured in one transaction, dpkg can order the dtb and
+  image packages oppositely, leaving the two symlinks on different branches. A
+  mismatched DTB presents as "the vendor drivers created no devices," not as a
+  boot error.
+- **Last checked:** 2026-08-08
+- **State 2026-08-08:** On 2026-08-08 the booted `6.18.43-ysp-rockchip64` kernel
+  had `/boot/dtb -> dtb-6.18.43-current-rockchip64` (mainline), so MPP/RGA created
+  no devices and conformance failed at the ABI stage. Proposed fix is to repoint
+  the symlink and reboot; it is fragile against the next multi-branch upgrade
+  (prefer purging or holding the unused `current` branch). Mechanism, evidence,
+  and fix in
+  [`findings/2026-08-08-forward-port-boot-dtb-symlink-mismatch.md`](./findings/2026-08-08-forward-port-boot-dtb-symlink-mismatch.md).
