@@ -76,8 +76,8 @@ The runner reads `/boot/config-$(uname -r)` before it creates the profile:
 | Observed identity | Selection |
 |-------------------|-----------|
 | Rewrite MPP and RGA Kconfig | `rewrite` |
-| Vendor MPP and RGA Kconfig on 5.10, 6.1, or 6.6 | `bsp` |
-| Vendor MPP and RGA Kconfig on any other kernel series | `forward-port` |
+| Vendor `ROCKCHIP_MPP_SERVICE` and `ROCKCHIP_MULTI_RGA` on 5.10, 6.1, or 6.6 | `bsp` |
+| Vendor `ROCKCHIP_MPP_SERVICE` and `ROCKCHIP_MULTI_RGA` on any other kernel series | `forward-port` |
 | `CONFIG_KASAN=y` | `kasan` |
 | `CONFIG_KCSAN=y` | `kcsan` |
 | Neither sanitizer | `production` |
@@ -87,6 +87,10 @@ Detection and runtime verification use the same predicates from
 contradictory, or multiply matching identities fail instead of being guessed.
 Explicit selectors do not bypass `matrix-identity`; a mislabeled run fails
 before the consumer suites.
+
+`CONFIG_VIDEO_ROCKCHIP_RGA=m` is the separate mainline V4L2 driver and may
+coexist with the vendor target. It is not the vendor multi-RGA identity used by
+the `/dev/rga` suites.
 
 For fixture or off-board plans, point detection at another artifact:
 

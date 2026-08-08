@@ -2220,7 +2220,8 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
                 result = self.run_auto_plan(
                     release,
                     "CONFIG_ROCKCHIP_MPP_SERVICE=y",
-                    "CONFIG_VIDEO_ROCKCHIP_RGA=y",
+                    "CONFIG_ROCKCHIP_MULTI_RGA=y",
+                    "CONFIG_VIDEO_ROCKCHIP_RGA=m",
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn("target\tbsp\t", result.stdout)
@@ -2233,7 +2234,8 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
                 result = self.run_auto_plan(
                     release,
                     "CONFIG_ROCKCHIP_MPP_SERVICE=y",
-                    "CONFIG_VIDEO_ROCKCHIP_RGA=y",
+                    "CONFIG_ROCKCHIP_MULTI_RGA=y",
+                    "CONFIG_VIDEO_ROCKCHIP_RGA=m",
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn("target\tforward-port\t", result.stdout)
@@ -2253,7 +2255,8 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
         kcsan = self.run_auto_plan(
             "6.18.38-ysp",
             "CONFIG_ROCKCHIP_MPP_SERVICE=y",
-            "CONFIG_VIDEO_ROCKCHIP_RGA=y",
+            "CONFIG_ROCKCHIP_MULTI_RGA=y",
+            "CONFIG_VIDEO_ROCKCHIP_RGA=m",
             "CONFIG_KCSAN=y",
         )
         self.assertEqual(kcsan.returncode, 0, kcsan.stderr)
@@ -2264,7 +2267,8 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
         result = self.run_auto_plan(
             "6.18.38-ysp",
             "CONFIG_ROCKCHIP_MPP_SERVICE=y",
-            "CONFIG_VIDEO_ROCKCHIP_RGA=y",
+            "CONFIG_ROCKCHIP_MULTI_RGA=y",
+            "CONFIG_VIDEO_ROCKCHIP_RGA=m",
             "CONFIG_KASAN=y",
             "CONFIG_KCSAN=y",
         )
