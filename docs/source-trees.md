@@ -103,7 +103,7 @@ and interpretation.
 | libmpp KMPP study | `mpp-rockchip` | `1375813cbbae5ad6861b166475dd8fb672183220` | [MPP architecture](../vendor-libraries/mpp/docs/mpp-library-architecture.md) and KMPP/Rust notes |
 | libmpp AV1 design | `github.com/yisding/mpp` `ysp/main` | `3381fd2c9a0099135a94852c9434b47075458de1` | [direct AV1 design](../video-libraries/vaapi/docs/av1-direct-mpp-service-backend.md) |
 | libmpp IEP2/VDPP audit | same | `ad325345` | [IEP2 audit](../kernel-drivers/iep2/docs/rk3588-iep2-vdpp.md) |
-| libmpp VP9 repair / package snapshot | same | `a8b19653af1a0b23754afafd7de72919fa8d0c0c` | [VP9 ownership](../vendor-libraries/mpp/docs/mpp-library-architecture.md#vp9-presentation-event-ownership) and [artifact record](../packaging/ppa/README.md#mpp-source-artifact-reconstruction) |
+| libmpp VP9 repair / package snapshot | same | `a8b19653af1a0b23754afafd7de72919fa8d0c0c` | [VP9 ownership](../vendor-libraries/mpp/docs/mpp-library-architecture.md#vp9-presentation-event-ownership) and [artifact record](../packaging/ppa/docs/publishing.md#mpp-source-artifact-reconstruction) |
 | librga 10-bit evidence | `github.com/yisding/librga` | `26a50ef`; lineage `2cffdf6f332c` → `cc39281`/mirror `32c3bf1` → `c80eea7`, `b8def3e`, `4c26ddf` | [P010/P210 note](../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md) |
 | librga historical study | `tsukumijima/librga-rockchip` | `2cffdf6f332c` (`v2.2.0`) | userspace library guide Part B |
 | librga prebuilt study | `airockchip/librga` | `2b32edc` | [FFmpeg guide](../video-libraries/ffmpeg/README.md) |
@@ -132,7 +132,7 @@ The historical reconnect base is
 `rdp-handover-reconnect-v2@eb91daf476dc1c4ba23ccfdd8c077b8b83e84773`.
 The moving release/recovery heads belong to [W10](../status.md#watch-w10);
 [`build-source-packages.sh`](../packaging/ppa/build-source-packages.sh) owns
-package intent; the [artifact record](../packaging/ppa/README.md#grd-source-artifact-reconstruction)
+package intent; the [artifact record](../packaging/ppa/docs/publishing.md#grd-source-artifact-reconstruction)
 owns exact Published-source reconstruction.
 
 | Historical experiment | Pin | Reconstruction |

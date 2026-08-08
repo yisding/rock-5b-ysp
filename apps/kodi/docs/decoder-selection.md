@@ -72,7 +72,7 @@ DRM-render-node path — correct for rkmpp.
 The static `pix_fmts` array the fork's decoders used to also declare
 (`NV12/NV16/NV15/NV20/NV24/DRM_PRIME`) is unrelated to selection — it is
 metadata that broke the `libavcodec-avcodec` FATE self-test, and it is dropped
-by the [frozen package correction](../../../packaging/ppa/README.md#ffmpeg81-package-lessons).
+by the [frozen package correction](../../../packaging/ppa/docs/building.md#ffmpeg81-package-lessons).
 The hw_config above is untouched by that patch, so selection is unaffected.
 
 ## Re-check triggers

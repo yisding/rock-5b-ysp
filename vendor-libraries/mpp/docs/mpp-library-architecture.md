@@ -402,7 +402,7 @@ not this explanation. The installed validation used source publication
 and arm64 build
 [`33468629`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33468629);
 the exact source/build metadata and payload reconstruction live in the
-[MPP package section](../../../packaging/ppa/README.md#mpp-source-artifact-reconstruction).
+[MPP artifact reconstruction](../../../packaging/ppa/docs/publishing.md#mpp-source-artifact-reconstruction).
 The public capability rollup remains in
 [`status.md`](../../../status.md#dashboard), while Launchpad's moving state is
 cached only under [W05](../../../status.md#watch-w05).

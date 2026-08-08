@@ -25,10 +25,10 @@ project catalog below owns public patch behavior and evidence.
 | Codec/GDM access rules | Checked-in native package inputs | Native in-repository files | [`codec-udev/`](codec-udev/README.md) and [`gdm-hwenc/`](gdm-hwenc/README.md) |
 
 The historical ABI-changing FFmpeg source package has no maintained packaging
-directory. Reconstruct it from the frozen repository snapshot described by
-[`ppa/README.md`](ppa/README.md#reproducing-the-ffmpeg-81-packages), or recover
-the signed Debian source from Launchpad. Do not confuse that absence with a
-moving package or publication assertion.
+directory. Reconstruct it from the frozen repository snapshot described by the
+[frozen FFmpeg 8.1 recipe](ppa/docs/building.md#reproduce-the-frozen-ffmpeg-81-packages),
+or recover the signed Debian source from Launchpad. Do not confuse that absence
+with a moving package or publication assertion.
 
 ## Two ways patches are carried
 
@@ -69,7 +69,7 @@ remote. Push maintained work only to the fork remote; the vendor mirror's
 `origin` is a read-only reference for this workflow. A branch that tracks newer
 vendor development is not automatically a packaging input.
 
-Use the [MPP artifact reconstruction route](ppa/README.md#mpp-source-artifact-reconstruction)
+Use the [MPP artifact reconstruction route](ppa/docs/publishing.md#mpp-source-artifact-reconstruction)
 to identify a particular package. Do not infer that identity from the helper's
 next intended input or from a matching version string.
 
@@ -93,8 +93,8 @@ private package names and no local source delta. The comparison baseline is
 pristine upstream with a recovered Debian tree.
 
 The lineages use separate archive/package shapes because their ABI and purpose
-differ. The [PPA topology](ppa/README.md#ppa-layout) owns that separation, the
-[FFmpeg reconstruction route](ppa/README.md#ffmpeg-source-artifact-reconstruction)
+differ. The [PPA topology](ppa/README.md#archive-topology) owns that separation, the
+[FFmpeg reconstruction route](ppa/docs/publishing.md#ffmpeg-source-artifact-reconstruction)
 identifies an actual system package, and W07 owns dated moving-branch heads.
 Investigation checkouts named in [`external-workspaces.md`](external-workspaces.md)
 are not packaging inputs unless the build helper explicitly selects them.
@@ -111,7 +111,7 @@ The directory under
 is a frozen older-base replay, not the maintained package input. Editing it
 does not change what ships. `GRD_DELTA` is empty for the maintained path and is
 reserved for historical source reconstruction. Use the
-[GRD artifact reconstruction route](ppa/README.md#grd-source-artifact-reconstruction)
+[GRD artifact reconstruction route](ppa/docs/publishing.md#grd-source-artifact-reconstruction)
 for a particular package identity.
 
 ## Build procedure

@@ -15,7 +15,7 @@ after its current facts were traced to Debian/Launchpad metadata, changelogs,
 package owners, status, and dated findings. The two incidents below remain
 because they explain recovery behavior that artifact metadata alone does not.
 
-The maintained [sign/upload/recovery runbook](../README.md#sign-upload-and-recover)
+The maintained [sign/upload/recovery runbook](../docs/publishing.md#sign-upload-and-verify)
 owns the procedure derived from these incidents. This file owns only their
 dated evidence and decision basis.
 
@@ -89,14 +89,14 @@ on the holding archive was removed after the required development packages were
 available; the recreated normal PPA ended with zero extra archive dependencies.
 
 This incident justifies the archive topology and recovery rule; it does not
-serve as a publication list. The maintained [PPA layout](../README.md#ppa-layout)
+serve as a publication list. The maintained [PPA layout](../README.md#archive-topology)
 owns current archive roles, and W05 owns external freshness.
 
 ## Promoted or independently retained results
 
 - Orig reuse, signing, upload confirmation, dependency ordering, failed-build
   capture, and archive-recreation safeguards live in the current
-  [runbook](../README.md#sign-upload-and-recover).
+  [runbook](../docs/publishing.md#sign-upload-and-verify).
 - FFmpeg 8.1 baseline recovery and its missing `frei0r-plugins` build dependency
   live in [`../ffmpeg-baseline/README.md`](../ffmpeg-baseline/README.md).
 - Forward-port kernel `mkimage`/`u-boot-tools` retries and source/build identities
