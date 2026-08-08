@@ -24,7 +24,9 @@ sudo bash kernel-drivers/tests/run-conformance.sh
 
 The harness normally detects both the driver target and kernel configuration.
 The plan should show the expected `target`, `configuration`, and `profile`
-before you start a long run.
+before you start a long run. Plan output is one rectangular TSV table with the
+columns `kind`, `name`, `group`, `default`, `selection`, and `description`, so
+the terminal view and persisted plan use the same parseable schema.
 
 The runner tests the kernel that is currently booted; it does not install or
 reboot kernels. To cover the full matrix, boot each BSP, forward-port, rewrite,
@@ -152,7 +154,9 @@ The opt-in catalog is:
 
 The harness rejects an explicitly requested test when its target or
 configuration is incompatible. This prevents a typo from silently producing a
-narrower run than requested.
+narrower run than requested. It also rejects a selection that resolves to zero
+tests, and rejects `--compare-to` when none of the selected tests has a
+comparator.
 
 ## Compare two kernels
 
@@ -183,6 +187,7 @@ Logs are written below:
 ```text
 $CONFORMANCE_ROOT/logs/$PROFILE/
   <run>-conformance-plan.tsv
+  <run>-conformance-results.tsv
   <run>-system/
   <run>-matrix-identity.tsv
   <run>-mpp-suite/
@@ -197,6 +202,15 @@ profiles append the configuration, for example `forward-port-kasan` and
 
 A full run passes only when every selected required step passes. With
 `--continue`, failures are accumulated but the final status is still nonzero.
+Every top-level stage prints `BEGIN` followed by a `RESULT` using the same
+`PASS`, `FAIL`, or `SKIP` vocabulary. The durable
+`conformance-results.tsv` ledger uses the columns `stage`, `requirement`,
+`status`, `exit_code`, `elapsed_s`, and `description`; it includes suite counter
+checks and comparators as separate stages and ends with one `overall` row.
+Exit 77 is a neutral `SKIP` only for a stage explicitly declared optional by
+the runner. The runner returns run-correlated log artifacts created through
+`sudo` to the invoking user before exit.
+
 When reviewing a run, check:
 
 1. `conformance-plan.tsv` shows the intended matrix and no accidental skips.
@@ -206,9 +220,12 @@ When reviewing a run, check:
    clean.
 5. A paired claim also has comparator-clean baseline and candidate results.
 
-`--validate` is different: it runs device-free catalog, parser, builder,
-comparator, and evidence-audit selftests. It is the harness maintenance gate,
-not proof that a kernel works on RK3588 hardware:
+`--validate` is different: it runs device-free catalog/descriptor coverage,
+stage-reporting, matrix detection, system-info redaction, MPP/librga/GStreamer/
+FFmpeg/rkmppenc case construction, librga result-classification, parser,
+builder, comparator, and evidence-audit selftests. It writes the same plan and
+stage-result files as a runtime action. It is the harness maintenance gate, not
+proof that a kernel works on RK3588 hardware:
 
 ```bash
 PATH=/usr/sbin:/usr/bin:/sbin:/bin \
@@ -248,6 +265,8 @@ The maintained harness definition is small:
   identity plus dmesg/performance policy.
 - [`MANIFEST.tsv`](MANIFEST.tsv) pins optional third-party source checkouts used
   to reconstruct the external bundle.
+- [`runner-common.sh`](runner-common.sh) is the source-only stage reporting and
+  runner-input validation layer shared by the entry point and its selftests.
 
 The scripts in this directory are lower-level setup and diagnostic helpers;
 normal qualification should enter through `run-conformance.sh`:
@@ -255,7 +274,7 @@ normal qualification should enter through `run-conformance.sh`:
 | Helper | Use |
 |--------|-----|
 | `scripts/bootstrap-sources.sh` | Clone and verify the source revisions in `MANIFEST.tsv`. |
-| `scripts/collect-system-info.sh` | Collect identity directly or selftest its boot-identifier redaction. The standard `system-info` row calls its deployed copy. |
+| `scripts/collect-system-info.sh` | Collect identity directly or selftest its boot-identifier redaction. The standard `system-info` row calls this maintained copy and writes its output into the external run directory; `SYSTEM_INFO_COLLECTOR` is an explicit diagnostic override. |
 | `scripts/build-mpp.sh` | Build a pinned legacy MPP comparison, not the normal installed-runtime path. |
 | `scripts/build-librga-samples.sh` | Build the pinned official librga samples. |
 | `scripts/make-librga-pkgconfig.sh` | Generate the explicit pkg-config shim needed by that legacy librga source. |

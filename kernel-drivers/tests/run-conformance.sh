@@ -6,9 +6,11 @@ set -euo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
-CATALOG="$TEST_DIR/conformance/TESTS.tsv"
+CATALOG=${CONFORMANCE_CATALOG:-"$TEST_DIR/conformance/TESTS.tsv"}
 TARGET_DIR="$TEST_DIR/conformance/targets"
 CONFIGURATION_DIR="$TEST_DIR/conformance/configurations"
+# shellcheck source=conformance/runner-common.sh disable=SC1091
+source "$TEST_DIR/conformance/runner-common.sh"
 
 usage()
 {
@@ -44,6 +46,9 @@ Kconfig and kernel series, and the configuration from sanitizer Kconfig.
 Device-free --validate retains rewrite/production defaults. PROFILE and the
 older RUN_* switches remain accepted as compatibility inputs, but new
 automation should use the target/configuration and test-ID interface.
+
+Runtime and validation actions write a machine-readable per-stage result file
+and print the same PASS/FAIL/SKIP vocabulary after every stage.
 EOF
 }
 
@@ -59,35 +64,63 @@ RUN_CONTINUE_ON_FAIL=${RUN_CONTINUE_ON_FAIL:-0}
 VALIDATE_ONLY=${VALIDATE_ONLY:-0}
 LEGACY_PROFILE=${PROFILE:-}
 
+select_action()
+{
+	local requested=$1
+
+	if [ "$ACTION" != run ] && [ "$ACTION" != "$requested" ]; then
+		printf 'conflicting actions: --%s cannot be combined with --%s\n' \
+			"$ACTION" "$requested" >&2
+		exit 2
+	fi
+	ACTION=$requested
+}
+
+require_option_value()
+{
+	local option=$1 value=${2:-}
+
+	if [ -z "$value" ] || [[ $value == -* ]]; then
+		printf '%s requires a value\n' "$option" >&2
+		exit 2
+	fi
+}
+
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 	--target)
 		[ "$#" -ge 2 ] || { printf '%s requires a value\n' "$1" >&2; exit 2; }
+		require_option_value "$1" "$2"
 		TARGET_ARG=$2
 		shift 2
 		;;
 	--configuration|--config)
 		[ "$#" -ge 2 ] || { printf '%s requires a value\n' "$1" >&2; exit 2; }
+		require_option_value "$1" "$2"
 		CONFIGURATION_ARG=$2
 		shift 2
 		;;
 	--only)
 		[ "$#" -ge 2 ] || { printf '%s requires a value\n' "$1" >&2; exit 2; }
+		require_option_value "$1" "$2"
 		ONLY_TESTS=$2
 		shift 2
 		;;
 	--include)
 		[ "$#" -ge 2 ] || { printf '%s requires a value\n' "$1" >&2; exit 2; }
+		require_option_value "$1" "$2"
 		INCLUDE_TESTS="${INCLUDE_TESTS:+$INCLUDE_TESTS,}$2"
 		shift 2
 		;;
 	--skip)
 		[ "$#" -ge 2 ] || { printf '%s requires a value\n' "$1" >&2; exit 2; }
+		require_option_value "$1" "$2"
 		SKIP_TESTS="${SKIP_TESTS:+$SKIP_TESTS,}$2"
 		shift 2
 		;;
 	--compare-to)
 		[ "$#" -ge 2 ] || { printf '%s requires a value\n' "$1" >&2; exit 2; }
+		require_option_value "$1" "$2"
 		COMPARE_BASELINE=$2
 		RUN_COMPARE=1
 		shift 2
@@ -97,15 +130,15 @@ while [ "$#" -gt 0 ]; do
 		shift
 		;;
 	--plan)
-		ACTION=plan
+		select_action plan
 		shift
 		;;
 	--list)
-		ACTION=list
+		select_action list
 		shift
 		;;
 	--validate)
-		ACTION=validate
+		select_action validate
 		shift
 		;;
 	-h|--help)
@@ -129,7 +162,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 if [ "$VALIDATE_ONLY" = "1" ]; then
-	ACTION=validate
+	select_action validate
 fi
 
 list_has()
@@ -350,6 +383,11 @@ if [ ! -f "$configuration_file" ]; then
 	exit 2
 fi
 
+validate_descriptor_sets
+validate_boolean_field environment RUN_COMPARE "$RUN_COMPARE"
+validate_boolean_field environment RUN_CONTINUE_ON_FAIL "$RUN_CONTINUE_ON_FAIL"
+validate_boolean_field environment VALIDATE_ONLY "$VALIDATE_ONLY"
+
 # shellcheck disable=SC1090
 source "$target_file"
 # shellcheck disable=SC1090
@@ -418,6 +456,20 @@ load_catalog()
 	local header id group targets configurations default runner argument compare
 	local description
 
+	if [ ! -r "$CATALOG" ]; then
+		printf 'unreadable conformance catalog: %s\n' "$CATALOG" >&2
+		return 1
+	fi
+	if ! awk -F '\t' '
+		NF != 9 {
+			printf "%s:%d: expected 9 tab-separated fields, found %d\n", FILENAME, NR, NF > "/dev/stderr";
+			invalid = 1;
+		}
+		END { exit invalid }
+	' "$CATALOG"; then
+		return 1
+	fi
+
 	IFS= read -r header < "$CATALOG"
 	if [ "$header" != $'id\tgroup\ttargets\tconfigurations\tdefault\trunner\targument\tcompare\tdescription' ]; then
 		printf 'invalid conformance catalog header: %s\n' "$CATALOG" >&2
@@ -428,11 +480,21 @@ load_catalog()
 		argument compare description; do
 		[ -n "$id" ] || continue
 		case "$id" in
-		*[!a-z0-9-]*)
+		*[!a-z0-9-]*|'')
 			printf 'invalid test id in catalog: %s\n' "$id" >&2
 			return 1
 			;;
 		esac
+		case "$group" in
+		*[!a-z0-9-]*|'')
+			printf 'invalid group for catalog test %s: %s\n' "$id" "$group" >&2
+			return 1
+			;;
+		esac
+		if [ -z "$description" ]; then
+			printf 'empty description for catalog test %s\n' "$id" >&2
+			return 1
+		fi
 		if catalog_has_id "$id"; then
 			printf 'duplicate test id in catalog: %s\n' "$id" >&2
 			return 1
@@ -458,9 +520,19 @@ load_catalog()
 					"$argument" "$id" >&2
 				return 1
 				esac
+			if [ "$id" != "$argument" ]; then
+				printf 'suite catalog id %s must match its argument %s\n' \
+					"$id" "$argument" >&2
+				return 1
+			fi
 			;;
 		script)
-			if [ ! -f "$TEST_DIR/$argument" ]; then
+			if [[ $argument == /* || $argument == ../* || $argument == *../* ]]; then
+				printf 'unsafe script path %s for catalog test %s\n' \
+					"$argument" "$id" >&2
+				return 1
+			fi
+			if [ ! -x "$TEST_DIR/$argument" ]; then
 				printf 'missing script %s for catalog test %s\n' \
 					"$argument" "$id" >&2
 				return 1
@@ -473,6 +545,23 @@ load_catalog()
 		esac
 		selector_valid "$targets" "$TARGET_DIR" target || return 1
 		selector_valid "$configurations" "$CONFIGURATION_DIR" configuration || return 1
+		if [ "$compare" = yes ]; then
+			case "$runner:$argument" in
+			builtin:abi) ;;
+			suite:*)
+				if [ ! -x "$TEST_DIR/$argument-suite-compare.sh" ]; then
+					printf 'missing comparator for catalog test %s: %s-suite-compare.sh\n' \
+						"$id" "$argument" >&2
+					return 1
+				fi
+				;;
+			*)
+				printf 'catalog test %s cannot use compare=yes with %s/%s\n' \
+					"$id" "$runner" "$argument" >&2
+				return 1
+				;;
+			esac
+		fi
 		CATALOG_IDS+=("$id")
 		TEST_GROUP[$id]=$group
 		TEST_TARGETS[$id]=$targets
@@ -488,6 +577,50 @@ load_catalog()
 		printf 'empty conformance catalog: %s\n' "$CATALOG" >&2
 		return 1
 	}
+}
+
+validate_catalog_contract()
+{
+	local id target_file configuration_file target configuration selected
+	local expected
+
+	for expected in system-info matrix-identity abi mpp librga gstreamer ffmpeg; do
+		if ! catalog_has_id "$expected"; then
+			printf 'standard conformance catalog is missing %s\n' "$expected" >&2
+			return 1
+		fi
+		if [ "${TEST_DEFAULT[$expected]}" != yes ] ||
+			[ "${TEST_TARGETS[$expected]}" != all ] ||
+			[ "${TEST_CONFIGURATIONS[$expected]}" != all ]; then
+			printf 'standard conformance test %s must default on for every matrix cell\n' \
+				"$expected" >&2
+			return 1
+		fi
+	done
+
+	for target_file in "$TARGET_DIR"/*.env; do
+		target=${target_file##*/}
+		target=${target%.env}
+		for configuration_file in "$CONFIGURATION_DIR"/*.env; do
+			configuration=${configuration_file##*/}
+			configuration=${configuration%.env}
+			selected=0
+			for id in "${CATALOG_IDS[@]}"; do
+				if [ "${TEST_DEFAULT[$id]}" = yes ] &&
+					selector_matches "${TEST_TARGETS[$id]}" "$target" &&
+					selector_matches "${TEST_CONFIGURATIONS[$id]}" "$configuration"; then
+					selected=$((selected + 1))
+				fi
+			done
+			if [ "$selected" -eq 0 ]; then
+				printf 'catalog has no default coverage for target=%s configuration=%s\n' \
+					"$target" "$configuration" >&2
+				return 1
+			fi
+		done
+	done
+
+	return 0
 }
 
 selector_matches()
@@ -563,6 +696,30 @@ validate_requested_tests()
 	done
 }
 
+validate_resolved_selection()
+{
+	local id selected=0 comparable=0
+
+	for id in "${CATALOG_IDS[@]}"; do
+		test_selected "$id" || continue
+		selected=$((selected + 1))
+		if [ "${TEST_COMPARE[$id]}" = yes ]; then
+			comparable=$((comparable + 1))
+		fi
+	done
+
+	if [ "$selected" -eq 0 ]; then
+		printf 'no conformance tests are selected for target=%s configuration=%s\n' \
+			"$CONFORMANCE_TARGET" "$CONFORMANCE_CONFIGURATION" >&2
+		printf 'adjust --only/--include/--skip, or use --list to inspect compatibility\n' >&2
+		return 1
+	fi
+	if [ "$RUN_COMPARE" = "1" ] && [ "$comparable" -eq 0 ]; then
+		printf '%s\n' '--compare-to was requested, but the selected set has no comparable tests' >&2
+		return 1
+	fi
+}
+
 legacy_toggle()
 {
 	local variable=$1 id=$2 value
@@ -581,6 +738,7 @@ legacy_toggle()
 }
 
 load_catalog
+validate_catalog_contract
 legacy_toggle RUN_SYSTEM_INFO system-info
 legacy_toggle RUN_ABI_REPLAY abi
 legacy_toggle RUN_MPP_SUITE mpp
@@ -590,21 +748,28 @@ legacy_toggle RUN_FFMPEG_SUITE ffmpeg
 legacy_toggle RUN_RKMPPENC_SUITE rkmppenc
 legacy_toggle RUN_KUNIT_CHECK kunit
 validate_requested_tests
+if [ "$ACTION" != list ]; then
+	validate_resolved_selection
+fi
 
 print_plan()
 {
 	local id
-	printf 'profile\t%s\n' "$PROFILE"
-	printf 'profile-description\t%s\n' "$PROFILE_DESCRIPTION"
-	printf 'target\t%s\t%s\n' "$CONFORMANCE_TARGET" \
-		"$CONFORMANCE_TARGET_DESCRIPTION"
-	printf 'target-selection\t%s\n' "$TARGET_SELECTION"
-	printf 'configuration\t%s\t%s\n' "$CONFORMANCE_CONFIGURATION" \
+	printf 'kind\tname\tgroup\tdefault\tselection\tdescription\n'
+	printf 'matrix\taction\tidentity\t-\t%s\tRequested runner action\n' "$ACTION"
+	printf 'matrix\tprofile\tidentity\t-\t%s\t%s\n' \
+		"$PROFILE" "$PROFILE_DESCRIPTION"
+	printf 'matrix\ttarget\tidentity\t-\t%s\t%s\n' \
+		"$CONFORMANCE_TARGET" "$CONFORMANCE_TARGET_DESCRIPTION"
+	printf 'matrix\ttarget-selection\tidentity\t-\t%s\tHow the target was selected\n' \
+		"$TARGET_SELECTION"
+	printf 'matrix\tconfiguration\tidentity\t-\t%s\t%s\n' \
+		"$CONFORMANCE_CONFIGURATION" \
 		"$CONFORMANCE_CONFIGURATION_DESCRIPTION"
-	printf 'configuration-selection\t%s\n' "$CONFIGURATION_SELECTION"
-	printf 'test\tgroup\tdefault\tselection\tdescription\n'
+	printf 'matrix\tconfiguration-selection\tidentity\t-\t%s\tHow the configuration was selected\n' \
+		"$CONFIGURATION_SELECTION"
 	for id in "${CATALOG_IDS[@]}"; do
-		printf '%s\t%s\t%s\t%s\t%s\n' "$id" "${TEST_GROUP[$id]}" \
+		printf 'test\t%s\t%s\t%s\t%s\t%s\n' "$id" "${TEST_GROUP[$id]}" \
 			"${TEST_DEFAULT[$id]}" "$(selection_reason "$id")" \
 			"${TEST_DESCRIPTION[$id]}"
 	done
@@ -630,6 +795,19 @@ SUITE_DMESG_SCAN=${SUITE_DMESG_SCAN:-1}
 SUITE_REQUIRE_DMESG=${SUITE_REQUIRE_DMESG:-0}
 LIBRGA_FORCE_RGA_USERPTR_IOMMU=${LIBRGA_FORCE_RGA_USERPTR_IOMMU:-${LIBRGA_FORCE_ROUTE_B:-0}}
 RUN_ID=${RUN_ID:-$(date +%Y%m%d-%H%M%S)}
+case "$RUN_ID" in
+*[!A-Za-z0-9._-]*|'')
+	printf 'invalid RUN_ID: %s\n' "$RUN_ID" >&2
+	exit 2
+	;;
+esac
+case "$COMPARE_BASELINE:$COMPARE_CANDIDATE" in
+*[!A-Za-z0-9._:-]*|:*|*:)
+	printf 'invalid comparison profile: %s/%s\n' \
+		"$COMPARE_BASELINE" "$COMPARE_CANDIDATE" >&2
+	exit 2
+	;;
+esac
 LOG_ROOT=${LOG_ROOT:-"$CONFORMANCE_ROOT/logs/$PROFILE"}
 MPP_SUITE_OUT=${MPP_SUITE_OUT:-"$LOG_ROOT/$RUN_ID-mpp-suite"}
 LIBRGA_SUITE_OUT=${LIBRGA_SUITE_OUT:-"$LOG_ROOT/$RUN_ID-librga-suite"}
@@ -655,6 +833,12 @@ REQUIRE_COUNTER_FILE_WAS_SET=${REQUIRE_COUNTER_FILE+x}
 REQUIRE_COUNTER_FILE=${REQUIRE_COUNTER_FILE:-0}
 REQUIRE_FORBIDDEN_COUNTERS_WAS_SET=${REQUIRE_FORBIDDEN_COUNTERS+x}
 REQUIRE_FORBIDDEN_COUNTERS=${REQUIRE_FORBIDDEN_COUNTERS:-0}
+
+for boolean_field in PM_STRESS RUN_COUNTER_CHECKS CONFORMANCE_COUNTER_DEFAULTS \
+	SUITE_DMESG_SCAN SUITE_REQUIRE_DMESG LIBRGA_FORCE_RGA_USERPTR_IOMMU \
+	REQUIRE_COUNTER_FILE REQUIRE_FORBIDDEN_COUNTERS; do
+	validate_boolean_field environment "$boolean_field" "${!boolean_field}"
+done
 
 if [ -z "$SUITE_REQUIRE_DMESG_WAS_SET" ] &&
 	{ [ "$CONFORMANCE_TARGET_REQUIRE_DMESG" = 1 ] ||
@@ -708,71 +892,20 @@ export SUITE_DMESG_SCAN SUITE_REQUIRE_DMESG
 # (2026-07-24 harness-gap fix: a red librga demo matrix or GStreamer suite
 # used to block the FFmpeg suite entirely).  The runner still exits
 # non-zero at the end when any suite failed.
-FAILED_STEPS=""
-
-step_failed()
-{
-	local name=$1 rc=$2
-
-	printf "%s FAILED with exit code %s\n" "$name" "$rc" >&2
-	if [ "$RUN_CONTINUE_ON_FAIL" = "1" ]; then
-		FAILED_STEPS="$FAILED_STEPS $name"
-		return 0
-	fi
-	exit "$rc"
-}
-
-run_step()
-{
-	local name=$1
-	shift
-	local rc
-
-	printf "================= %s =================\n" "$name"
-	set +e
-	"$@"
-	rc=$?
-	set -e
-	printf "\n"
-
-	if [ "$rc" -ne 0 ]; then
-		step_failed "$name" "$rc"
-	fi
-}
-
-run_optional_step()
-{
-	local name=$1
-	shift
-	local rc
-
-	printf "================= %s =================\n" "$name"
-	set +e
-	"$@"
-	rc=$?
-	set -e
-	printf "\n"
-
-	case "$rc" in
-	0)
-		return 0
-		;;
-	77)
-		printf "%s SKIPPED with exit code 77\n" "$name"
-		return 0
-		;;
-	*)
-		step_failed "$name" "$rc"
-		;;
-	esac
-}
+declare -a FAILED_STAGE_IDS=()
+RUN_RESULTS=${RUN_RESULTS:-"$LOG_ROOT/$RUN_ID-conformance-results.tsv"}
+RUN_FINALIZED=0
+# shellcheck disable=SC2034 # Read by the sourced stage-reporting helper.
+RUN_STARTED_NS=$(runner_now_ns)
 
 run_system_info()
 {
-	local collector="$CONFORMANCE_ROOT/scripts/collect-system-info.sh"
+	local collector
 	local out=${OUT:-}
 
-	if [ ! -x "$collector" ]; then
+	collector=${SYSTEM_INFO_COLLECTOR:-"$TEST_DIR/conformance/scripts/collect-system-info.sh"}
+
+	if [ ! -f "$collector" ]; then
 		printf "Missing system-info collector: %s\n" "$collector" >&2
 		return 2
 	fi
@@ -780,9 +913,9 @@ run_system_info()
 	(
 		cd "$CONFORMANCE_ROOT"
 		if [ -n "$out" ]; then
-			PROFILE="$PROFILE" OUT="$out" ./scripts/collect-system-info.sh
+			PROFILE="$PROFILE" OUT="$out" bash "$collector"
 		else
-			PROFILE="$PROFILE" ./scripts/collect-system-info.sh
+			PROFILE="$PROFILE" bash "$collector"
 		fi
 	)
 }
@@ -1003,7 +1136,7 @@ run_counter_check()
 		return
 	fi
 
-	run_step "$label: check rewrite debugfs counters" \
+	run_step "$label.counters" "$label: check rewrite debugfs counters" \
 		env SUMMARY="$summary" \
 		REQUIRED_POSITIVE_COUNTERS="$required" \
 		REQUIRED_POSITIVE_COUNTER_PREFIXES="$required_prefix" \
@@ -1176,7 +1309,7 @@ run_suite_test()
 		;;
 	esac
 
-	run_step "$label" \
+	run_step "$suite" "$label" \
 		env PROFILE="$PROFILE" CONFORMANCE_TARGET="$CONFORMANCE_TARGET" \
 		CONFORMANCE_CONFIGURATION="$CONFORMANCE_CONFIGURATION" \
 		CONFORMANCE_ROOT="$CONFORMANCE_ROOT" OUT="$out" \
@@ -1192,7 +1325,7 @@ run_script_test()
 
 	case "$id" in
 	ioctl-fuzz-kasan)
-		run_step "$id: ${TEST_DESCRIPTION[$id]}" \
+		run_step "$id" "$id: ${TEST_DESCRIPTION[$id]}" \
 			env CONFORMANCE_ROOT="$CONFORMANCE_ROOT" PROFILE="$PROFILE" \
 			BUILD_DIR="$CONFORMANCE_ROOT/build/ioctl-fuzz" \
 			IOCTL_FUZZ_OUT="$out" \
@@ -1201,7 +1334,7 @@ run_script_test()
 			bash "$TEST_DIR/$script"
 		;;
 	*)
-		run_step "$id: ${TEST_DESCRIPTION[$id]}" \
+		run_step "$id" "$id: ${TEST_DESCRIPTION[$id]}" \
 			env CONFORMANCE_ROOT="$CONFORMANCE_ROOT" PROFILE="$PROFILE" \
 			CONFORMANCE_TARGET="$CONFORMANCE_TARGET" \
 			CONFORMANCE_CONFIGURATION="$CONFORMANCE_CONFIGURATION" \
@@ -1218,20 +1351,20 @@ run_catalog_test()
 
 	case "$runner:$argument" in
 	builtin:kunit)
-		run_step "kunit: require booted rewrite suites green" \
+		run_step "$id" "kunit: require booted rewrite suites green" \
 			env KUNIT_REPORT="$LOG_ROOT/$RUN_ID-kunit.tsv" \
 			bash "$TEST_DIR/rewrite-kunit-log-check.sh"
 		;;
 	builtin:system-info)
 		OUT="$LOG_ROOT/$RUN_ID-system" \
-			run_step "system: collect profile state" run_system_info
+			run_step "$id" "system: collect profile state" run_system_info
 		;;
 	builtin:matrix-identity)
-		run_step "identity: verify target/configuration kernel config" \
+		run_step "$id" "identity: verify target/configuration kernel config" \
 			run_matrix_identity
 		;;
 	builtin:abi)
-		run_step "abi: replay normalized ioctl contract" \
+		run_step "$id" "abi: replay normalized ioctl contract" \
 			env PROFILE="$PROFILE" bash "$TEST_DIR/abi-replay.sh"
 		;;
 	suite:*)
@@ -1268,12 +1401,12 @@ run_comparators()
 		argument=${TEST_ARGUMENT[$id]}
 		case "$argument" in
 		abi)
-			run_step "abi: compare normalized ioctl contract" \
+			run_step "$id.compare" "abi: compare normalized ioctl contract" \
 				env PROFILE="$candidate" BASELINE="$baseline" \
 				bash "$TEST_DIR/abi-replay.sh"
 			;;
 		*)
-			run_step "$id: compare latest suite summaries" \
+			run_step "$id.compare" "$id: compare latest suite summaries" \
 				env BASELINE="$baseline" CANDIDATE="$candidate" \
 				CONFORMANCE_ROOT="$CONFORMANCE_ROOT" \
 				PERF_MAX_RATIO="$perf_max_ratio" \
@@ -1283,57 +1416,155 @@ run_comparators()
 	done
 }
 
+stage_reporting_selftest()
+{
+	local out="$CONFORMANCE_ROOT/build/harness-validation/stage-reporting"
+	local results="$out/results.tsv"
+	local fail_results="$out/fail-fast-results.tsv"
+	local fail_status
+
+	mkdir -p "$out"
+	if ! (
+		RUN_RESULTS="$results"
+		RUN_CONTINUE_ON_FAIL=1
+		# shellcheck disable=SC2034 # Read by the sourced helper.
+		RUN_FINALIZED=0
+		FAILED_STAGE_IDS=()
+		init_run_results
+		run_step fixture-pass "reporting pass fixture" true
+		run_optional_step fixture-skip "reporting skip fixture" \
+			bash -c 'exit 77'
+		run_step fixture-fail "reporting failure fixture" \
+			bash -c 'exit 9'
+		[ "${FAILED_STAGE_IDS[*]}" = fixture-fail ]
+	) > "$out/output.txt" 2>&1; then
+		printf 'stage reporting fixture did not complete; see %s\n' \
+			"$out/output.txt" >&2
+		return 1
+	fi
+
+	awk -F '\t' '
+		NR == 1 && $0 == "stage\trequirement\tstatus\texit_code\telapsed_s\tdescription" { header = 1 }
+		$1 == "fixture-pass" && $2 == "required" && $3 == "pass" && $4 == 0 { pass = 1 }
+		$1 == "fixture-skip" && $2 == "optional" && $3 == "skip" && $4 == 77 { skip = 1 }
+		$1 == "fixture-fail" && $2 == "required" && $3 == "fail" && $4 == 9 { fail = 1 }
+		END { exit !(header && pass && skip && fail && NR == 4) }
+	' "$results" || {
+		printf 'stage reporting result schema failed; see %s\n' "$results" >&2
+		return 1
+	}
+
+	set +e
+	(
+		RUN_RESULTS="$fail_results"
+		RUN_CONTINUE_ON_FAIL=0
+		# shellcheck disable=SC2034 # Read by the sourced helper.
+		RUN_FINALIZED=0
+		FAILED_STAGE_IDS=()
+		init_run_results
+		run_step fixture-stop "reporting fail-fast fixture" \
+			bash -c 'exit 6'
+	) > "$out/fail-fast-output.txt" 2>&1
+	fail_status=$?
+	set -e
+	if [ "$fail_status" -ne 6 ]; then
+		printf 'stage reporting fail-fast fixture returned %s, expected 6\n' \
+			"$fail_status" >&2
+		return 1
+	fi
+	awk -F '\t' '
+		$1 == "fixture-stop" && $3 == "fail" && $4 == 6 { failed = 1 }
+		$1 == "overall" && $2 == "run" && $3 == "fail" && $4 == 6 { overall = 1 }
+		END { exit !(failed && overall && NR == 3) }
+	' "$fail_results" || {
+		printf 'stage reporting fail-fast result failed; see %s\n' \
+			"$fail_results" >&2
+		return 1
+	}
+
+	printf 'stage reporting selftest passed\n'
+}
+
+validate_static_contract()
+{
+	validate_descriptor_sets
+	validate_catalog_contract
+}
+
 run_validation()
 {
-	run_step "identity: validate matrix autodetection" matrix_autodetect_selftest
+	run_step validate.catalog "catalog: validate descriptors and coverage contract" \
+		validate_static_contract
 
-	run_step "identity: validate matrix config gate" matrix_identity_selftest
+	run_step validate.stage-reporting "runner: validate stage result reporting" \
+		stage_reporting_selftest
 
-	run_step "counter defaults: validate wiring" validate_counter_defaults
+	run_step validate.matrix-autodetect "identity: validate matrix autodetection" \
+		matrix_autodetect_selftest
 
-	run_step "debugging: validate focused MPP capture workflow" \
+	run_step validate.matrix-identity "identity: validate matrix config gate" \
+		matrix_identity_selftest
+
+	run_step validate.counter-defaults "counter defaults: validate wiring" \
+		validate_counter_defaults
+
+	run_step validate.system-info "identity: validate system-info redaction" \
+		bash "$TEST_DIR/conformance/scripts/collect-system-info.sh" --selftest
+
+	run_step validate.mpp-debug-capture \
+		"debugging: validate focused MPP capture workflow" \
 		env MPP_DEBUG_VALIDATE_ONLY=1 \
 		bash "$TEST_DIR/mpp-debug-capture.sh"
 
-	run_step "kernel log: fatal-signature gate selftest" \
+	run_step validate.dmesg "kernel log: fatal-signature gate selftest" \
 		bash "$TEST_DIR/suite-common-selftest.sh"
 
-	run_step "kunit: boot-result parser selftest" \
+	run_step validate.kunit "kunit: boot-result parser selftest" \
 		bash "$TEST_DIR/rewrite-kunit-log-check.sh" --selftest
 
 	# The two syzlang checks that used to run here moved to the private
 	# rock-5b-security repository along with the syzkaller description
 	# itself; run them from there when validating the fuzzing description.
 
-	run_step "fuzzing: validate ioctl mutator build" \
+	run_step validate.ioctl-fuzz "fuzzing: validate ioctl mutator build" \
 		env IOCTL_FUZZ_VALIDATE_BUILD=1 \
 		BUILD_DIR="$CONFORMANCE_ROOT/build/harness-validation/ioctl-fuzz" \
 		bash "$TEST_DIR/ioctl-fuzz-smoke.sh"
 
-	run_step "rga: validate direct librga smoke build" \
+	run_step validate.librga-smoke "rga: validate direct librga smoke build" \
 		env LIBRGA_SMOKE_VALIDATE_BUILD=1 \
 		bash "$TEST_DIR/librga-smoke.sh"
 
-	run_optional_step "gstreamer: validate event harness build" \
+	run_step validate.librga-log-parser \
+		"rga: validate official-sample result classification" \
+		env LIBRGA_SUITE_VALIDATE_LOG_PARSER=1 \
+		bash "$TEST_DIR/librga-suite.sh"
+
+	run_step validate.librga-cases "rga: validate default and opt-in case lists" \
+		env LIBRGA_SUITE_VALIDATE_CASES=1 \
+		bash "$TEST_DIR/librga-suite.sh"
+
+	run_optional_step validate.gstreamer-event-build \
+		"gstreamer: validate event harness build" \
 		env GST_EVENT_HARNESS_VALIDATE_BUILD=1 \
 		bash "$TEST_DIR/build-gstreamer-rockchip.sh"
 
-	run_step "iommu: validate RGA scatter fuzzer build" \
+	run_step validate.iommu-fuzz "iommu: validate RGA scatter fuzzer build" \
 		env IOMMU_FUZZ_VALIDATE_BUILD=1 \
 		OUT="$CONFORMANCE_ROOT/build/harness-validation/iommu-fuzz" \
 		bash "$TEST_DIR/iommu-machinery-fuzz.sh"
 
-	run_step "recovery: validate stress harness config" \
+	run_step validate.recovery "recovery: validate stress harness config" \
 		env RECOVERY_VALIDATE_ONLY=1 \
 		bash "$TEST_DIR/rewrite-recovery-stress.sh"
 
-	run_step "pm: validate autosuspend stress knobs" \
+	run_step validate.pm-knobs "pm: validate autosuspend stress knobs" \
 		bash "$TEST_DIR/pm-stress-knobs.sh" --validate
 
-	run_step "pm: validate case-pair matrix" \
+	run_step validate.case-pair-matrix "pm: validate case-pair matrix" \
 		env VALIDATE_ONLY=1 bash "$TEST_DIR/rewrite-case-pair-matrix.sh"
 
-	run_step "mpp: validate case builders" \
+	run_step validate.mpp-cases "mpp: validate case builders" \
 		env MPP_VALIDATE_CASES=1 PROFILE="$PROFILE" \
 		CONFORMANCE_ROOT="$CONFORMANCE_ROOT" \
 		MPP_H264_INPUT=/dev/null MPP_H265_INPUT=/dev/null \
@@ -1344,43 +1575,46 @@ run_validation()
 		MPP_REQUIRED_CASES="mpp_info_test mpi_dec_h264 mpi_dec_h265 mpi_dec_vp9 mpi_dec_avs2 mpi_dec_custom mpi_dec_mt_h264 mpi_dec_mt_h265 mpi_dec_mt_vp9 mpi_dec_mt_avs2 mpi_dec_mt_custom mpi_dec_multi_h264 mpi_dec_multi_h265 mpi_dec_multi_vp9 mpi_dec_multi_avs2 mpi_dec_multi_custom mpi_enc_h264 mpi_enc_h265 mpi_enc_h264_slice mpi_enc_h265_slice mpi_enc_custom mpi_enc_mt_h264 mpi_enc_mt_h265 mpi_enc_mt_custom mpi_rc2_h264 mpi_rc2_h265 mpi_rc2_custom vpu_api_dec_h264 vpu_api_dec_h265 vpu_api_dec_avs2 vpu_api_dec_custom" \
 		bash "$TEST_DIR/mpp-suite.sh"
 
-	run_step "gstreamer: validate case builders" \
+	run_step validate.gstreamer-cases "gstreamer: validate case builders" \
 		env GST_VALIDATE_CASES=1 PROFILE="$PROFILE" \
 		CONFORMANCE_ROOT="$CONFORMANCE_ROOT" \
 		bash "$TEST_DIR/gstreamer-suite.sh"
 
-	run_step "ffmpeg: validate case list" \
+	run_step validate.ffmpeg-cases "ffmpeg: validate case list" \
 		env FFMPEG_VALIDATE_CASES=1 PROFILE="$PROFILE" \
 		CONFORMANCE_ROOT="$CONFORMANCE_ROOT" \
 		bash "$TEST_DIR/ffmpeg-suite.sh"
 
-	run_step "rkmppenc: validate optional case list" \
+	run_step validate.rkmppenc-cases "rkmppenc: validate optional case list" \
 		env RKMPPENC_VALIDATE_CASES=1 PROFILE="$PROFILE" \
 		CONFORMANCE_ROOT="$CONFORMANCE_ROOT" \
 		bash "$TEST_DIR/rkmppenc-suite.sh"
 
-	run_step "comparators: regression selftest" \
+	run_step validate.comparators "comparators: regression selftest" \
 		bash "$TEST_DIR/suite-compare-selftest.sh"
 
-	run_step "abi replay: filter selftest" \
+	run_step validate.abi "abi replay: filter selftest" \
 		bash "$TEST_DIR/abi-replay.sh" --selftest
 
-	run_step "evidence: audit selftest" \
+	run_step validate.evidence-audit "evidence: audit selftest" \
 		bash "$TEST_DIR/rewrite-evidence-audit.sh" --selftest
 }
 
+mkdir -p "$LOG_ROOT"
+init_run_results
+PLAN_FILE="$LOG_ROOT/$RUN_ID-conformance-plan.tsv"
+print_plan | tee "$PLAN_FILE"
+printf 'Stage results: %s\n\n' "$RUN_RESULTS"
+
 if [ "$ACTION" = validate ]; then
 	run_validation
-	printf "Conformance harness validation passed\n"
+	printf "\nConformance harness validation passed\n"
+	finalize_run 0 "All device-free validation stages passed"
 	exit 0
 fi
 
-mkdir -p "$LOG_ROOT"
-print_plan | tee "$LOG_ROOT/$RUN_ID-conformance-plan.tsv"
-printf '\n'
-
 if [ "$PM_STRESS" = "1" ]; then
-	run_step "pm: collapse autosuspend windows for the run" \
+	run_step pm.apply "pm: collapse autosuspend windows for the run" \
 		bash "$TEST_DIR/pm-stress-knobs.sh" apply
 	trap 'bash "$TEST_DIR/pm-stress-knobs.sh" restore || :' EXIT
 fi
@@ -1391,10 +1625,12 @@ if [ "$RUN_COMPARE" = "1" ]; then
 	run_comparators
 fi
 
-if [ -n "$FAILED_STEPS" ]; then
-	printf "Conformance profile '%s' completed with FAILED suites:%s\n" \
-		"$PROFILE" "$FAILED_STEPS" >&2
+if [ "${#FAILED_STAGE_IDS[@]}" -ne 0 ]; then
+	printf "Conformance profile '%s' completed with failed stages: %s\n" \
+		"$PROFILE" "${FAILED_STAGE_IDS[*]}" >&2
+	finalize_run 1 "Completed with failed stages: ${FAILED_STAGE_IDS[*]}"
 	exit 1
 fi
 
 printf "Conformance profile '%s' completed\n" "$PROFILE"
+finalize_run 0 "All selected conformance stages passed"

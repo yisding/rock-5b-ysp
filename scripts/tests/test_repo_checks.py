@@ -2113,13 +2113,21 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
     """Pin target/configuration selection without touching board hardware."""
 
     runner = REPO_ROOT / "kernel-drivers/tests/run-conformance.sh"
+    catalog = REPO_ROOT / "kernel-drivers/tests/conformance/TESTS.tsv"
 
     def run_plan(self, *arguments: str, env: dict[str, str] | None = None):
         command_env = os.environ.copy()
         for variable in (
             "PROFILE",
+            "VALIDATE_ONLY",
+            "RUN_COMPARE",
+            "COMPARE_BASELINE",
             "CONFORMANCE_TARGET",
             "CONFORMANCE_CONFIGURATION",
+            "CONFORMANCE_CATALOG",
+            "CONFORMANCE_ONLY_TESTS",
+            "CONFORMANCE_INCLUDE_TESTS",
+            "CONFORMANCE_SKIP_TESTS",
             "CONFORMANCE_KERNEL_CONFIG",
             "CONFORMANCE_KERNEL_RELEASE",
         ):
@@ -2148,15 +2156,26 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
     @staticmethod
     def selections(output: str) -> dict[str, str]:
         rows: dict[str, str] = {}
-        in_tests = False
         for line in output.splitlines():
-            if line == "test\tgroup\tdefault\tselection\tdescription":
-                in_tests = True
+            if line == "kind\tname\tgroup\tdefault\tselection\tdescription":
                 continue
-            if in_tests:
-                fields = line.split("\t")
-                rows[fields[0]] = fields[3]
+            fields = line.split("\t")
+            if fields[0] == "test":
+                rows[fields[1]] = fields[4]
         return rows
+
+    def test_plan_is_one_rectangular_tsv_schema(self) -> None:
+        result = self.run_plan(
+            "--target", "rewrite", "--configuration", "production"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = [line.split("\t") for line in result.stdout.splitlines()]
+        self.assertGreater(len(rows), 1)
+        self.assertEqual(
+            rows[0],
+            ["kind", "name", "group", "default", "selection", "description"],
+        )
+        self.assertTrue(all(len(row) == len(rows[0]) for row in rows))
 
     def test_standard_set_is_shared_by_bsp_and_rewrite(self) -> None:
         bsp = self.run_plan("--target", "bsp", "--configuration", "production")
@@ -2211,8 +2230,69 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
     def test_legacy_profile_resolves_both_axes(self) -> None:
         result = self.run_plan(env={"PROFILE": "rewrite-kcsan"})
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("profile\trewrite-kcsan\n", result.stdout)
-        self.assertIn("configuration\tkcsan\t", result.stdout)
+        self.assertIn("matrix\tprofile\tidentity\t-\trewrite-kcsan\t", result.stdout)
+        self.assertIn("matrix\tconfiguration\tidentity\t-\tkcsan\t", result.stdout)
+
+    def test_empty_selection_fails_closed(self) -> None:
+        result = self.run_plan(
+            "--target",
+            "bsp",
+            "--configuration",
+            "production",
+            "--skip",
+            "system-info,matrix-identity,abi,mpp,librga,gstreamer,ffmpeg",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("no conformance tests are selected", result.stderr)
+
+    def test_compare_requires_a_comparable_selected_test(self) -> None:
+        result = self.run_plan(
+            "--target",
+            "bsp",
+            "--configuration",
+            "production",
+            "--only",
+            "system-info",
+            "--compare-to",
+            "forward-port",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("selected set has no comparable tests", result.stderr)
+
+    def test_catalog_rejects_missing_standard_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            catalog = Path(temporary) / "TESTS.tsv"
+            rows = self.catalog.read_text(encoding="utf-8").splitlines()
+            catalog.write_text(
+                "\n".join(row for row in rows if not row.startswith("mpp\t"))
+                + "\n",
+                encoding="utf-8",
+            )
+            result = self.run_plan(
+                "--target",
+                "rewrite",
+                "--configuration",
+                "production",
+                env={"CONFORMANCE_CATALOG": str(catalog)},
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("standard conformance catalog is missing mpp", result.stderr)
+
+    def test_catalog_rejects_non_rectangular_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            catalog = Path(temporary) / "TESTS.tsv"
+            rows = self.catalog.read_text(encoding="utf-8").splitlines()
+            rows[1] += "\textra"
+            catalog.write_text("\n".join(rows) + "\n", encoding="utf-8")
+            result = self.run_plan(
+                "--target",
+                "rewrite",
+                "--configuration",
+                "production",
+                env={"CONFORMANCE_CATALOG": str(catalog)},
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("expected 9 tab-separated fields, found 10", result.stderr)
 
     def test_vendor_bsp_series_are_autodetected(self) -> None:
         for release in ("5.10.221-vendor", "6.1.99-vendor", "6.6.80-vendor"):
@@ -2224,9 +2304,15 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
                     "CONFIG_VIDEO_ROCKCHIP_RGA=m",
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn("target\tbsp\t", result.stdout)
-                self.assertIn("configuration\tproduction\t", result.stdout)
-                self.assertIn("target-selection\tautodetected\n", result.stdout)
+                self.assertIn("matrix\ttarget\tidentity\t-\tbsp\t", result.stdout)
+                self.assertIn(
+                    "matrix\tconfiguration\tidentity\t-\tproduction\t",
+                    result.stdout,
+                )
+                self.assertIn(
+                    "matrix\ttarget-selection\tidentity\t-\tautodetected\t",
+                    result.stdout,
+                )
 
     def test_other_vendor_series_are_forward_ports(self) -> None:
         for release in ("6.7.12-ysp", "6.18.38-ysp", "7.2.0-rc5-ysp"):
@@ -2238,8 +2324,13 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
                     "CONFIG_VIDEO_ROCKCHIP_RGA=m",
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn("target\tforward-port\t", result.stdout)
-                self.assertIn("configuration\tproduction\t", result.stdout)
+                self.assertIn(
+                    "matrix\ttarget\tidentity\t-\tforward-port\t", result.stdout
+                )
+                self.assertIn(
+                    "matrix\tconfiguration\tidentity\t-\tproduction\t",
+                    result.stdout,
+                )
 
     def test_rewrite_and_sanitizers_are_autodetected_from_kconfig(self) -> None:
         rewrite = self.run_auto_plan(
@@ -2249,8 +2340,10 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
             "CONFIG_KASAN=y",
         )
         self.assertEqual(rewrite.returncode, 0, rewrite.stderr)
-        self.assertIn("target\trewrite\t", rewrite.stdout)
-        self.assertIn("configuration\tkasan\t", rewrite.stdout)
+        self.assertIn("matrix\ttarget\tidentity\t-\trewrite\t", rewrite.stdout)
+        self.assertIn(
+            "matrix\tconfiguration\tidentity\t-\tkasan\t", rewrite.stdout
+        )
 
         kcsan = self.run_auto_plan(
             "6.18.38-ysp",
@@ -2260,8 +2353,12 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
             "CONFIG_KCSAN=y",
         )
         self.assertEqual(kcsan.returncode, 0, kcsan.stderr)
-        self.assertIn("target\tforward-port\t", kcsan.stdout)
-        self.assertIn("configuration\tkcsan\t", kcsan.stdout)
+        self.assertIn(
+            "matrix\ttarget\tidentity\t-\tforward-port\t", kcsan.stdout
+        )
+        self.assertIn(
+            "matrix\tconfiguration\tidentity\t-\tkcsan\t", kcsan.stdout
+        )
 
     def test_contradictory_sanitizer_config_fails_closed(self) -> None:
         result = self.run_auto_plan(

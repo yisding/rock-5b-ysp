@@ -233,9 +233,10 @@ suite, `--compare-to PROFILE` for comparators, and `--validate` for the
 device-free runner, ioctl-fuzzer build, direct
 `librga` smoke build, optional GStreamer event-harness build, RGA IOMMU
 scatter-fuzzer build, recovery stress harness config validation,
-MPP/GStreamer case-builder validation, FFmpeg case-list validation, comparator
-maintenance check, ABI replay filter selftest, and paired-evidence audit
-selftest, including the
+system-info redaction, MPP/librga/GStreamer case-builder validation, librga
+sample-result classification, FFmpeg/rkmppenc case-list validation, catalog and
+descriptor coverage, per-stage result reporting, comparator maintenance, ABI
+replay filter, and paired-evidence audit selftests, including the
 diagnostic-failure and named optional-case audit paths. The two syzlang checks
 this runner used to perform — the ABI-marker consistency check and the optional
 syzkaller `make descriptions` compile check — moved to the private
