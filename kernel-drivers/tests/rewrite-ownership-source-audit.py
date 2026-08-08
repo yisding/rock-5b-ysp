@@ -54,6 +54,12 @@ POWER_FIELD_RE = re.compile(
 MPP_IOMMU_RE = re.compile(
     r"\b(?:rk_mpp_hw_refresh_iommu|rk_mpp_dma_group_isolate)\s*\("
 )
+MPP_IOMMU_BACKEND_RE = re.compile(
+    r"\b(?:vsi_iommu_refresh|iommu_flush_iotlb_all|iommu_attach_group)\s*\("
+)
+MPP_JOB_LIFECYCLE_WRITE_RE = re.compile(
+    r"\b[A-Za-z_]\w*->(?:result|state)\s*=(?!=)"
+)
 MPP_TERMINAL_RE = re.compile(
     r"\b(?:rk_mpp_job_complete|rk_mpp_hw_stop_active|"
     r"rk_mpp_hw_recover_active|rk_mpp_hw_abort_active(?:_recovery_locked)?)\s*\("
@@ -319,6 +325,11 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                             ("mpp-dispatch-lease-write", DISPATCH_LEASE_WRITE_RE),
                             ("mpp-power-field", POWER_FIELD_RE),
                             ("mpp-iommu-transition", MPP_IOMMU_RE),
+                            ("mpp-iommu-backend-op", MPP_IOMMU_BACKEND_RE),
+                            (
+                                "mpp-job-lifecycle-write",
+                                MPP_JOB_LIFECYCLE_WRITE_RE,
+                            ),
                             ("mpp-terminal-entry", MPP_TERMINAL_RE),
                             ("mpp-irq-ack-write", MPP_IRQ_ACK_WRITE_RE),
                             ("start-doorbell-write", MPP_START_WRITE_RE),

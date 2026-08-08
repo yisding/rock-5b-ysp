@@ -22,8 +22,8 @@ The priority is **ownership before convention**:
 > implementation description. Phase 0 now has a checked, source-pinned
 > production inventory covering the failure-prone ownership writers plus the
 > debug counter and event schema. Maintained tips are
-> `rk3588-rewrite-6.18@6152b5bc73290` and
-> `rk3588-rewrite-mainline@c14bd84ebfd72`. Their pre-refactor ancestors passed
+> `rk3588-rewrite-6.18@7d04b30f9f180` and
+> `rk3588-rewrite-mainline@bdabeb7f8a92d`. Their pre-refactor ancestors passed
 > the warning-fatal clean-source `normal` and `test-disabled` object/DTB gates;
 > every touched MPP/RGA object compiles on both current tips, and their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. The current source adds a
@@ -32,8 +32,10 @@ The priority is **ownership before convention**:
 > `rk_rga_acquire_set`. Phase 1 source migration has started with the MPP reset,
 > MPP and RGA active-slot access/write funnels, the RKVDEC session dispatch
 > lease API, backend-specific MPP/RGA publication-and-start owners, and the
-> RKVDEC coordinator/core-chain power bookkeeping API. The current tips remain
-> unbooted;
+> RKVDEC coordinator/core-chain power bookkeeping API. MPP terminal result/DONE
+> publication now also has one session-lock-aware owner; reason arbitration and
+> snapshot closure remain deferred until an activation transition owner exists.
+> The current tips remain unbooted;
 > full build, install, and reboot qualification are intentionally deferred while
 > behavior-preserving write funnels continue.
 
@@ -606,8 +608,9 @@ from phase 1 until the ownership and hardware gates for phase 5 pass.
   than acceptable red baselines.
 - Generate inventories of every direct reset-control call, active-slot write,
   session-dispatch lease write, power-reference field, IOMMU refresh/isolation
-  call, MPP terminal entry, RGA task-advance call, command-buffer writer, raw
-  start/doorbell or IRQ-ack write, and raw-task emitter.
+  call and raw backend operation, job lifecycle/outcome write, MPP terminal
+  entry, RGA task-advance call, command-buffer writer, raw start/doorbell or
+  IRQ-ack write, and raw-task emitter.
 - Freeze the expected debug counters and event fields used by hardware gates.
 
 Acceptance: the same immutable source archive reproduces both builds and every

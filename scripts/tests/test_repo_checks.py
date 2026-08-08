@@ -2595,6 +2595,8 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\tjob->rkvdec_ccu_powered_core_count = 1;\n"
             "\tjob->rkvdec_ccu_powered = true;\n"
             "\trk_mpp_hw_refresh_iommu(hw, job);\n"
+            "\tvsi_iommu_refresh(hw->dev);\n"
+            "\tjob->result = -EINPROGRESS;\n"
             "\trk_mpp_job_complete(job, 0);\n"
             "\twritel(1, hw->regs[0] + RK_MPP_RKVENC_START_BASE);\n"
             "\twritel(job->rkvdec_ccu_cfg_done, "
@@ -2683,6 +2685,8 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\thw[0].active_job = job;\n"
                     "\tif (job->rkvdec_session_dispatch) job = NULL;\n"
                     "\tjob->rkvdec_ccu_powered = false;\n"
+                    "\tiommu_attach_group(NULL, NULL);\n"
+                    "\tjob->state = RK_MPP_JOB_DONE;\n"
                     "\treset_control_bulk_reset(1, NULL);\n"
                     "\treset_control_rearm(hw->resets);\n"
                 ),
@@ -2691,6 +2695,8 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\tfake.active_job = NULL;\n"
                     "\tjob->rkvdec_session_dispatch = false;\n"
                     "\tfake.rkvdec_ccu_powered = false;\n"
+                    "\tiommu_flush_iotlb_all(NULL);\n"
+                    "\tfake.result = 0;\n"
                 ),
             )
             changed = self.run_audit(tree, baseline)
@@ -2699,6 +2705,8 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("NEW\tmpp-active-slot-write", changed.stderr)
             self.assertIn("NEW\tmpp-dispatch-lease-access", changed.stderr)
             self.assertIn("NEW\tmpp-power-field", changed.stderr)
+            self.assertIn("NEW\tmpp-iommu-backend-op", changed.stderr)
+            self.assertIn("NEW\tmpp-job-lifecycle-write", changed.stderr)
             self.assertIn("NEW\tmpp-reset-control", changed.stderr)
             self.assertIn("reset_control_bulk_reset", changed.stderr)
             self.assertIn("reset_control_rearm", changed.stderr)
@@ -2706,6 +2714,8 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertNotIn("fake.active_job", changed.stderr)
             self.assertNotIn("rkvdec_session_dispatch = false", changed.stderr)
             self.assertNotIn("fake.rkvdec_ccu_powered", changed.stderr)
+            self.assertNotIn("iommu_flush_iotlb_all", changed.stderr)
+            self.assertNotIn("fake.result", changed.stderr)
 
             baseline.write_text(
                 baseline_text.replace("# source-head\tunknown", "# source-head\tdeadbeef"),
