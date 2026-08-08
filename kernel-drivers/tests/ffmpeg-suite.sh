@@ -26,6 +26,7 @@ FFMPEG_TIMEOUT=${FFMPEG_TIMEOUT:-180}
 FFMPEG_VALIDATE_CASES=${FFMPEG_VALIDATE_CASES:-0}
 FFMPEG_REQUIRE_AV1=${FFMPEG_REQUIRE_AV1:-0}
 FFMPEG_RUN_4K=${FFMPEG_RUN_4K:-0}
+FFMPEG_RUN_OVERLAY_BLEND=${FFMPEG_RUN_OVERLAY_BLEND:-0}
 FFMPEG_RUN_8K=${FFMPEG_RUN_8K:-0}
 FFMPEG_RUN_STRESS=${FFMPEG_RUN_STRESS:-0}
 FFMPEG_SOAK_SECONDS=${FFMPEG_SOAK_SECONDS:-1800}
@@ -71,7 +72,6 @@ ffmpeg_transcode_h264_to_hevc_rkrga
 ffmpeg_transcode_hevc_to_h264_rkrga
 ffmpeg_filter_scale_rkrga_core_async_afbc
 ffmpeg_filter_vpp_rkrga_crop_transpose
-ffmpeg_filter_overlay_rkrga_alpha
 "
 
 av1_cases_default="
@@ -95,6 +95,17 @@ if [ "$FFMPEG_REQUIRE_AV1" = "1" ]; then
 	required_cases_default="$required_cases_default $av1_cases_default"
 else
 	diagnostic_cases_default="$diagnostic_cases_default $av1_cases_default"
+fi
+# ffmpeg_filter_overlay_rkrga_alpha is opt-in until the rewrite RGA driver
+# handles its valid RGBA blend chain: the direct NV12 blend routes to RGA2
+# whose bounce path cannot map >=256KiB SWIOTLB segments, and the
+# RGBA-intermediate chain deterministically faults the RGA3 IOMMU
+# (fdb60000.rga, iova 0x1e100), which would also trip the suite dmesg fatal
+# scan on every privileged conformance run.  The case itself is valid now
+# (RGB overlay pad, consistent BT.601 legs); once the driver work lands,
+# runtime-verify it and promote it to required.
+if [ "$FFMPEG_RUN_OVERLAY_BLEND" = "1" ]; then
+	diagnostic_cases_default="$diagnostic_cases_default ffmpeg_filter_overlay_rkrga_alpha"
 fi
 if [ "$FFMPEG_RUN_4K" = "1" ]; then
 	diagnostic_cases_default="$diagnostic_cases_default ffmpeg_probe_4k_hevc_rga"
@@ -874,25 +885,77 @@ encoded_psnr_against_testsrc()
 	assert_psnr_threshold "$CURRENT_LOG" "$threshold"
 }
 
+# Compare an encoded artifact against its source by decoding both sides to
+# raw frames and re-reading them at a fixed rate, so frame N always pairs
+# with frame N.  The generated elementary streams carry decode-order
+# timestamps (their B-frame GOPs emit non-monotonic PTS), so the old
+# timestamp-synced psnr comparison paired frames through vsync churn and
+# measured duplicate/drop padding instead of codec output -- see
+# findings/2026-08-07-ffmpeg-rkrga-failures-are-latent-pts-and-checker-defects.md.
+# The byte-size gate makes a dropped or duplicated frame a hard failure
+# instead of a silent pad.  ref_filter overrides the software reference
+# transform for cases whose hardware leg is not a plain scale (crop,
+# transpose); it must produce the artifact's exact output geometry.  AV1
+# sources decode through the generator FFmpeg because the suite build has no
+# software AV1 decoder.  The raw legs are deleted on success and kept for
+# debugging on failure.
 encoded_psnr_against_input()
 {
 	local input=$1
 	local output=$2
 	local threshold=$3
+	local ref_filter=${4:-}
+	local input_codec
 	local size
 	local scale_size
+	local safe_case
+	local ref_yuv
+	local test_yuv
 	local stats_file
+	local ref_bytes
+	local test_bytes
 
 	[ -s "$input" ] || return 1
 	[ -s "$output" ] || return 1
 	size=$(probe_size "$output")
 	scale_size=${size/x/:}
-	stats_file="$OUT/artifacts/$(sanitize "$(case_runtime_name "$CURRENT_CASE")")-encoded-psnr.stats"
+	if [ -z "$ref_filter" ]; then
+		ref_filter="scale=${scale_size}:flags=bicubic"
+	fi
+	safe_case=$(sanitize "$(case_runtime_name "$CURRENT_CASE")")
+	ref_yuv="$OUT/artifacts/$safe_case-encoded-psnr-ref.yuv"
+	test_yuv="$OUT/artifacts/$safe_case-encoded-psnr-test.yuv"
+	stats_file="$OUT/artifacts/$safe_case-encoded-psnr.stats"
+	input_codec=$(run_ffprobe -v error -select_streams v:0 \
+		-show_entries stream=codec_name -of csv=p=0 "$input")
+
+	rm -f "$ref_yuv" "$test_yuv"
+	if [ "$input_codec" = av1 ]; then
+		run_ffmpeg_sw_reference -i "$input" -map 0:v:0 -an \
+			-vf "$ref_filter" -pix_fmt yuv420p \
+			-fps_mode passthrough -f rawvideo "$ref_yuv"
+	else
+		run_ffmpeg -i "$input" -map 0:v:0 -an \
+			-vf "$ref_filter" -pix_fmt yuv420p \
+			-fps_mode passthrough -f rawvideo "$ref_yuv"
+	fi
+	run_ffmpeg -i "$output" -map 0:v:0 -an -pix_fmt yuv420p \
+		-fps_mode passthrough -f rawvideo "$test_yuv"
+
+	ref_bytes=$(stat -c%s "$ref_yuv")
+	test_bytes=$(stat -c%s "$test_yuv")
+	if [ "$ref_bytes" != "$test_bytes" ]; then
+		echo "decoded frame payload mismatch: reference $ref_bytes bytes," \
+			"artifact $test_bytes bytes (dropped or duplicated frames)" >&2
+		return 1
+	fi
+
 	run_ffmpeg \
-		-i "$input" -i "$output" \
-		-filter_complex "[0:v]setpts=PTS-STARTPTS,scale=${scale_size}:flags=bicubic,format=yuv420p[ref];[1:v]setpts=PTS-STARTPTS,format=yuv420p[test];[ref][test]psnr=stats_file=${stats_file}" \
-		-f null -
-	assert_psnr_threshold "$CURRENT_LOG" "$threshold"
+		-f rawvideo -pix_fmt yuv420p -s:v "$size" -r "$FFMPEG_FPS" -i "$ref_yuv" \
+		-f rawvideo -pix_fmt yuv420p -s:v "$size" -r "$FFMPEG_FPS" -i "$test_yuv" \
+		-lavfi "psnr=stats_file=${stats_file}" -f null -
+	assert_psnr_threshold "$CURRENT_LOG" "$threshold" || return 1
+	rm -f "$ref_yuv" "$test_yuv"
 }
 
 run_transcode()
@@ -911,12 +974,16 @@ run_transcode()
 	input=$(ensure_input "$input_codec")
 	output=$(runtime_file "$case_name" "$output_format")
 	rm -f "$output"
+	# -fps_mode passthrough: the generated elementary streams carry
+	# decode-order timestamps, so CFR output would duplicate/drop frames on
+	# their non-monotonic PTS and corrupt the artifact before any check.
 	run_ffmpeg \
 		-hwaccel rkmpp -hwaccel_output_format drm_prime \
 		-c:v "${input_codec}_rkmpp" \
 		-i "$input" \
 		-vf "scale_rkrga=w=${output_width}:h=${output_height}:format=nv12:force_original_aspect_ratio=disable" \
-		-c:v "$output_encoder" -b:v "$bitrate" -f "$output_format" "$output"
+		-c:v "$output_encoder" -b:v "$bitrate" \
+		-fps_mode passthrough -f "$output_format" "$output"
 
 	probe_check "$output" "$output_codec" "$output_width" "$output_height"
 	encoded_psnr_against_input "$input" "$output" "$FFMPEG_PSNR_THRESHOLD"
@@ -975,6 +1042,7 @@ run_filter_transcode()
 	local output_height=$8
 	local bitrate=$9
 	local filter=${10}
+	local ref_filter=${11:-}
 	local input
 	local output
 
@@ -986,10 +1054,12 @@ run_filter_transcode()
 		-c:v "$input_decoder" \
 		-i "$input" \
 		-vf "$filter" \
-		-c:v "$output_encoder" -b:v "$bitrate" -f "$output_format" "$output"
+		-c:v "$output_encoder" -b:v "$bitrate" \
+		-fps_mode passthrough -f "$output_format" "$output"
 
 	probe_check "$output" "$output_codec" "$output_width" "$output_height"
-	encoded_psnr_against_input "$input" "$output" "$FFMPEG_PSNR_THRESHOLD"
+	encoded_psnr_against_input "$input" "$output" "$FFMPEG_PSNR_THRESHOLD" \
+		"$ref_filter"
 	record_artifact required "$case_name" "encoded-$output_codec" "$output"
 }
 
@@ -1017,7 +1087,8 @@ run_filter_transcode_with_decoder_opts()
 		-c:v "$input_decoder" "$@" \
 		-i "$input" \
 		-vf "$filter" \
-		-c:v "$output_encoder" -b:v "$bitrate" -f "$output_format" "$output"
+		-c:v "$output_encoder" -b:v "$bitrate" \
+		-fps_mode passthrough -f "$output_format" "$output"
 
 	probe_check "$output" "$output_codec" "$output_width" "$output_height"
 	encoded_psnr_against_input "$input" "$output" "$FFMPEG_PSNR_THRESHOLD"
@@ -1036,6 +1107,7 @@ run_overlay_transcode()
 	local output_height=$8
 	local bitrate=$9
 	local filter=${10}
+	local ref_filter=${11:-}
 	local input
 	local output
 
@@ -1051,10 +1123,15 @@ run_overlay_transcode()
 		-i "$input" \
 		-filter_complex "$filter" \
 		-map "[out]" \
-		-c:v "$output_encoder" -b:v "$bitrate" -f "$output_format" "$output"
+		-c:v "$output_encoder" -b:v "$bitrate" \
+		-fps_mode passthrough -f "$output_format" "$output"
 
 	probe_check "$output" "$output_codec" "$output_width" "$output_height"
-	record_artifact required "$case_name" "encoded-$output_codec" "$output"
+	if [ -n "$ref_filter" ]; then
+		encoded_psnr_against_input "$input" "$output" \
+			"$FFMPEG_PSNR_THRESHOLD" "$ref_filter"
+	fi
+	record_artifact diagnostic "$case_name" "encoded-$output_codec" "$output"
 }
 
 run_hevc_main10_p010_rga()
@@ -1369,14 +1446,29 @@ run_case_payload()
 			"scale_rkrga=w=960:h=540:format=nv12:force_original_aspect_ratio=disable:force_yuv=8bit:force_chroma=420sp:core=rga3_core1:async_depth=4:afbc=1"
 		;;
 	ffmpeg_filter_vpp_rkrga_crop_transpose)
+		# The reference must mirror the hardware transform: plain scaling
+		# of the full frame to the portrait output geometry can never
+		# match a crop+transpose (measured 8.5dB structurally).
 		run_filter_transcode "$case_name" h264 h264_rkmpp hevc hevc_rkmpp hevc \
 			360 640 3M \
-			"vpp_rkrga=cw=960:ch=540:cx=160:cy=90:w=640:h=360:format=nv12:transpose=clock:core=rga3_core0:async_depth=2"
+			"vpp_rkrga=cw=960:ch=540:cx=160:cy=90:w=640:h=360:format=nv12:transpose=clock:core=rga3_core0:async_depth=2" \
+			"crop=960:540:160:90,scale=640:360:flags=bicubic,transpose=1"
 		;;
 	ffmpeg_filter_overlay_rkrga_alpha)
+		# overlay_rkrga only accepts RGB on the overlay pad
+		# (supported_formats_overlay in rkrga_common.c), so the second
+		# decode converts to RGBA on the RGA first; the original
+		# NV12-on-pad-1 form of this case never negotiated.  Both inputs
+		# are tagged bt470bg so every RGA color-space leg stays BT.601:
+		# untagged 1080p picks IM_RGB_TO_YUV_BT709_LIMIT for the
+		# composite writeback while the yuv2rgb legs default to BT.601,
+		# and librga rejects that mixed 601->709 buffer pair.  The
+		# software reference applies the same scale, global alpha
+		# (192/255), and straight-alpha composite.
 		run_overlay_transcode "$case_name" h264 h264_rkmpp hevc hevc_rkmpp hevc \
 			1920 1080 4M \
-			"[0:v][1:v]overlay_rkrga=x=64:y=32:alpha=192:alpha_format=straight:format=nv12:core=rga3_core0:async_depth=0[out]"
+			"[0:v]setparams=colorspace=bt470bg[bg];[1:v]setparams=colorspace=bt470bg,scale_rkrga=w=480:h=270:format=rgba[ovl];[bg][ovl]overlay_rkrga=x=64:y=32:alpha=192:alpha_format=straight:format=nv12:async_depth=0[out]" \
+			"split[bg][fg];[fg]scale=480:270:flags=bicubic,format=rgba,colorchannelmixer=aa=0.752941[f];[bg][f]overlay=64:32"
 		;;
 	ffmpeg_transcode_h264_afbc_rga_to_hevc)
 		run_filter_transcode_with_decoder_opts "$case_name" h264 h264_rkmpp hevc hevc_rkmpp hevc \

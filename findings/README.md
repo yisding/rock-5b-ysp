@@ -197,10 +197,12 @@ The `/dev/rga` driver — session lifetime, userptr/dma-buf imports, and the 10-
 - [`2026-07-20`](2026-07-20-rga2-unmapped-page-table-dma-sync.md) — RGA2 syncs page-table memory through an unmapped DMA address
 - [`2026-07-17`](2026-07-17-rga-session-close-uaf.md) — RGA session-close force-free ignores refcounts; a leaked test handle exposed it as a kernel Oops
 
-### Clean-room rewrite drivers (27)
+### Clean-room rewrite drivers (29)
 
 The from-scratch MPP/RGA replacement: reviews, soft-CCU wedges, and reset/lifecycle races.
 
+- [`2026-08-07`](2026-08-07-rga3-cross-process-vpp-corruption-lead.md) — Cross-process RGA3 contention corrupts vpp_rkrga output frames — lead, not root-caused
+- [`2026-08-07`](2026-08-07-rewrite-rga-blend-chain-swiotlb-and-rga3-iommu-fault.md) — Rewrite RGA cannot run a valid overlay blend chain: RGA2 SWIOTLB segment limit and a deterministic RGA3 IOMMU fault
 - [`2026-08-07`](2026-08-07-rewrite-rkvdec-drm-prime-duplicate-frame-regression.md) — Rewrite rkvdec zero-copy decode duplicates frames after the #8 scheduler/completion fixes
 - [`2026-08-07`](2026-08-07-rewrite-mpp-same-session-dual-core-dispatch-race.md) — Rewrite MPP scheduler races same-session frames across both rkvdec cores; ordering + CCU-conformance fix committed
 - [`2026-08-06`](2026-08-06-rewrite-rga-userptr-map-before-power-iommu-fault.md) — Rewrite RGA USERPTR imports mapped before core power and left a stale IOTLB entry
@@ -334,7 +336,9 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-08-07-rga3-cross-process-vpp-corruption-lead.md`](2026-08-07-rga3-cross-process-vpp-corruption-lead.md) — Cross-process RGA3 contention corrupts vpp_rkrga output frames — lead, not root-caused
 - [`2026-08-07-rewrite-rkvdec-drm-prime-duplicate-frame-regression.md`](2026-08-07-rewrite-rkvdec-drm-prime-duplicate-frame-regression.md) — Rewrite rkvdec zero-copy decode duplicates frames after the #8 scheduler/completion fixes
+- [`2026-08-07-rewrite-rga-blend-chain-swiotlb-and-rga3-iommu-fault.md`](2026-08-07-rewrite-rga-blend-chain-swiotlb-and-rga3-iommu-fault.md) — Rewrite RGA cannot run a valid overlay blend chain: RGA2 SWIOTLB segment limit and a deterministic RGA3 IOMMU fault
 - [`2026-08-07-rewrite-mpp-same-session-dual-core-dispatch-race.md`](2026-08-07-rewrite-mpp-same-session-dual-core-dispatch-race.md) — Rewrite MPP scheduler races same-session frames across both rkvdec cores; ordering + CCU-conformance fix committed
 - [`2026-08-07-ffmpeg-rkrga-failures-are-latent-pts-and-checker-defects.md`](2026-08-07-ffmpeg-rkrga-failures-are-latent-pts-and-checker-defects.md) — FFmpeg rkrga conformance failures are latent PTS and checker defects exposed by suite strictness; kernel #8 exonerated
 - [`2026-08-06-rga-rop-identity-transform-gate.md`](2026-08-06-rga-rop-identity-transform-gate.md) — RGA rewrite's ROP gate mistook librga's identity cosine for rotation

@@ -10,6 +10,17 @@
 > Trust: MEASURED, SOURCE-INSPECTED, CONFIRMED (root cause); COMPILE-VERIFIED
 > (fixes; boot + repro gate below still pending)
 
+> **Update 2026-08-07 evening (kernel #8 `gf37186832202` booted):** the fix
+> reduces but does not eliminate the failure class. The promoted
+> `ffmpeg_decode_h264_repeat_exact_load` gate passed 20/20 in the 20:48
+> conformance run and 30x in focused checks, but solo gate runs at 22:55 and
+> 23:03 failed — one `MISMATCH from frame 2` at iteration 1/20 (the original
+> corruption signature) and one `h264_rkmpp` AVERROR_BUG ("decoder returned
+> an unexpected error code") mid-iteration under load, kernel log silent both
+> times. Either the dispatch-order barrier leaves a residual window or a
+> second mechanism exists. Keep the gate required; do not treat clean runs
+> as closure.
+
 ## Result
 
 The intermittent H.264/HEVC hw-decode corruption from the
