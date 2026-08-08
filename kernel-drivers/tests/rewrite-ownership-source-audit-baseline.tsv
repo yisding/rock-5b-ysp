@@ -1,6 +1,6 @@
 # Rewrite ownership inventory; new signals fail, resolved signals are allowed.
-# source-head	1a537fb4c03edafb1ac3ec5070bfc33feeefc99d
-# source-head	f3c32b7dac31945e5aa09c20bee53fcc9472b8bb
+# source-head	a8931389eb33d709da0ece7d0b9758ca58a30d81
+# source-head	c92387d99b1d7ac9fed66dd3faf0a2cc9324f91a
 # category	source	function	ordinal	normalized source signal
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	enum rk_mpp_debug_event_type { RK_MPP_DEBUG_REQUEST_FAIL, RK_MPP_DEBUG_SELECT_FAIL, RK_MPP_DEBUG_TRANSLATE_FAIL, RK_MPP_DEBUG_RCB_FAIL, RK_MPP_DEBUG_SUBMIT_FAIL, RK_MPP_DEBUG_POLL_FAIL, RK_MPP_DEBUG_QUEUED, RK_MPP_DEBUG_DISPATCH, RK_MPP_DEBUG_STARTED, RK_MPP_DEBUG_IRQ, RK_MPP_DEBUG_DONE, RK_MPP_DEBUG_TIMEOUT, RK_MPP_DEBUG_IOMMU_FAULT, RK_MPP_DEBUG_ABORT, RK_MPP_DEBUG_SPURIOUS_IRQ, };
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	struct rk_mpp_debug_event { u64 seq; u64 timestamp_ns; u64 data; u32 session_id; u32 job_id; u32 client_type; u32 irq_status; s32 core_id; s32 result; u8 type; char hw_name[20]; char dev_name[32]; };
@@ -108,62 +108,26 @@ debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk
 debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	rk_rga_debugfs_create_core_times("hw_max_ns", rk_rga.hw_max_core_ns);
 debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	rk_rga_debugfs_create_core_times("hw_total_ns", rk_rga.hw_total_core_ns);
 debug-interface-registration	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_runtime_register	1	rk_rga_debugfs_create_route_b();
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	__rk_mpp_hw_restore_active_job	1	if (!hw->active_job) { hw->active_job = job;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	__rk_mpp_hw_restore_active_job	1	if (hw->iommu_fault_pending) hw->iommu_fault_generation = hw->active_generation;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_submit	1	ret = rk_mpp_av1_start(hw, hw->active_generation, config.enabled, start_value);
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_debug_record_active	1	job = hw->active_job;
 mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_debug_state_show	1	active_job = job->id;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_debug_state_show	1	job = hw->active_job;
 mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_debug_state_show	1	seq_printf(s, "%s %s %d %u %u %u %d %d %#x %u %u %u %llu %s\n", dev_name(hw->dev), hw->match->name, hw->core_id, READ_ONCE(hw->online), READ_ONCE(hw->recovery_failed), pm_runtime_active(hw->dev), refcount_read(&hw->refs), atomic_read(&hw->queued_job_count), irq_status, active_session, active_job, active_client, active_ms, ccu_mode);
 mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_debug_state_show	1	seq_puts(s, "\n# hardware: device hw core online recovery_failed pm_active refs queued irq active_session active_job active_client active_ms ccu_mode\n");
 mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_debug_state_show	1	u32 active_job = 0;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hard_fault_owner	1	job = hw->active_job;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_active_job_is	1	active = hw->active_job == match;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_begin_active_job	1	hw->active_generation++;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_begin_active_job	1	hw->active_job = job;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_begin_active_job	1	if (!hw->active_generation) hw->active_generation++;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_begin_active_job	1	} else if (hw->active_job) { ret = -EBUSY;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_clear_active_job	1	hw->active_job = NULL;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_clear_active_job	1	if (hw->active_job == job) { if (irq_status) *irq_status = hw->irq_status;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_get_active_ccu_if	1	if (job && (!match || job == match) && (!generation || hw->active_generation == generation) && job->rkvdec_ccu) { ccu = job->rkvdec_ccu;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_get_active_ccu_if	1	job = hw->active_job;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_get_active_job	1	job = hw->active_job;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_is_idle	1	idle = !hw->active_job && !hw->iommu_fault_pending;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_mark_iommu_fault	1	hw->iommu_fault_generation = hw->active_job ? hw->active_generation : 0;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_mark_iommu_fault	1	if (!hw->active_job && hw->srv) atomic_inc(&hw->srv->iommu_idle_fault_count);
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_mark_iommu_fault	1	if (!hw->iommu_fault_pending && (hw->active_job || hw->iommu_provider == RK_MPP_IOMMU_VSI)) { hw->iommu_fault_pending = true;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_peek_irq_job	1	if (!hw->iommu_fault_pending) job = hw->active_job;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_peek_irq_job	1	if (generation) *generation = hw->active_generation;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_prepare_active_retry	1	if (!hw->active_generation) hw->active_generation++;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_prepare_active_retry	1	if (hw->active_job == match) { hw->active_generation++;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_schedule_timeout	1	hw->timeout_deadline_generation = hw->active_generation;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_schedule_timeout	1	if (job && hw->timeout_deadline_generation != hw->active_generation) { hw->timeout_deadline = jiffies + msecs_to_jiffies(RK_MPP_WORK_TIMEOUT_MS);
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_schedule_timeout	1	job = hw->active_job;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_schedule_timeout	1	} hw->timeout_generation = job ? hw->active_generation : 0;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_suspend	1	busy = hw->active_job || hw->iommu_fault_pending;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_suspend	2	busy = hw->active_job || hw->iommu_fault_pending;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_active_if	1	hw->active_job = NULL;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_active_if	1	if (hw->active_job == match && !hw->iommu_fault_pending) { if (irq_status) *irq_status = hw->irq_status;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_active_if_generation	1	hw->active_job = NULL;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_active_if_generation	1	if (generation && hw->active_job == match && hw->active_generation == generation && !hw->iommu_fault_pending) { if (irq_status) *irq_status = hw->irq_status;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_active_job	1	if (job) { hw->active_job = NULL;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_active_job	1	job = hw->active_job;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_iommu_fault_job	1	hw->active_job = NULL;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_iommu_fault_job	1	if (generation && hw->active_job && generation == hw->active_generation) { job = hw->active_job;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_irq_job	1	if (!pending) { job = hw->active_job;
-mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_irq_job	1	if (job) hw->active_job = NULL;
-mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	__rk_mpp_hw_restore_active_job	1	if (!hw->active_job) { hw->active_job = job;
-mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_begin_active_job	1	hw->active_generation++;
-mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_begin_active_job	1	hw->active_job = job;
-mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_begin_active_job	1	if (!hw->active_generation) hw->active_generation++;
-mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_clear_active_job	1	hw->active_job = NULL;
-mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_prepare_active_retry	1	if (!hw->active_generation) hw->active_generation++;
-mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_prepare_active_retry	1	if (hw->active_job == match) { hw->active_generation++;
-mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_active_if	1	hw->active_job = NULL;
-mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_active_if_generation	1	hw->active_job = NULL;
-mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_active_job	1	if (job) { hw->active_job = NULL;
-mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_iommu_fault_job	1	hw->active_job = NULL;
-mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_irq_job	1	if (job) hw->active_job = NULL;
+mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_active_generation_locked	1	return hw->active_generation;
+mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_active_job_locked	1	return hw->active_job;
+mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_advance_active_generation_locked	1	hw->active_generation++;
+mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_advance_active_generation_locked	1	if (!hw->active_generation) hw->active_generation++;
+mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_advance_active_generation_locked	1	return hw->active_generation;
+mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_install_active_locked	1	WARN_ON_ONCE(hw->active_job);
+mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_install_active_locked	1	hw->active_job = job;
+mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_restore_active_locked	1	hw->active_job = job;
+mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_restore_active_locked	1	if (hw->active_job) return false;
+mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_active_locked	1	hw->active_job = NULL;
+mpp-active-slot-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_active_locked	1	job = hw->active_job;
+mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_advance_active_generation_locked	1	hw->active_generation++;
+mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_advance_active_generation_locked	1	if (!hw->active_generation) hw->active_generation++;
+mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_install_active_locked	1	hw->active_job = job;
+mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_restore_active_locked	1	hw->active_job = job;
+mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_active_locked	1	hw->active_job = NULL;
 mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_scheduler_release_session	1	job->rkvdec_session_dispatch = false;
 mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_scheduler_release_session	1	session->rkvdec_dispatch_active = false;
 mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_scheduler_take_job	1	job->rkvdec_session_dispatch = true;
