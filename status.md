@@ -32,14 +32,14 @@ remain scannable.
 
 | # | Track | Public state | Verified | Detail |
 |---|-------|--------------|----------|--------|
-| 1 | Kernel forward-port | ⚠️ The exact published and installed forward-port kernel has a green functional/recovery verdict and encode soak. Its 4K decode workload and kernel scan pass, but the strict userspace resource oracle is red. Exact-tail KASAN/lockdep, targeted hostile paths, root counters, and authenticated display integration remain open; [W16](#watch-w16) owns the moving source/package identity. | 2026-08-04 | [production validation](./findings/2026-08-04-forward-port-6-18-42-0092-production-validation.md), [series status](./kernel-drivers/docs/forward-port-status.md) |
+| 1 | Kernel forward-port | ⚠️ Published/installed 6.18.43 now boots its matching YSP DTB and passes identity, ABI, and all 12 MPP cases, but full conformance stops at three RGA2-only large-USERPTR librga cases. Source patch `0093` is compile-verified and unbooted. The older `0092` functional/recovery and encode-soak verdict remains valid for its exact 6.18.42 artifact; exact-tail sanitizer, hostile, root-counter, and display gates remain open. | 2026-08-08 | [RGA2 segment finding](./findings/2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md), [production validation](./findings/2026-08-04-forward-port-6-18-42-0092-production-validation.md), [series status](./kernel-drivers/docs/forward-port-status.md) |
 | 2 | BSP-audit fixes | 🚧 All 11 remaining distinct HIGH audit bugs are ported as `0058`–`0068`; the combined tail passed KASAN, destructive-path, production conformance, and root gates. Several fixes still lack individual hostile-path tests, and the older 65-patch MEDIUM/LOW cleanup series remains unshippable. | 2026-07-24 | [BSP audit](./kernel-drivers/docs/bsp-audit.md), [port record](./findings/2026-07-22-bsp-high-current-tip-port.md), [patch catalog](./kernel-drivers/docs/patch-catalog.md) |
 | 3 | DKMS channel | ⚠️ Compiles on 6.18; its DT overlay is dtc-validated but not boot-validated. | 2026-07-01 | [`packaging/dkms/`](packaging/dkms/README.md) |
 | 4 | Clean-room rewrite drivers | 🚧 Kernel #8 at `gf37186832202` booted and exposed residual decoder and RGA3 failures. Current source tips 6.18 `c20fc8c1cbf76` and mainline `09e39082007dd` add per-session RKVDEC dispatch serialization and an RGA command-publication barrier; both pass warning-fatal clean-archive `normal`/`test-disabled` builds, exact 94/152 manifests, and the 308-signal audit, but are not packaged or booted. The barrier is only a candidate for the silent RGA3 corruption and fault until runtime replay. The separate RGA2 plain-system-heap 1 MiB SWIOTLB limitation still needs a staging design; AV1/VSI, recovery, performance, fuzz, and soak remain open. | 2026-08-08 | [rga3 vpp corruption](./findings/2026-08-07-rga3-cross-process-vpp-corruption-lead.md), [overlay-chain gaps](./findings/2026-08-07-rewrite-rga-blend-chain-swiotlb-and-rga3-iommu-fault.md), [dispatch-race finding](./findings/2026-08-07-rewrite-mpp-same-session-dual-core-dispatch-race.md), [architecture guide](./kernel-drivers/docs/rewrite-driver-architecture/README.md) |
 | 5 | ffmpeg tree | 🚧 The three-commit rewrite-driver repair through `f37186832202` reduced but did not close intermittent H.26x corruption on booted kernel #8: a later serial run failed `psnr_hevc_decode_inf` at 81 dB with non-monotonic DTS. Successor `8fdb00c973403` serializes RKVDEC dispatch per session through hardware retirement while retaining cross-session parallelism; it is compile-verified on both kernel lines but not packaged or booted. MPP `a8b19653` and the FFmpeg lifetime fix remain exonerated by the 9/20-vs-9/20 differential and 0/20 `-fast_parse 0` control. Published/install state belongs to [W05](#watch-w05); installed-package GRD fallback/recreation and AV1 container validation remain open. | 2026-08-08 | [dispatch-race finding](./findings/2026-08-07-rewrite-mpp-same-session-dual-core-dispatch-race.md), [intermittent decode finding](./findings/2026-08-06-rewrite-kasan-media-suite-userspace-fixes-and-intermittent-h264.md), [lifetime fix and gate](./findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md), [FFmpeg project](./video-libraries/ffmpeg/README.md) |
 | 7 | GNOME Remote Desktop backend | 🚧 The release branch is installed and the kernel preconditions for the reconnect gate are met, but the authenticated idle reconnect has not run. The separate watchdog/forced-IDR candidate is built but absent from the installed binary and has no runtime proof. | 2026-08-04 | [reconnect finding](./findings/2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md), [watchdog finding](./findings/2026-08-01-grd-hw-encode-watchdog-forced-idr-bitrate-ceiling.md) |
 | 8 | Mesa / Panfrost | 🔄 Selected G610 shards passed on the recorded MR heads, but all four MRs remain unmerged and one needs rebase; refreshed CI is also owed on the updated transfer MR. [W06](#watch-w06) owns the live MR state. | 2026-08-04 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
-| 9 | Launchpad PPA | ✅ The normal PPA provides the complete nine-source system stack. Forward-port 6.18.43 source plus image/DTB/headers are Published, while installed and hardware-qualified kernel evidence remains on 6.18.42. The FFmpeg successor is also Published but uninstalled, VA-API still needs exact PPA-binary replay, and incompatible-stack migration remains a separate operational gate. [W05](#watch-w05) owns live publication identities. | 2026-08-07 | [PPA packaging](./packaging/ppa/README.md), [new-user guide](./docs/ppa-support.md) |
+| 9 | Launchpad PPA | ⚠️ The normal PPA provides the complete nine-source system stack, and its forward-port 6.18.43 image/DTB/headers are Published, installed, and booted. Kernel qualification is partial because that exact `0092` package stops at the RGA2 librga failure; `0093` is not packaged or published. The FFmpeg successor is Published but uninstalled, and VA-API still needs exact PPA-binary replay. [W05](#watch-w05) owns live publication identities. | 2026-08-08 | [PPA kernel record](./packaging/ppa/kernel-forward-port/README.md), [RGA2 segment finding](./findings/2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md) |
 | 10 | Binary publishing | ❌ Repository licensing is defined, but no GitHub release, artifact set, or checksummed manifest exists. | 2026-08-05 | [`packaging/`](packaging/README.md), [`LICENSE.md`](LICENSE.md) |
 | 11 | Kodi HW decode | 🚧 Decoder selection and media prerequisites are ready; Kodi build, tty1 playback, and packaging remain unproven, and the PPA publishes no Kodi package. | 2026-08-04 | [`apps/kodi/`](apps/kodi/README.md) |
 | 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |
@@ -57,14 +57,14 @@ dashboard date when public state changes.
 
 | # | Track | Next proof | Action path |
 |---|-------|------------|-------------|
-| 1 | Kernel forward-port | Exercise exact `0092` under KASAN/lockdep through RGA cancellation/session-close and decoder recovery/reset contention; then capture root-only debugfs counters and remaining targeted hostile paths. | [production validation gaps](./findings/2026-08-04-forward-port-6-18-42-0092-production-validation.md#remaining-qualification-gaps), [0092 verification gate](./findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md#verification-gate) |
+| 1 | Kernel forward-port | Build, install, and boot exact `0093`; pass the three focused RGA2 USERPTR samples and then the complete production conformance matrix. After functional closure, exercise the exact tail under KASAN/lockdep and capture the remaining root/hostile evidence. | [0093 verification gate](./findings/2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md#verification-gate), [production validation gaps](./findings/2026-08-04-forward-port-6-18-42-0092-production-validation.md#remaining-qualification-gaps) |
 | 2 | BSP-audit fixes | Add targeted hostile-path gates for the acquire-fence, shutdown, missing-plane, and partial-handle fixes that broad conformance does not exercise. | [runtime gate inventory](./kernel-drivers/patches/cleanup-draft/verification.md#runtime-gate-result-record-here-when-run), [port record](./findings/2026-07-22-bsp-high-current-tip-port.md) |
 | 3 | DKMS channel | Install on a stock 6.18 ROCK 5B, boot the overlay, and run `validate-combined.sh`. | [DKMS build and install](./packaging/dkms/README.md#dkms-build-install) |
 | 4 | Clean-room rewrite drivers | Build, install, and boot a 6.18.43 rewrite-debug package from exact source `c20fc8c1cbf76`; require the exact 246-case KUnit manifest, replay the solo RGA3 vpp and overlay-chain cases, and retain the corrected librga DMA-BUF/USERPTR counter contract. A persistent RGA3 fault needs command-image and mapping capture; the RGA2 1 MiB staging gap remains separate. | [RGA3 fixed-tip gate](./findings/2026-08-08-rga3-cross-process-contention-harness-plan.md#verification-gate), [overlay-chain boundary](./findings/2026-08-07-rewrite-rga-blend-chain-swiotlb-and-rga3-iommu-fault.md#boundary), [rewrite validation plan](./kernel-drivers/docs/rewrite-validation-plan.md) |
 | 5 | ffmpeg tree | On the exact `c20fc8c1cbf76` boot, require the 246-case KUnit manifest, pass `ffmpeg_decode_h264_repeat_exact_load` twice plus its `-fast_parse 0` control, verify both rkvdec cores are used across the workload without same-session overlap, and replay the full FFmpeg suite; then install exact Published `c9428bedaa` and repeat the GRD fallback/recreation and AV1 container gates. | [dispatch-race verification gate](./findings/2026-08-07-rewrite-mpp-same-session-dual-core-dispatch-race.md#verification-gate), [lifetime integration gate](./findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md#verification-gate) |
 | 7 | GNOME Remote Desktop backend | Run the documented authenticated idle reconnect without restarting the daemon; then install the watchdog candidate before attempting its recovery/VBR gates. | [reconnect reproduction](./findings/2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md#act-4-latest-gnome-50-rebase-and-narrowed-june-fix-salvage), [watchdog gate](./findings/2026-08-01-grd-hw-encode-watchdog-forced-idr-bitrate-ceiling.md#verification-gate) |
 | 8 | Mesa / Panfrost | Rebase !42614, then rerun selected G610 CI on it and on !42679's post-07-23 head. | [W06 MR tips and selected CI](#watch-w06) |
-| 9 | Launchpad PPA | Install and boot the newly Published 6.18.43 image/DTB/headers with recovery retained, then install exact Published FFmpeg and replay its GRD integration gate. | [W05 publication record](#watch-w05), [forward-port validation](./findings/2026-08-04-forward-port-6-18-42-0092-production-validation.md), [FFmpeg integration gate](./findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md#verification-gate) |
+| 9 | Launchpad PPA | Build and publish a 6.18.43 successor carrying `0093`, install it with recovery retained, and close its full conformance gate; then install exact Published FFmpeg and replay its GRD integration gate. | [0093 verification gate](./findings/2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md#verification-gate), [W05 publication record](#watch-w05), [FFmpeg integration gate](./findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md#verification-gate) |
 | 10 | Binary publishing | Select the first release's exact source/binary artifacts, verify each artifact's complete corresponding-source and third-party redistribution obligations, then publish a versioned checksummed manifest. | [license scope](./LICENSE.md), [artifact policy](./packaging/README.md) |
 | 11 | Kodi HW decode | Build Kodi GBM/GLES and validate RKMPP playback with `kodi-gbm` on tty1. | [Kodi tty1 runbook](./apps/kodi/docs/build-hwaccel.md#5-test-on-tty1-gbm-needs-drm-master) |
 | 12 | ROCK 5B SD/SPI boot chain | Substitute the 26.5.1 `current` FIT, loader, and then both on a captured 26.2.1 SD baseline; record where each boot stops or succeeds. | [raw-SD hypothesis test](./scripts/README.md#rock-5b-raw-sd-u-boot-hypothesis-test) |
@@ -95,12 +95,12 @@ state observed on its last-checked date.
 | W01 | [Armbian media-patch drift](#watch-w01) | 2026-08-04 | Patch blobs unchanged; DT anchors still hold. |
 | W02 | [Armbian patcher precedence](#watch-w02) | 2026-08-04 | Core-wins behavior unchanged; rename workaround still required. |
 | W04 | [Ubuntu FFmpeg version](#watch-w04) | 2026-08-04 | Resolute still publishes `7:8.0.1-3ubuntu2`. |
-| W05 | [Launchpad PPA publication](#watch-w05) | 2026-08-07 | All nine normal-PPA source names are Published. Forward-port 6.18.43 source and all three arm64 binaries are Published but uninstalled; 6.18.42 remains installed and validated. FFmpeg `c9428bedaa` is Published but uninstalled, while VA-API still needs exact PPA-binary replay. |
+| W05 | [Launchpad PPA publication](#watch-w05) | 2026-08-07 | All nine normal-PPA source names are Published. Forward-port 6.18.43 source and all three arm64 binaries are Published; subsequent board install/runtime state belongs to W16. FFmpeg `c9428bedaa` is Published but uninstalled, while VA-API still needs exact PPA-binary replay. |
 | W06 | [Mesa MR stack](#watch-w06) | 2026-08-04 | Four MRs still open; the rebase need moved from !42679 to !42614. |
 | W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-08-04 | `main` unchanged, but `ffmpeg-80` and `ffmpeg-81` both moved; their replay evidence is stale. |
 | W10 | [GRD release and recovery branches](#watch-w10) | 2026-08-04 | Release remains `c4ef3c9`; the unshipped forced-IDR recovery branch remains `100da72`. Package/board state routes to W05 and track 7. |
-| W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-08-08 | `6.18.43-ysp-rockchip64` is now installed and booted, but on 2026-08-08 it booted the wrong (mainline `current`) DTB — see [W25](#watch-w25). W05 owns moving publication state; track 1 and the linked findings own validation. |
-| W26 | [Co-installed kernel branches split `/boot/dtb` vs `/boot/Image`](#watch-w26) | 2026-08-08 | The `ysp` kernel booted the `current` branch's mainline DTB, so the vendor MPP/RGA drivers created no devices; `/boot/dtb` and `/boot/Image` resolved to different branches by last-writer-wins during a two-branch dpkg upgrade. Fix (repoint symlink + reboot) pending hardware confirmation. |
+| W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-08-08 | Installed `6.18.43-ysp-rockchip64` now boots the matching DTB and passes identity/ABI/MPP, then fails three RGA2-only librga cases. Maintained source `b54ba6079824` / `0001`–`0093` fixes the shared USERPTR mapping cause and is compile-verified but unpackaged and unbooted. |
+| W26 | [Co-installed kernel branches split `/boot/dtb` vs `/boot/Image`](#watch-w26) | 2026-08-08 | Repointing `/boot/dtb` to the YSP set and rebooting restored MPP/RGA devices plus ABI/MPP conformance. The last-writer-wins split can recur after another multi-branch package transaction. |
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-08-02 | Refreshed against current proposal mail, Torvalds master, linux-next, and subsystem-next refs; future “maximum current” claims still require another deliberate audit. |
 | W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-08-05 | Public fork `main` is `70f26d9`; recorded upstream is `e8c64dd`. W05 and track 14 own publication, installed-package, and browser state. |
 | W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-23 | The stall recurred with the parser fix installed, falsifying that loop as the sole cause. Disable Plymouth for mitigation; capture the next wedged daemon live. |
@@ -199,10 +199,11 @@ state observed on its last-checked date.
   `18661703` is `Published`, arm64 build `33477272` is `Successfully built`,
   and its image, DTB, and headers binary publications `247896370`, `247896368`,
   and `247896369` are all `Published`; the live Resolute arm64 index selects
-  that exact 6.18.43 version for all three package names. That newer kernel is
-  not installed or runtime-qualified; the board remains on the exercised
-  6.18.42 `0092` image, DTB, and headers from source publication `18656958` and
-  successful arm64 build `33467257`. MPP source publication `18657949` is also
+  that exact 6.18.43 version for all three package names. Installed/booted board
+  state is outside this service-authority item and belongs to W16; its later
+  2026-08-08 update records the 6.18.43 installation. The older 6.18.42 `0092`
+  source publication is `18656958` with successful arm64 build `33467257`.
+  MPP source publication `18657949` is also
   `Published`, build
   `33468629` is `Successfully built`, and the live index selects
   `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1`. All four
@@ -384,12 +385,15 @@ state observed on its last-checked date.
   KASAN evidence.
 - **Last checked:** 2026-08-08
 - **State 2026-08-08:** `6.18.43-ysp-rockchip64` (source
-  `6.18.43+rk3588av1fwport20260807-0ubuntu1~rk1`) is now installed and booted,
-  but on first bring-up it loaded the wrong (mainline `current`) DTB, so the
-  vendor MPP/RGA drivers created no devices and conformance could not run — see
-  [W26](#watch-w26) and
-  [`findings/2026-08-08-forward-port-boot-dtb-symlink-mismatch.md`](./findings/2026-08-08-forward-port-boot-dtb-symlink-mismatch.md).
-  A clean forward-port conformance run on 6.18.43 is therefore still pending.
+  `6.18.43+rk3588av1fwport20260807-0ubuntu1~rk1`, `0001`–`0092`) is installed
+  and now boots `/boot/dtb-6.18.43-ysp-rockchip64`. The corrected-DTB
+  production run passed system/matrix identity, ABI replay, and all 12 MPP
+  cases, then stopped at three RGA2-only official librga cases whose 2 MiB
+  high-USERPTR entries exceed SWIOTLB's per-map limit. Maintained source
+  `rk3588-video-6.18@b54ba6079824` / `0001`–`0093` contains the focused,
+  compile-verified segment-sizing fix but is not packaged or booted. See W26,
+  the [DTB finding](./findings/2026-08-08-forward-port-boot-dtb-symlink-mismatch.md),
+  and the [RGA2 finding](./findings/2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md).
 - **State 2026-08-04:** The board booted `6.18.42-ysp-rockchip64`; installed
   image, DTB, and headers matched source package
   `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1`, whose maintained/exported
@@ -616,10 +620,10 @@ state observed on its last-checked date.
   mismatched DTB presents as "the vendor drivers created no devices," not as a
   boot error.
 - **Last checked:** 2026-08-08
-- **State 2026-08-08:** On 2026-08-08 the booted `6.18.43-ysp-rockchip64` kernel
-  had `/boot/dtb -> dtb-6.18.43-current-rockchip64` (mainline), so MPP/RGA created
-  no devices and conformance failed at the ABI stage. Proposed fix is to repoint
-  the symlink and reboot; it is fragile against the next multi-branch upgrade
-  (prefer purging or holding the unused `current` branch). Mechanism, evidence,
-  and fix in
+- **State 2026-08-08:** The initial `6.18.43-ysp-rockchip64` boot had
+  `/boot/dtb -> dtb-6.18.43-current-rockchip64`, so MPP/RGA created no devices.
+  Repointing the symlink to `dtb-6.18.43-ysp-rockchip64` and rebooting restored
+  `/dev/mpp_service`, `/dev/rga`, passing ABI replay, and all 12 MPP cases. The
+  repair is fragile against the next multi-branch upgrade (prefer purging or
+  holding the unused `current` branch). Mechanism and evidence are in
   [`findings/2026-08-08-forward-port-boot-dtb-symlink-mismatch.md`](./findings/2026-08-08-forward-port-boot-dtb-symlink-mismatch.md).

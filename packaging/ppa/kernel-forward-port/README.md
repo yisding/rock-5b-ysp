@@ -22,9 +22,12 @@ and arm64 build
 which completed successfully at 12:08 PDT. Launchpad Published all three arm64
 binaries — `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and
 `linux-headers-ysp-rockchip64` — at 12:33 PDT, so this exact version is now the
-normal PPA's install candidate. It has not been installed, booted, or
-hardware-validated; the installed and exercised 6.18.42 packages remain the
-runtime-qualified production baseline until that happens.
+normal PPA's install candidate. It is now installed and booted with the
+matching YSP DTB. The 2026-08-08 production run passed identity, ABI, and MPP,
+then stopped at three RGA2-only large-USERPTR librga failures. Successor source
+patch `0093` fixes the shared SWIOTLB segment-sizing cause and is affected-
+object compile-verified, but is not packaged, published, or booted; see the
+[6.18.43 finding](../../../findings/2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md).
 
 **Previous 2026-08-04 upload:** `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1`
 — the `0001`–`0092` forward-port tip `7d53bc7a3adc`, adding the RGA
@@ -221,7 +224,7 @@ The package remains conservative and recovery-friendly:
 | Binary packages | Co-installable names first: `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and `linux-headers-ysp-rockchip64`. A later drop-in package can replace `linux-image-current-rockchip64` after boot/revert testing. |
 | Architecture | `arm64` only. |
 | Kernel variant | Armbian `rockchip64-current` 6.18 worktree with the self-contained-DT RK3588 MPP/RGA/AV1/IEP2 forward port applied. The older convert-in-place combined kernel can use the same source-package shape later if needed. |
-| Upload state | Candidate `6.18.43` source and all three arm64 binaries are Published; `6.18.42` remains the installed and hardware-validated baseline. Earlier successful and failed build identities remain in the release history below. |
+| Upload state | Candidate `6.18.43` source and all three arm64 binaries are Published, installed, and booted; its functional qualification is partial because conformance stops at the RGA2 USERPTR failure. Patch `0093` is compile-verified only and has no package publication. The broader 6.18.42 campaign remains the fully integrated hardware baseline. |
 
 ## Source Inputs
 
@@ -472,22 +475,25 @@ commands are operator-validated.
 > the forward-port tree and rejects paths or shared-file symbols that the
 > selected forward-port tree does not own before export.
 
-**State as of 2026-08-07.** The unchanged `0001`–`0092` source at
+**State as of 2026-08-08.** The unchanged `0001`–`0092` source at
 `7d53bc7a3adc` is Published on the 6.18.43 base as source publication
 `18661703`; remote arm64 build `33477272` succeeded and all three binaries are
-Published. Those newer packages are not installed or runtime-qualified. The
-exact 6.18.42 image, DTB, and headers from source publication `18656958` remain
-installed and booted as `6.18.42-ysp-rockchip64`. Broad native and independent
-VA-API campaigns plus bounded kernel-log scans and production soaks are recorded
-in the production validation finding. The 6.18.42 functional/recovery verdict
-is green, with the decode fd-span oracle explicitly non-green; the 6.18.43 boot
-and hardware gates plus the existing debug/integration boundaries remain.
+Published. Those packages are installed and booted as
+`6.18.43-ysp-rockchip64`; after correcting `/boot/dtb` to the matching YSP set,
+the production runner passed identity, ABI, and MPP, then stopped at three
+RGA2-only official librga failures. Source `b54ba6079824` / `0001`–`0093`
+repairs the common USERPTR SG-size cause and is strict-checkpatch plus affected-
+object compile-verified, but has no package or runtime proof. The exact 6.18.42
+campaign remains the broader integrated evidence baseline: its functional/
+recovery verdict is green, with the decode fd-span oracle explicitly non-green.
 
-1. Build exact `0092` under KASAN/lockdep and pass the RGA
+1. Package, install, and boot exact `0093`; pass the three focused RGA2 USERPTR
+   samples and then the full production conformance matrix.
+2. Build the exact current tail under KASAN/lockdep and pass the RGA
    cancellation/session-close and decoder recovery/reset-contention gates.
-2. Run the `0076`–`0087` targeted hostile/ownership regression set plus the
+3. Run the `0076`–`0087` targeted hostile/ownership regression set plus the
    forced fragmented-DMA-BUF RGA2 gate.
-3. Capture root-only debugfs counters and authenticated RDP/physical-display
+4. Capture root-only debugfs counters and authenticated RDP/physical-display
    integration. Exercise the separate clean-install/stale-package transaction
    when a machine actually migrates from an incompatible stack; do not treat
    that operational scenario as missing publication evidence for this exact

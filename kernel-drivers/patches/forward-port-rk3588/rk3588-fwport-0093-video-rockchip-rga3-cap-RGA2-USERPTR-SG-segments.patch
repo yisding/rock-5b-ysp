@@ -1,0 +1,132 @@
+From b54ba6079824b1aa0b9e9a1c6b845460b8b4f9d8 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sat, 8 Aug 2026 11:48:02 -0700
+Subject: [PATCH 93/93] video: rockchip: rga3: cap RGA2 USERPTR SG segments
+
+RGA2 has a 32-bit DMA mask, so high USERPTR pages are bounced through
+SWIOTLB. The backend can map at most 256 KiB per entry on RK3588, while
+sg_alloc_table_from_pages() can merge physically adjacent pages into
+multi-megabyte entries. Large RGA2-only librga operations then fail before
+hardware start even when the bounce pool is mostly empty.
+
+Build USERPTR scatterlists that will be mapped by RGA2 with
+sg_alloc_table_from_pages_segment() and the active DMA backend limit. Apply
+the same rule to direct RGA2 imports and transient handle remaps, while
+retaining the historical unlimited coalescing for RGA3 and physical-import
+paths.
+
+Signed-off-by: rkvenc forward-port <forward-port@local>
+---
+ drivers/video/rockchip/rga3/rga_mm.c | 60 ++++++++++++++++++++++------
+ 1 file changed, 47 insertions(+), 13 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
+index 11aa0d9d78256..883fd1a66dca5 100644
+--- a/drivers/video/rockchip/rga3/rga_mm.c
++++ b/drivers/video/rockchip/rga3/rga_mm.c
+@@ -5,6 +5,7 @@
+  * Author: Cerf Yu <cerf.yu@rock-chips.com>
+  */
+ 
++#include <linux/limits.h>
+ #include <linux/overflow.h>
+ 
+ #include "rga.h"
+@@ -416,9 +417,21 @@ static void rga_free_sgt(struct sg_table **sgt_ptr)
+ 	*sgt_ptr = NULL;
+ }
+ 
+-static struct sg_table *rga_alloc_sgt(struct page **pages,
+-				      int page_count, size_t offset,
+-				      size_t size, gfp_t gfp_mask)
++static unsigned int rga_dma_max_segment_size(struct device *dev)
++{
++	size_t max_segment = dma_max_mapping_size(dev);
++
++	if (!max_segment || max_segment > UINT_MAX)
++		return UINT_MAX;
++
++	return max_segment;
++}
++
++static struct sg_table *rga_alloc_sgt_segment(struct page **pages,
++					      int page_count, size_t offset,
++					      size_t size,
++					      unsigned int max_segment,
++					      gfp_t gfp_mask)
+ {
+ 	int ret;
+ 	struct sg_table *sgt = NULL;
+@@ -430,9 +443,11 @@ static struct sg_table *rga_alloc_sgt(struct page **pages,
+ 	}
+ 
+ 	/* get sg form pages. */
+-	ret = sg_alloc_table_from_pages(sgt, pages, page_count, offset, size, gfp_mask);
++	ret = sg_alloc_table_from_pages_segment(sgt, pages, page_count,
++						offset, size, max_segment,
++						gfp_mask);
+ 	if (ret) {
+-		rga_err("sg_alloc_table_from_pages failed");
++		rga_err("sg_alloc_table_from_pages_segment failed");
+ 		goto out_free_sgt;
+ 	}
+ 
+@@ -444,6 +459,14 @@ static struct sg_table *rga_alloc_sgt(struct page **pages,
+ 	return ERR_PTR(ret);
+ }
+ 
++static struct sg_table *rga_alloc_sgt(struct page **pages,
++				      int page_count, size_t offset,
++				      size_t size, gfp_t gfp_mask)
++{
++	return rga_alloc_sgt_segment(pages, page_count, offset, size,
++				     UINT_MAX, gfp_mask);
++}
++
+ static void rga_free_virt_addr(struct rga_virt_addr **virt_addr_p)
+ {
+ 	int i;
+@@ -869,10 +892,20 @@ static int rga_mm_map_virt_addr(struct rga_external_buffer *external_buffer,
+ 		map_size = virt_addr->size;
+ 	}
+ 
+-	sgt = rga_alloc_sgt(virt_addr->pages,
+-			    virt_addr->page_count,
+-			    map_offset,
+-			    map_size, GFP_KERNEL);
++	if (scheduler->data->mmu == RGA_MMU) {
++		/*
++		 * RGA2 may bounce high pages through SWIOTLB, whose per-entry
++		 * mapping ceiling is smaller than a merged USERPTR run.
++		 */
++		sgt = rga_alloc_sgt_segment(virt_addr->pages,
++					    virt_addr->page_count,
++					    map_offset, map_size,
++					    rga_dma_max_segment_size(scheduler->dev),
++					    GFP_KERNEL);
++	} else {
++		sgt = rga_alloc_sgt(virt_addr->pages, virt_addr->page_count,
++				    map_offset, map_size, GFP_KERNEL);
++	}
+ 	if (IS_ERR(sgt)) {
+ 		rga_err("alloc sgt error!\n");
+ 		ret = PTR_ERR(sgt);
+@@ -1781,10 +1814,11 @@ static struct sg_table *rga_mm_get_rga2_sgt(struct rga_job *job,
+ 			break;
+ 		}
+ 
+-		sgt = rga_alloc_sgt(buffer->virt_addr->pages,
+-				    buffer->virt_addr->page_count, 0,
+-				    (size_t)buffer->virt_addr->page_count << PAGE_SHIFT,
+-				    GFP_KERNEL);
++		sgt = rga_alloc_sgt_segment(buffer->virt_addr->pages,
++					    buffer->virt_addr->page_count, 0,
++					    (size_t)buffer->virt_addr->page_count << PAGE_SHIFT,
++					    rga_dma_max_segment_size(job->scheduler->dev),
++					    GFP_KERNEL);
+ 		if (IS_ERR(sgt)) {
+ 			ret = PTR_ERR(sgt);
+ 			break;
+-- 
+2.55.0
+

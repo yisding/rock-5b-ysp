@@ -41,8 +41,8 @@ were written — resolve any older number through the **renumber map** at the en
 
 Exported with `git format-patch 7d0a66e4bb908..rk3588-video-6.18` from the kernel
 worktree at `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` (branch
-`rk3588-video-6.18`). This checked-in export is the contiguous `0001`–`0092`
-snapshot ending at `7d53bc7a3adc`. W16 owns the moving branch;
+`rk3588-video-6.18`). This checked-in export is the contiguous `0001`–`0093`
+snapshot ending at `b54ba6079824`. W16 owns the moving branch;
 the forward-port package record owns actual artifacts; the
 [scorecard](../../docs/forward-port-status.md) owns accumulated validation.
 Backup of the pre-cleanup tip: tag
@@ -348,6 +348,22 @@ See also the earlier
 | `0090` | video: rockchip: rga: snapshot job task lists | `4081e39e8712` | — |
 | `0091` | iommu: rockchip: quiesce MPP fault callbacks on clear | `552a9eea6aab` | — |
 | `0092` | video: rockchip: rkvdec2: quiesce failed tasks before retire | `7d53bc7a3adc` | — |
+
+### 0093 — RGA2 USERPTR SWIOTLB segment sizing (2026-08-08)
+
+The first 6.18.43 production conformance run with the matching DTB passed ABI
+and MPP, then isolated three RGA2-only official librga failures. High USERPTR
+pages reached the 32-bit RGA2 DMA device as merged 2 MiB SG entries, exceeding
+SWIOTLB's per-entry mapping limit before hardware start. `0093` sizes both
+direct and transient RGA2 USERPTR SG entries from `dma_max_mapping_size()`;
+RGA3 and physical-import coalescing are unchanged. The patch is strict-
+checkpatch clean and affected-object compile-verified, but not packaged or
+booted. The [dated finding](../../../findings/2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md)
+owns the measured run and verification gate.
+
+| # | Title | Commit | Was |
+|---|-------|--------|-----|
+| `0093` | video: rockchip: rga3: cap RGA2 USERPTR SG segments | `b54ba6079824` | — |
 
 ## Renumber map (2026-07-23)
 

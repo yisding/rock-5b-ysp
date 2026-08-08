@@ -3,7 +3,15 @@
 > Scope: Armbian/YSP kernel packaging on the ROCK 5B; `/boot` symlink management when two `linux-image`/`linux-dtb` branches are co-installed; first hardware bring-up of the installed 6.18.43 forward-port
 > Source: board `6.18.43-ysp-rockchip64`; `/boot` symlinks, `/proc/device-tree`, `/var/log/dpkg.log` 2026-08-07 20:37–20:49, and `/var/lib/dpkg/info/linux-{dtb,image}-{ysp,current}-rockchip64.postinst`
 > Date: 2026-08-08
-> Trust: MEASURED, SOURCE-INSPECTED, ROOT-CAUSED; fix PROPOSED (pending reboot)
+> Trust: **MEASURED** / **SOURCE-INSPECTED** / **ROOT-CAUSED** /
+> **FIX-RUNTIME-VERIFIED** / **PARTIAL**
+
+> **Runtime update 2026-08-08:** after repointing `/boot/dtb` and rebooting,
+> the 11:36 conformance capture records `/boot/dtb ->
+> /boot/dtb-6.18.43-ysp-rockchip64`, both vendor device nodes, a passing ABI
+> stage, and all 12 required MPP cases passing. Full conformance later stopped
+> at an unrelated RGA2 USERPTR mapping defect recorded in the
+> [follow-up finding](2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md).
 
 ## Result
 
@@ -78,9 +86,9 @@ sudo ln -sfn dtb-6.18.43-ysp-rockchip64 /boot/dtb
 sudo reboot
 ```
 
-This is **fragile**: the next upgrade that reconfigures either dtb package can
-re-flip `/boot/dtb` by the same last-writer-wins rule. Durable options, in order
-of preference: remove the unused `current` branch
+This fix is runtime-verified but **fragile**: the next upgrade that reconfigures
+either dtb package can re-flip `/boot/dtb` by the same last-writer-wins rule.
+Durable options, in order of preference: remove the unused `current` branch
 (`apt purge linux-image-current-rockchip64 linux-dtb-current-rockchip64`) if it
 is only an unused fallback; or `apt-mark hold` the `current` dtb/image packages;
 or add a boot-time guard that asserts `/boot/dtb` resolves to the `-$(uname -r`
@@ -88,22 +96,18 @@ branch`)` set before trusting a conformance run.
 
 ## Verification gate
 
-After the reboot: `ls -l /dev/mpp_service /dev/rga` and `ls /proc/mpp_service/`
-must all be present, and `run-conformance.sh` must clear the ABI stage. Not yet
-run — the trust line stays "fix PROPOSED" until the reboot confirms it.
+Passed on the 2026-08-08 reboot: `/dev/mpp_service`, `/dev/rga`, and
+`/proc/mpp_service/` are present; `run-conformance.sh` cleared system identity,
+matrix identity, ABI replay, and MPP. The separate librga failure does not
+weaken this DTB/device-binding proof.
 
 ## Boundary
 
-The diagnosis (wrong DTB → no vendor nodes → no devices) is proven from disk:
-running DT, driver binding, dpkg.log, postinst scripts, and a direct DTB
-compatible comparison. What is **not** yet verified is that repointing the
-symlink and rebooting restores the devices; and whether the bootloader consumes
-`/boot/dtb` via the symlink in all cases (some Armbian setups flatten the DTB via
-`/boot/boot.cmd`) — the symlink is the cause here because the running DT matches
-the `current` DTB exactly, but confirm `boot.cmd` if the fix does not take. This
-was the first on-hardware bring-up of the installed 6.18.43 forward-port; no
-statement is made about the kernel's driver behaviour, since the drivers never
-bound.
+The diagnosis and one repair cycle are proven from the running DT, driver
+binding, dpkg.log, postinst scripts, direct DTB comparison, and the successful
+post-reboot device/ABI/MPP stages. This does not make the raw shared symlink
+scheme durable: another package transaction can recreate the split, and other
+Armbian boot configurations may flatten or select DTBs differently.
 
 ## Why it matters
 

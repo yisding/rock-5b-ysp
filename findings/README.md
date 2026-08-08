@@ -175,10 +175,11 @@ Vendor MPP/rkvenc/rkvdec forward-ported to 6.18 — defects, audits, and whole-t
 - [`2026-07-17`](2026-07-17-forward-port-conformance-preflight-oops.md) — Forward-port conformance preflight Oopsed before the first MPP case
 - [`2026-07-16`](2026-07-16-rockchip-bsp-driver-quality.md) — Rockchip BSP driver quality is feature-strong but below mature mainline robustness
 
-### Kernel RGA: memory contracts and 10-bit ABI (17)
+### Kernel RGA: memory contracts and 10-bit ABI (18)
 
 The `/dev/rga` driver — session lifetime, userptr/dma-buf imports, and the 10-bit stride convention.
 
+- [`2026-08-08`](2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md) — Forward-port 6.18.43 conformance isolates oversized RGA2 USERPTR SWIOTLB segments
 - [`2026-08-06`](2026-08-06-librga-palette-demo-is-not-kernel-conformance.md) — librga's palette demo does not provide a kernel conformance signal
 - [`2026-08-02`](2026-08-02-rga3-forward-port-small-geometry-discriminator.md) — Forward-port RGA3 passes the repeated small-geometry AFBC-to-P010 dropped-write discriminator
 - [`2026-07-31`](2026-07-31-rga3-afbc-p010-dropped-destination-write.md) — RGA3 AFBC NV15→P010 returns success without writing the destination at small picture sizes
@@ -339,6 +340,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 
 <!-- findings-index:start -->
 - [`2026-08-08-rga3-cross-process-contention-harness-plan.md`](2026-08-08-rga3-cross-process-contention-harness-plan.md) — Plan: a dedicated RGA3 cross-process contention harness that provokes and honestly detects the silent vpp corruption
+- [`2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md`](2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md) — Forward-port 6.18.43 conformance isolates oversized RGA2 USERPTR SWIOTLB segments
 - [`2026-08-08-forward-port-boot-dtb-symlink-mismatch.md`](2026-08-08-forward-port-boot-dtb-symlink-mismatch.md) — Forward-port kernel booted the mainline DTB: `/boot/dtb` and `/boot/Image` split across co-installed branches
 - [`2026-08-07-rga3-cross-process-vpp-corruption-lead.md`](2026-08-07-rga3-cross-process-vpp-corruption-lead.md) — RGA3 vpp_rkrga output corruption — first seen cross-process, now reproduced solo; not root-caused
 - [`2026-08-07-rewrite-rkvdec-drm-prime-duplicate-frame-regression.md`](2026-08-07-rewrite-rkvdec-drm-prime-duplicate-frame-regression.md) — Rewrite rkvdec zero-copy decode duplicates frames after the #8 scheduler/completion fixes
