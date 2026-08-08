@@ -22,8 +22,8 @@ The priority is **ownership before convention**:
 > implementation description. Phase 0 now has a checked, source-pinned
 > production inventory covering the failure-prone ownership writers plus the
 > debug counter and event schema. Maintained tips are
-> `rk3588-rewrite-6.18@0af1bc8122503` and
-> `rk3588-rewrite-mainline@301cf7015516e`; their parent tips passed the
+> `rk3588-rewrite-6.18@1a537fb4c03ed` and
+> `rk3588-rewrite-mainline@f3c32b7dac319`; their parent tips passed the
 > warning-fatal clean-source `normal` and `test-disabled` object/DTB gates, the
 > reset and RGA active-slot funnel checkpoints compile on both, and their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. The current source adds a
