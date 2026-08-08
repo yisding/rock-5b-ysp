@@ -3,7 +3,20 @@
 > Scope: `kernel-drivers/tests` ffmpeg-rockchip conformance on `rewrite-kasan`; rewrite MPP driver decode delivery in DRM-prime/zero-copy mode
 > Source: kernel `g67f323aebdf3` (#6, passing) vs `gf37186832202` (#8, failing); the delta is exactly `93e94526a6950` (same-session dispatch order), `3caf851241c24` (hard-CCU IOTLB flush), `f371868322027` (BUS_IDLE before completion) in `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c`; repro in `~/Code/tmp/ffmpeg-rkrga-regression`
 > Date: 2026-08-07
-> Trust: MEASURED, PARTIAL
+> Trust: MEASURED, PARTIAL, SUPERSEDED
+
+> **Corrected 2026-08-07 (same day) by** [the suite-strictness finding](./2026-08-07-ffmpeg-rkrga-failures-are-latent-pts-and-checker-defects.md).
+> Kernel #8 is **exonerated**. The "passing on #6" baseline below was fake:
+> yesterday's suite measured the same sub-threshold PSNRs (26.08 for this very
+> case) and the identical overlay negotiation error, but `run_case` executed
+> payloads under `set +e`, so failed assertions were swallowed and the cases
+> scored pass. Commit `3b00231` (2026-08-07) wrapped payloads in
+> `suite_run_strict` and the latent failures surfaced on the first #8 run —
+> a coincidence of timing, not a kernel regression. The duplicate frames are
+> ffmpeg CFR vsync padding over non-monotonic fabricated PTS
+> (decode-order PTS on B-frame elementary streams); decoded content is
+> bit-exact and in order, and the full hw transcode scores 39.67 dB with
+> `-fps_mode passthrough`. The kernel-timing suspicions below are refuted.
 
 ## Result
 
