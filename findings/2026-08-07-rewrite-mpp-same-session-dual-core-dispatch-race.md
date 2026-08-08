@@ -21,6 +21,18 @@
 > second mechanism exists. Keep the gate required; do not treat clean runs
 > as closure.
 
+> **Update 2026-08-08 (`20260808-081340` full serial conformance):** a new,
+> distinct manifestation of the residual window — `psnr_hevc_decode_inf` failed
+> for the first time, `average:81.76` (min 63.98 / max inf) instead of the
+> required `inf`, preceded by a run of non-monotonic DTS warnings to the muxer
+> (`40>=38`, `41>=37`, `45>=43`, `46>=42`, …). It passed at `20260806` and at
+> `20260807-204828`, so this is intermittent, not a hard regression. The 81 dB /
+> min-64 profile is a few frames off by a hair (decode-order/precision), not
+> whole-frame garbage — consistent with the residual dispatch-order window
+> surfacing on HEVC decode this run rather than on the h264 repeat-exact gate.
+> dmesg clean. Same run also failed the RGA3 vpp case solo (separate defect, see
+> [rga3 vpp corruption](2026-08-07-rga3-cross-process-vpp-corruption-lead.md)).
+
 ## Result
 
 The intermittent H.264/HEVC hw-decode corruption from the
