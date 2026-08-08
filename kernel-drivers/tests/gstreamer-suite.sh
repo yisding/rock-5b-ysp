@@ -521,7 +521,7 @@ else
 	fi
 
 	if [ ! -d "$GST_PLUGIN_DIR" ]; then
-		echo "Missing $GST_PLUGIN_DIR. Run ../rock-5b/build/rockchip-conformance/scripts/build-gstreamer-rockchip.sh first." >&2
+		echo "Missing $GST_PLUGIN_DIR. Run kernel-drivers/tests/build-gstreamer-rockchip.sh from the ysp tree first." >&2
 		exit 2
 	fi
 

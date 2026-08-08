@@ -1,41 +1,30 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Yi Ding
 # SPDX-License-Identifier: LGPL-2.1-or-later
+# Delegate to the maintained plugin builder so every build stages the pinned
+# JeffyCN source with the maintained conformance patches applied. This used to
+# be a standalone patchless meson build; rebuilding the canonical prefix
+# through it dropped the H.26x encoder DMABuf caps patch and regressed the
+# required dmabuf transcode cases on 2026-08-07. Keep exactly one real
+# builder: kernel-drivers/tests/build-gstreamer-rockchip.sh.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-SRC="$ROOT/sources/jeffycn-gstreamer-rockchip"
-BUILD_DIR=${BUILD_DIR:-"$ROOT/build/jeffycn-gstreamer-rockchip"}
-PREFIX=${PREFIX:-"$ROOT/out/gstreamer-rockchip"}
-MPP_PREFIX=${MPP_PREFIX:-}
-PKG_SHIM=${PKG_SHIM:-}
 
-dependency_pc_path=${PKG_CONFIG_PATH:-}
-if [ -n "$PKG_SHIM" ]; then
-    dependency_pc_path="$PKG_SHIM${dependency_pc_path:+:$dependency_pc_path}"
-fi
-if [ -n "$MPP_PREFIX" ]; then
-    dependency_pc_path="$MPP_PREFIX/lib/pkgconfig${dependency_pc_path:+:$dependency_pc_path}"
-fi
-if [ -n "$dependency_pc_path" ]; then
-    export PKG_CONFIG_PATH="$dependency_pc_path"
-fi
+candidates=(
+    "${YSP_GST_BUILDER:-}"
+    "$ROOT/../build-gstreamer-rockchip.sh"
+    "$ROOT/../../../rock-5b-ysp/kernel-drivers/tests/build-gstreamer-rockchip.sh"
+)
 
-setup_args=()
-if [ -d "$BUILD_DIR" ]; then
-    setup_args+=(--wipe)
-fi
+for builder in "${candidates[@]}"; do
+    [ -n "$builder" ] && [ -f "$builder" ] || continue
+    if [ -z "${CONFORMANCE_ROOT:-}" ] && [ -d "$ROOT/sources" ]; then
+        export CONFORMANCE_ROOT="$ROOT"
+    fi
+    exec bash "$builder" "$@"
+done
 
-meson setup "$BUILD_DIR" "$SRC" \
-    --prefix "$PREFIX" \
-    -Drockchipmpp="${ROCKCHIPMPP_FEATURE:-enabled}" \
-    -Drga="${RGA_FEATURE:-auto}" \
-    -Drkximage="${RKXIMAGE_FEATURE:-auto}" \
-    -Dkmssrc="${KMSSRC_FEATURE:-auto}" \
-    "${setup_args[@]}"
-
-ninja -C "$BUILD_DIR"
-ninja -C "$BUILD_DIR" install
-
-echo "GStreamer Rockchip plugins installed to $PREFIX"
-echo "Use: export GST_PLUGIN_PATH=$PREFIX/lib/gstreamer-1.0"
+echo "Cannot find the maintained builder kernel-drivers/tests/build-gstreamer-rockchip.sh" >&2
+echo "relative to $ROOT; run it from the rock-5b-ysp tree or set YSP_GST_BUILDER." >&2
+exit 2

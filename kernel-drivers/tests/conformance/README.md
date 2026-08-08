@@ -255,7 +255,7 @@ normal qualification should enter through `run-conformance.sh`:
 | `scripts/build-mpp.sh` | Build a pinned legacy MPP comparison, not the normal installed-runtime path. |
 | `scripts/build-librga-samples.sh` | Build the pinned official librga samples. |
 | `scripts/make-librga-pkgconfig.sh` | Generate the explicit pkg-config shim needed by that legacy librga source. |
-| `scripts/build-gstreamer-rockchip.sh` | Build the reduced portable plugin bundle; the maintained full builder is [`../build-gstreamer-rockchip.sh`](../build-gstreamer-rockchip.sh). |
+| `scripts/build-gstreamer-rockchip.sh` | Delegate to the maintained patched builder [`../build-gstreamer-rockchip.sh`](../build-gstreamer-rockchip.sh); kept as a stable entry point so deployed workspaces never rebuild the plugin without the maintained patches. |
 | `scripts/run-mpp-smoke.sh` | Direct narrow MPP smoke for setup debugging. |
 | `scripts/run-librga-smoke.sh` | Direct narrow official-sample smoke for setup debugging. |
 | `scripts/run-gstreamer-smoke.sh` | Direct narrow plugin smoke for setup debugging. |
