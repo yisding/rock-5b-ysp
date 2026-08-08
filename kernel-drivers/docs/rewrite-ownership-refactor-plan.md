@@ -22,31 +22,38 @@ The priority is **ownership before convention**:
 > implementation description. Phase 0 now has a checked, source-pinned
 > production inventory covering the failure-prone ownership writers plus the
 > debug counter and event schema. Maintained tips are
-> `rk3588-rewrite-6.18@f80d216cfb83b` and
-> `rk3588-rewrite-mainline@3a2a540553cce`. Their pre-refactor ancestors passed
+> `rk3588-rewrite-6.18@fe9edef36346c` and
+> `rk3588-rewrite-mainline@9a25b02ba4d68`. Their pre-refactor ancestors passed
 > the warning-fatal clean-source `normal` and `test-disabled` object/DTB gates;
-> every touched MPP/RGA object compiles on both current tips, and their tracked
+> the immediately preceding `f80d216cfb83b`/`3a2a540553cce` tips also compiled
+> every touched MPP/RGA object. The current assertion-only tips have not been
+> compiled because the operator deferred builds, and their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. The current source adds a
 > per-session RKVDEC dispatch token and an RGA command-publication barrier, but
 > still has no `rk_mpp_cluster`, `rk_mpp_activation`, `rk_rga_task_exec`, or
-> `rk_rga_acquire_set`. Phase 1 source migration has started with the MPP reset,
+> `rk_rga_acquire_set`. The provisional Phase 1 source migration now stops with
+> the MPP reset,
 > MPP and RGA active-slot access/write funnels, the RKVDEC session dispatch
 > lease API, backend-specific MPP/RGA publication-and-start owners, and the
 > RKVDEC coordinator/core-chain power bookkeeping API. RGA execution mappings
 > now retire through a power-asserting owner, while completion and destruction
 > accept only an already-empty execution and warn on a missed powered teardown.
-> MPP terminal result/DONE publication also has one session-lock-aware owner;
-> the 432-signal production audit now freezes every current IRQ, fault,
-> watchdog, activation-timing, terminal/admission-state, and outcome writer plus
-> direct RGA terminal entry.
+> MPP terminal result/DONE publication also has one session-lock-aware owner.
+> Lock assertions now make the existing run-lock contracts explicit at active
+> publication, start, IOMMU refresh, and RGA backend-start funnels, while MPP
+> destruction warns if it inherits a live CCU lease. The 473-signal production
+> audit now also freezes MPP power transitions, raw PM/clock operations,
+> `power_count` writes, and both drivers' watchdog-arm entries in addition to
+> every current IRQ, fault, watchdog, activation-timing,
+> terminal/admission-state, and outcome writer plus direct RGA terminal entry.
 > Independent review found no behavior-preserving terminal transition wrapper:
 > both drivers reuse a job across generations, and neither retains a retiring
 > object through snapshot closure. Reason arbitration therefore remains
 > deferred until the activation/task-execution migration can provide that
 > owner.
-> The current tips remain unbooted;
-> full build, install, and reboot qualification are intentionally deferred while
-> behavior-preserving write funnels continue.
+> The current tips remain unbuilt and unbooted; full build, install, and reboot
+> qualification are intentionally deferred. No Phase 2 migration may start
+> until that qualification passes.
 
 The plan was derived from `linux-6.18-rkvenc` branch
 `rk3588-rewrite-6.18@8042f13c54591` on 2026-08-01 and was rechecked for
@@ -616,9 +623,10 @@ from phase 1 until the ownership and hardware gates for phase 5 pass.
   IOMMU faults, an unproved stop, and an unbooted exact tip are blockers rather
   than acceptable red baselines.
 - Generate inventories of every direct reset-control call, active-slot write,
-  session-dispatch lease write, power-reference field, IOMMU refresh/isolation
-  call and raw backend operation, job lifecycle/outcome write and publication,
-  IRQ/fault/watchdog snapshot write, activation-timing and
+  session-dispatch lease write, power-reference field, power transition, raw
+  PM/clock operation, `power_count` write, IOMMU refresh/isolation call and raw
+  backend operation, job lifecycle/outcome write and publication,
+  IRQ/fault/watchdog snapshot write, watchdog-arm entry, activation-timing and
   terminal/admission-state write, MPP/RGA terminal entry, RGA task-advance
   call, execution-map owner/release primitive, command-buffer writer/release,
   raw start/doorbell or IRQ-ack write, and raw task emitter.
@@ -629,10 +637,12 @@ known baseline result has an evidence path. Ordinarily, an exact source tip
 must boot before Phase 1 and pass the red/green same-session H.26x loop plus the
 solo RGA3 vpp and overlay-chain replays. On 2026-08-08 the operator explicitly
 deferred full build, install, and reboot qualification, so Phase 1 source-only
-write funnels may land provisionally after mirrored object compilation and the
-device-free gates. They remain unqualified, and Phase 2 must not start, until
-those deferred hardware gates pass. If either corruption persists, land and
-qualify its narrow fix before advancing beyond provisional funnels.
+write funnels and assertion-only contract checks may land provisionally after
+mirrored-source identity, strict checkpatch, and the device-free gates. The
+preceding object builds are adjacency evidence, not build proof for the current
+tips. They remain unqualified, and Phase 2 must not start, until those deferred
+build and hardware gates pass. If either corruption persists, land and qualify
+its narrow fix before advancing beyond provisional funnels.
 
 ### Phase 1 — create write funnels without changing behavior
 
@@ -644,19 +654,23 @@ qualify its narrow fix before advancing beyond provisional funnels.
   that records the active generation and performs the existing barrier/order.
 - Put MPP power lease acquisition/release, IOMMU refresh/isolation, and RGA
   execution-map teardown behind singular APIs.
+- Assert the existing run-lock contracts at active publication, hardware start,
+  IOMMU refresh, and RGA backend-start funnels; warn if final MPP destruction
+  inherits a published/listed/powered CCU lease.
 - Freeze every terminal/admission-state, IRQ/fault/watchdog snapshot,
   activation-timing, outcome, and terminal-entry mutation. Do not put them
   behind a stateless job wrapper: introduce the real transition API only with a
   retained, generation-tagged activation/task-execution object that can define
   snapshot closure.
-- Add assertions that old fields and new embedded-object views agree. Keep the
-  assertions until the last old-field user is removed.
+- When a real embedded-object view is introduced, add assertions that its old
+  and new fields agree. Keep the assertions until the last old-field user is
+  removed; do not create shadow fields solely to manufacture this check.
 
 Acceptance: source-audit allowlists show no unreviewed direct writer outside
-the current owning module/section; compiled behavior and hardware counters are
-unchanged. The source-only Phase 1 boundary is provisional until the deferred
-exact-tip build, boot, and hardware gates pass; no Phase 2 migration may begin
-before then.
+the current owning module/section. Qualification must then prove compiled
+behavior and hardware counters unchanged. The source-only Phase 1 boundary is
+provisional until the deferred exact-tip build, boot, and hardware gates pass;
+no Phase 2 migration may begin before then.
 
 ### Phase 2 — make MPP reset and cluster ownership real
 

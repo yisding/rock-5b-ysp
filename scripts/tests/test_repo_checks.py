@@ -2600,6 +2600,10 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\tjob->rkvdec_ccu_powered_cores[0] = hw;\n"
             "\tjob->rkvdec_ccu_powered_core_count = 1;\n"
             "\tjob->rkvdec_ccu_powered = true;\n"
+            "\trk_mpp_hw_power_on(hw);\n"
+            "\tpm_runtime_resume_and_get(hw->dev);\n"
+            "\tatomic_inc(&hw->power_count);\n"
+            "\trk_mpp_hw_schedule_timeout(hw);\n"
             "\trk_mpp_hw_refresh_iommu(hw, job);\n"
             "\tvsi_iommu_refresh(hw->dev);\n"
             "\tjob->result = -EINPROGRESS;\n"
@@ -2653,6 +2657,7 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\thw->iommu_fault_generation = 1;\n"
             "\thw->recovery_failed = true;\n"
             "\thw->timeout_job = job;\n"
+            "\trk_rga_hw_schedule_timeout(hw, job);\n"
             "\tjob->hw_start_ns = 1;\n"
             "\tWRITE_ONCE(job->result, 0);\n"
             "\trk_rga_hw_recover_active(hw, false, NULL, 0);\n"
@@ -2718,6 +2723,11 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertNotIn("rga_fixture", baseline_text)
             self.assertIn("rkvdec_ccu_powered_core_count", baseline_text)
             self.assertIn("rkvdec_ccu_powered = true", baseline_text)
+            self.assertIn("mpp-power-transition-entry", baseline_text)
+            self.assertIn("mpp-power-backend-op", baseline_text)
+            self.assertIn("mpp-power-count-write", baseline_text)
+            self.assertIn("mpp-watchdog-arm-entry", baseline_text)
+            self.assertIn("rga-watchdog-arm-entry", baseline_text)
             self.assertIn("mpp-irq-ack-write", baseline_text)
             self.assertIn("mpp-irq-snapshot-write", baseline_text)
             self.assertIn("mpp-fault-snapshot-write", baseline_text)
@@ -2753,6 +2763,10 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\thw[0].active_job = job;\n"
                     "\tif (job->rkvdec_session_dispatch) job = NULL;\n"
                     "\tjob->rkvdec_ccu_powered = false;\n"
+                    "\trk_mpp_hw_power_off(hw);\n"
+                    "\tclk_bulk_prepare_enable(1, hw->clks);\n"
+                    "\tatomic_dec_if_positive(&hw->power_count);\n"
+                    "\trk_mpp_hw_schedule_timeout(hws[0]);\n"
                     "\tiommu_attach_group(NULL, NULL);\n"
                     "\tjob->state = RK_MPP_JOB_DONE;\n"
                     "\thws[0]->av1_start_ns = 2;\n"
@@ -2789,6 +2803,7 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\thw[0].iommu_fault_generation = 2;\n"
                     "\t(*hw).removing = true;\n"
                     "\thws[0]->timeout_generation = 2;\n"
+                    "\trk_rga_hw_schedule_timeout(hw, &replacement);\n"
                     "\t(*job).hw_elapsed_ns += 2;\n"
                     "\t(*job).result = -EIO;\n"
                     "\tsmp_store_release(&job->done, true);\n"
@@ -2805,6 +2820,10 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("NEW\tmpp-active-slot-write", changed.stderr)
             self.assertIn("NEW\tmpp-dispatch-lease-access", changed.stderr)
             self.assertIn("NEW\tmpp-power-field", changed.stderr)
+            self.assertIn("NEW\tmpp-power-transition-entry", changed.stderr)
+            self.assertIn("NEW\tmpp-power-backend-op", changed.stderr)
+            self.assertIn("NEW\tmpp-power-count-write", changed.stderr)
+            self.assertIn("NEW\tmpp-watchdog-arm-entry", changed.stderr)
             self.assertIn("NEW\tmpp-iommu-backend-op", changed.stderr)
             self.assertIn("NEW\tmpp-job-lifecycle-write", changed.stderr)
             self.assertIn("NEW\tmpp-irq-snapshot-write", changed.stderr)
@@ -2822,6 +2841,7 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("NEW\trga-terminal-state-write", changed.stderr)
             self.assertIn("NEW\trga-job-outcome-write", changed.stderr)
             self.assertIn("NEW\trga-watchdog-snapshot-write", changed.stderr)
+            self.assertIn("NEW\trga-watchdog-arm-entry", changed.stderr)
             self.assertIn("NEW\trga-activation-timing-write", changed.stderr)
             self.assertIn("NEW\trga-terminal-entry", changed.stderr)
             self.assertIn("reset_control_bulk_reset", changed.stderr)

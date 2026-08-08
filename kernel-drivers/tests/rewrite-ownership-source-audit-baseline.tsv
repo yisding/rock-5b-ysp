@@ -1,6 +1,6 @@
 # Rewrite ownership inventory; new signals fail, resolved signals are allowed.
-# source-head	3a2a540553cceb78e0f39d6af52c7ff61e345a8b
-# source-head	f80d216cfb83b0062a23b46acd2781f90d1857d3
+# source-head	9a25b02ba4d6816da5130fbd496be022901bfc1e
+# source-head	fe9edef36346c568131a27264d8eab1f565e4a7f
 # category	source	function	ordinal	normalized source signal
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	enum rk_mpp_debug_event_type { RK_MPP_DEBUG_REQUEST_FAIL, RK_MPP_DEBUG_SELECT_FAIL, RK_MPP_DEBUG_TRANSLATE_FAIL, RK_MPP_DEBUG_RCB_FAIL, RK_MPP_DEBUG_SUBMIT_FAIL, RK_MPP_DEBUG_POLL_FAIL, RK_MPP_DEBUG_QUEUED, RK_MPP_DEBUG_DISPATCH, RK_MPP_DEBUG_STARTED, RK_MPP_DEBUG_IRQ, RK_MPP_DEBUG_DONE, RK_MPP_DEBUG_TIMEOUT, RK_MPP_DEBUG_IOMMU_FAULT, RK_MPP_DEBUG_ABORT, RK_MPP_DEBUG_SPURIOUS_IRQ, };
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	struct rk_mpp_debug_event { u64 seq; u64 timestamp_ns; u64 data; u32 session_id; u32 job_id; u32 client_type; u32 irq_status; s32 core_id; s32 result; u8 type; char hw_name[20]; char dev_name[32]; };
@@ -200,8 +200,21 @@ mpp-job-lifecycle-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_
 mpp-outcome-publish-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_job_complete	1	rk_mpp_job_publish_outcome(job, result);
 mpp-outcome-publish-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_job_publish_outcome	1	rk_mpp_job_publish_outcome_locked(job, result);
 mpp-outcome-publish-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_session_abort_jobs	1	rk_mpp_job_publish_outcome_locked(job, -ECANCELED);
+mpp-power-backend-op	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_power_off	1	clk_bulk_disable_unprepare(hw->num_clks, hw->clks);
+mpp-power-backend-op	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_power_off	1	pm_runtime_mark_last_busy(hw->dev);
+mpp-power-backend-op	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_power_off	1	pm_runtime_put_autosuspend(hw->dev);
+mpp-power-backend-op	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_power_on	1	err_pm_put: pm_runtime_put_sync_suspend(hw->dev);
+mpp-power-backend-op	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_power_on	1	ret = pm_runtime_resume_and_get(hw->dev);
+mpp-power-backend-op	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_power_on	1	} ret = clk_bulk_prepare_enable(hw->num_clks, hw->clks);
+mpp-power-backend-op	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_terminal_drain_power	1	clk_bulk_disable_unprepare(hw->num_clks, hw->clks);
+mpp-power-backend-op	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_terminal_drain_power	1	ret = pm_runtime_put_sync_suspend(hw->dev);
+mpp-power-count-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_power_off	1	if (atomic_dec_if_positive(&hw->power_count) < 0) return;
+mpp-power-count-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_power_on	1	atomic_inc(&hw->power_count);
+mpp-power-count-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_probe	1	atomic_set(&hw->power_count, 0);
+mpp-power-count-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_terminal_drain_power	1	while (atomic_dec_if_positive(&hw->power_count) >= 0) { raw_spin_lock_irqsave(&hw->regs_lock, flags);
 mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_acquire_ccu_power	1	if (job->rkvdec_ccu_powered) return 0;
 mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_acquire_ccu_power	1	job->rkvdec_ccu_powered = true;
+mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_job_has_live_leases	1	return job->rkvdec_ccu_started || job->rkvdec_ccu_listed || job->rkvdec_ccu_powered || rk_mpp_rkvdec2_powered_ccu_core_count(job);
 mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_move_powered_ccu_cores	1	from->rkvdec_ccu_powered_core_count = 0;
 mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_move_powered_ccu_cores	1	from->rkvdec_ccu_powered_cores[i] = NULL;
 mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_move_powered_ccu_cores	1	i < from->rkvdec_ccu_powered_core_count;
@@ -218,6 +231,27 @@ mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_
 mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_powered_ccu_core_count	1	return job->rkvdec_ccu_powered_core_count;
 mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_release_ccu_power	1	if (!job->rkvdec_ccu_powered) return;
 mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_release_ccu_power	1	job->rkvdec_ccu_powered = false;
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_submit	1	} ret = rk_mpp_hw_power_on(hw);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_submit	1	} } rk_mpp_hw_power_off(hw);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_thread	1	} rk_mpp_hw_power_off(hw);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_active	1	} rk_mpp_hw_power_off(hw);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_active_recovery_locked	1	} rk_mpp_hw_power_off(hw);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_job	1	rk_mpp_hw_power_off(hw);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_read_id	1	ret = rk_mpp_hw_power_on(hw);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_read_id	1	rk_mpp_hw_power_off(hw);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_recover_active	1	} } rk_mpp_hw_power_off(hw);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_acquire_ccu_power	1	ret = rk_mpp_hw_power_on(ccu);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_drain_ccu_done_jobs	1	rk_mpp_hw_power_off(hw);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_power_off_ccu_cores	1	rk_mpp_hw_power_off(hw);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_power_on_ccu_cores	1	err_power_off: while (i--) { rk_mpp_hw_power_off(cores[i]);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_power_on_ccu_cores	1	i++) { ret = rk_mpp_hw_power_on(cores[i]);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_release_ccu_power	1	if (ccu) rk_mpp_hw_power_off(ccu);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_submit	1	err_power_off: rk_mpp_hw_power_off(hw);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_submit	1	ret = rk_mpp_hw_power_on(hw);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_thread	1	rk_mpp_hw_power_off(hw);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvenc2_submit	1	ret = rk_mpp_hw_power_on(hw);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvenc2_submit	1	rk_mpp_hw_power_off(hw);
+mpp-power-transition-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvenc2_thread	1	rk_mpp_hw_power_off(hw);
 mpp-reset-control	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_domain_assert	1	return reset_control_assert(hw->resets);
 mpp-reset-control	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_domain_deassert	1	return reset_control_deassert(hw->resets);
 mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_submit	1	if (start_failed_untrusted && active_owned) { stop_ret = rk_mpp_hw_stop_active(hw);
@@ -258,6 +292,12 @@ mpp-terminal-state-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp
 mpp-terminal-state-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_terminal_drain_power	1	} WRITE_ONCE(hw->terminal_power_drained, true);
 mpp-terminal-state-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_terminal_isolate	1	if ((!hw->dma_group && power_off) || (hw->dma_group && !dma_ret)) { WRITE_ONCE(hw->terminally_stopped, true);
 mpp-terminal-state-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_session_abort_jobs	1	list_for_each_entry_safe(job, tmp, &session->active_jobs, session_link) { WRITE_ONCE(job->canceled, true);
+mpp-watchdog-arm-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_submit	1	} rk_mpp_hw_schedule_timeout(hw);
+mpp-watchdog-arm-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_job	1	rk_mpp_hw_schedule_timeout(hw);
+mpp-watchdog-arm-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_publish_and_start_ccu	1	rk_mpp_hw_schedule_timeout(job->hw);
+mpp-watchdog-arm-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_publish_and_start_core	1	rk_mpp_hw_schedule_timeout(hw);
+mpp-watchdog-arm-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_publish_and_start_core	2	rk_mpp_hw_schedule_timeout(hw);
+mpp-watchdog-arm-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvenc2_publish_and_start	1	rk_mpp_hw_schedule_timeout(hw);
 mpp-watchdog-snapshot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_schedule_timeout	1	hw->timeout_deadline_generation = generation;
 mpp-watchdog-snapshot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_schedule_timeout	1	hw->timeout_job = job;
 mpp-watchdog-snapshot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_schedule_timeout	1	if (job && hw->timeout_deadline_generation != generation) { hw->timeout_deadline = jiffies + msecs_to_jiffies(RK_MPP_WORK_TIMEOUT_MS);
@@ -422,6 +462,7 @@ rga-terminal-entry	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_sessi
 rga-terminal-state-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_mark_recovery_failed	1	if (!hw->recovery_failed) { hw->recovery_failed = true;
 rga-terminal-state-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_remove	1	hw->removing = true;
 rga-terminal-state-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_shutdown	1	hw->removing = true;
+rga-watchdog-arm-entry	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_publish_and_start	1	rk_rga_hw_schedule_timeout(hw, job);
 rga-watchdog-snapshot-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_schedule_timeout	1	hw->timeout_job = job;
 rga-watchdog-snapshot-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_schedule_timeout	1	} hw->timeout_generation = rk_rga_hw_active_generation_locked(hw);
 rga-watchdog-snapshot-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_take_timeout_job	1	hw->timeout_generation = 0;

@@ -74,6 +74,17 @@ POWER_FIELD_RE = re.compile(
     r"\b(?:rkvdec_ccu_powered_cores|rkvdec_ccu_powered_core_count|"
     r"rkvdec_ccu_powered)\b"
 )
+MPP_POWER_TRANSITION_RE = re.compile(r"\brk_mpp_hw_power_(?:on|off)\s*\(")
+MPP_POWER_BACKEND_RE = re.compile(
+    r"\b(?:pm_runtime_(?:resume_and_get|put_sync_suspend|put_autosuspend|"
+    r"mark_last_busy)|clk_bulk_(?:prepare_enable|disable_unprepare))\s*\("
+)
+MPP_POWER_COUNT_WRITE_RE = re.compile(
+    r"\b(?:atomic_inc|atomic_dec_if_positive|atomic_set)\s*\(\s*&?\s*"
+    r"[A-Za-z_]\w*->power_count\b"
+)
+MPP_WATCHDOG_ARM_RE = re.compile(r"\brk_mpp_hw_schedule_timeout\s*\(")
+RGA_WATCHDOG_ARM_RE = re.compile(r"\brk_rga_hw_schedule_timeout\s*\(")
 MPP_IOMMU_RE = re.compile(
     r"\b(?:rk_mpp_hw_refresh_iommu|rk_mpp_dma_group_isolate)\s*\("
 )
@@ -403,6 +414,16 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                             ("mpp-dispatch-lease-access", DISPATCH_LEASE_ACCESS_RE),
                             ("mpp-dispatch-lease-write", DISPATCH_LEASE_WRITE_RE),
                             ("mpp-power-field", POWER_FIELD_RE),
+                            (
+                                "mpp-power-transition-entry",
+                                MPP_POWER_TRANSITION_RE,
+                            ),
+                            ("mpp-power-backend-op", MPP_POWER_BACKEND_RE),
+                            (
+                                "mpp-power-count-write",
+                                MPP_POWER_COUNT_WRITE_RE,
+                            ),
+                            ("mpp-watchdog-arm-entry", MPP_WATCHDOG_ARM_RE),
                             ("mpp-iommu-transition", MPP_IOMMU_RE),
                             ("mpp-iommu-backend-op", MPP_IOMMU_BACKEND_RE),
                             (
@@ -469,6 +490,7 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                                 "rga-watchdog-snapshot-write",
                                 RGA_WATCHDOG_SNAPSHOT_WRITE_RE,
                             ),
+                            ("rga-watchdog-arm-entry", RGA_WATCHDOG_ARM_RE),
                             (
                                 "rga-activation-timing-write",
                                 RGA_ACTIVATION_TIMING_WRITE_RE,
