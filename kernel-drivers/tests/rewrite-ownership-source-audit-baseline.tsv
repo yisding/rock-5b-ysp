@@ -1,6 +1,6 @@
 # Rewrite ownership inventory; new signals fail, resolved signals are allowed.
-# source-head	7d1ba613d5895d3f3e8ac023b8277e7e3d8feb2b
-# source-head	e8420f5c7f3c31ff824c1a180b556e5d17a10993
+# source-head	529169c8bc7f8a7d84142ebd3ef95547aa93585b
+# source-head	529cd09a55dc7a86664d0bebf6c884631217d295
 # category	source	function	ordinal	normalized source signal
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	enum rk_mpp_debug_event_type { RK_MPP_DEBUG_REQUEST_FAIL, RK_MPP_DEBUG_SELECT_FAIL, RK_MPP_DEBUG_TRANSLATE_FAIL, RK_MPP_DEBUG_RCB_FAIL, RK_MPP_DEBUG_SUBMIT_FAIL, RK_MPP_DEBUG_POLL_FAIL, RK_MPP_DEBUG_QUEUED, RK_MPP_DEBUG_DISPATCH, RK_MPP_DEBUG_STARTED, RK_MPP_DEBUG_IRQ, RK_MPP_DEBUG_DONE, RK_MPP_DEBUG_TIMEOUT, RK_MPP_DEBUG_IOMMU_FAULT, RK_MPP_DEBUG_ABORT, RK_MPP_DEBUG_SPURIOUS_IRQ, };
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	struct rk_mpp_debug_event { u64 seq; u64 timestamp_ns; u64 data; u32 session_id; u32 job_id; u32 client_type; u32 irq_status; s32 core_id; s32 result; u8 type; char hw_name[20]; char dev_name[32]; };
@@ -142,6 +142,7 @@ mpp-iommu-transition	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_
 mpp-iommu-transition	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_recover_active	1	} if (iommu_fault) { refresh_ret = rk_mpp_hw_refresh_iommu(hw, NULL);
 mpp-iommu-transition	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_terminal_isolate	1	dma_ret = rk_mpp_dma_group_isolate(hw, -EIO);
 mpp-iommu-transition	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_prepare_ccu_retry_job	1	ret = rk_mpp_hw_refresh_iommu(hw, job);
+mpp-irq-ack-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_irq	1	writel(0, hw->regs[0] + RK_MPP_AV1_IRQ_BASE);
 mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_acquire_soft_ccu	1	if (!job->rkvdec_ccu_powered) { ret = rk_mpp_hw_power_on(ccu);
 mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_acquire_soft_ccu	1	if (!job->rkvdec_ccu_powered_core_count) { u32 ccu_cores = 0;
 mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_acquire_soft_ccu	1	job->rkvdec_ccu_powered = true;
@@ -252,11 +253,11 @@ rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_em
 rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_emit_wr	1	static int rk_rga3_emit_wr(struct rk_rga_job *job, const struct rga_req *task, const struct rk_rga3_format_info *dst_fmt, u32 wr_mode, bool apply_dst_offset) {
 rga-raw-task-emitter	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_emit_cmd	1	static int rk_rga_job_emit_cmd(struct rk_rga_hw *hw, struct rk_rga_job *job) {
 rga-task-advance	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_job_advance_task	1	job->current_task++;
-start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_irq	1	writel(0, hw->regs[0] + RK_MPP_AV1_IRQ_BASE);
-start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_start	1	writel(start_value, hw->regs[0] + RK_MPP_AV1_IRQ_BASE);
-start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_start	2	writel(start_value, hw->regs[0] + RK_MPP_AV1_IRQ_BASE);
-start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_start_soft_ccu_job	1	writel(start_value | RK_MPP_RKVDEC_START_EN, hw->regs[0] + RK_MPP_RKVDEC_START_BASE);
-start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_start_soft_ccu_job	2	writel(start_value | RK_MPP_RKVDEC_START_EN, hw->regs[0] + RK_MPP_RKVDEC_START_BASE);
-start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvenc2_submit	1	writel(start_value, hw->regs[0] + RK_MPP_RKVENC_START_BASE);
-start-doorbell-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_start_hw	1	rk_rga_write(hw, rk_rga_read(hw, RK_RGA2_CMD_CTRL) | RK_RGA2_CMD_CTRL_CMD_LINE_ST, RK_RGA2_CMD_CTRL);
-start-doorbell-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_start_hw	1	rk_rga_write(hw, RK_RGA3_CMD_CTRL_LINE_START, RK_RGA3_CMD_CTRL);
+start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_publish_and_start	1	writel(start_value, hw->regs[0] + RK_MPP_AV1_IRQ_BASE);
+start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_publish_and_start	2	writel(start_value, hw->regs[0] + RK_MPP_AV1_IRQ_BASE);
+start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_publish_and_start_core	1	writel(start_value | RK_MPP_RKVDEC_START_EN, hw->regs[0] + RK_MPP_RKVDEC_START_BASE);
+start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_publish_and_start_core	2	writel(start_value | RK_MPP_RKVDEC_START_EN, hw->regs[0] + RK_MPP_RKVDEC_START_BASE);
+start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_publish_ccu_doorbell	1	writel(job->rkvdec_ccu_cfg_done, regs + RK_MPP_RKVDEC_CCU_CFG_DONE_BASE);
+start-doorbell-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvenc2_publish_and_start	1	writel(start_value, hw->regs[0] + RK_MPP_RKVENC_START_BASE);
+start-doorbell-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_publish_and_start	1	rk_rga_write(hw, rk_rga_read(hw, RK_RGA2_CMD_CTRL) | RK_RGA2_CMD_CTRL_CMD_LINE_ST, RK_RGA2_CMD_CTRL);
+start-doorbell-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_publish_and_start	1	rk_rga_write(hw, RK_RGA3_CMD_CTRL_LINE_START, RK_RGA3_CMD_CTRL);

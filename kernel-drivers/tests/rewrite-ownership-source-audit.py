@@ -67,7 +67,13 @@ RGA_COMMAND_WRITE_RE = re.compile(
 )
 MPP_START_WRITE_RE = re.compile(
     r"\bwritel(?:_relaxed)?\s*\([^;]*(?:RK_MPP_RKVENC_START_BASE|"
-    r"RK_MPP_RKVDEC_START_BASE|RK_MPP_AV1_IRQ_BASE)"
+    r"RK_MPP_RKVDEC_START_BASE|RK_MPP_RKVDEC_CCU_CFG_DONE_BASE)|"
+    r"\bwritel(?:_relaxed)?\s*\(\s*(?!0(?:[uUlL]*)?\s*,)[^;]*"
+    r"RK_MPP_AV1_IRQ_BASE"
+)
+MPP_IRQ_ACK_WRITE_RE = re.compile(
+    r"\bwritel(?:_relaxed)?\s*\(\s*0(?:[uUlL]*)?\s*,[^;]*"
+    r"RK_MPP_AV1_IRQ_BASE"
 )
 RGA_START_WRITE_RE = re.compile(
     r"\brk_rga_write\s*\([^;]*(?:RK_RGA2_CMD_CTRL|RK_RGA3_CMD_CTRL)"
@@ -314,6 +320,7 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                             ("mpp-power-field", POWER_FIELD_RE),
                             ("mpp-iommu-transition", MPP_IOMMU_RE),
                             ("mpp-terminal-entry", MPP_TERMINAL_RE),
+                            ("mpp-irq-ack-write", MPP_IRQ_ACK_WRITE_RE),
                             ("start-doorbell-write", MPP_START_WRITE_RE),
                         )
                     )

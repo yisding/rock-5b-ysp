@@ -22,16 +22,17 @@ The priority is **ownership before convention**:
 > implementation description. Phase 0 now has a checked, source-pinned
 > production inventory covering the failure-prone ownership writers plus the
 > debug counter and event schema. Maintained tips are
-> `rk3588-rewrite-6.18@7d1ba613d5895` and
-> `rk3588-rewrite-mainline@e8420f5c7f3c3`; their parent tips passed the
-> warning-fatal clean-source `normal` and `test-disabled` object/DTB gates, the
-> reset and active-slot funnel checkpoints compile on both, and their tracked
+> `rk3588-rewrite-6.18@529169c8bc7f8` and
+> `rk3588-rewrite-mainline@529cd09a55dc7`. Their pre-refactor ancestors passed
+> the warning-fatal clean-source `normal` and `test-disabled` object/DTB gates;
+> every touched MPP/RGA object compiles on both current tips, and their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. The current source adds a
 > per-session RKVDEC dispatch token and an RGA command-publication barrier, but
 > still has no `rk_mpp_cluster`, `rk_mpp_activation`, `rk_rga_task_exec`, or
-> `rk_rga_acquire_set`. Phase 1 source migration has started with the MPP reset
-> plus MPP and RGA active-slot access/write funnels and the RKVDEC session
-> dispatch lease API, but the current tips remain unbooted;
+> `rk_rga_acquire_set`. Phase 1 source migration has started with the MPP reset,
+> MPP and RGA active-slot access/write funnels, the RKVDEC session dispatch
+> lease API, and backend-specific MPP/RGA publication-and-start owners. The
+> current tips remain unbooted;
 > full build, install, and reboot qualification are intentionally deferred while
 > behavior-preserving write funnels continue.
 
@@ -605,7 +606,7 @@ from phase 1 until the ownership and hardware gates for phase 5 pass.
 - Generate inventories of every direct reset-control call, active-slot write,
   session-dispatch lease write, power-reference field, IOMMU refresh/isolation
   call, MPP terminal entry, RGA task-advance call, command-buffer writer, raw
-  start/doorbell write, and raw-task emitter.
+  start/doorbell or IRQ-ack write, and raw-task emitter.
 - Freeze the expected debug counters and event fields used by hardware gates.
 
 Acceptance: the same immutable source archive reproduces both builds and every

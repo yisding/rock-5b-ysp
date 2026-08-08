@@ -2597,6 +2597,9 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\trk_mpp_hw_refresh_iommu(hw, job);\n"
             "\trk_mpp_job_complete(job, 0);\n"
             "\twritel(1, hw->regs[0] + RK_MPP_RKVENC_START_BASE);\n"
+            "\twritel(job->rkvdec_ccu_cfg_done, "
+            "hw->regs[0] + RK_MPP_RKVDEC_CCU_CFG_DONE_BASE);\n"
+            "\twritel(0, hw->regs[0] + RK_MPP_AV1_IRQ_BASE);\n"
             f"{extra_mpp}"
             "}\n"
             "#if IS_ENABLED(CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST)\n"
@@ -2658,6 +2661,17 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("rga-raw-task-emitter", baseline_text)
             self.assertIn("rkvdec_ccu_powered_core_count", baseline_text)
             self.assertIn("rkvdec_ccu_powered = true", baseline_text)
+            self.assertIn("mpp-irq-ack-write", baseline_text)
+            self.assertIn("start-doorbell-write", baseline_text)
+            self.assertIn("RK_MPP_RKVDEC_CCU_CFG_DONE_BASE", baseline_text)
+            self.assertFalse(
+                any(
+                    line.startswith("start-doorbell-write\t")
+                    and "writel(0, hw->regs[0] + RK_MPP_AV1_IRQ_BASE);" in line
+                    for line in baseline_text.splitlines()
+                ),
+                baseline_text,
+            )
 
             known = self.run_audit(tree, baseline)
             self.assertEqual(known.returncode, 0, known.stderr)
