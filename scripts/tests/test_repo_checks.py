@@ -2653,6 +2653,7 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertEqual(updated.returncode, 0, updated.stderr)
             baseline_text = baseline.read_text(encoding="utf-8")
             self.assertIn("mpp-active-slot-access", baseline_text)
+            self.assertIn("mpp-dispatch-lease-access", baseline_text)
             self.assertIn("rga-active-slot-access", baseline_text)
             self.assertIn("rga-raw-task-emitter", baseline_text)
             self.assertIn("rkvdec_ccu_powered_core_count", baseline_text)
@@ -2666,23 +2667,27 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                 extra_mpp=(
                     "\tjob = hw->active_job;\n"
                     "\thw[0].active_job = job;\n"
+                    "\tif (job->rkvdec_session_dispatch) job = NULL;\n"
                     "\treset_control_bulk_reset(1, NULL);\n"
                     "\treset_control_rearm(hw->resets);\n"
                 ),
                 extra_kunit=(
                     "\treset_control_deassert(NULL);\n"
                     "\tfake.active_job = NULL;\n"
+                    "\tjob->rkvdec_session_dispatch = false;\n"
                 ),
             )
             changed = self.run_audit(tree, baseline)
             self.assertEqual(changed.returncode, 1)
             self.assertIn("NEW\tmpp-active-slot-access", changed.stderr)
             self.assertIn("NEW\tmpp-active-slot-write", changed.stderr)
+            self.assertIn("NEW\tmpp-dispatch-lease-access", changed.stderr)
             self.assertIn("NEW\tmpp-reset-control", changed.stderr)
             self.assertIn("reset_control_bulk_reset", changed.stderr)
             self.assertIn("reset_control_rearm", changed.stderr)
             self.assertNotIn("reset_control_deassert", changed.stderr)
             self.assertNotIn("fake.active_job", changed.stderr)
+            self.assertNotIn("rkvdec_session_dispatch = false", changed.stderr)
 
             baseline.write_text(
                 baseline_text.replace("# source-head\tunknown", "# source-head\tdeadbeef"),

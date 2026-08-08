@@ -44,6 +44,9 @@ DISPATCH_LEASE_WRITE_RE = re.compile(
     r"\b(?:[A-Za-z_]\w*->)?(?:rkvdec_session_dispatch|"
     r"rkvdec_dispatch_active)\s*=(?!=)"
 )
+DISPATCH_LEASE_ACCESS_RE = re.compile(
+    r"\b(?:rkvdec_session_dispatch|rkvdec_dispatch_active)\b"
+)
 POWER_FIELD_RE = re.compile(
     r"\b(?:rkvdec_ccu_powered_cores|rkvdec_ccu_powered_core_count|"
     r"rkvdec_ccu_powered)\b"
@@ -306,6 +309,7 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                             ("mpp-reset-control", RESET_CALL_RE),
                             ("mpp-active-slot-access", ACTIVE_SLOT_ACCESS_RE),
                             ("mpp-active-slot-write", ACTIVE_SLOT_WRITE_RE),
+                            ("mpp-dispatch-lease-access", DISPATCH_LEASE_ACCESS_RE),
                             ("mpp-dispatch-lease-write", DISPATCH_LEASE_WRITE_RE),
                             ("mpp-power-field", POWER_FIELD_RE),
                             ("mpp-iommu-transition", MPP_IOMMU_RE),

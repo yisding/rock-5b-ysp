@@ -22,15 +22,16 @@ The priority is **ownership before convention**:
 > implementation description. Phase 0 now has a checked, source-pinned
 > production inventory covering the failure-prone ownership writers plus the
 > debug counter and event schema. Maintained tips are
-> `rk3588-rewrite-6.18@c92387d99b1d7` and
-> `rk3588-rewrite-mainline@a8931389eb33d`; their parent tips passed the
+> `rk3588-rewrite-6.18@7d1ba613d5895` and
+> `rk3588-rewrite-mainline@e8420f5c7f3c3`; their parent tips passed the
 > warning-fatal clean-source `normal` and `test-disabled` object/DTB gates, the
 > reset and active-slot funnel checkpoints compile on both, and their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. The current source adds a
 > per-session RKVDEC dispatch token and an RGA command-publication barrier, but
 > still has no `rk_mpp_cluster`, `rk_mpp_activation`, `rk_rga_task_exec`, or
 > `rk_rga_acquire_set`. Phase 1 source migration has started with the MPP reset
-> plus MPP and RGA active-slot access/write funnels, but the current tips remain unbooted;
+> plus MPP and RGA active-slot access/write funnels and the RKVDEC session
+> dispatch lease API, but the current tips remain unbooted;
 > full build, install, and reboot qualification are intentionally deferred while
 > behavior-preserving write funnels continue.
 

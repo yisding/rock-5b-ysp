@@ -1,6 +1,6 @@
 # Rewrite ownership inventory; new signals fail, resolved signals are allowed.
-# source-head	a8931389eb33d709da0ece7d0b9758ca58a30d81
-# source-head	c92387d99b1d7ac9fed66dd3faf0a2cc9324f91a
+# source-head	7d1ba613d5895d3f3e8ac023b8277e7e3d8feb2b
+# source-head	e8420f5c7f3c31ff824c1a180b556e5d17a10993
 # category	source	function	ordinal	normalized source signal
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	enum rk_mpp_debug_event_type { RK_MPP_DEBUG_REQUEST_FAIL, RK_MPP_DEBUG_SELECT_FAIL, RK_MPP_DEBUG_TRANSLATE_FAIL, RK_MPP_DEBUG_RCB_FAIL, RK_MPP_DEBUG_SUBMIT_FAIL, RK_MPP_DEBUG_POLL_FAIL, RK_MPP_DEBUG_QUEUED, RK_MPP_DEBUG_DISPATCH, RK_MPP_DEBUG_STARTED, RK_MPP_DEBUG_IRQ, RK_MPP_DEBUG_DONE, RK_MPP_DEBUG_TIMEOUT, RK_MPP_DEBUG_IOMMU_FAULT, RK_MPP_DEBUG_ABORT, RK_MPP_DEBUG_SPURIOUS_IRQ, };
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	struct rk_mpp_debug_event { u64 seq; u64 timestamp_ns; u64 data; u32 session_id; u32 job_id; u32 client_type; u32 irq_status; s32 core_id; s32 result; u8 type; char hw_name[20]; char dev_name[32]; };
@@ -128,10 +128,16 @@ mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw
 mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_install_active_locked	1	hw->active_job = job;
 mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_restore_active_locked	1	hw->active_job = job;
 mpp-active-slot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_take_active_locked	1	hw->active_job = NULL;
-mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_scheduler_release_session	1	job->rkvdec_session_dispatch = false;
-mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_scheduler_release_session	1	session->rkvdec_dispatch_active = false;
-mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_scheduler_take_job	1	job->rkvdec_session_dispatch = true;
-mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_scheduler_take_job	1	session->rkvdec_dispatch_active = true;
+mpp-dispatch-lease-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_acquire_locked	1	job->rkvdec_session_dispatch = true;
+mpp-dispatch-lease-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_acquire_locked	1	session->rkvdec_dispatch_active = true;
+mpp-dispatch-lease-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_active_locked	1	return session->rkvdec_dispatch_active;
+mpp-dispatch-lease-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_owned_locked	1	return job->rkvdec_session_dispatch;
+mpp-dispatch-lease-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_release_locked	1	job->rkvdec_session_dispatch = false;
+mpp-dispatch-lease-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_release_locked	1	session->rkvdec_dispatch_active = false;
+mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_acquire_locked	1	job->rkvdec_session_dispatch = true;
+mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_acquire_locked	1	session->rkvdec_dispatch_active = true;
+mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_release_locked	1	job->rkvdec_session_dispatch = false;
+mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_release_locked	1	session->rkvdec_dispatch_active = false;
 mpp-iommu-transition	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_recover_active	1	if (iommu_fault) { refresh_ret = rk_mpp_hw_refresh_iommu(hw, job);
 mpp-iommu-transition	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_recover_active	1	} if (iommu_fault) { refresh_ret = rk_mpp_hw_refresh_iommu(hw, NULL);
 mpp-iommu-transition	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_terminal_isolate	1	dma_ret = rk_mpp_dma_group_isolate(hw, -EIO);
