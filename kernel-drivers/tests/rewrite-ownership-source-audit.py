@@ -38,34 +38,34 @@ FIELD_TARGET = (
     rf"(?:{POINTER_FIELD_TARGET}|"
     r"\b[A-Za-z_]\w*(?:\s*\[[^\]]+\])?\s*\.)"
 )
-FIELD_MUTATION = r"(?:\+\+|--|[+\-*/%|&^]?=(?!=))"
+FIELD_ASSIGNMENT = r"(?:(?:(?:<<|>>)|[+\-*/%|&^])?=(?!=))"
+FIELD_PUBLISHERS = (
+    r"WRITE_ONCE(?:_NOCHECK)?|smp_store_(?:release|mb)|"
+    r"(?:try_)?cmpxchg(?:64)?(?:_relaxed|_acquire|_release)?|"
+    r"xchg(?:_relaxed|_acquire|_release|_local)?"
+)
 
 
 def field_write_re(
     fields: str,
-    publishers: str = "WRITE_ONCE",
+    publishers: str = FIELD_PUBLISHERS,
     target: str = FIELD_TARGET,
 ) -> re.Pattern[str]:
     """Match direct and first-argument publisher writes to named fields."""
 
     return re.compile(
-        rf"(?:{target}(?:{fields})\s*{FIELD_MUTATION}|"
-        rf"\b(?:{publishers})\s*\(\s*&?[^,]*\b(?:{fields})\b)"
+        rf"(?:(?:\+\+|--)\s*{target}(?:{fields})\b|"
+        rf"{target}(?:{fields})\s*(?:\+\+|--|{FIELD_ASSIGNMENT})|"
+        rf"\b(?:{publishers})\s*\(\s*&?\s*{target}(?:{fields})\b)"
     )
 
 RESET_CALL_RE = re.compile(
     r"\breset_control_(?:(?:bulk_)?(?:assert|deassert|reset)|rearm)\s*\("
 )
-ACTIVE_SLOT_WRITE_RE = re.compile(
-    r"(?:\b[A-Za-z_]\w*(?:\s*\[[^\]]+\])?\s*(?:->|\.)\s*"
-    r"(?:active_job|active_generation)\s*"
-    r"(?:\+\+|--|[+\-*/]?=(?!=))|"
-    r"\bWRITE_ONCE\s*\([^,]*\bactive_job\b\s*,)"
-)
+ACTIVE_SLOT_WRITE_RE = field_write_re(r"active_job|active_generation")
 ACTIVE_SLOT_ACCESS_RE = re.compile(r"\b(?:active_job|active_generation)\b")
-DISPATCH_LEASE_WRITE_RE = re.compile(
-    r"\b(?:[A-Za-z_]\w*->)?(?:rkvdec_session_dispatch|"
-    r"rkvdec_dispatch_active)\s*=(?!=)"
+DISPATCH_LEASE_WRITE_RE = field_write_re(
+    r"rkvdec_session_dispatch|rkvdec_dispatch_active"
 )
 DISPATCH_LEASE_ACCESS_RE = re.compile(
     r"\b(?:rkvdec_session_dispatch|rkvdec_dispatch_active)\b"
@@ -76,12 +76,13 @@ POWER_FIELD_RE = re.compile(
 )
 MPP_POWER_TRANSITION_RE = re.compile(r"\brk_mpp_hw_power_(?:on|off)\s*\(")
 MPP_POWER_BACKEND_RE = re.compile(
-    r"\b(?:pm_runtime_(?:resume_and_get|put_sync_suspend|put_autosuspend|"
-    r"mark_last_busy)|clk_bulk_(?:prepare_enable|disable_unprepare))\s*\("
+    r"\b(?:pm_runtime_[A-Za-z0-9_]+|(?:devm_)?clk_bulk_[A-Za-z0-9_]+)\s*\("
 )
 MPP_POWER_COUNT_WRITE_RE = re.compile(
-    r"\b(?:atomic_inc|atomic_dec_if_positive|atomic_set)\s*\(\s*&?\s*"
-    r"[A-Za-z_]\w*->power_count\b"
+    rf"\batomic_(?!(?:read(?:_[A-Za-z0-9_]+)?|"
+    rf"cond_read_(?:relaxed|acquire))\s*\()[A-Za-z0-9_]+\s*\(\s*"
+    rf"(?:&?\s*{FIELD_TARGET}power_count\b|"
+    rf"[^,]+,\s*&?\s*{FIELD_TARGET}power_count\b)"
 )
 MPP_WATCHDOG_ARM_RE = re.compile(r"\brk_mpp_hw_schedule_timeout\s*\(")
 RGA_WATCHDOG_ARM_RE = re.compile(r"\brk_rga_hw_schedule_timeout\s*\(")
@@ -116,9 +117,7 @@ MPP_TERMINAL_RE = re.compile(
     r"\b(?:rk_mpp_job_complete|rk_mpp_hw_stop_active|"
     r"rk_mpp_hw_recover_active|rk_mpp_hw_abort_active(?:_recovery_locked)?)\s*\("
 )
-RGA_TASK_ADVANCE_RE = re.compile(
-    r"\b[A-Za-z_]\w*->current_task\s*(?:\+\+|--|[+\-*/]?=(?!=))"
-)
+RGA_TASK_ADVANCE_RE = field_write_re(r"current_task")
 RGA_EXEC_MAP_OWNER_RE = re.compile(
     r"\b(?:__rk_rga_job_release_execution_mappings|"
     r"rk_rga_job_(?:release_execution_mappings_powered|"
@@ -140,7 +139,6 @@ RGA_FAULT_SNAPSHOT_WRITE_RE = field_write_re(r"iommu_fault_generation")
 RGA_TERMINAL_STATE_WRITE_RE = field_write_re(r"recovery_failed|removing")
 RGA_JOB_OUTCOME_WRITE_RE = field_write_re(
     r"result|done",
-    publishers=r"WRITE_ONCE|smp_store_release",
     target=POINTER_FIELD_TARGET,
 )
 RGA_WATCHDOG_SNAPSHOT_WRITE_RE = field_write_re(

@@ -2603,6 +2603,8 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\trk_mpp_hw_power_on(hw);\n"
             "\tpm_runtime_resume_and_get(hw->dev);\n"
             "\tatomic_inc(&hw->power_count);\n"
+            "\tatomic_read(&hw->power_count);\n"
+            "\tatomic_cond_read_relaxed(&hw->power_count, true);\n"
             "\trk_mpp_hw_schedule_timeout(hw);\n"
             "\trk_mpp_hw_refresh_iommu(hw, job);\n"
             "\tvsi_iommu_refresh(hw->dev);\n"
@@ -2660,6 +2662,7 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\trk_rga_hw_schedule_timeout(hw, job);\n"
             "\tjob->hw_start_ns = 1;\n"
             "\tWRITE_ONCE(job->result, 0);\n"
+            "\tWRITE_ONCE(event.result, 0);\n"
             "\trk_rga_hw_recover_active(hw, false, NULL, 0);\n"
             "\trk_rga_write(hw, 1, RK_RGA3_CMD_CTRL);\n"
             f"{extra_rga}"
@@ -2726,6 +2729,8 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("mpp-power-transition-entry", baseline_text)
             self.assertIn("mpp-power-backend-op", baseline_text)
             self.assertIn("mpp-power-count-write", baseline_text)
+            self.assertNotIn("atomic_read(&hw->power_count)", baseline_text)
+            self.assertNotIn("atomic_cond_read_relaxed", baseline_text)
             self.assertIn("mpp-watchdog-arm-entry", baseline_text)
             self.assertIn("rga-watchdog-arm-entry", baseline_text)
             self.assertIn("mpp-irq-ack-write", baseline_text)
@@ -2739,6 +2744,7 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("rga-fault-snapshot-write", baseline_text)
             self.assertIn("rga-terminal-state-write", baseline_text)
             self.assertIn("rga-job-outcome-write", baseline_text)
+            self.assertNotIn("WRITE_ONCE(event.result, 0)", baseline_text)
             self.assertIn("rga-watchdog-snapshot-write", baseline_text)
             self.assertIn("rga-activation-timing-write", baseline_text)
             self.assertIn("rga-terminal-entry", baseline_text)
@@ -2761,14 +2767,25 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                 extra_mpp=(
                     "\tjob = hw->active_job;\n"
                     "\thw[0].active_job = job;\n"
+                    "\tcmpxchg(&hws[0]->active_job, job, NULL);\n"
+                    "\thws[0]->active_generation <<= 1;\n"
+                    "\t++(*hw).active_generation;\n"
                     "\tif (job->rkvdec_session_dispatch) job = NULL;\n"
+                    "\t(*job).rkvdec_dispatch_active ^= true;\n"
                     "\tjob->rkvdec_ccu_powered = false;\n"
                     "\trk_mpp_hw_power_off(hw);\n"
                     "\tclk_bulk_prepare_enable(1, hw->clks);\n"
+                    "\tclk_bulk_enable(1, hw->clks);\n"
+                    "\tpm_runtime_get_sync(hw->dev);\n"
+                    "\tpm_runtime_force_suspend(hw->dev);\n"
+                    "\tdevm_clk_bulk_get_all(hw->dev, &clks);\n"
                     "\tatomic_dec_if_positive(&hw->power_count);\n"
+                    "\tatomic_xchg(&hws[0]->power_count, 0);\n"
+                    "\tatomic_add(1, &hws[0]->power_count);\n"
                     "\trk_mpp_hw_schedule_timeout(hws[0]);\n"
                     "\tiommu_attach_group(NULL, NULL);\n"
                     "\tjob->state = RK_MPP_JOB_DONE;\n"
+                    "\ttry_cmpxchg(&jobs[0]->result, &old_result, -EIO);\n"
                     "\thws[0]->av1_start_ns = 2;\n"
                     "\thw[0].iommu_fault_generation = 2;\n"
                     "\t(*hw).terminally_stopped = true;\n"
@@ -2803,7 +2820,10 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\thw[0].iommu_fault_generation = 2;\n"
                     "\t(*hw).removing = true;\n"
                     "\thws[0]->timeout_generation = 2;\n"
+                    "\txchg(&hws[0]->timeout_generation, 3);\n"
                     "\trk_rga_hw_schedule_timeout(hw, &replacement);\n"
+                    "\tjobs[0]->current_task >>= 1;\n"
+                    "\t--jobs[0]->current_task;\n"
                     "\t(*job).hw_elapsed_ns += 2;\n"
                     "\t(*job).result = -EIO;\n"
                     "\tsmp_store_release(&job->done, true);\n"
@@ -2846,6 +2866,36 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("NEW\trga-terminal-entry", changed.stderr)
             self.assertIn("reset_control_bulk_reset", changed.stderr)
             self.assertIn("reset_control_rearm", changed.stderr)
+            new_lines = changed.stderr.splitlines()
+            for category, signal in (
+                ("mpp-active-slot-write", "cmpxchg(&hws[0]->active_job"),
+                ("mpp-active-slot-write", "active_generation <<= 1"),
+                ("mpp-active-slot-write", "++(*hw).active_generation"),
+                (
+                    "mpp-dispatch-lease-write",
+                    "rkvdec_dispatch_active ^= true",
+                ),
+                ("mpp-power-count-write", "atomic_xchg(&hws[0]->power_count"),
+                ("mpp-power-count-write", "atomic_add(1, &hws[0]->power_count"),
+                ("mpp-power-backend-op", "clk_bulk_enable(1, hw->clks)"),
+                ("mpp-power-backend-op", "pm_runtime_get_sync(hw->dev)"),
+                ("mpp-power-backend-op", "pm_runtime_force_suspend(hw->dev)"),
+                ("mpp-power-backend-op", "devm_clk_bulk_get_all(hw->dev"),
+                ("mpp-job-lifecycle-write", "try_cmpxchg(&jobs[0]->result"),
+                (
+                    "rga-watchdog-snapshot-write",
+                    "xchg(&hws[0]->timeout_generation",
+                ),
+                ("rga-task-advance", "current_task >>= 1"),
+                ("rga-task-advance", "--jobs[0]->current_task"),
+            ):
+                self.assertTrue(
+                    any(
+                        line.startswith(f"NEW\t{category}\t") and signal in line
+                        for line in new_lines
+                    ),
+                    f"missing {category} signal {signal!r}:\n{changed.stderr}",
+                )
             self.assertIn("hw->online = false", changed.stderr)
             self.assertIn(
                 "rk_rga_hw_restore_active_after_reset_failure", changed.stderr

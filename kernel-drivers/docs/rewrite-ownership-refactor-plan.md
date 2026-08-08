@@ -41,7 +41,7 @@ The priority is **ownership before convention**:
 > MPP terminal result/DONE publication also has one session-lock-aware owner.
 > Lock assertions now make the existing run-lock contracts explicit at active
 > publication, start, IOMMU refresh, and RGA backend-start funnels, while MPP
-> destruction warns if it inherits a live CCU lease. The 473-signal production
+> destruction warns if it inherits a live CCU lease. The 484-signal production
 > audit now also freezes MPP power transitions, raw PM/clock operations,
 > `power_count` writes, and both drivers' watchdog-arm entries in addition to
 > every current IRQ, fault, watchdog, activation-timing,
