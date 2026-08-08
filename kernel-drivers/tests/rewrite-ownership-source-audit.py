@@ -30,18 +30,23 @@ FUNCTION_RE = re.compile(
 )
 CONTROL_WORDS = {"if", "for", "while", "switch"}
 
-RESET_CALL_RE = re.compile(r"\breset_control_(?:assert|deassert|reset)\s*\(")
-ACTIVE_SLOT_WRITE_RE = re.compile(
-    r"(?:\b[A-Za-z_]\w*->(?:active_job|active_generation)\s*"
-    r"(?:\+\+|--|[+\-*/]?=(?!=))|"
-    r"\bWRITE_ONCE\s*\(\s*[A-Za-z_]\w*->active_job\s*,)"
+RESET_CALL_RE = re.compile(
+    r"\breset_control_(?:(?:bulk_)?(?:assert|deassert|reset)|rearm)\s*\("
 )
+ACTIVE_SLOT_WRITE_RE = re.compile(
+    r"(?:\b[A-Za-z_]\w*(?:\s*\[[^\]]+\])?\s*(?:->|\.)\s*"
+    r"(?:active_job|active_generation)\s*"
+    r"(?:\+\+|--|[+\-*/]?=(?!=))|"
+    r"\bWRITE_ONCE\s*\([^,]*\bactive_job\b\s*,)"
+)
+ACTIVE_SLOT_ACCESS_RE = re.compile(r"\b(?:active_job|active_generation)\b")
 DISPATCH_LEASE_WRITE_RE = re.compile(
     r"\b(?:[A-Za-z_]\w*->)?(?:rkvdec_session_dispatch|"
     r"rkvdec_dispatch_active)\s*=(?!=)"
 )
 POWER_FIELD_RE = re.compile(
-    r"\b(?:rkvdec_ccu_powered_cores|rkvdec_ccu_powered_count)\b"
+    r"\b(?:rkvdec_ccu_powered_cores|rkvdec_ccu_powered_core_count|"
+    r"rkvdec_ccu_powered)\b"
 )
 MPP_IOMMU_RE = re.compile(
     r"\b(?:rk_mpp_hw_refresh_iommu|rk_mpp_dma_group_isolate)\s*\("
@@ -299,6 +304,7 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                     matches.extend(
                         (
                             ("mpp-reset-control", RESET_CALL_RE),
+                            ("mpp-active-slot-access", ACTIVE_SLOT_ACCESS_RE),
                             ("mpp-active-slot-write", ACTIVE_SLOT_WRITE_RE),
                             ("mpp-dispatch-lease-write", DISPATCH_LEASE_WRITE_RE),
                             ("mpp-power-field", POWER_FIELD_RE),
@@ -310,6 +316,7 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                 else:
                     matches.extend(
                         (
+                            ("rga-active-slot-access", ACTIVE_SLOT_ACCESS_RE),
                             ("rga-active-slot-write", ACTIVE_SLOT_WRITE_RE),
                             ("rga-task-advance", RGA_TASK_ADVANCE_RE),
                             ("start-doorbell-write", RGA_START_WRITE_RE),

@@ -22,17 +22,17 @@ The priority is **ownership before convention**:
 > implementation description. Phase 0 now has a checked, source-pinned
 > production inventory covering the failure-prone ownership writers plus the
 > debug counter and event schema. Maintained tips are
-> `rk3588-rewrite-6.18@84d957b1e41cc` and
-> `rk3588-rewrite-mainline@60b078ebc6b46`; their parent tips passed the
+> `rk3588-rewrite-6.18@0af1bc8122503` and
+> `rk3588-rewrite-mainline@301cf7015516e`; their parent tips passed the
 > warning-fatal clean-source `normal` and `test-disabled` object/DTB gates, the
-> reset-funnel checkpoint compiles on both, and their tracked
+> reset and RGA active-slot funnel checkpoints compile on both, and their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. The current source adds a
 > per-session RKVDEC dispatch token and an RGA command-publication barrier, but
 > still has no `rk_mpp_cluster`, `rk_mpp_activation`, `rk_rga_task_exec`, or
 > `rk_rga_acquire_set`. Phase 1 source migration has started with the MPP reset
-> write funnel, but the current tips remain unbooted; full build, install, and
-> reboot qualification are intentionally deferred while behavior-preserving
-> write funnels continue.
+> and RGA active-slot access/write funnels, but the current tips remain unbooted;
+> full build, install, and reboot qualification are intentionally deferred while
+> behavior-preserving write funnels continue.
 
 The plan was derived from `linux-6.18-rkvenc` branch
 `rk3588-rewrite-6.18@8042f13c54591` on 2026-08-01 and was rechecked for
@@ -608,10 +608,14 @@ from phase 1 until the ownership and hardware gates for phase 5 pass.
 - Freeze the expected debug counters and event fields used by hardware gates.
 
 Acceptance: the same immutable source archive reproduces both builds and every
-known baseline result has an evidence path. For the current source line, exact
-6.18 `c20fc8c1cbf76` must boot before Phase 1 and pass the red/green same-session
-H.26x loop plus the solo RGA3 vpp and overlay-chain replays. If either corruption
-persists, land and qualify its narrow fix before beginning ownership migration.
+known baseline result has an evidence path. Ordinarily, an exact source tip
+must boot before Phase 1 and pass the red/green same-session H.26x loop plus the
+solo RGA3 vpp and overlay-chain replays. On 2026-08-08 the operator explicitly
+deferred full build, install, and reboot qualification, so Phase 1 source-only
+write funnels may land provisionally after mirrored object compilation and the
+device-free gates. They remain unqualified, and Phase 2 must not start, until
+those deferred hardware gates pass. If either corruption persists, land and
+qualify its narrow fix before advancing beyond provisional funnels.
 
 ### Phase 1 — create write funnels without changing behavior
 

@@ -2592,6 +2592,8 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\thw->active_job = job;\n"
             "\tjob->rkvdec_session_dispatch = true;\n"
             "\tjob->rkvdec_ccu_powered_cores[0] = hw;\n"
+            "\tjob->rkvdec_ccu_powered_core_count = 1;\n"
+            "\tjob->rkvdec_ccu_powered = true;\n"
             "\trk_mpp_hw_refresh_iommu(hw, job);\n"
             "\trk_mpp_job_complete(job, 0);\n"
             "\twritel(1, hw->regs[0] + RK_MPP_RKVENC_START_BASE);\n"
@@ -2650,20 +2652,37 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             updated = self.run_audit(tree, baseline, "--update-baseline")
             self.assertEqual(updated.returncode, 0, updated.stderr)
             baseline_text = baseline.read_text(encoding="utf-8")
+            self.assertIn("mpp-active-slot-access", baseline_text)
+            self.assertIn("rga-active-slot-access", baseline_text)
             self.assertIn("rga-raw-task-emitter", baseline_text)
+            self.assertIn("rkvdec_ccu_powered_core_count", baseline_text)
+            self.assertIn("rkvdec_ccu_powered = true", baseline_text)
 
             known = self.run_audit(tree, baseline)
             self.assertEqual(known.returncode, 0, known.stderr)
 
             self.make_tree(
                 tree,
-                extra_mpp="\treset_control_reset(hw->resets);\n",
-                extra_kunit="\treset_control_deassert(NULL);\n",
+                extra_mpp=(
+                    "\tjob = hw->active_job;\n"
+                    "\thw[0].active_job = job;\n"
+                    "\treset_control_bulk_reset(1, NULL);\n"
+                    "\treset_control_rearm(hw->resets);\n"
+                ),
+                extra_kunit=(
+                    "\treset_control_deassert(NULL);\n"
+                    "\tfake.active_job = NULL;\n"
+                ),
             )
             changed = self.run_audit(tree, baseline)
             self.assertEqual(changed.returncode, 1)
+            self.assertIn("NEW\tmpp-active-slot-access", changed.stderr)
+            self.assertIn("NEW\tmpp-active-slot-write", changed.stderr)
             self.assertIn("NEW\tmpp-reset-control", changed.stderr)
+            self.assertIn("reset_control_bulk_reset", changed.stderr)
+            self.assertIn("reset_control_rearm", changed.stderr)
             self.assertNotIn("reset_control_deassert", changed.stderr)
+            self.assertNotIn("fake.active_job", changed.stderr)
 
             baseline.write_text(
                 baseline_text.replace("# source-head\tunknown", "# source-head\tdeadbeef"),
