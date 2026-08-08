@@ -247,13 +247,13 @@ against a silent-corruption case rather than fixing a specific commit's mistake.
 |---|--------------|-------|--------------|----------|
 | 0072 | RGA3: reject a non-16-byte-aligned IOMMU window base in `rga_mm_get_buffer_info()` with `-EINVAL` instead of silently returning all-zero pixels. RGA3 fetches the base on a 16-byte granularity; the scattered-userptr `shadow_page` path carries the raw sub-page byte offset in the base with a zeroed head, so a non-16-aligned source read the zero head. | `FWPORT-ROBUSTNESS` | Concerns forward-port-only scattered-userptr / `shadow_page` code (not in the BSP); fail-loud, no functional change to aligned userptr or dma-buf. | **No** — forward-port-specific path; see [finding](../../findings/2026-07-23-rga-scattered-userptr-unaligned-src-zero-output.md) |
 
-## Current `0072`–`0093` — outside the 2026-07-22 compilation
+## Current `0072`–`0094` — outside the 2026-07-22 compilation
 
 This compatibility heading records the range added after the catalog's first
 compilation. It is not a moving “current tip” owner.
 
 > **These rows use CURRENT numbering**, unlike everything above, which uses the
-> pre-cleanup scheme (this page's `0072` is current `0071`). The 22 patches
+> pre-cleanup scheme (this page's `0072` is current `0071`). The 23 patches
 > below all landed after this page was compiled on 2026-07-22.
 
 `0072`–`0075` are the 10-bit RGA stride/UV-offset trio and the RKVENC2
@@ -300,6 +300,14 @@ entry through SWIOTLB even when the pool has ample free space. The fix shapes
 only RGA2-bound USERPTR entries to `dma_max_mapping_size()` and is not a BSP
 backport candidate; the BSP has no equivalent over-4-GiB RGA2 bounce path.
 
+`0094` handles the DMA-BUF half that `0093` cannot: the exporter, not RGA,
+owns the attachment SG table, so an oversized high-memory entry cannot be
+split in place. Compatible work stays on RGA3; RGA2-only work stages
+CPU-accessible buffers through a bounded, alias-preserving DMA32 object after
+the exact SWIOTLB attachment failure. This is another forward-port capability
+repair, not a literal BSP backport. The clean-room rewrite has a separate
+recorded design because its job, dispatch, and mapping ownership are different.
+
 | # | What it does | Class | BSP evidence | Backport |
 |---|--------------|-------|--------------|----------|
 | 0076 | MPP core: fix `mpp_check_req()` clamping to the overflow amount and using a signed offset (two independent bypasses); bound the register-offset translation index, the `trans_info[]` format index, and user-supplied `trans_table[]` register indexes; publish the `RESET_SESSION` DMA teardown under `srv->session_lock`. | `BSP-BUG` | All five sites are vendor code carried unchanged from the BSP import; the bounds and the clamp expression are byte-identical in `develop-6.1`. The `session_lock` half is partly forward-port shaped — `mpp_session_deinit()`'s unlink is ours — so confirm the BSP's procfs exposure before sending that hunk. | **Yes** — the four bounds fixes close unprivileged heap corruption in vendor code |
@@ -320,6 +328,7 @@ backport candidate; the BSP has no equivalent over-4-GiB RGA2 bounce path.
 | 0091 | Rockchip/VSI IOMMU: hold `fault_lock` through provider callbacks so clear is a quiescence barrier; pin generic MPP and RKVENC2 `cur_task` walks with `running_lock`. | Mixed: `PORT-FIX` + `BSP-BUG` | Provider handler/token hooks are forward-port plumbing. The bare generic and RKVENC2 task reads are present in `develop-6.1`; its provider ABI needs a different teardown adaptation. | **Partial** — backport the task locking and provide an ABI-appropriate callback/token quiescence rule |
 | 0092 | RKVDEC2: retain failed soft-CCU tasks until reset quiesces DMA, claim reset requests before soft/hard reset so concurrent requests survive, and keep the link-mode fault task walk locked. | `BSP-BUG` | `develop-6.1` has the same retire-before-reset, clear-after-reset, and unlock-before-task-dump shapes. | **Yes**, adapted and runtime-tested on each supported CCU mode |
 | 0093 | RGA2: cap direct and transient USERPTR SG entries at the selected DMA backend's maximum mapping size before SWIOTLB bounce. | `PORT-FIX` | The failure is in the forward-port-only over-4-GiB RGA2 service introduced by `0050`; the BSP rejects those high buffers instead of bouncing them. | **No** — forward-port-specific capability repair; see the [6.18.43 finding](../../findings/2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md) |
+| 0094 | RGA2: prefer zero-copy RGA3 for high DMA-BUFs, then stage CPU-accessible RGA2-only buffers in shared job-owned DMA32 pages after an exact attachment `-EIO`; copy back only on successful completion and publish lifecycle counters. | `PORT-FIX` | The BSP's RGA2 path requires below-4-GiB inputs and has no equivalent high-DMA-BUF service. The rewrite owns a different reroute/queue lifetime and needs the separately recorded design rather than this patch. | **No** — forward-port-specific capability repair; see the [staging finding](../../findings/2026-08-08-forward-port-rga2-dmabuf-staging.md) |
 
 The `0079` session-ownership fix deliberately does **not** revert
 `0071`/catalog-`0072`'s force-free-under-the-held-lock decision: that decision is

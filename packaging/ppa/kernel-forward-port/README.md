@@ -25,9 +25,12 @@ binaries — `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and
 normal PPA's install candidate. It is now installed and booted with the
 matching YSP DTB. The 2026-08-08 production run passed identity, ABI, and MPP,
 then stopped at three RGA2-only large-USERPTR librga failures. Successor source
-patch `0093` fixes the shared SWIOTLB segment-sizing cause and is affected-
-object compile-verified, but is not packaged, published, or booted; see the
-[6.18.43 finding](../../../findings/2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md).
+patch `0093` fixes driver-owned USERPTR segment sizing, while `0094` adds the
+separate bounded DMA32 staging repair required for exporter-owned high
+DMA-BUF entries on RGA2-only work. Both are compile-verified, but neither is in
+a packaged, published, or booted successor; see the
+[USERPTR finding](../../../findings/2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md)
+and [DMA-BUF finding](../../../findings/2026-08-08-forward-port-rga2-dmabuf-staging.md).
 
 **Previous 2026-08-04 upload:** `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1`
 — the `0001`–`0092` forward-port tip `7d53bc7a3adc`, adding the RGA
@@ -224,7 +227,7 @@ The package remains conservative and recovery-friendly:
 | Binary packages | Co-installable names first: `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and `linux-headers-ysp-rockchip64`. A later drop-in package can replace `linux-image-current-rockchip64` after boot/revert testing. |
 | Architecture | `arm64` only. |
 | Kernel variant | Armbian `rockchip64-current` 6.18 worktree with the self-contained-DT RK3588 MPP/RGA/AV1/IEP2 forward port applied. The older convert-in-place combined kernel can use the same source-package shape later if needed. |
-| Upload state | Candidate `6.18.43` source and all three arm64 binaries are Published, installed, and booted; its functional qualification is partial because conformance stops at the RGA2 USERPTR failure. Patch `0093` is compile-verified only and has no package publication. The broader 6.18.42 campaign remains the fully integrated hardware baseline. |
+| Upload state | Candidate `6.18.43` source and all three arm64 binaries are Published, installed, and booted; its functional qualification is partial because conformance stops at the RGA2 USERPTR failure. Source patches `0093`–`0094` are compile-verified only and have no package publication. The broader 6.18.42 campaign remains the fully integrated hardware baseline. |
 
 ## Source Inputs
 
@@ -481,14 +484,16 @@ commands are operator-validated.
 Published. Those packages are installed and booted as
 `6.18.43-ysp-rockchip64`; after correcting `/boot/dtb` to the matching YSP set,
 the production runner passed identity, ABI, and MPP, then stopped at three
-RGA2-only official librga failures. Source `b54ba6079824` / `0001`–`0093`
-repairs the common USERPTR SG-size cause and is strict-checkpatch plus affected-
-object compile-verified, but has no package or runtime proof. The exact 6.18.42
-campaign remains the broader integrated evidence baseline: its functional/
-recovery verdict is green, with the decode fd-span oracle explicitly non-green.
+RGA2-only official librga failures. Source `65f5b67940a79` / `0001`–`0094`
+repairs both driver-owned USERPTR SG sizing and exporter-owned high DMA-BUF
+service for RGA2-only work. Both patches are strict-checkpatch and compile-
+verified, but have no package or runtime proof. The exact 6.18.42 campaign
+remains the broader integrated evidence baseline: its functional/recovery
+verdict is green, with the decode fd-span oracle explicitly non-green.
 
-1. Package, install, and boot exact `0093`; pass the three focused RGA2 USERPTR
-   samples and then the full production conformance matrix.
+1. Package, install, and boot exact `0094`; pass the three focused RGA2 USERPTR
+   samples, force the high DMA-BUF staging/reuse/copy-back path, and then run
+   the full production conformance matrix.
 2. Build the exact current tail under KASAN/lockdep and pass the RGA
    cancellation/session-close and decoder recovery/reset-contention gates.
 3. Run the `0076`–`0087` targeted hostile/ownership regression set plus the

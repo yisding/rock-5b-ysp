@@ -554,6 +554,7 @@ snapshot_debugfs before
 suite_progress "preflight: debugfs counter snapshot"
 debugfs_counter_snapshot "$OUT/debugfs-counters-before.tsv" \
 	rga /sys/kernel/debug/rk_rga_rewrite \
+	rga /sys/kernel/debug/rkrga \
 	rga_userptr_iommu /sys/kernel/debug/rk_rga_rewrite/userptr_iommu \
 	rga_userptr_iommu_legacy /sys/kernel/debug/rk_rga_rewrite/route_b \
 	rkrga_userptr_iommu /sys/kernel/debug/rkrga/userptr_iommu \
@@ -571,6 +572,7 @@ snapshot_debugfs after
 suite_progress "postflight: debugfs counter snapshot"
 debugfs_counter_snapshot "$OUT/debugfs-counters-after.tsv" \
 	rga /sys/kernel/debug/rk_rga_rewrite \
+	rga /sys/kernel/debug/rkrga \
 	rga_userptr_iommu /sys/kernel/debug/rk_rga_rewrite/userptr_iommu \
 	rga_userptr_iommu_legacy /sys/kernel/debug/rk_rga_rewrite/route_b \
 	rkrga_userptr_iommu /sys/kernel/debug/rkrga/userptr_iommu \

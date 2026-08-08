@@ -41,8 +41,8 @@ were written — resolve any older number through the **renumber map** at the en
 
 Exported with `git format-patch 7d0a66e4bb908..rk3588-video-6.18` from the kernel
 worktree at `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` (branch
-`rk3588-video-6.18`). This checked-in export is the contiguous `0001`–`0093`
-snapshot ending at `b54ba6079824`. W16 owns the moving branch;
+`rk3588-video-6.18`). This checked-in export is the contiguous `0001`–`0094`
+snapshot ending at `65f5b67940a79`. W16 owns the moving branch;
 the forward-port package record owns actual artifacts; the
 [scorecard](../../docs/forward-port-status.md) owns accumulated validation.
 Backup of the pre-cleanup tip: tag
@@ -364,6 +364,24 @@ owns the measured run and verification gate.
 | # | Title | Commit | Was |
 |---|-------|--------|-----|
 | `0093` | video: rockchip: rga3: cap RGA2 USERPTR SG segments | `b54ba6079824` | — |
+
+### 0094 — RGA2 high DMA-BUF staging (2026-08-08)
+
+`0093` can shape driver-owned USERPTR SG tables, but a DMA-BUF importer cannot
+split an exporter-owned 1 MiB high-memory entry before SWIOTLB rejects it.
+`0094` keeps compatible work on the zero-copy RGA3 path and gives RGA2-only or
+explicitly RGA2-pinned work a bounded, job-owned DMA32 staging path after an
+exact attachment `-EIO`. Staging is shared by DMA-BUF identity across all
+planes/tasks, copies back only after successful quiesced completion, and
+exports lifecycle/leak counters. CPU-inaccessible exporters and buffers beyond
+the 64 MiB per-job cap still fail closed. The patch is strict-checkpatch and
+full-RGA-driver compile-verified, but not packaged or booted. The
+[dated finding](../../../findings/2026-08-08-forward-port-rga2-dmabuf-staging.md)
+owns the design boundary and hardware gate.
+
+| # | Title | Commit | Was |
+|---|-------|--------|-----|
+| `0094` | video: rockchip: rga3: stage incompatible RGA2 DMA-BUFs | `65f5b67940a79` | — |
 
 ## Renumber map (2026-07-23)
 
