@@ -62,9 +62,10 @@ The principal objects are:
 | `rk_mpp_hw` | platform probe | device, MMIO, IRQ, clocks, resets, active job, timeout/fault work, CCU state |
 | `rk_mpp_session` | `/dev/mpp_service` `open()` | client type, imports, active jobs, translation table, RCB and codec metadata |
 | `rk_mpp_import` | fd translation | DMA-BUF, attachment, mapped scatterlist, device-specific IOVA |
-| `rk_mpp_job` | ioctl message collection | copied requests, register image, imports, selected hardware, result/readback, and current CCU/DCHS/power participation |
-| `rk_mpp_reset_domain` | first matching hardware probe | immutable node identity, member lifetime, mutex, single-target reset state/epoch, responsible hardware, and operation counters; the hard-CCU group pulse is not migrated yet |
+| `rk_mpp_job` | ioctl message collection | copied requests, register image, imports, selected hardware, result/readback, current CCU/DCHS participation, and a temporary cluster-power-lease pointer |
+| `rk_mpp_reset_domain` | first matching hardware probe | immutable node identity, member lifetime, mutex, single-target reset state/epoch, responsible hardware, operation counters, and one epoch for each cluster-validated hard-CCU pulse |
 | `rk_mpp_cluster` | first matching CCU-identity probe | stable member topology, borrowed coordinator, learned core type, reset authority, derived DMA relationship count, and validation of the hard-CCU reset participant snapshot |
+| `rk_mpp_cluster_power_lease` | first member-core power acquisition for a CCU chain | refcounted exact member-core power and hardware references; transfers unchanged to the next listed job and releases once |
 | `rk_mpp_dma_group` | hardware probe | IOMMU group, original DMA domain, preallocated empty isolation domain |
 
 The important reference direction is:
@@ -82,8 +83,10 @@ needed by an accepted job.
 This is the as-built graph. The broad `rk_mpp_job` and `rk_mpp_hw` objects
 still carry state that belongs to one admitted hardware activation or to the
 whole decoder cluster. `rk_mpp_cluster` currently constructs topology and owns
-validation for one hard-CCU reset-domain pulse; it does not own admission,
-group power, IOMMU recovery, or quarantine. The proposed `rk_mpp_activation` in the
+validation for one hard-CCU reset-domain pulse. The cluster-validated power
+lease owns member-core holds, but remains temporarily attached to a legacy job;
+the cluster does not own admission, coordinator per-job power, IOMMU recovery,
+or quarantine. The proposed `rk_mpp_activation` in the
 [ownership-refactor plan](../rewrite-ownership-refactor-plan.md) does not yet
 exist.
 

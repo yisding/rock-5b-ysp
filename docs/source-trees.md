@@ -195,6 +195,8 @@ owns the public verdict.
 
 | Snapshot | Pin and base | Historical relationships |
 |----------|--------------|--------------------------|
+| 6.18 rewrite Phase 2 cluster power lease, 2026-08-08 | `rk3588-rewrite-6.18@129a49a2bec96` on `v6.18.42@856a9b51680c` | Group-reset tip `e41bdb50a9ab7`; replaces the job's fixed powered-core array with one refcounted cluster lease |
+| Mainline rewrite Phase 2 cluster power lease, 2026-08-08 | `rk3588-rewrite-mainline@f03e5cd9f44d3` on `v7.2-rc6@075b74841bd0` | Group-reset tip `1c91ffc853f7a`; byte-identical cluster power ownership |
 | 6.18 rewrite Phase 2 hard-CCU reset ownership, 2026-08-08 | `rk3588-rewrite-6.18@e41bdb50a9ab7` on `v6.18.42@856a9b51680c` | Shadow-cluster tip `e854cacd64c21`; makes the retained participant pulse one cluster-validated reset epoch |
 | Mainline rewrite Phase 2 hard-CCU reset ownership, 2026-08-08 | `rk3588-rewrite-mainline@1c91ffc853f7a` on `v7.2-rc6@075b74841bd0` | Shadow-cluster tip `130fb983eeaf3`; byte-identical MPP group-reset ownership |
 | 6.18 rewrite Phase 2 shadow-cluster construction, 2026-08-08 | `rk3588-rewrite-6.18@e854cacd64c21` on `v6.18.42@856a9b51680c` | Reset-domain tip `53a7fa1acbc00`; adds read-only cluster membership/diagnostics without changing admission or recovery |
@@ -209,7 +211,7 @@ owns the public verdict.
 
 The two maintained Phase 2 snapshots have byte-identical tracked MPP/RGA
 rewrite sources, Kconfig, ABI ledgers, and UAPI. Their exact 99 MPP + 152 RGA
-manifest, 766-signal
+manifest, 821-signal
 production ownership inventory, and 306-signal KUnit-debt audit pass with zero
 new or absent signals. The older 2026-08-08 rows preserve pre-cluster and
 pre-refactor snapshots, while the 2026-08-06 rows remain historical pins rather

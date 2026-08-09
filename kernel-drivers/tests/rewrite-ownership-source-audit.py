@@ -106,6 +106,14 @@ MPP_CLUSTER_RESET_ENTRY_RE = re.compile(
     r"\b(?:rk_mpp_cluster_(?:reset_group|reset_valid_locked)|"
     r"rk_mpp_rkvdec2_poll_reset_bus_idle)\s*\("
 )
+MPP_CLUSTER_POWER_LEASE_ENTRY_RE = re.compile(
+    r"\b(?:rk_mpp_cluster_power_lease_(?:core_count|core|put|release|"
+    r"move|acquire)|rk_mpp_rkvdec2_transfer_cluster_power_lease)\s*\("
+)
+MPP_CLUSTER_POWER_LEASE_ACCESS_RE = re.compile(
+    r"\b(?:rkvdec_ccu_power_lease|power_lease_(?:refs|cluster|core_count|"
+    r"cores))\b"
+)
 MPP_CLUSTER_BINDING_RE = re.compile(
     rf"(?:\b(?:cluster_link|cluster_count|clusters)\b|"
     rf"{POINTER_FIELD_TARGET}cluster\b)"
@@ -146,8 +154,8 @@ DISPATCH_LEASE_ACCESS_RE = re.compile(
     r"\b(?:rkvdec_session_dispatch|rkvdec_dispatch_active)\b"
 )
 POWER_FIELD_RE = re.compile(
-    r"\b(?:rkvdec_ccu_powered_cores|rkvdec_ccu_powered_core_count|"
-    r"rkvdec_ccu_powered)\b"
+    r"\b(?:rkvdec_ccu_power_lease|power_lease_(?:refs|cluster|core_count|"
+    r"cores)|rkvdec_ccu_powered)\b"
 )
 MPP_POWER_TRANSITION_RE = re.compile(r"\brk_mpp_hw_power_(?:on|off)\s*\(")
 MPP_POWER_BACKEND_RE = re.compile(
@@ -521,6 +529,14 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                             (
                                 "mpp-cluster-reset-entry",
                                 MPP_CLUSTER_RESET_ENTRY_RE,
+                            ),
+                            (
+                                "mpp-cluster-power-lease-entry",
+                                MPP_CLUSTER_POWER_LEASE_ENTRY_RE,
+                            ),
+                            (
+                                "mpp-cluster-power-lease-access",
+                                MPP_CLUSTER_POWER_LEASE_ACCESS_RE,
                             ),
                             (
                                 "mpp-cluster-binding-access",

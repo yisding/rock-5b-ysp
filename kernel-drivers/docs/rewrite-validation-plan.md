@@ -22,8 +22,8 @@ and definition of done.
 > correlated run artifacts.
 
 > **Current source boundary (2026-08-08):** maintained Phase 2 tips
-> `e41bdb50a9ab7` / `1c91ffc853f7a` pass warning-fatal KUnit-enabled MPP object
-> builds, the 766-signal production ownership audit, and the unchanged
+> `129a49a2bec96` / `f03e5cd9f44d3` pass warning-fatal KUnit-enabled MPP object
+> builds, the 821-signal production ownership audit, and the unchanged
 > 306-signal KUnit-debt audit. The preceding reset-domain tips
 > `53a7fa1acbc00` / `ba8e11de18a8e` pass the complete clean-archive `normal`,
 > `test-disabled`, KASAN/fault-injection `memory`, and KCSAN/lockdep `race`

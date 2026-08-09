@@ -2643,8 +2643,10 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\thw->ccu_node = node;\n"
             "\thw->active_job = job;\n"
             "\tjob->rkvdec_session_dispatch = true;\n"
-            "\tjob->rkvdec_ccu_powered_cores[0] = hw;\n"
-            "\tjob->rkvdec_ccu_powered_core_count = 1;\n"
+            "\tjob->rkvdec_ccu_power_lease = lease;\n"
+            "\tlease->power_lease_core_count = 1;\n"
+            "\tlease->power_lease_cores[0] = hw;\n"
+            "\trk_mpp_cluster_power_lease_acquire(job, 1);\n"
             "\tjob->rkvdec_ccu_powered = true;\n"
             "\trk_mpp_hw_power_on(hw);\n"
             "\tpm_runtime_resume_and_get(hw->dev);\n"
@@ -2770,6 +2772,8 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("mpp-cluster-lifecycle-entry", baseline_text)
             self.assertIn("mpp-cluster-topology-entry", baseline_text)
             self.assertIn("mpp-cluster-reset-entry", baseline_text)
+            self.assertIn("mpp-cluster-power-lease-entry", baseline_text)
+            self.assertIn("mpp-cluster-power-lease-access", baseline_text)
             self.assertIn("mpp-cluster-binding-access", baseline_text)
             self.assertIn("mpp-cluster-registry-access", baseline_text)
             self.assertIn("mpp-cluster-state-write", baseline_text)
@@ -2786,7 +2790,8 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                 "__rk_rga_job_release_execution_mappings", baseline_text
             )
             self.assertNotIn("rga_fixture", baseline_text)
-            self.assertIn("rkvdec_ccu_powered_core_count", baseline_text)
+            self.assertIn("rkvdec_ccu_power_lease", baseline_text)
+            self.assertIn("power_lease_core_count", baseline_text)
             self.assertIn("rkvdec_ccu_powered = true", baseline_text)
             self.assertIn("mpp-power-transition-entry", baseline_text)
             self.assertIn("mpp-power-backend-op", baseline_text)
@@ -2878,6 +2883,9 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\trk_mpp_cluster_get_locked(srv, node, &added);\n"
                     "\trk_mpp_cluster_dma_group_count_locked(cluster);\n"
                     "\trk_mpp_cluster_reset_valid_locked(domain, &request);\n"
+                    "\trk_mpp_cluster_power_lease_release(jobs[0]);\n"
+                    "\txchg(&jobs[0]->rkvdec_ccu_power_lease, NULL);\n"
+                    "\tleases[0]->power_lease_core_count += 2;\n"
                     "\tdomain->backend_ops->deassert(domain, hw);\n"
                     "\thws[0]->cluster = cluster;\n"
                     "\trequest.cluster = cluster;\n"
@@ -2963,6 +2971,12 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("NEW\tmpp-cluster-lifecycle-entry", changed.stderr)
             self.assertIn("NEW\tmpp-cluster-topology-entry", changed.stderr)
             self.assertIn("NEW\tmpp-cluster-reset-entry", changed.stderr)
+            self.assertIn(
+                "NEW\tmpp-cluster-power-lease-entry", changed.stderr
+            )
+            self.assertIn(
+                "NEW\tmpp-cluster-power-lease-access", changed.stderr
+            )
             self.assertIn("NEW\tmpp-cluster-binding-access", changed.stderr)
             self.assertIn("NEW\tmpp-cluster-registry-access", changed.stderr)
             self.assertIn("NEW\tmpp-cluster-state-write", changed.stderr)

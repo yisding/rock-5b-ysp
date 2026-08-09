@@ -19,8 +19,8 @@ The priority is **ownership before convention**:
    the ownership graph has stopped changing.
 
 > **Status — 2026-08-08:** Phase 1 is source-complete and Phase 2 checkpoints
-> 1–3 are implemented at `rk3588-rewrite-6.18@e41bdb50a9ab7` and
-> `rk3588-rewrite-mainline@1c91ffc853f7a`. Their tracked
+> 1–4 are implemented at `rk3588-rewrite-6.18@129a49a2bec96` and
+> `rk3588-rewrite-mainline@f03e5cd9f44d3`. Their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. Phase 1 funnels reset
 > backends, both active slots, RKVDEC dispatch and power leases,
 > publication/start, MPP outcome publication, and RGA execution-map retirement;
@@ -32,9 +32,12 @@ The priority is **ownership before convention**:
 > coordinator, singular construction reset authority, and derived DMA-group
 > count. The existing hard-CCU participant pulse now validates its already
 > reference-pinned coordinator/cores through that view and records the entire
-> physical sequence as one non-interleavable reset-domain epoch; admission and
-> group power remain unchanged. The 766-signal source-pinned production audit
-> freezes the reset-domain, cluster construction, and group-reset seams; the
+> physical sequence as one non-interleavable reset-domain epoch. A refcounted
+> cluster power lease replaces the job's fixed powered-core array and follows
+> the existing coordinator chain without cycling member power; coordinator
+> per-job power, descriptor admission, and reset/IOMMU policy remain unchanged.
+> The 821-signal source-pinned production audit freezes the reset-domain,
+> cluster construction, group-reset, and power-lease seams; the
 > KUnit-debt audit remains 306 signals, and the manifest is 99 MPP plus 152 RGA
 > cases. There is still no `rk_mpp_activation`, `rk_rga_task_exec`, or
 > `rk_rga_acquire_set`.
@@ -64,9 +67,10 @@ runtime units:
   command buffer, and one trip through the active slot.
 
 Those objects address the latent-risk areas directly. MPP's reset domain now
-owns stable identity, membership, single-target state and an epoch, but the
-hard-CCU group pulse, group power, CCU MMIO, reset results, and IOMMU refresh
-remain in different objects and paths. RGA's common recovery tail fixed one multi-task
+owns stable identity, membership, single-target state and cluster-validated
+group-pulse epochs. A refcounted lease owns the member-core power holds, but it
+still transfers through legacy jobs; coordinator power, CCU MMIO, reset
+results, and IOMMU refresh remain in different objects and paths. RGA's common recovery tail fixed one multi-task
 advance omission, but a job still mixes whole-request lifetime with the
 resources and state of its current hardware task.
 
@@ -135,17 +139,19 @@ reinterpret raw geometry.
 |---|---|---|
 | `rk_mpp_service` | hardware registry, scheduler queue, diagnostics, reset-domain and shadow-cluster registries | DMA groups, DCHS global state, and topology are recorded but not yet composed into admission/recovery ownership |
 | `rk_mpp_reset_domain` | stable node identity, member lifetime, mutex, single-target operations, and one cluster-validated epoch for each hard-CCU group pulse | no typed reset-effect result, IRQ lease, quarantine, or re-admission authority consumes the epoch |
-| `rk_mpp_cluster` | stable CCU identity, unbounded member lifetime, borrowed coordinator, core/type summary, singular reset authority, derived DMA relationship count, and hard-CCU reset-participant validation | group power, descriptor admission, IOMMU recovery, quarantine, and job/link lifetime remain outside cluster ownership |
+| `rk_mpp_cluster` | stable CCU identity, unbounded member lifetime, borrowed coordinator, core/type summary, singular reset authority, derived DMA relationship count, hard-CCU reset-participant validation, and the identity checked by member power leases | descriptor admission, IOMMU recovery, quarantine, and job/link lifetime remain outside cluster ownership |
+| `rk_mpp_cluster_power_lease` | refcounted exact member-core power/hardware references; transfers unchanged along the existing coordinator chain and releases once | remains attached to one legacy job at a time until an activation object owns the complete admitted lifetime; coordinator power remains per-job |
 | `rk_mpp_dma_group` | IOMMU group, normal/isolation domains, member list, terminal isolation | no refresh epoch or explicit relation to the CCU/reset group whose recovery requires it |
 | `rk_mpp_hw` | private MMIO, clocks, IRQ, queue and active slot | also acts as coordinator, reset client, group-recovery participant, timeout owner, and IOMMU-fault owner |
-| `rk_mpp_job` | accepted message set, retained imports, selected hardware and result | also carries group power references, CCU membership, mutable register image, slice state, activation timing, and backend recovery state |
+| `rk_mpp_job` | accepted message set, retained imports, selected hardware and result | also carries a temporary cluster-lease pointer, coordinator power, CCU membership, mutable register image, slice state, activation timing, and backend recovery state |
 
 The current reset-domain and cluster objects prove reset transaction ownership,
 not that the whole cluster migration is finished. `rk_mpp_hw_power_on()` and
 `rk_mpp_hw_reset_active()` invoke complete single-target operations, while
 hard-CCU coordinator stop validates its existing participant snapshot and owns
-one group epoch. The job still carries the coordinator/powered-core leases, and
-no reset effect is coupled to IOMMU refresh or re-admission yet.
+one group epoch. The fixed powered-core array is gone, but the new cluster
+lease still transfers through legacy jobs and coordinator power remains
+per-job. No reset effect is coupled to IOMMU refresh or re-admission yet.
 
 ### RGA
 
@@ -198,13 +204,13 @@ void rk_mpp_cluster_remove_member(struct rk_mpp_cluster *cluster,
 
 These names are illustrative. The contract matters: callers request an
 operation; they do not take `ccu->run_lock`, walk siblings, or maintain
-`job->rkvdec_ccu_powered_cores[]` themselves.
+raw member-core power arrays themselves.
 
-The first migration targets are `rk_mpp_rkvdec2_acquire_soft_ccu()`,
-`rk_mpp_rkvdec2_power_on_ccu_cores()`,
+The first migration targets include `rk_mpp_rkvdec2_acquire_soft_ccu()`,
+the now-landed `rk_mpp_cluster_power_lease_acquire()`,
 `rk_mpp_rkvdec2_program_soft_ccu()`,
 `rk_mpp_rkvdec2_start_soft_ccu_job()`, and the CCU job/list helpers. A group
-power lease replaces the job's fixed array of powered cores. The lease records
+power lease now replaces the job's fixed array of powered cores. The lease records
 exactly which runtime-PM references were acquired and releases them once,
 regardless of completion reason.
 
@@ -702,9 +708,16 @@ the old participant selection and physical line order but performs it through
 one cluster-validated reset-domain transaction and one epoch. Topology mismatch
 refuses before any reset write; an injectable backend test proves success,
 partial failure, balance, and exact order. Failure callbacks deliberately run
-after the complete physical pulse and outside the innermost domain mutex. The
-next checkpoint is item 3's mechanical cluster power lease; descriptor
-admission and the reset/IOMMU recovery result remain separate later changes.
+after the complete physical pulse and outside the innermost domain mutex.
+
+Checkpoint 4 is present at `129a49a2bec96` / `f03e5cd9f44d3`: a refcounted
+cluster lease replaces `job->rkvdec_ccu_powered_cores[]`, validates the
+selected members' cluster backpointers, and moves unchanged to the next listed
+job before the old owner retires. Final release preserves power-off-before-ref
+drop order. Coordinator per-job power and all selection, admission, reset, and
+IOMMU policy remain unchanged. The next checkpoint is item 4's mechanical CCU
+arm/START and running-list/link owner funnel; the typed recovery result remains
+a later change.
 
 Acceptance requires more than KUnit: repeat the reset-contention gate with both
 cores resetting; normal single- and multi-stream decode; kill/close/reset
@@ -811,8 +824,8 @@ questions explicitly gated until board evidence closes them.
 Extend the existing source audit so these become build/repository failures:
 
 - MPP `reset_control_*` outside the reset-domain implementation;
-- MPP CCU member walks, coordinator `run_lock`, or group power arrays outside
-  cluster code;
+- MPP CCU member walks or coordinator `run_lock` outside cluster code, and
+  cluster-power-lease fields outside typed lease helpers;
 - MPP active-slot assignment outside activation helpers;
 - MPP session-dispatch lease mutation outside scheduler/activation helpers;
 - MPP reset success followed by re-admission without a recorded refresh,
@@ -840,7 +853,7 @@ read every exception.
 |---|---|---|---|
 | sibling reset/deassert and gated-register MMIO | measured wedge fixed by domain lock; hard-IRQ architecture remains a residual concern | reset domain + cluster + IRQ-safe register lease | repeated two-core reset contention and UART/ramoops-clean recovery |
 | decoder self-reset and missing IOMMU refresh twins | hardware semantics measured; five software reset paths found without refresh; exact restore need remains hardware-sensitive | cluster recovery + DMA group reset effect | counters correlate reset effects to refresh/isolation; post-error decode remains correct |
-| CCU/DCHS power and retirement twins | several fixed call-site omissions and group power carried by each job | cluster power lease + activation | soft/hard CCU retry/abort/remove matrix, DCHS multi-core stress |
+| CCU/DCHS power and retirement twins | several fixed call-site omissions; member-core group power now has one refcounted lease, but that lease and coordinator power still attach to legacy jobs | cluster power lease + activation | soft/hard CCU retry/abort/remove matrix, DCHS multi-core stress |
 | same-session RKVDEC overlap | ordered overlap still corrupted kernel #8; current narrow fix holds a session token through hardware retirement | session-dispatch lease owned by activation/quarantine | exact-tip H.26x red/green loop, reset-session race, and independent-session dual-core proof |
 | post-validation MPP register writes | RCB instance fixed; recurrence is structurally possible while image stays mutable | sealed image owned by activation | source gate: no post-seal writer; byte-exact oracle |
 | RGA multi-task recovery | one omission fixed by a common helper; current job still mixes task and request lifetime | task execution + job orchestrator | fail each task position through every terminal trigger |
@@ -863,13 +876,15 @@ file layout:
 4. construct cluster membership and expose read-only topology diagnostics;
 5. introduce a refcounted cluster power lease and remove the job's powered-core
    array;
-6. return reset effects and require DMA-group refresh/isolation before
+6. funnel CCU arm/START and running-list/link ownership through cluster
+   methods without changing admission;
+7. return reset effects and require DMA-group refresh/isolation before
    re-admission;
-7. add the IRQ-safe reset/register epoch check;
-8. funnel the existing session-dispatch token and every START write through
+8. add the IRQ-safe reset/register epoch check;
+9. funnel the existing session-dispatch token and every START write through
    typed owner helpers;
-9. embed `rk_mpp_activation` and move generation/deadline/lease state;
-10. convert the active slot, reason arbitration, and terminal triggers;
+10. embed `rk_mpp_activation` and move generation/deadline/lease state;
+11. convert the active slot, reason arbitration, and terminal triggers;
 11. add fresh-attempt retry, `RECLAIMABLE`, and quarantine tombstones;
 12. consolidate retirement and remove the old paths;
 13. run and record the full MPP object/refcount plus board recovery gate; and

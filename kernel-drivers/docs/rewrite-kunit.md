@@ -340,8 +340,8 @@ plus a real two-thread fence/abort race. Its named ordered 90/152 manifest and
 source/config/package-bound evidence gate owned result attribution. See the
 [successor attribution and audit](../../findings/2026-07-27-rewrite-reset-import-fixture-lockdep.md).
 
-The maintained tips are now 6.18 `e41bdb50a9ab7` on `v6.18.42` and mainline
-`1c91ffc853f7a` on `v7.2-rc6`, with an exact 99/152 manifest. Predecessor 6.18
+The maintained tips are now 6.18 `129a49a2bec96` on `v6.18.42` and mainline
+`f03e5cd9f44d3` on `v7.2-rc6`, with an exact 99/152 manifest. Predecessor 6.18
 `19634f4eebba` passed its exact 92/152 manifest on KASAN boot `#2` on 2026-08-05:
 244 results (92 MPP plus 152 RGA), zero failures/skips, a clean outer interval,
 and live lockdep. That runtime-verifies the patch-equivalent request/rotation
