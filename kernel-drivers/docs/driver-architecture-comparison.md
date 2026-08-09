@@ -147,7 +147,7 @@ flowchart TB
   enc["rk_mpp_hw<br/>RKVENC2 + DCHS"]
   decsoft["rk_mpp_hw<br/>RKVDEC2 soft CCU"]
   dechard["CCU-owned coherent link tables<br/>hard CCU opt-in"]
-  active["per-core exact active_job<br/>activation generation"]
+  active["per-core exact active_activation<br/>saved generation cookies"]
   done{"IRQ · timeout · IOMMU fault<br/>compete to claim exact slot"}
   finish["readback or reset<br/>complete one job · wake poller"]
   quarantine["reset proof failed<br/>quarantine core/group"]

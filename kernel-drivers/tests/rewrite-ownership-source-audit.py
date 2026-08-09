@@ -205,41 +205,166 @@ MPP_REGISTER_LEASE_ACCESS_RE = re.compile(
     rf"(?:{MPP_REGISTER_LEASE_FIELDS})\b"
 )
 MPP_REGISTER_LEASE_WRITE_RE = field_write_re(MPP_REGISTER_LEASE_FIELDS)
+ACTIVATION_FIELD_PUBLISHERS = rf"(?:{FIELD_PUBLISHERS}|memset|memcpy|memmove)"
 MPP_ACTIVATION_OBJECT_TARGET = rf"{FIELD_TARGET}activation"
-MPP_ACTIVATION_FIELD_TARGET = rf"{MPP_ACTIVATION_OBJECT_TARGET}\s*\."
+MPP_ACTIVATION_FIELDS = (
+    r"job|selected_hw|generation|watchdog_deadline|watchdog_deadline_valid"
+)
+ACTIVATION_POINTER_QUALIFIERS = (
+    r"(?:(?:const|volatile|restrict|__restrict|__restrict__)\b\s*)*"
+)
+ACTIVATION_CAST_OPERAND = r"(?:[^();]|\([^()]*\))+"
+
+
+def activation_field_target(
+    aliases: set[str],
+    typedefs: set[str] | None = None,
+    pointer_typedefs: set[str] | None = None,
+) -> str:
+    """Return field targets for embedded and typed activation pointers."""
+
+    escaped = "|".join(sorted(re.escape(alias) for alias in aliases))
+    type_names = [r"struct\s+rk_mpp_activation"]
+    type_names.extend(sorted(re.escape(name) for name in (typedefs or set())))
+    activation_type = rf"(?:{'|'.join(type_names)})"
+    pointer_type_names = sorted(
+        re.escape(name) for name in (pointer_typedefs or set())
+    )
+    pointer_cast_type = (
+        rf"(?:(?:const\s+)?{activation_type}\s*\*\s*"
+        rf"{ACTIVATION_POINTER_QUALIFIERS}"
+        + (
+            rf"|(?:const\s+)?(?:{'|'.join(pointer_type_names)})\s*"
+            rf"{ACTIVATION_POINTER_QUALIFIERS}"
+            if pointer_type_names
+            else ""
+        )
+        + r")"
+    )
+    direct = (
+        rf"(?:\b(?:{escaped})\s*->|"
+        rf"\(\s*\*\s*(?:{escaped})\s*\)\s*\.|"
+        rf"\b(?:{escaped})\s*\[[^\]]+\]\s*\.)"
+        if escaped
+        else r"(?!)"
+    )
+    slot_pointer = rf"{FIELD_TARGET}(?:active_activation|timeout_activation)\b"
+    slot = (
+        rf"(?:{slot_pointer}\s*->|"
+        rf"\(\s*\*\s*{slot_pointer}\s*\)\s*\.|"
+        rf"{slot_pointer}\s*\[[^\]]+\]\s*\.)"
+    )
+    cast = (
+        rf"\(\s*\(\s*{pointer_cast_type}\)\s*"
+        rf"{ACTIVATION_CAST_OPERAND}\)\s*->"
+    )
+    return rf"(?:{MPP_ACTIVATION_OBJECT_TARGET}\s*\.|{direct}|{slot}|{cast})"
+
+
+MPP_ACTIVATION_FIELD_TARGET = activation_field_target({"activation"})
 MPP_ACTIVATION_ENTRY_RE = re.compile(
-    r"\b(?:rk_mpp_activation_(?:init|generation|install_locked)|"
+    r"\b(?:rk_mpp_activation_(?:init|job|generation|install_locked)|"
     r"rk_mpp_hw_(?:advance_active_generation_locked|install_active_locked|"
     r"prepare_active_retry))\s*\("
 )
 MPP_ACTIVATION_ACCESS_RE = re.compile(
     rf"(?:{MPP_ACTIVATION_OBJECT_TARGET}\b|"
+    rf"{MPP_ACTIVATION_FIELD_TARGET}(?:{MPP_ACTIVATION_FIELDS})\b|"
     rf"{FIELD_TARGET}activation_generation_seq\b)"
 )
 MPP_ACTIVATION_PARENT_WRITE_RE = field_write_re(
-    r"job", target=MPP_ACTIVATION_FIELD_TARGET
+    r"job",
+    publishers=ACTIVATION_FIELD_PUBLISHERS,
+    target=MPP_ACTIVATION_FIELD_TARGET,
 )
 MPP_ACTIVATION_GENERATION_WRITE_RE = field_write_re(
-    r"generation", target=MPP_ACTIVATION_FIELD_TARGET
+    r"generation",
+    publishers=ACTIVATION_FIELD_PUBLISHERS,
+    target=MPP_ACTIVATION_FIELD_TARGET,
 )
 MPP_ACTIVATION_DEADLINE_WRITE_RE = field_write_re(
     r"watchdog_deadline|watchdog_deadline_valid",
+    publishers=ACTIVATION_FIELD_PUBLISHERS,
     target=MPP_ACTIVATION_FIELD_TARGET,
 )
 MPP_SELECTED_HW_ACCESS_RE = re.compile(
     rf"{MPP_ACTIVATION_FIELD_TARGET}selected_hw\b"
 )
 MPP_SELECTED_HW_WRITE_RE = field_write_re(
-    r"selected_hw", target=MPP_ACTIVATION_FIELD_TARGET
+    r"selected_hw",
+    publishers=ACTIVATION_FIELD_PUBLISHERS,
+    target=MPP_ACTIVATION_FIELD_TARGET,
 )
-MPP_ACTIVATION_SEQUENCE_WRITE_RE = field_write_re(r"activation_generation_seq")
-MPP_ACTIVATION_OBJECT_WRITE_RE = re.compile(
-    rf"(?:(?:\+\+|--)\s*{MPP_ACTIVATION_OBJECT_TARGET}\b(?!\s*\.)|"
-    rf"{MPP_ACTIVATION_OBJECT_TARGET}\b(?!\s*\.)\s*"
-    rf"(?:\+\+|--|{FIELD_ASSIGNMENT})|"
-    rf"\b(?:{FIELD_PUBLISHERS}|memset|memcpy|memmove)\s*\(\s*&?\s*"
-    rf"{MPP_ACTIVATION_OBJECT_TARGET}\b(?!\s*\.))"
+MPP_ACTIVATION_SEQUENCE_WRITE_RE = field_write_re(
+    r"activation_generation_seq", publishers=ACTIVATION_FIELD_PUBLISHERS
 )
+
+
+def activation_object_write_re(
+    aliases: set[str],
+    typedefs: set[str] | None = None,
+    pointer_typedefs: set[str] | None = None,
+) -> re.Pattern[str]:
+    """Match whole embedded activation writes through every typed alias."""
+
+    escaped = "|".join(sorted(re.escape(alias) for alias in aliases))
+    type_names = [r"struct\s+rk_mpp_activation"]
+    type_names.extend(sorted(re.escape(name) for name in (typedefs or set())))
+    activation_type = rf"(?:{'|'.join(type_names)})"
+    pointer_type_names = sorted(
+        re.escape(name) for name in (pointer_typedefs or set())
+    )
+    pointer_cast_type = (
+        rf"(?:(?:const\s+)?{activation_type}\s*\*\s*"
+        rf"{ACTIVATION_POINTER_QUALIFIERS}"
+        + (
+            rf"|(?:const\s+)?(?:{'|'.join(pointer_type_names)})\s*"
+            rf"{ACTIVATION_POINTER_QUALIFIERS}"
+            if pointer_type_names
+            else ""
+        )
+        + r")"
+    )
+    alias_lvalue = (
+        rf"(?:\*\s*(?:{escaped})\b|"
+        rf"\(\s*\*\s*(?:{escaped})\s*\)|"
+        rf"\b(?:{escaped})\s*\[[^\]]+\])"
+        if escaped
+        else r"(?!)"
+    )
+    slot_pointer = rf"{FIELD_TARGET}(?:active_activation|timeout_activation)\b"
+    slot_lvalue = (
+        rf"(?:\*\s*{slot_pointer}|"
+        rf"\(\s*\*\s*{slot_pointer}\s*\)|"
+        rf"{slot_pointer}\s*\[[^\]]+\])"
+    )
+    cast_pointer = (
+        rf"\(\s*{pointer_cast_type}\)\s*{ACTIVATION_CAST_OPERAND}"
+    )
+    cast_lvalue = rf"\*\s*{cast_pointer}"
+    object_lvalue = (
+        rf"(?:{MPP_ACTIVATION_OBJECT_TARGET}\b(?!\s*\.)|"
+        rf"{alias_lvalue}|{slot_lvalue}|{cast_lvalue})"
+    )
+    memory_target = (
+        rf"(?:&?\s*{MPP_ACTIVATION_OBJECT_TARGET}\b(?!\s*\.)|"
+        rf"&?\s*\*?\s*\b(?:{escaped})\b(?:\s*\[[^\]]+\])?|"
+        rf"&?\s*\*?\s*{slot_pointer}(?:\s*\[[^\]]+\])?|"
+        rf"{cast_pointer})"
+        if escaped
+        else rf"(?:&?\s*{MPP_ACTIVATION_OBJECT_TARGET}\b(?!\s*\.)|"
+        rf"&?\s*\*?\s*{slot_pointer}(?:\s*\[[^\]]+\])?|{cast_pointer})"
+    )
+    return re.compile(
+        rf"(?:^(?!\s*(?:const\s+)?struct\s+rk_mpp_activation\b)[^;]*?"
+        rf"(?:(?:\+\+|--)\s*{object_lvalue}|"
+        rf"{object_lvalue}\s*(?:\+\+|--|{FIELD_ASSIGNMENT}))|"
+        rf"\b(?:{FIELD_PUBLISHERS})\s*\(\s*&?\s*{object_lvalue}|"
+        rf"\b(?:memset|memcpy|memmove)\s*\(\s*{memory_target}\s*,)"
+    )
+
+
+MPP_ACTIVATION_OBJECT_WRITE_RE = activation_object_write_re({"activation"})
 MPP_ACTIVATION_WRITE_RE = re.compile(
     rf"(?:{MPP_ACTIVATION_PARENT_WRITE_RE.pattern}|"
     rf"{MPP_ACTIVATION_GENERATION_WRITE_RE.pattern}|"
@@ -248,29 +373,15 @@ MPP_ACTIVATION_WRITE_RE = re.compile(
     rf"{MPP_ACTIVATION_SEQUENCE_WRITE_RE.pattern}|"
     rf"{MPP_ACTIVATION_OBJECT_WRITE_RE.pattern})"
 )
-MPP_ACTIVATION_WRITE_OWNER_RULES = (
-    (MPP_ACTIVATION_OBJECT_WRITE_RE, set()),
-    (
-        MPP_ACTIVATION_PARENT_WRITE_RE,
-        {"rk_mpp_activation_init", "rk_mpp_activation_install_locked"},
-    ),
-    (
-        MPP_ACTIVATION_GENERATION_WRITE_RE,
-        {"rk_mpp_activation_install_locked"},
-    ),
-    (
-        MPP_ACTIVATION_DEADLINE_WRITE_RE,
-        {"rk_mpp_activation_install_locked", "rk_mpp_hw_schedule_timeout"},
-    ),
-    (
-        MPP_SELECTED_HW_WRITE_RE,
-        {"rk_mpp_activation_init", "rk_mpp_job_select_hw", "rk_mpp_job_drop_hw"},
-    ),
-    (
-        MPP_ACTIVATION_SEQUENCE_WRITE_RE,
-        {"rk_mpp_hw_advance_active_generation_locked"},
-    ),
-)
+MPP_ACTIVATION_PARENT_WRITE_OWNERS = {
+    "rk_mpp_activation_init",
+    "rk_mpp_activation_install_locked",
+}
+MPP_ACTIVATION_GENERATION_WRITE_OWNERS = {"rk_mpp_activation_install_locked"}
+MPP_ACTIVATION_DEADLINE_WRITE_OWNERS = {
+    "rk_mpp_activation_install_locked",
+    "rk_mpp_hw_schedule_timeout",
+}
 MPP_SELECTED_HW_ACCESS_OWNERS = {
     "rk_mpp_activation_init",
     "rk_mpp_activation_install_locked",
@@ -364,12 +475,57 @@ MPP_RKVDEC_CCU_WRITE_OWNERS = {
     "rk_mpp_rkvdec2_acquire_soft_ccu",
     "rk_mpp_rkvdec2_submit",
 }
-ACTIVE_SLOT_WRITE_RE = field_write_re(
+RGA_ACTIVE_SLOT_WRITE_RE = field_write_re(
     r"active_job|active_generation|activation_generation_seq"
 )
-ACTIVE_SLOT_ACCESS_RE = re.compile(
+RGA_ACTIVE_SLOT_ACCESS_RE = re.compile(
     r"\b(?:active_job|active_generation|activation_generation_seq)\b"
 )
+MPP_ACTIVE_ACTIVATION_ACCESS_RE = re.compile(
+    rf"{FIELD_TARGET}active_activation\b"
+)
+MPP_ACTIVE_ACTIVATION_WRITE_RE = field_write_re(
+    r"active_activation", publishers=ACTIVATION_FIELD_PUBLISHERS
+)
+MPP_TIMEOUT_ACTIVATION_ACCESS_RE = re.compile(
+    rf"{FIELD_TARGET}timeout_activation\b"
+)
+MPP_TIMEOUT_ACTIVATION_WRITE_RE = field_write_re(
+    r"timeout_activation", publishers=ACTIVATION_FIELD_PUBLISHERS
+)
+MPP_ACTIVATION_SEQUENCE_ACCESS_RE = re.compile(
+    rf"{FIELD_TARGET}activation_generation_seq\b"
+)
+MPP_TIMEOUT_GENERATION_ACCESS_RE = re.compile(
+    rf"{FIELD_TARGET}timeout_generation\b"
+)
+MPP_TIMEOUT_GENERATION_WRITE_RE = field_write_re(
+    r"timeout_generation", publishers=ACTIVATION_FIELD_PUBLISHERS
+)
+MPP_SLOT_LEGACY_RE = re.compile(rf"{FIELD_TARGET}(?:active_job|timeout_job)\b")
+MPP_ACTIVE_ACTIVATION_ACCESS_OWNERS = {
+    "rk_mpp_hw_active_activation_locked",
+    "rk_mpp_hw_install_active_locked",
+    "rk_mpp_hw_take_active_locked",
+    "rk_mpp_hw_restore_active_locked",
+    "rk_mpp_activation_install_locked",
+}
+MPP_ACTIVE_ACTIVATION_WRITE_OWNERS = {
+    "rk_mpp_hw_install_active_locked",
+    "rk_mpp_hw_take_active_locked",
+    "rk_mpp_hw_restore_active_locked",
+}
+MPP_TIMEOUT_ACTIVATION_OWNERS = {
+    "rk_mpp_hw_take_timeout_activation",
+    "rk_mpp_hw_schedule_timeout",
+}
+MPP_ACTIVATION_SEQUENCE_OWNERS = {
+    "rk_mpp_hw_advance_active_generation_locked",
+}
+MPP_TIMEOUT_GENERATION_OWNERS = {
+    "rk_mpp_hw_take_timeout_activation",
+    "rk_mpp_hw_schedule_timeout",
+}
 DISPATCH_OWNER_ACCESS_RE = re.compile(
     rf"{FIELD_TARGET}rkvdec_dispatch_owner\b"
 )
@@ -425,7 +581,7 @@ MPP_TERMINAL_STATE_WRITE_RE = field_write_re(
     r"terminal_power_drained"
 )
 MPP_WATCHDOG_SNAPSHOT_WRITE_RE = re.compile(
-    rf"(?:{field_write_re(r'timeout_job|timeout_generation|timeout_deadline_generation|timeout_deadline').pattern}|"
+    rf"(?:{field_write_re(r'timeout_activation|timeout_generation|timeout_deadline_generation|timeout_deadline').pattern}|"
     rf"{field_write_re(r'watchdog_deadline|watchdog_deadline_valid', target=MPP_ACTIVATION_FIELD_TARGET).pattern})"
 )
 MPP_ACTIVATION_TIMING_WRITE_RE = field_write_re(r"hw_start_ns|hw_elapsed_ns")
@@ -528,6 +684,123 @@ class FunctionBody:
     @property
     def text(self) -> str:
         return " ".join(statement for _line, statement in self.statements)
+
+
+@dataclasses.dataclass(frozen=True)
+class ActivationFunctionPatterns:
+    access: re.Pattern[str]
+    write: re.Pattern[str]
+    parent_write: re.Pattern[str]
+    generation_write: re.Pattern[str]
+    deadline_write: re.Pattern[str]
+    selected_access: re.Pattern[str]
+    selected_write: re.Pattern[str]
+    object_write: re.Pattern[str]
+
+
+ACTIVATION_POINTER_DECL_RE = re.compile(
+    r"\b(?:const\s+)?struct\s+rk_mpp_activation\s*\*\s*"
+    rf"{ACTIVATION_POINTER_QUALIFIERS}([A-Za-z_]\w*)"
+)
+ACTIVATION_LOCAL_DECL_RE = re.compile(
+    r"^\s*(?:const\s+)?struct\s+rk_mpp_activation\s+(.+);$"
+)
+ACTIVATION_TYPEDEF_RE = re.compile(
+    r"\btypedef\s+struct\s+rk_mpp_activation\s+([A-Za-z_]\w*)\s*;"
+)
+ACTIVATION_POINTER_TYPEDEF_RE = re.compile(
+    r"\btypedef\s+(?:const\s+)?struct\s+rk_mpp_activation\s*\*\s*"
+    rf"{ACTIVATION_POINTER_QUALIFIERS}([A-Za-z_]\w*)\s*;"
+)
+
+
+def activation_pointer_aliases(
+    function: FunctionBody,
+    typedefs: set[str],
+    pointer_typedefs: set[str],
+) -> set[str]:
+    """Find every locally typed pointer to an activation in one function."""
+
+    aliases = {"activation"}
+    aliases.update(ACTIVATION_POINTER_DECL_RE.findall(function.signature))
+    if typedefs:
+        typedef_type = "|".join(sorted(re.escape(name) for name in typedefs))
+        typedef_pointer = re.compile(
+            rf"\b(?:const\s+)?(?:{typedef_type})\s*\*\s*"
+            rf"{ACTIVATION_POINTER_QUALIFIERS}([A-Za-z_]\w*)"
+        )
+        aliases.update(typedef_pointer.findall(function.signature))
+    if pointer_typedefs:
+        pointer_typedef_type = "|".join(
+            sorted(re.escape(name) for name in pointer_typedefs)
+        )
+        pointer_typedef_declaration = re.compile(
+            rf"\b(?:const\s+)?(?:{pointer_typedef_type})\s+"
+            rf"{ACTIVATION_POINTER_QUALIFIERS}([A-Za-z_]\w*)"
+        )
+        aliases.update(pointer_typedef_declaration.findall(function.signature))
+    for _line, statement in function.statements:
+        aliases.update(ACTIVATION_POINTER_DECL_RE.findall(statement))
+        if typedefs:
+            aliases.update(typedef_pointer.findall(statement))
+        if pointer_typedefs:
+            aliases.update(pointer_typedef_declaration.findall(statement))
+        declaration = ACTIVATION_LOCAL_DECL_RE.match(statement)
+        if declaration:
+            aliases.update(
+                re.findall(
+                    rf"\*\s*{ACTIVATION_POINTER_QUALIFIERS}([A-Za-z_]\w*)",
+                    declaration.group(1),
+                )
+            )
+    return aliases
+
+
+def activation_function_patterns(
+    function: FunctionBody,
+    typedefs: set[str],
+    pointer_typedefs: set[str],
+) -> ActivationFunctionPatterns:
+    """Build activation guards for the typed aliases in one function."""
+
+    aliases = activation_pointer_aliases(function, typedefs, pointer_typedefs)
+    target = activation_field_target(aliases, typedefs, pointer_typedefs)
+    parent_write = field_write_re(
+        r"job", publishers=ACTIVATION_FIELD_PUBLISHERS, target=target
+    )
+    generation_write = field_write_re(
+        r"generation", publishers=ACTIVATION_FIELD_PUBLISHERS, target=target
+    )
+    deadline_write = field_write_re(
+        r"watchdog_deadline|watchdog_deadline_valid",
+        publishers=ACTIVATION_FIELD_PUBLISHERS,
+        target=target,
+    )
+    selected_write = field_write_re(
+        r"selected_hw", publishers=ACTIVATION_FIELD_PUBLISHERS, target=target
+    )
+    object_write = activation_object_write_re(
+        aliases, typedefs, pointer_typedefs
+    )
+    write = re.compile(
+        rf"(?:{parent_write.pattern}|{generation_write.pattern}|"
+        rf"{deadline_write.pattern}|{selected_write.pattern}|"
+        rf"{MPP_ACTIVATION_SEQUENCE_WRITE_RE.pattern}|{object_write.pattern})"
+    )
+    return ActivationFunctionPatterns(
+        access=re.compile(
+            rf"(?:{MPP_ACTIVATION_OBJECT_TARGET}\b|"
+            rf"{target}(?:{MPP_ACTIVATION_FIELDS})\b|"
+            rf"{FIELD_TARGET}activation_generation_seq\b)"
+        ),
+        write=write,
+        parent_write=parent_write,
+        generation_write=generation_write,
+        deadline_write=deadline_write,
+        selected_access=re.compile(rf"{target}selected_hw\b"),
+        selected_write=selected_write,
+        object_write=object_write,
+    )
 
 
 def normalize(text: str) -> str:
@@ -806,6 +1079,25 @@ def unique_struct_member_pattern(
     return matches[0]
 
 
+def required_struct_member_pattern(
+    source: pathlib.Path,
+    structure: str,
+    pattern: re.Pattern[str],
+    description: str,
+) -> tuple[int, str]:
+    """Return one regex-matched member scoped to the named struct."""
+
+    matches, _all_occurrences = struct_member_pattern_matches(
+        source, structure, pattern
+    )
+    if len(matches) != 1:
+        raise ValueError(
+            f"expected one {description} in struct {structure} in {source}, "
+            f"found {len(matches)}"
+        )
+    return matches[0]
+
+
 def forbid_struct_member_pattern(
     source: pathlib.Path,
     structure: str,
@@ -840,6 +1132,77 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
             found.append(
                 ("mpp-activation-schema", relative, "<file-scope>", text, line)
             )
+            for category, pattern, description in (
+                (
+                    "mpp-activation-parent-schema",
+                    re.compile(r"\bstruct\s+rk_mpp_job\s*\*\s*job\s*;"),
+                    "struct rk_mpp_job *job member",
+                ),
+                (
+                    "mpp-activation-generation-schema",
+                    re.compile(r"\bu64\s+generation\s*;"),
+                    "u64 generation member",
+                ),
+                (
+                    "mpp-activation-deadline-schema",
+                    re.compile(r"\bunsigned\s+long\s+watchdog_deadline\s*;"),
+                    "unsigned long watchdog_deadline member",
+                ),
+                (
+                    "mpp-activation-deadline-valid-schema",
+                    re.compile(r"\bbool\s+watchdog_deadline_valid\s*;"),
+                    "bool watchdog_deadline_valid member",
+                ),
+            ):
+                line, text = required_struct_member_pattern(
+                    source, "rk_mpp_activation", pattern, description
+                )
+                found.append((category, relative, "<file-scope>", text, line))
+            for category, pattern, description in (
+                (
+                    "mpp-active-activation-schema",
+                    re.compile(
+                        r"\bstruct\s+rk_mpp_activation\s*\*\s*"
+                        r"active_activation\s*;"
+                    ),
+                    "struct rk_mpp_activation *active_activation member",
+                ),
+                (
+                    "mpp-timeout-activation-schema",
+                    re.compile(
+                        r"\bstruct\s+rk_mpp_activation\s*\*\s*"
+                        r"timeout_activation\s*;"
+                    ),
+                    "struct rk_mpp_activation *timeout_activation member",
+                ),
+                (
+                    "mpp-activation-sequence-schema",
+                    re.compile(r"\bu64\s+activation_generation_seq\s*;"),
+                    "u64 activation_generation_seq member",
+                ),
+                (
+                    "mpp-timeout-generation-schema",
+                    re.compile(r"\bu64\s+timeout_generation\s*;"),
+                    "u64 timeout_generation member",
+                ),
+            ):
+                line, text = unique_struct_member_pattern(
+                    source, "rk_mpp_hw", pattern, description
+                )
+                found.append((category, relative, "<file-scope>", text, line))
+            for pattern, description in (
+                (
+                    re.compile(r"\bactive_job\b"),
+                    "legacy active_job member",
+                ),
+                (
+                    re.compile(r"\btimeout_job\b"),
+                    "legacy timeout_job member",
+                ),
+            ):
+                forbid_struct_member_pattern(
+                    source, "rk_mpp_hw", pattern, description
+                )
             line, text = unique_struct_member_pattern(
                 source,
                 "rk_mpp_activation",
@@ -886,9 +1249,44 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                             line,
                         )
                     )
+        activation_typedefs = (
+            set(
+                ACTIVATION_TYPEDEF_RE.findall(
+                    "\n".join(
+                        strip_comments(
+                            source.read_text(encoding="utf-8").splitlines()
+                        )
+                    )
+                )
+            )
+            if relative == MPP_SOURCE
+            else set()
+        )
+        activation_pointer_typedefs = (
+            set(
+                ACTIVATION_POINTER_TYPEDEF_RE.findall(
+                    "\n".join(
+                        strip_comments(
+                            source.read_text(encoding="utf-8").splitlines()
+                        )
+                    )
+                )
+            )
+            if relative == MPP_SOURCE
+            else set()
+        )
         functions = parse_functions(source, KUNIT_MARKERS[relative])
         for function in functions:
             command_writer = False
+            activation_patterns = (
+                activation_function_patterns(
+                    function,
+                    activation_typedefs,
+                    activation_pointer_typedefs,
+                )
+                if relative == MPP_SOURCE
+                else None
+            )
             for line, statement in function.statements:
                 matches: list[tuple[str, re.Pattern[str]]] = []
                 if relative == MPP_SOURCE:
@@ -1003,27 +1401,74 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                                 "mpp-register-lease-write",
                                 MPP_REGISTER_LEASE_WRITE_RE,
                             ),
-                            ("mpp-active-slot-access", ACTIVE_SLOT_ACCESS_RE),
-                            ("mpp-active-slot-write", ACTIVE_SLOT_WRITE_RE),
+                            (
+                                "mpp-active-activation-access",
+                                MPP_ACTIVE_ACTIVATION_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-active-activation-write",
+                                MPP_ACTIVE_ACTIVATION_WRITE_RE,
+                            ),
+                            (
+                                "mpp-timeout-activation-access",
+                                MPP_TIMEOUT_ACTIVATION_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-timeout-activation-write",
+                                MPP_TIMEOUT_ACTIVATION_WRITE_RE,
+                            ),
+                            (
+                                "mpp-activation-sequence-access",
+                                MPP_ACTIVATION_SEQUENCE_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-activation-sequence-write",
+                                MPP_ACTIVATION_SEQUENCE_WRITE_RE,
+                            ),
+                            (
+                                "mpp-timeout-generation-access",
+                                MPP_TIMEOUT_GENERATION_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-timeout-generation-write",
+                                MPP_TIMEOUT_GENERATION_WRITE_RE,
+                            ),
+                            ("mpp-slot-legacy", MPP_SLOT_LEGACY_RE),
                             (
                                 "mpp-activation-entry",
                                 MPP_ACTIVATION_ENTRY_RE,
                             ),
                             (
                                 "mpp-activation-access",
-                                MPP_ACTIVATION_ACCESS_RE,
+                                activation_patterns.access,
                             ),
                             (
                                 "mpp-activation-write",
-                                MPP_ACTIVATION_WRITE_RE,
+                                activation_patterns.write,
+                            ),
+                            (
+                                "mpp-activation-parent-write",
+                                activation_patterns.parent_write,
+                            ),
+                            (
+                                "mpp-activation-generation-write",
+                                activation_patterns.generation_write,
+                            ),
+                            (
+                                "mpp-activation-deadline-write",
+                                activation_patterns.deadline_write,
+                            ),
+                            (
+                                "mpp-activation-object-write",
+                                activation_patterns.object_write,
                             ),
                             (
                                 "mpp-selected-hw-access",
-                                MPP_SELECTED_HW_ACCESS_RE,
+                                activation_patterns.selected_access,
                             ),
                             (
                                 "mpp-selected-hw-write",
-                                MPP_SELECTED_HW_WRITE_RE,
+                                activation_patterns.selected_write,
                             ),
                             (
                                 "mpp-rkvdec-ccu-access",
@@ -1084,8 +1529,14 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                 else:
                     matches.extend(
                         (
-                            ("rga-active-slot-access", ACTIVE_SLOT_ACCESS_RE),
-                            ("rga-active-slot-write", ACTIVE_SLOT_WRITE_RE),
+                            (
+                                "rga-active-slot-access",
+                                RGA_ACTIVE_SLOT_ACCESS_RE,
+                            ),
+                            (
+                                "rga-active-slot-write",
+                                RGA_ACTIVE_SLOT_WRITE_RE,
+                            ),
                             ("rga-exec-map-owner", RGA_EXEC_MAP_OWNER_RE),
                             (
                                 "rga-map-release-primitive",
@@ -1273,7 +1724,35 @@ def category_counts(signals: Iterable[Signal]) -> str:
 def ownership_violations(signals: Iterable[Signal]) -> list[Signal]:
     violations: list[Signal] = []
     for signal in signals:
-        if signal.category == "mpp-dispatch-legacy":
+        if signal.category in {"mpp-dispatch-legacy", "mpp-slot-legacy"}:
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-active-activation-access"
+            and signal.function not in MPP_ACTIVE_ACTIVATION_ACCESS_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-active-activation-write"
+            and signal.function not in MPP_ACTIVE_ACTIVATION_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category
+            in {"mpp-timeout-activation-access", "mpp-timeout-activation-write"}
+            and signal.function not in MPP_TIMEOUT_ACTIVATION_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category
+            in {"mpp-activation-sequence-access", "mpp-activation-sequence-write"}
+            and signal.function not in MPP_ACTIVATION_SEQUENCE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category
+            in {"mpp-timeout-generation-access", "mpp-timeout-generation-write"}
+            and signal.function not in MPP_TIMEOUT_GENERATION_OWNERS
+        ):
             violations.append(signal)
         elif (
             signal.category == "mpp-dispatch-lease-access"
@@ -1305,9 +1784,21 @@ def ownership_violations(signals: Iterable[Signal]) -> list[Signal]:
             and signal.function not in MPP_RKVDEC_CCU_WRITE_OWNERS
         ):
             violations.append(signal)
-        elif signal.category == "mpp-activation-write" and any(
-            pattern.search(signal.text) and signal.function not in owners
-            for pattern, owners in MPP_ACTIVATION_WRITE_OWNER_RULES
+        elif signal.category == "mpp-activation-object-write":
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-parent-write"
+            and signal.function not in MPP_ACTIVATION_PARENT_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-generation-write"
+            and signal.function not in MPP_ACTIVATION_GENERATION_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-deadline-write"
+            and signal.function not in MPP_ACTIVATION_DEADLINE_WRITE_OWNERS
         ):
             violations.append(signal)
     return violations

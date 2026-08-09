@@ -2629,6 +2629,12 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\tunsigned long watchdog_deadline;\n"
             "\tbool watchdog_deadline_valid;\n"
             "};\n"
+            "struct rk_mpp_hw {\n"
+            "\tstruct rk_mpp_activation *active_activation;\n"
+            "\tstruct rk_mpp_activation *timeout_activation;\n"
+            "\tu64 activation_generation_seq;\n"
+            "\tu64 timeout_generation;\n"
+            "};\n"
             "struct rk_mpp_session {\n"
             "\tstruct rk_mpp_activation *rkvdec_dispatch_owner;\n"
             "};\n"
@@ -2641,6 +2647,11 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "{\n"
             "\tjob->activation.job = job;\n"
             "\tjob->activation.selected_hw = NULL;\n"
+            "}\n"
+            "static struct rk_mpp_job *rk_mpp_activation_job(\n"
+            "\t\tconst struct rk_mpp_activation *activation)\n"
+            "{\n"
+            "\treturn activation ? activation->job : NULL;\n"
             "}\n"
             "static void rk_mpp_activation_install_locked(\n"
             "\t\tstruct rk_mpp_hw *hw, struct rk_mpp_job *job,\n"
@@ -2671,6 +2682,48 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "{\n"
             "\thw->activation_generation_seq++;\n"
             "\treturn hw->activation_generation_seq;\n"
+            "}\n"
+            "static struct rk_mpp_activation *\n"
+            "rk_mpp_hw_active_activation_locked(const struct rk_mpp_hw *hw)\n"
+            "{\n"
+            "\treturn hw->active_activation;\n"
+            "}\n"
+            "static u64 rk_mpp_hw_install_active_locked(\n"
+            "\t\tstruct rk_mpp_hw *hw, struct rk_mpp_job *job)\n"
+            "{\n"
+            "\thw->active_activation = &job->activation;\n"
+            "\treturn 1;\n"
+            "}\n"
+            "static struct rk_mpp_activation *rk_mpp_hw_take_active_locked(\n"
+            "\t\tstruct rk_mpp_hw *hw)\n"
+            "{\n"
+            "\tstruct rk_mpp_activation *activation = hw->active_activation;\n"
+            "\thw->active_activation = NULL;\n"
+            "\treturn activation;\n"
+            "}\n"
+            "static bool rk_mpp_hw_restore_active_locked(\n"
+            "\t\tstruct rk_mpp_hw *hw, struct rk_mpp_activation *activation)\n"
+            "{\n"
+            "\tif (hw->active_activation) return false;\n"
+            "\thw->active_activation = activation;\n"
+            "\treturn true;\n"
+            "}\n"
+            "static struct rk_mpp_activation *\n"
+            "rk_mpp_hw_take_timeout_activation(struct rk_mpp_hw *hw)\n"
+            "{\n"
+            "\tstruct rk_mpp_activation *activation = hw->timeout_activation;\n"
+            "\thw->timeout_activation = NULL;\n"
+            "\thw->timeout_generation = 0;\n"
+            "\treturn activation;\n"
+            "}\n"
+            "static void rk_mpp_hw_schedule_timeout(struct rk_mpp_hw *hw)\n"
+            "{\n"
+            "\tstruct rk_mpp_activation *activation = "
+            "rk_mpp_hw_active_activation_locked(hw);\n"
+            "\thw->timeout_activation = activation;\n"
+            "\thw->timeout_generation = activation->generation;\n"
+            "\tactivation->watchdog_deadline = 1;\n"
+            "\tactivation->watchdog_deadline_valid = true;\n"
             "}\n"
             "static bool rk_mpp_dispatch_lease_released(\n"
             "\t\tconst struct rk_mpp_job *job)\n"
@@ -2724,9 +2777,10 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\thw->ccu_node = node;\n"
             "\trk_mpp_hw_publish_register_lease(hw, 1);\n"
             "\thw->register_lease_live = true;\n"
-            "\thw->active_job = job;\n"
             "\trk_mpp_activation_init(job);\n"
+            "\trk_mpp_hw_install_active_locked(hw, job);\n"
             "\trk_mpp_activation_install_locked(hw, job, 1);\n"
+            "\trk_mpp_activation_job(&job->activation);\n"
             "\tif (job->activation.generation) job = NULL;\n"
             "\trk_mpp_dispatch_lease_acquire_locked(job);\n"
             "\trk_mpp_dispatch_lease_release_locked(job);\n"
@@ -2753,7 +2807,6 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\thw->irq_status = 1;\n"
             "\thw->iommu_fault_pending = true;\n"
             "\thw->recovery_failed = true;\n"
-            "\thw->timeout_job = job;\n"
             "\tjob->hw_start_ns = 1;\n"
             "\trk_mpp_job_publish_outcome(job, 0);\n"
             "\trk_mpp_job_complete(job, 0);\n"
@@ -2861,7 +2914,29 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             updated = self.run_audit(tree, baseline, "--update-baseline")
             self.assertEqual(updated.returncode, 0, updated.stderr)
             baseline_text = baseline.read_text(encoding="utf-8")
-            self.assertIn("mpp-active-slot-access", baseline_text)
+            self.assertNotIn("mpp-active-slot-access", baseline_text)
+            for category in (
+                "mpp-activation-parent-schema",
+                "mpp-activation-generation-schema",
+                "mpp-activation-deadline-schema",
+                "mpp-activation-deadline-valid-schema",
+                "mpp-active-activation-schema",
+                "mpp-active-activation-access",
+                "mpp-active-activation-write",
+                "mpp-timeout-activation-schema",
+                "mpp-timeout-activation-access",
+                "mpp-timeout-activation-write",
+                "mpp-activation-sequence-schema",
+                "mpp-activation-sequence-access",
+                "mpp-activation-sequence-write",
+                "mpp-timeout-generation-schema",
+                "mpp-timeout-generation-access",
+                "mpp-timeout-generation-write",
+                "mpp-activation-parent-write",
+                "mpp-activation-generation-write",
+                "mpp-activation-deadline-write",
+            ):
+                self.assertIn(category, baseline_text)
             self.assertIn("mpp-activation-schema", baseline_text)
             self.assertIn("mpp-activation-entry", baseline_text)
             self.assertIn("mpp-activation-access", baseline_text)
@@ -2960,11 +3035,6 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.make_tree(
                 tree,
                 extra_mpp=(
-                    "\tjob = hw->active_job;\n"
-                    "\thw[0].active_job = job;\n"
-                    "\tcmpxchg(&hws[0]->active_job, job, NULL);\n"
-                    "\thws[0]->active_generation <<= 1;\n"
-                    "\t++(*hw).active_generation;\n"
                     "\tjob->rkvdec_ccu_powered = false;\n"
                     "\trk_mpp_hw_power_off(hw);\n"
                     "\tclk_bulk_prepare_enable(1, hw->clks);\n"
@@ -2983,7 +3053,6 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\thw[0].iommu_fault_generation = 2;\n"
                     "\t(*hw).terminally_stopped = true;\n"
                     "\thw->online = false;\n"
-                    "\thws[0]->timeout_generation = 2;\n"
                     "\t(*job).hw_elapsed_ns += 2;\n"
                     "\trk_mpp_job_publish_outcome_locked(job, -EIO);\n"
                     "\trk_mpp_reset_domain_recovery_pulse(hw);\n"
@@ -3078,8 +3147,6 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             )
             changed = self.run_audit(tree, baseline)
             self.assertEqual(changed.returncode, 1)
-            self.assertIn("NEW\tmpp-active-slot-access", changed.stderr)
-            self.assertIn("NEW\tmpp-active-slot-write", changed.stderr)
             self.assertIn("NEW\tmpp-power-field", changed.stderr)
             self.assertIn("NEW\tmpp-power-transition-entry", changed.stderr)
             self.assertIn("NEW\tmpp-power-backend-op", changed.stderr)
@@ -3091,7 +3158,6 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("NEW\tmpp-irq-snapshot-write", changed.stderr)
             self.assertIn("NEW\tmpp-fault-snapshot-write", changed.stderr)
             self.assertIn("NEW\tmpp-terminal-state-write", changed.stderr)
-            self.assertIn("NEW\tmpp-watchdog-snapshot-write", changed.stderr)
             self.assertIn("NEW\tmpp-outcome-publish-entry", changed.stderr)
             self.assertIn("NEW\tmpp-activation-timing-write", changed.stderr)
             self.assertIn("NEW\tmpp-reset-control", changed.stderr)
@@ -3155,9 +3221,6 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("reset_control_rearm", changed.stderr)
             new_lines = changed.stderr.splitlines()
             for category, signal in (
-                ("mpp-active-slot-write", "cmpxchg(&hws[0]->active_job"),
-                ("mpp-active-slot-write", "active_generation <<= 1"),
-                ("mpp-active-slot-write", "++(*hw).active_generation"),
                 ("mpp-power-count-write", "atomic_xchg(&hws[0]->power_count"),
                 ("mpp-power-count-write", "atomic_add(1, &hws[0]->power_count"),
                 ("mpp-power-backend-op", "clk_bulk_enable(1, hw->clks)"),
@@ -3410,6 +3473,145 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                 self.assertIn("ownership signals differ", rejected.stderr)
             self.assertEqual(baseline.read_text(encoding="utf-8"), original)
 
+    def test_activation_slot_surfaces_are_hard_guarded(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tree = root / "linux"
+            baseline = root / "baseline.tsv"
+            self.make_tree(tree)
+            updated = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(updated.returncode, 0, updated.stderr)
+
+            self.make_tree(
+                tree,
+                extra_mpp=(
+                    "\tif (hws[0]->active_activation) job = NULL;\n"
+                    "\tWRITE_ONCE(hws[0]->active_activation, "
+                    "&job->activation);\n"
+                    "\txchg(&hws[0]->active_activation, NULL);\n"
+                    "\tcmpxchg(&hws[0]->active_activation, old, NULL);\n"
+                    "\tif ((*hw).timeout_activation) job = NULL;\n"
+                    "\tWRITE_ONCE((*hw).timeout_activation, "
+                    "&job->activation);\n"
+                    "\txchg(&hws[0]->timeout_activation, NULL);\n"
+                    "\thws[0]->activation_generation_seq ^= 1;\n"
+                    "\tWRITE_ONCE(hws[0]->timeout_generation, 2);\n"
+                    "\thw->active_job = job;\n"
+                    "\thw->timeout_job = job;\n"
+                ),
+            )
+            rejected = self.run_audit(tree, baseline)
+            self.assertEqual(rejected.returncode, 2)
+            for category in (
+                "mpp-active-activation-access",
+                "mpp-active-activation-write",
+                "mpp-timeout-activation-access",
+                "mpp-timeout-activation-write",
+                "mpp-activation-sequence-access",
+                "mpp-activation-sequence-write",
+                "mpp-timeout-generation-access",
+                "mpp-timeout-generation-write",
+                "mpp-slot-legacy",
+            ):
+                self.assertIn(f"OWNER\t{category}", rejected.stderr)
+            self.assertIn("cmpxchg(&hws[0]->active_activation", rejected.stderr)
+            self.assertIn("WRITE_ONCE((*hw).timeout_activation", rejected.stderr)
+
+            rebased = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(rebased.returncode, 2)
+            self.assertIn("used outside its allowed owners", rebased.stderr)
+
+            self.make_tree(tree)
+            source = tree / "drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c"
+            source.write_text(
+                source.read_text(encoding="utf-8")
+                + "static struct rk_mpp_activation *\n"
+                "rk_mpp_hw_active_activation_locked(struct rk_mpp_hw *hw)\n"
+                "{\n"
+                "\tmemset(&hw->active_activation, 0,\n"
+                "\t       sizeof(hw->active_activation));\n"
+                "\thw->active_activation = NULL;\n"
+                "\treturn NULL;\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            read_owner_write = self.run_audit(tree, baseline)
+            self.assertEqual(read_owner_write.returncode, 2)
+            self.assertIn(
+                "OWNER\tmpp-active-activation-write", read_owner_write.stderr
+            )
+
+            self.make_tree(tree)
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "\tu64 timeout_generation;\n",
+                    "\tu64 timeout_generation;\n"
+                    "\tvoid *active_job;\n"
+                    "\tstruct rk_mpp_activation *timeout_job;\n",
+                ),
+                encoding="utf-8",
+            )
+            legacy_aliases = self.run_audit(tree, baseline)
+            self.assertEqual(legacy_aliases.returncode, 2)
+            self.assertIn("forbidden legacy active_job member", legacy_aliases.stderr)
+
+            self.make_tree(
+                tree,
+                extra_kunit=(
+                    "\thw->active_activation = &job->activation;\n"
+                    "\thw->timeout_activation = &job->activation;\n"
+                    "\thw->activation_generation_seq++;\n"
+                    "\thw->timeout_generation = 3;\n"
+                ),
+            )
+            kunit_only = self.run_audit(tree, baseline)
+            self.assertEqual(kunit_only.returncode, 0, kunit_only.stderr)
+
+            for original, replacement, description in (
+                (
+                    "\tstruct rk_mpp_activation *active_activation;\n",
+                    "\tstruct rk_mpp_job *active_activation;\n",
+                    "active_activation member",
+                ),
+                (
+                    "\tstruct rk_mpp_activation *timeout_activation;\n",
+                    "\tvoid *timeout_activation;\n",
+                    "timeout_activation member",
+                ),
+                (
+                    "\tu64 activation_generation_seq;\n",
+                    "\tu32 activation_generation_seq;\n",
+                    "activation_generation_seq member",
+                ),
+                (
+                    "\tu64 timeout_generation;\n",
+                    "\tu32 timeout_generation;\n",
+                    "timeout_generation member",
+                ),
+            ):
+                self.make_tree(tree)
+                source.write_text(
+                    source.read_text(encoding="utf-8").replace(
+                        original, replacement
+                    ),
+                    encoding="utf-8",
+                )
+                drift = self.run_audit(tree, baseline)
+                self.assertEqual(drift.returncode, 2)
+                self.assertIn(description, drift.stderr)
+
+            self.make_tree(tree)
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "\tstruct rk_mpp_activation *active_activation;\n",
+                    "\tstruct rk_mpp_job *active_job;\n",
+                ),
+                encoding="utf-8",
+            )
+            legacy_schema = self.run_audit(tree, baseline)
+            self.assertEqual(legacy_schema.returncode, 2)
+            self.assertIn("active_activation member", legacy_schema.stderr)
+
     def test_selected_hw_and_ccu_surfaces_are_hard_guarded(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -3524,6 +3726,179 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertEqual(ccu_type_drift.returncode, 2)
             self.assertIn("rkvdec_ccu member", ccu_type_drift.stderr)
 
+    def test_activation_alias_spellings_cannot_be_rebaselined(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tree = root / "linux"
+            baseline = root / "baseline.tsv"
+            self.make_tree(tree)
+            updated = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(updated.returncode, 0, updated.stderr)
+            source = tree / "drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c"
+
+            function_cases = (
+                (
+                    "rk_mpp_hw_install_active_locked",
+                    "\thw->active_activation[0].generation = 9;\n",
+                    "active_activation[0].generation",
+                ),
+                (
+                    "rk_mpp_hw_install_active_locked",
+                    "\t(*hw->active_activation).generation = 9;\n",
+                    "(*hw->active_activation).generation",
+                ),
+                (
+                    "rk_mpp_hw_install_active_locked",
+                    "\t(*hw->active_activation) = replacement_activation;\n",
+                    "(*hw->active_activation) =",
+                ),
+                (
+                    "hostile_pointer_const",
+                    "\tstruct rk_mpp_activation * const attempt = NULL;\n"
+                    "\tattempt->generation = 9;\n",
+                    "attempt->generation",
+                ),
+                (
+                    "hostile_pointer_restrict",
+                    "\tstruct rk_mpp_activation *restrict attempt = NULL;\n"
+                    "\tattempt->generation = 9;\n",
+                    "attempt->generation",
+                ),
+                (
+                    "hostile_alias_array_memory",
+                    "\tstruct rk_mpp_activation *attempt = NULL;\n"
+                    "\tmemset(&attempt[0], 0, sizeof(attempt[0]));\n",
+                    "memset(&attempt[0]",
+                ),
+                (
+                    "hostile_alias_deref_memory",
+                    "\tstruct rk_mpp_activation *attempt = NULL;\n"
+                    "\tmemset(&*attempt, 0, sizeof(*attempt));\n",
+                    "memset(&*attempt",
+                ),
+                (
+                    "rk_mpp_hw_install_active_locked",
+                    "\tmemset(&hw->active_activation[0], 0,\n"
+                    "\t       sizeof(hw->active_activation[0]));\n",
+                    "memset(&hw->active_activation[0]",
+                ),
+                (
+                    "rk_mpp_job_get_hw",
+                    "\tmemset(&job->activation.selected_hw, 0,\n"
+                    "\t       sizeof(job->activation.selected_hw));\n",
+                    "memset(&job->activation.selected_hw",
+                ),
+            )
+            for function, body, needle in function_cases:
+                self.make_tree(tree)
+                source.write_text(
+                    source.read_text(encoding="utf-8")
+                    + f"static void {function}(struct rk_mpp_hw *hw, "
+                    "struct rk_mpp_job *job)\n"
+                    "{\n"
+                    f"{body}"
+                    "}\n",
+                    encoding="utf-8",
+                )
+                for option in ((), ("--update-baseline",)):
+                    rejected = self.run_audit(tree, baseline, *option)
+                    self.assertEqual(rejected.returncode, 2, rejected.stderr)
+                    self.assertIn(needle, rejected.stderr)
+
+            self.make_tree(tree)
+            text = source.read_text(encoding="utf-8")
+            source.write_text(
+                "typedef struct rk_mpp_activation activation_alias;\n"
+                + text
+                + "static void hostile_typedef(activation_alias *attempt)\n"
+                "{\n"
+                "\tattempt->generation = 9;\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            for option in ((), ("--update-baseline",)):
+                rejected = self.run_audit(tree, baseline, *option)
+                self.assertEqual(rejected.returncode, 2, rejected.stderr)
+                self.assertIn("attempt->generation", rejected.stderr)
+
+            self.make_tree(tree)
+            text = source.read_text(encoding="utf-8")
+            source.write_text(
+                "typedef struct rk_mpp_activation *activation_ptr;\n"
+                + text
+                + "static void hostile_pointer_typedef(activation_ptr attempt)\n"
+                "{\n"
+                "\tattempt->generation = 9;\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            for option in ((), ("--update-baseline",)):
+                rejected = self.run_audit(tree, baseline, *option)
+                self.assertEqual(rejected.returncode, 2, rejected.stderr)
+                self.assertIn("attempt->generation", rejected.stderr)
+
+            self.make_tree(tree)
+            source.write_text(
+                source.read_text(encoding="utf-8")
+                + "static void hostile_cast(void *opaque)\n"
+                "{\n"
+                "\t((struct rk_mpp_activation *)opaque)->generation = 9;\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            for option in ((), ("--update-baseline",)):
+                rejected = self.run_audit(tree, baseline, *option)
+                self.assertEqual(rejected.returncode, 2, rejected.stderr)
+                self.assertIn("opaque)->generation", rejected.stderr)
+
+            for cast in (
+                "((struct rk_mpp_activation *)get_opaque())->generation = 9;",
+                "((struct rk_mpp_activation * const)opaque)->generation = 9;",
+            ):
+                self.make_tree(tree)
+                source.write_text(
+                    source.read_text(encoding="utf-8")
+                    + "static void hostile_complex_cast(void *opaque)\n"
+                    "{\n"
+                    f"\t{cast}\n"
+                    "}\n",
+                    encoding="utf-8",
+                )
+                for option in ((), ("--update-baseline",)):
+                    rejected = self.run_audit(tree, baseline, *option)
+                    self.assertEqual(rejected.returncode, 2, rejected.stderr)
+                    self.assertIn("generation = 9", rejected.stderr)
+
+            for member in ("active_job", "timeout_job"):
+                self.make_tree(tree)
+                source.write_text(
+                    source.read_text(encoding="utf-8").replace(
+                        "\tu64 timeout_generation;\n",
+                        "\tu64 timeout_generation;\n"
+                        f"\tvoid *{member} __aligned(8);\n",
+                    ),
+                    encoding="utf-8",
+                )
+                for option in ((), ("--update-baseline",)):
+                    rejected = self.run_audit(tree, baseline, *option)
+                    self.assertEqual(rejected.returncode, 2, rejected.stderr)
+                    self.assertIn(f"legacy {member} member", rejected.stderr)
+
+                self.make_tree(tree)
+                source.write_text(
+                    source.read_text(encoding="utf-8").replace(
+                        "\tu64 timeout_generation;\n",
+                        "\tu64 timeout_generation;\n"
+                        f"\tvoid *{member}\n"
+                        "\t\t__aligned(8);\n",
+                    ),
+                    encoding="utf-8",
+                )
+                for option in ((), ("--update-baseline",)):
+                    rejected = self.run_audit(tree, baseline, *option)
+                    self.assertEqual(rejected.returncode, 2, rejected.stderr)
+                    self.assertIn(f"legacy {member} member", rejected.stderr)
+
     def test_activation_schema_and_nested_writes_are_guarded(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -3545,7 +3920,9 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             owner_delta = self.run_audit(tree, baseline)
             self.assertEqual(owner_delta.returncode, 1)
             self.assertIn("NEW\tmpp-activation-write", owner_delta.stderr)
-            self.assertIn("NEW\tmpp-active-slot-write", owner_delta.stderr)
+            self.assertIn(
+                "NEW\tmpp-activation-sequence-write", owner_delta.stderr
+            )
             self.assertIn("activation_generation_seq ^= 1", owner_delta.stderr)
 
             self.make_tree(
@@ -3559,17 +3936,33 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\tmemset(&job->activation, 0, "
                     "sizeof(job->activation));\n"
                     "\tjob->activation = replacement_activation;\n"
+                    "\tactivation->generation = 3;\n"
+                    "\tactivation->watchdog_deadline_valid = false;\n"
+                    "\t(*activation).generation = 4;\n"
+                    "\tWRITE_ONCE((*activation).watchdog_deadline_valid, "
+                    "false);\n"
+                    "\tactivation[0].job = job;\n"
+                    "\tmemset(activation, 0, sizeof(*activation));\n"
+                    "\t(*activation) = replacement_activation;\n"
                 ),
             )
             rejected = self.run_audit(tree, baseline)
             self.assertEqual(rejected.returncode, 2)
-            self.assertIn("OWNER\tmpp-activation-write", rejected.stderr)
+            self.assertIn("OWNER\tmpp-activation-generation-write", rejected.stderr)
+            self.assertIn("OWNER\tmpp-activation-deadline-write", rejected.stderr)
+            self.assertIn("OWNER\tmpp-activation-object-write", rejected.stderr)
+            self.assertIn("OWNER\tmpp-activation-parent-write", rejected.stderr)
             self.assertIn("watchdog_deadline = 1", rejected.stderr)
             self.assertIn("xchg(&jobs[0]->activation.generation", rejected.stderr)
             self.assertIn("watchdog_deadline_valid", rejected.stderr)
             self.assertIn("activation_generation_seq++", rejected.stderr)
             self.assertIn("memset(&job->activation", rejected.stderr)
             self.assertIn("job->activation = replacement_activation", rejected.stderr)
+            self.assertIn("activation->generation = 3", rejected.stderr)
+            self.assertIn("(*activation).generation = 4", rejected.stderr)
+            self.assertIn("activation[0].job = job", rejected.stderr)
+            self.assertIn("memset(activation", rejected.stderr)
+            self.assertIn("(*activation) = replacement_activation", rejected.stderr)
 
             rebased = self.run_audit(tree, baseline, "--update-baseline")
             self.assertEqual(rebased.returncode, 2)
@@ -3587,21 +3980,94 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             )
             wrong_owner = self.run_audit(tree, baseline)
             self.assertEqual(wrong_owner.returncode, 2)
-            self.assertIn("OWNER\tmpp-activation-write", wrong_owner.stderr)
+            self.assertIn(
+                "OWNER\tmpp-activation-generation-write", wrong_owner.stderr
+            )
             self.assertIn("rk_mpp_hw_schedule_timeout", wrong_owner.stderr)
             self.assertIn("activation.generation = 3", wrong_owner.stderr)
 
             self.make_tree(tree)
             source.write_text(
-                source.read_text(encoding="utf-8").replace(
-                    "bool watchdog_deadline_valid;",
-                    "u8 watchdog_deadline_valid;",
-                ),
+                source.read_text(encoding="utf-8")
+                + "static void hostile_alias(\n"
+                "\t\tstruct rk_mpp_activation *attempt)\n"
+                "{\n"
+                "\tattempt->generation = 9;\n"
+                "\tWRITE_ONCE(attempt->watchdog_deadline_valid, false);\n"
+                "\tmemset(&attempt->selected_hw, 0,\n"
+                "\t       sizeof(attempt->selected_hw));\n"
+                "\tmemset(attempt, 0, sizeof(*attempt));\n"
+                "}\n"
+                "static void rk_mpp_hw_install_active_locked(\n"
+                "\t\tstruct rk_mpp_hw *hw)\n"
+                "{\n"
+                "\thw->active_activation->generation = 9;\n"
+                "\tmemset(hw->active_activation, 0,\n"
+                "\t       sizeof(*hw->active_activation));\n"
+                "}\n"
+                "static void rk_mpp_hw_schedule_timeout(\n"
+                "\t\tstruct rk_mpp_hw *hw)\n"
+                "{\n"
+                "\thw->timeout_activation->generation = 9;\n"
+                "}\n"
+                "static void rk_mpp_job_get_hw(struct rk_mpp_job *job)\n"
+                "{\n"
+                "\tmemcpy(&job->activation.selected_hw, &replacement,\n"
+                "\t       sizeof(job->activation.selected_hw));\n"
+                "}\n",
                 encoding="utf-8",
             )
-            schema_changed = self.run_audit(tree, baseline)
-            self.assertEqual(schema_changed.returncode, 1)
-            self.assertIn("NEW\tmpp-activation-schema", schema_changed.stderr)
+            alias_and_pointee = self.run_audit(tree, baseline)
+            self.assertEqual(alias_and_pointee.returncode, 2)
+            for category in (
+                "mpp-activation-generation-write",
+                "mpp-activation-deadline-write",
+                "mpp-activation-object-write",
+                "mpp-selected-hw-write",
+            ):
+                self.assertIn(f"OWNER\t{category}", alias_and_pointee.stderr)
+            self.assertIn("attempt->generation = 9", alias_and_pointee.stderr)
+            self.assertIn(
+                "hw->timeout_activation->generation = 9",
+                alias_and_pointee.stderr,
+            )
+            self.assertEqual(
+                self.run_audit(tree, baseline, "--update-baseline").returncode,
+                2,
+            )
+
+            for original, replacement, description in (
+                (
+                    "\tstruct rk_mpp_job *job;\n",
+                    "\tvoid *job;\n",
+                    "struct rk_mpp_job *job member",
+                ),
+                (
+                    "\tu64 generation;\n",
+                    "\tu32 generation;\n",
+                    "u64 generation member",
+                ),
+                (
+                    "\tunsigned long watchdog_deadline;\n",
+                    "\tu64 watchdog_deadline;\n",
+                    "unsigned long watchdog_deadline member",
+                ),
+                (
+                    "\tbool watchdog_deadline_valid;\n",
+                    "\tu8 watchdog_deadline_valid;\n",
+                    "bool watchdog_deadline_valid member",
+                ),
+            ):
+                self.make_tree(tree)
+                source.write_text(
+                    source.read_text(encoding="utf-8").replace(
+                        original, replacement, 1
+                    ),
+                    encoding="utf-8",
+                )
+                schema_changed = self.run_audit(tree, baseline)
+                self.assertEqual(schema_changed.returncode, 2)
+                self.assertIn(description, schema_changed.stderr)
 
     def test_whole_category_disappearance_fails_until_rebaselined(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

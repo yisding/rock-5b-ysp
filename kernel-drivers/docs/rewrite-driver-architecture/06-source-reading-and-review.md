@@ -56,8 +56,10 @@ After tracing the current types, read the
 and then the [ownership-refactor plan](../rewrite-ownership-refactor-plan.md).
 Searching the implementation for `rk_mpp_cluster` now finds topology plus the
 hard-CCU group-reset validator/owner and member-core power lease. Searching for
-`rk_mpp_activation` now finds the Phase 3A embedded current-attempt
-generation/deadline record, not an activation-typed slot or transition engine.
+`rk_mpp_activation` now finds the embedded current-attempt
+generation/deadline/selected-core record and the Phase 3D activation-typed
+active/timeout slots. The slots still adapt back to job-shaped terminal paths;
+they are not a retained attempt or transition engine.
 `rk_rga_task_exec` and `rk_rga_acquire_set` should still return no definitions;
 cluster admission, coordinator-power ownership, retained MPP retirement, and
 complete reset/IOMMU recovery consumers should likewise remain absent until

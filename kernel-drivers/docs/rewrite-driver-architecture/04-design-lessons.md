@@ -140,7 +140,7 @@ For each edge, answer:
 
 ### 6.3 Separate state protection from operation serialization
 
-A spinlock can protect `active_job` but cannot safely cover reset, PM, or DMA
+A spinlock can protect `active_activation` but cannot safely cover reset, PM, or DMA
 unmap. A mutex can serialize reset but cannot be acquired in hard IRQ context.
 
 The common two-lock pattern is:
@@ -172,7 +172,7 @@ both free it
 Good:
 
 ```text
-IRQ/timeout/removal contend on protected active_job
+IRQ/timeout/removal contend on protected active_activation + generation
 winner removes it and owns completion
 loser observes NULL or generation mismatch
 ```
