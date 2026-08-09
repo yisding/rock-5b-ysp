@@ -114,6 +114,30 @@ MPP_CLUSTER_POWER_LEASE_ACCESS_RE = re.compile(
     r"\b(?:rkvdec_ccu_power_lease|power_lease_(?:refs|cluster|core_count|"
     r"cores))\b"
 )
+MPP_CLUSTER_RUNTIME_ENTRY_RE = re.compile(
+    r"\brk_mpp_cluster_(?:validate_ccu|validate_job|"
+    r"relink_ccu_tables_locked|ccu_has_jobs|relink_unfinished_locked|"
+    r"prepare_resend_chain|collect_unfinished_jobs|add_ccu_job|"
+    r"remove_ccu_job|transfer_power_lease|first_done_job|publish_ccu_job|"
+    r"arm_soft_ccu|publish_soft_ccu_job|start_ccu_job|"
+    r"collect_stop_cores)\s*\("
+)
+MPP_CLUSTER_PUBLICATION_ENTRY_RE = re.compile(
+    r"\b(?:rk_mpp_cluster_(?:arm_soft_ccu|publish_soft_ccu_job|"
+    r"publish_ccu_job|start_ccu_job)|"
+    r"rk_mpp_rkvdec2_write_ccu_doorbell)\s*\("
+)
+MPP_CLUSTER_RUNNING_LIST_ACCESS_RE = re.compile(
+    r"\b(?:rkvdec_ccu_jobs|rkvdec_ccu_node|rkvdec_ccu_listed)\b"
+)
+MPP_CCU_CHAIN_LINK_WRITE_RE = re.compile(
+    r"\b[A-Za-z_]\w*\s*\[\s*info->next_word\s*\]\s*=(?!=)"
+)
+MPP_CCU_CONTROL_WRITE_RE = re.compile(
+    r"\bwritel(?:_relaxed)?\s*\([^;]*RK_MPP_RKVDEC_CCU_(?:CTRL|"
+    r"CFG_ADDR|LINK_MODE|CFG_DONE|WORK|WORK_MODE|CORE_WORK|CORE_STA|"
+    r"CORE_IDLE|CORE_ERR)_BASE"
+)
 MPP_CLUSTER_BINDING_RE = re.compile(
     rf"(?:\b(?:cluster_link|cluster_count|clusters)\b|"
     rf"{POINTER_FIELD_TARGET}cluster\b)"
@@ -537,6 +561,26 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                             (
                                 "mpp-cluster-power-lease-access",
                                 MPP_CLUSTER_POWER_LEASE_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-cluster-runtime-entry",
+                                MPP_CLUSTER_RUNTIME_ENTRY_RE,
+                            ),
+                            (
+                                "mpp-cluster-publication-entry",
+                                MPP_CLUSTER_PUBLICATION_ENTRY_RE,
+                            ),
+                            (
+                                "mpp-cluster-running-list-access",
+                                MPP_CLUSTER_RUNNING_LIST_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-ccu-chain-link-write",
+                                MPP_CCU_CHAIN_LINK_WRITE_RE,
+                            ),
+                            (
+                                "mpp-ccu-control-write",
+                                MPP_CCU_CONTROL_WRITE_RE,
                             ),
                             (
                                 "mpp-cluster-binding-access",

@@ -19,8 +19,8 @@ The priority is **ownership before convention**:
    the ownership graph has stopped changing.
 
 > **Status — 2026-08-08:** Phase 1 is source-complete and Phase 2 checkpoints
-> 1–4 are implemented at `rk3588-rewrite-6.18@129a49a2bec96` and
-> `rk3588-rewrite-mainline@f03e5cd9f44d3`. Their tracked
+> 1–5 are implemented at `rk3588-rewrite-6.18@805a216a1e8d1` and
+> `rk3588-rewrite-mainline@4cb7913f84669`. Their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. Phase 1 funnels reset
 > backends, both active slots, RKVDEC dispatch and power leases,
 > publication/start, MPP outcome publication, and RGA execution-map retirement;
@@ -34,10 +34,12 @@ The priority is **ownership before convention**:
 > reference-pinned coordinator/cores through that view and records the entire
 > physical sequence as one non-interleavable reset-domain epoch. A refcounted
 > cluster power lease replaces the job's fixed powered-core array and follows
-> the existing coordinator chain without cycling member power; coordinator
-> per-job power, descriptor admission, and reset/IOMMU policy remain unchanged.
-> The 821-signal source-pinned production audit freezes the reset-domain,
-> cluster construction, group-reset, and power-lease seams; the
+> the existing coordinator chain without cycling member power. Cluster methods
+> now own the running list, link relinks, completion/resend snapshots, and
+> soft/hard CCU arm and publication mechanics; coordinator per-job power,
+> descriptor admission, and reset/IOMMU policy remain unchanged. The
+> 919-signal source-pinned production audit freezes the reset-domain, cluster
+> construction, group-reset, power-lease, and CCU runtime seams; the
 > KUnit-debt audit remains 306 signals, and the manifest is 99 MPP plus 152 RGA
 > cases. There is still no `rk_mpp_activation`, `rk_rga_task_exec`, or
 > `rk_rga_acquire_set`.
@@ -139,7 +141,7 @@ reinterpret raw geometry.
 |---|---|---|
 | `rk_mpp_service` | hardware registry, scheduler queue, diagnostics, reset-domain and shadow-cluster registries | DMA groups, DCHS global state, and topology are recorded but not yet composed into admission/recovery ownership |
 | `rk_mpp_reset_domain` | stable node identity, member lifetime, mutex, single-target operations, and one cluster-validated epoch for each hard-CCU group pulse | no typed reset-effect result, IRQ lease, quarantine, or re-admission authority consumes the epoch |
-| `rk_mpp_cluster` | stable CCU identity, unbounded member lifetime, borrowed coordinator, core/type summary, singular reset authority, derived DMA relationship count, hard-CCU reset-participant validation, and the identity checked by member power leases | descriptor admission, IOMMU recovery, quarantine, and job/link lifetime remain outside cluster ownership |
+| `rk_mpp_cluster` | stable CCU identity, unbounded member lifetime, borrowed coordinator, core/type summary, singular reset authority, derived DMA relationship count, hard-CCU reset-participant validation, member power-lease identity, coordinator running-list/link ownership, and soft/hard arm/START publication | descriptor admission, IOMMU recovery, quarantine, and complete activation lifetime remain outside cluster ownership |
 | `rk_mpp_cluster_power_lease` | refcounted exact member-core power/hardware references; transfers unchanged along the existing coordinator chain and releases once | remains attached to one legacy job at a time until an activation object owns the complete admitted lifetime; coordinator power remains per-job |
 | `rk_mpp_dma_group` | IOMMU group, normal/isolation domains, member list, terminal isolation | no refresh epoch or explicit relation to the CCU/reset group whose recovery requires it |
 | `rk_mpp_hw` | private MMIO, clocks, IRQ, queue and active slot | also acts as coordinator, reset client, group-recovery participant, timeout owner, and IOMMU-fault owner |
@@ -206,13 +208,12 @@ These names are illustrative. The contract matters: callers request an
 operation; they do not take `ccu->run_lock`, walk siblings, or maintain
 raw member-core power arrays themselves.
 
-The first migration targets include `rk_mpp_rkvdec2_acquire_soft_ccu()`,
-the now-landed `rk_mpp_cluster_power_lease_acquire()`,
-`rk_mpp_rkvdec2_program_soft_ccu()`,
-`rk_mpp_rkvdec2_start_soft_ccu_job()`, and the CCU job/list helpers. A group
-power lease now replaces the job's fixed array of powered cores. The lease records
-exactly which runtime-PM references were acquired and releases them once,
-regardless of completion reason.
+The first migration targets now route through
+`rk_mpp_cluster_power_lease_acquire()`, `rk_mpp_cluster_arm_soft_ccu()`,
+`rk_mpp_cluster_start_ccu_job()`, and the cluster running-list/link helpers. A
+group power lease replaces the job's fixed array of powered cores. The lease
+records exactly which runtime-PM references were acquired and releases them
+once, regardless of completion reason.
 
 ### Finish expanding `rk_mpp_reset_domain` into the reset authority
 
@@ -715,9 +716,17 @@ cluster lease replaces `job->rkvdec_ccu_powered_cores[]`, validates the
 selected members' cluster backpointers, and moves unchanged to the next listed
 job before the old owner retires. Final release preserves power-off-before-ref
 drop order. Coordinator per-job power and all selection, admission, reset, and
-IOMMU policy remain unchanged. The next checkpoint is item 4's mechanical CCU
-arm/START and running-list/link owner funnel; the typed recovery result remains
-a later change.
+IOMMU policy remain unchanged at that checkpoint; checkpoint 5 supplies the
+mechanical CCU arm/START and running-list/link funnel.
+
+Checkpoint 5 is present at `805a216a1e8d1` / `4cb7913f84669`: cluster
+validation now precedes new soft/hard publication, and cluster methods own
+every coordinator running-list add/remove, link relink, done/resend snapshot,
+reset-participant collection, soft arm/START, and hard descriptor publication.
+The existing recovery/run/spin lock nesting and exact watchdog/barrier/MMIO
+order remain unchanged. Item 4's ownership funnel is complete except for group
+admission policy, which deliberately stays with the later typed recovery
+result.
 
 Acceptance requires more than KUnit: repeat the reset-contention gate with both
 cores resetting; normal single- and multi-stream decode; kill/close/reset
