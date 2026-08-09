@@ -413,14 +413,14 @@ selftest()
 	sed -i '/WARNING: suite init poisoned the boot/d' "$KUNIT_DMESG_SOURCE"
 	KUNIT_DEBUGFS_ROOT="$tmp_root" KUNIT_REPORT="$tmp_root/result.tsv" \
 		"$0" >/dev/null
-	if ! KUNIT_SOURCE_COMMIT= \
+	if ! KUNIT_SOURCE_COMMIT='' \
 		KUNIT_KERNEL_RELEASE=6.18.0-rewrite \
 		KUNIT_KERNEL_VERSION='#1 SMP selftest (g0123456789ab)' \
 		KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
 		echo "parenthesized uname -v source identity unexpectedly failed" >&2
 		return 1
 	fi
-	if ! KUNIT_SOURCE_COMMIT= \
+	if ! KUNIT_SOURCE_COMMIT='' \
 		KUNIT_KERNEL_RELEASE=6.18.0-rewrite \
 		KUNIT_KERNEL_VERSION='#1 SMP selftest g0123456789ab' \
 		KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then

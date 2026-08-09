@@ -1,0 +1,1112 @@
+From 7698e7018e3d5d68815d34b638e77c9633217dd8 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sat, 8 Aug 2026 16:48:55 -0700
+Subject: [PATCH 96/96] video: rockchip: mpp: serialize task and fault
+ ownership
+
+Serialize session control, result collection, and DMA cache lookup so reset, poll, import, release, and task construction cannot race their owned state. Balance static translation references, preserve interrupted link waits, and force unsafe hard CCU requests onto the soft worker before hook selection.
+
+Reserve IOMMU fault admission per task before provider preparation, publish the task before START, and enable delivery afterward without acknowledging a newly latched fault. Harden provider device links, shared-IRQ attribution, callback quiescence, runtime-PM handling, and task teardown across Rockchip and VSI providers.
+---
+ drivers/iommu/rockchip-iommu.c                |  79 +++++
+ drivers/iommu/vsi-iommu.c                     | 119 ++++++-
+ drivers/video/rockchip/mpp/mpp_common.c       | 158 ++++++++-
+ drivers/video/rockchip/mpp/mpp_common.h       |   4 +
+ drivers/video/rockchip/mpp/mpp_iommu.c        | 324 +++++++++++++++---
+ drivers/video/rockchip/mpp/mpp_iommu.h        |  10 +
+ drivers/video/rockchip/mpp/mpp_rkvdec2_link.c |  14 +-
+ include/soc/rockchip/rockchip_iommu.h         |  12 +
+ include/soc/rockchip/vsi_iommu.h              |  17 +
+ 9 files changed, 657 insertions(+), 80 deletions(-)
+
+diff --git a/drivers/iommu/rockchip-iommu.c b/drivers/iommu/rockchip-iommu.c
+index e05d5217fd9bf..550afce176121 100644
+--- a/drivers/iommu/rockchip-iommu.c
++++ b/drivers/iommu/rockchip-iommu.c
+@@ -1232,6 +1232,10 @@ static struct iommu_device *rk_iommu_probe_device(struct device *dev)
+ 
+ 	data->link = device_link_add(dev, iommu->dev,
+ 				     DL_FLAG_STATELESS | DL_FLAG_PM_RUNTIME);
++	if (!data->link) {
++		dev_err(dev, "Unable to link %s\n", dev_name(iommu->dev));
++		return ERR_PTR(-ENOMEM);
++	}
+ 
+ 	/*
+ 	 * RGA and other Rockchip multimedia clients can depend on dma_map_sg()
+@@ -1447,6 +1451,81 @@ void rockchip_iommu_unmask_irq(struct device *dev)
+ }
+ EXPORT_SYMBOL_GPL(rockchip_iommu_unmask_irq);
+ 
++int rockchip_iommu_prepare_irq(struct device *dev)
++{
++	struct rk_iommu *iommu = rk_iommu_from_dev_checked(dev);
++	int i;
++	int ret;
++
++	if (!iommu)
++		return -ENODEV;
++
++	might_sleep();
++	ret = rk_iommu_runtime_get_if_active(iommu);
++	if (ret)
++		return ret;
++
++	/* Stop new delivery before waiting out a provider IRQ already in flight. */
++	for (i = 0; i < iommu->num_mmu; i++)
++		rk_iommu_write(iommu->bases[i], RK_MMU_INT_MASK, 0);
++	pm_runtime_put(iommu->dev);
++
++	ret = rockchip_iommu_sync_fault_handler(dev);
++	if (ret)
++		return ret;
++
++	ret = rk_iommu_runtime_get_if_active(iommu);
++	if (ret)
++		return ret;
++
++	/*
++	 * Hardware has not been started for the new task, so RAWSTAT can only
++	 * describe stale work.  Acknowledge it while delivery remains masked.
++	 */
++	for (i = 0; i < iommu->num_mmu; i++) {
++		u32 status = rk_iommu_read(iommu->bases[i], RK_MMU_INT_RAWSTAT);
++
++		status &= RK_MMU_IRQ_MASK;
++		if (status & RK_MMU_IRQ_PAGE_FAULT) {
++			rk_iommu_base_command(iommu->bases[i],
++					      RK_MMU_CMD_ZAP_CACHE);
++			rk_iommu_base_command(iommu->bases[i],
++					      RK_MMU_CMD_PAGE_FAULT_DONE);
++		}
++		if (status)
++			rk_iommu_write(iommu->bases[i], RK_MMU_INT_CLEAR, status);
++		rk_iommu_write(iommu->bases[i], RK_MMU_INT_MASK, 0);
++	}
++
++	pm_runtime_put(iommu->dev);
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(rockchip_iommu_prepare_irq);
++
++int rockchip_iommu_enable_irq_delivery(struct device *dev)
++{
++	struct rk_iommu *iommu = rk_iommu_from_dev_checked(dev);
++	int i;
++	int ret;
++
++	if (!iommu)
++		return -ENODEV;
++
++	ret = rk_iommu_runtime_get_if_active(iommu);
++	if (ret)
++		return ret;
++
++	/* Preserve any task fault latched while delivery was masked. */
++	for (i = 0; i < iommu->num_mmu; i++)
++		rk_iommu_write(iommu->bases[i], RK_MMU_INT_MASK, RK_MMU_IRQ_MASK);
++
++	pm_runtime_put(iommu->dev);
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(rockchip_iommu_enable_irq_delivery);
++
+ int rockchip_pagefault_done(struct device *dev)
+ {
+ 	struct rk_iommu *iommu = rk_iommu_from_dev_checked(dev);
+diff --git a/drivers/iommu/vsi-iommu.c b/drivers/iommu/vsi-iommu.c
+index 359c40e6d6b8d..5de5dfc2679e7 100644
+--- a/drivers/iommu/vsi-iommu.c
++++ b/drivers/iommu/vsi-iommu.c
+@@ -242,13 +242,17 @@ static irqreturn_t vsi_iommu_irq(int irq, void *dev_id)
+ 	spin_lock_irqsave(&iommu->lock, flags);
+ 
+ 	status = readl(iommu->regs + VSI_MMU_STATUS_BASE);
+-	if (status & VSI_MMU_IRQ_MASK) {
+-		dev_err(iommu->dev, "unexpected int_status=%08x\n", status);
+-		iova = readl(iommu->regs + VSI_MMU_PAGE_FAULT_ADDR);
+-		domain = iommu->domain;
+-		fault = true;
+-		vsi_iommu_mask_irq_locked(iommu);
++	if (!(status & VSI_MMU_IRQ_MASK)) {
++		spin_unlock_irqrestore(&iommu->lock, flags);
++		pm_runtime_put_autosuspend(iommu->dev);
++		return IRQ_NONE;
+ 	}
++
++	dev_err(iommu->dev, "unexpected int_status=%08x\n", status);
++	iova = readl(iommu->regs + VSI_MMU_PAGE_FAULT_ADDR);
++	domain = iommu->domain;
++	fault = true;
++	vsi_iommu_mask_irq_locked(iommu);
+ 	writel(0, iommu->regs + VSI_MMU_STATUS_BASE);
+ 
+ 	spin_unlock_irqrestore(&iommu->lock, flags);
+@@ -768,8 +772,11 @@ static struct iommu_device *vsi_iommu_probe_device(struct device *dev)
+ 
+ 	link = device_link_add(dev, provider_dev,
+ 			       DL_FLAG_STATELESS | DL_FLAG_PM_RUNTIME);
+-	if (!link)
++	if (!link) {
+ 		dev_err(dev, "Unable to link %s\n", dev_name(provider_dev));
++		put_device(provider_dev);
++		return ERR_PTR(-ENOMEM);
++	}
+ 	put_device(provider_dev);
+ 
+ 	/*
+@@ -881,6 +888,104 @@ void vsi_iommu_mask_irq(struct device *dev)
+ }
+ EXPORT_SYMBOL_GPL(vsi_iommu_mask_irq);
+ 
++void vsi_iommu_unmask_irq(struct device *dev)
++{
++	struct vsi_iommu *iommu = vsi_iommu_from_dev_checked(dev);
++	unsigned long flags;
++	u32 status;
++	int ret;
++
++	if (!iommu)
++		return;
++
++	ret = pm_runtime_get_if_active(iommu->dev);
++	if (ret <= 0)
++		return;
++
++	spin_lock_irqsave(&iommu->lock, flags);
++	if (iommu->enable) {
++		/* Discard only a stale VSI fault before accepting a new one. */
++		status = readl(iommu->regs + VSI_MMU_STATUS_BASE);
++		if (status & VSI_MMU_IRQ_MASK)
++			writel(0, iommu->regs + VSI_MMU_STATUS_BASE);
++		writel(VSI_MMU_BIT_ENABLE,
++		       iommu->regs + VSI_MMU_AHB_EXCEPTION_BASE);
++	}
++	spin_unlock_irqrestore(&iommu->lock, flags);
++
++	pm_runtime_put_autosuspend(iommu->dev);
++}
++EXPORT_SYMBOL_GPL(vsi_iommu_unmask_irq);
++
++int vsi_iommu_prepare_irq(struct device *dev)
++{
++	struct vsi_iommu *iommu = vsi_iommu_from_dev_checked(dev);
++	unsigned long flags;
++	u32 status;
++	int ret;
++
++	if (!iommu)
++		return -ENODEV;
++
++	might_sleep();
++	ret = pm_runtime_get_if_active(iommu->dev);
++	if (ret <= 0)
++		return ret < 0 ? ret : -EAGAIN;
++
++	spin_lock_irqsave(&iommu->lock, flags);
++	vsi_iommu_mask_irq_locked(iommu);
++	spin_unlock_irqrestore(&iommu->lock, flags);
++	pm_runtime_put_autosuspend(iommu->dev);
++
++	ret = vsi_iommu_sync_fault_handler(dev);
++	if (ret)
++		return ret;
++
++	ret = pm_runtime_get_if_active(iommu->dev);
++	if (ret <= 0)
++		return ret < 0 ? ret : -EAGAIN;
++
++	/* Before START, any pending status belongs to an earlier task. */
++	spin_lock_irqsave(&iommu->lock, flags);
++	vsi_iommu_mask_irq_locked(iommu);
++	status = readl(iommu->regs + VSI_MMU_STATUS_BASE);
++	if (status & VSI_MMU_IRQ_MASK)
++		writel(0, iommu->regs + VSI_MMU_STATUS_BASE);
++	spin_unlock_irqrestore(&iommu->lock, flags);
++
++	pm_runtime_put_autosuspend(iommu->dev);
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(vsi_iommu_prepare_irq);
++
++int vsi_iommu_enable_irq_delivery(struct device *dev)
++{
++	struct vsi_iommu *iommu = vsi_iommu_from_dev_checked(dev);
++	unsigned long flags;
++	int ret;
++
++	if (!iommu)
++		return -ENODEV;
++
++	ret = pm_runtime_get_if_active(iommu->dev);
++	if (ret <= 0)
++		return ret < 0 ? ret : -EAGAIN;
++
++	spin_lock_irqsave(&iommu->lock, flags);
++	if (iommu->enable)
++		writel(VSI_MMU_BIT_ENABLE,
++		       iommu->regs + VSI_MMU_AHB_EXCEPTION_BASE);
++	else
++		ret = -EIO;
++	spin_unlock_irqrestore(&iommu->lock, flags);
++
++	pm_runtime_put_autosuspend(iommu->dev);
++
++	return ret < 0 ? ret : 0;
++}
++EXPORT_SYMBOL_GPL(vsi_iommu_enable_irq_delivery);
++
+ int vsi_iommu_set_fault_handler(struct device *dev,
+ 					iommu_fault_handler_t handler, void *token)
+ {
+diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
+index 8297c7f193f99..a369b6b5bea2f 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.c
++++ b/drivers/video/rockchip/mpp/mpp_common.c
+@@ -440,6 +440,8 @@ static struct mpp_session *mpp_session_init(void)
+ 
+ 	session->pid = current->pid;
+ 
++	mutex_init(&session->state_lock);
++	mutex_init(&session->result_lock);
+ 	mutex_init(&session->pending_lock);
+ 	INIT_LIST_HEAD(&session->pending_list);
+ 	INIT_LIST_HEAD(&session->service_link);
+@@ -858,6 +860,7 @@ static int mpp_task_run(struct mpp_dev *mpp,
+ 			struct mpp_task *task)
+ {
+ 	int ret;
++	unsigned long flags;
+ 	struct mpp_session *session = task->session;
+ 
+ 	mpp_debug_enter();
+@@ -909,9 +912,37 @@ static int mpp_task_run(struct mpp_dev *mpp,
+ 	if (mpp->auto_freq_en && mpp->hw_ops->set_freq)
+ 		mpp->hw_ops->set_freq(mpp, task);
+ 
+-	ret = mpp_iommu_dev_activate(mpp->iommu_info, mpp);
++	ret = mpp_iommu_dev_prepare_task(mpp->iommu_info, mpp);
++	if (ret) {
++		dev_err(mpp->dev, "failed to prepare iommu task admission: %d\n",
++			ret);
++		mpp_power_off(mpp);
++		mpp_reset_up_read(mpp->reset_group);
++		return ret;
++	}
++
++	/* Keep completion from deactivating the admission before commit. */
++	disable_irq(mpp->irq);
++
++	/*
++	 * Publish the new owner before installing its fault callback.  The
++	 * provider IRQ remains masked until dev_ops->run has written START and
++	 * returned, so neither stale nor immediate hardware faults can observe
++	 * an absent task.
++	 */
++	spin_lock_irqsave(&mpp->queue->running_lock, flags);
++	mpp->cur_task = task;
++	spin_unlock_irqrestore(&mpp->queue->running_lock, flags);
++
++	ret = mpp_iommu_dev_activate_task(mpp->iommu_info, mpp);
+ 	if (ret) {
+ 		dev_err(mpp->dev, "mpp_iommu_dev_activate failed: %d\n", ret);
++		mpp_iommu_dev_abort_task(mpp->iommu_info, mpp);
++		spin_lock_irqsave(&mpp->queue->running_lock, flags);
++		if (mpp->cur_task == task)
++			mpp->cur_task = NULL;
++		spin_unlock_irqrestore(&mpp->queue->running_lock, flags);
++		enable_irq(mpp->irq);
+ 		mpp_power_off(mpp);
+ 		mpp_reset_up_read(mpp->reset_group);
+ 		return ret;
+@@ -920,13 +951,45 @@ static int mpp_task_run(struct mpp_dev *mpp,
+ 		ret = mpp->dev_ops->run(mpp, task);
+ 		if (ret) {
+ 			dev_err(mpp->dev, "device run failed: %d\n", ret);
+-			mpp_iommu_dev_deactivate(mpp->iommu_info, mpp);
++			mpp_iommu_dev_abort_task(mpp->iommu_info, mpp);
++			spin_lock_irqsave(&mpp->queue->running_lock, flags);
++			if (mpp->cur_task == task)
++				mpp->cur_task = NULL;
++			spin_unlock_irqrestore(&mpp->queue->running_lock, flags);
++			enable_irq(mpp->irq);
+ 			mpp_power_off(mpp);
+ 			mpp_reset_up_read(mpp->reset_group);
+ 			return ret;
+ 		}
+ 	}
+ 
++	ret = mpp_iommu_dev_commit_task(mpp->iommu_info, mpp);
++	if (ret) {
++		dev_err(mpp->dev, "failed to commit iommu task admission: %d\n",
++			ret);
++		/*
++		 * START has already been written.  Keep both IRQ paths quiesced,
++		 * withdraw the published owner only after the fault callback is
++		 * gone, and reset the hardware before reporting submission failure.
++		 */
++		set_bit(TASK_STATE_ABORT, &task->state);
++		mpp_iommu_dev_abort_task(mpp->iommu_info, mpp);
++		spin_lock_irqsave(&mpp->queue->running_lock, flags);
++		if (mpp->cur_task == task)
++			mpp->cur_task = NULL;
++		spin_unlock_irqrestore(&mpp->queue->running_lock, flags);
++		atomic_inc(&mpp->reset_request);
++		mpp_reset_up_read(mpp->reset_group);
++		mpp_dev_reset(mpp);
++		/* Balance the admission disable; mpp_dev_reset balances its own. */
++		enable_irq(mpp->irq);
++		mpp_power_off(mpp);
++		return ret;
++	}
++
++	/* Fault admission is live before a pending codec completion can run. */
++	enable_irq(mpp->irq);
++
+ 	mpp_debug_leave();
+ 
+ 	return 0;
+@@ -1031,6 +1094,12 @@ static void try_process_running_task(struct mpp_dev *mpp)
+ 		    list_empty(&mpp->queue->pending_list))
+ 			mpp->hw_ops->reduce_freq(mpp);
+ 		mpp_dev_load(mpp, mpp_task);
++		/*
++		 * The codec hard IRQ removed the provider handler, but could not
++		 * sleep waiting for a provider IRQ already in flight.  Do that here
++		 * before a backend ISR clears cur_task or releases task state.
++		 */
++		mpp_iommu_quiesce_fault_handler(mpp->iommu_info);
+ 		if (mpp->dev_ops->isr)
+ 			mpp->dev_ops->isr(mpp);
+ 		enable_irq(mpp->irq);
+@@ -1167,11 +1236,33 @@ static int mpp_wait_result_default(struct mpp_session *session,
+ static int mpp_wait_result(struct mpp_session *session,
+ 			   struct mpp_task_msgs *msgs)
+ {
+-	if (likely(session->wait_result))
+-		return session->wait_result(session, msgs);
++	int ret;
+ 
+-	pr_err("invalid NULL wait result function\n");
+-	return -EINVAL;
++	/*
++	 * A pending-list lookup does not itself claim the task.  Serialize the
++	 * complete lookup/wait/copy/pop sequence so two pollers cannot consume
++	 * and drop the same pending reference.  A nonblocking poll must not wait
++	 * behind a blocking one merely to discover that no result is available.
++	 */
++	if (msgs->flags & MPP_FLAGS_POLL_NON_BLOCK) {
++		if (!mutex_trylock(&session->result_lock))
++			return -EAGAIN;
++	} else {
++		ret = mutex_lock_interruptible(&session->result_lock);
++		if (ret)
++			return ret;
++	}
++
++	if (likely(session->wait_result)) {
++		ret = session->wait_result(session, msgs);
++	} else {
++		pr_err("invalid NULL wait result function\n");
++		ret = -EINVAL;
++	}
++
++	mutex_unlock(&session->result_lock);
++
++	return ret;
+ }
+ 
+ static int mpp_attach_service(struct mpp_dev *mpp, struct device *dev)
+@@ -1395,10 +1486,10 @@ static __u32 mpp_get_cmd_butt(__u32 cmd)
+ 	return mask;
+ }
+ 
+-static int mpp_process_request(struct mpp_session *session,
+-			       struct mpp_service *srv,
+-			       struct mpp_request *req,
+-			       struct mpp_task_msgs *msgs)
++static int __mpp_process_request(struct mpp_session *session,
++				 struct mpp_service *srv,
++				 struct mpp_request *req,
++				 struct mpp_task_msgs *msgs)
+ {
+ 	int ret;
+ 	struct mpp_dev *mpp;
+@@ -1479,7 +1570,23 @@ static int mpp_process_request(struct mpp_session *session,
+ 
+ 		session->device_type = (enum MPP_DEVICE_TYPE)client_type;
+ 		session->dma = mpp_dma_session_create(mpp->dev, mpp->session_max_buffers);
++		if (!session->dma)
++			return -ENOMEM;
+ 		session->mpp = mpp;
++		session->index = atomic_fetch_inc(&mpp->session_index);
++		if (mpp->dev_ops && mpp->dev_ops->init_session) {
++			ret = mpp->dev_ops->init_session(session);
++			if (ret) {
++				if (mpp->dev_ops->free_session)
++					mpp->dev_ops->free_session(session);
++				mpp_iommu_down_read(mpp->iommu_info);
++				mpp_dma_session_destroy(session->dma);
++				mpp_iommu_up_read(mpp->iommu_info);
++				session->dma = NULL;
++				session->mpp = NULL;
++				return ret;
++			}
++		}
+ 		if (mpp->dev_ops) {
+ 			if (mpp->dev_ops->process_task)
+ 				session->process_task =
+@@ -1492,12 +1599,6 @@ static int mpp_process_request(struct mpp_session *session,
+ 			if (mpp->dev_ops->deinit)
+ 				session->deinit = mpp->dev_ops->deinit;
+ 		}
+-		session->index = atomic_fetch_inc(&mpp->session_index);
+-		if (mpp->dev_ops && mpp->dev_ops->init_session) {
+-			ret = mpp->dev_ops->init_session(session);
+-			if (ret)
+-				return ret;
+-		}
+ 
+ 		mpp_session_attach_workqueue(session, mpp->queue);
+ 	} break;
+@@ -1577,6 +1678,8 @@ static int mpp_process_request(struct mpp_session *session,
+ 			if (!mpp)
+ 				return -EINVAL;
+ 
++			/* Exclude a result pop that still owns the pending task. */
++			mutex_lock(&session->result_lock);
+ 			mpp_session_clear_pending(session);
+ 			/*
+ 			 * Publish the NULL under session_lock before freeing,
+@@ -1598,6 +1701,7 @@ static int mpp_process_request(struct mpp_session *session,
+ 			mpp_iommu_down_write(mpp->iommu_info);
+ 			ret = mpp_dma_session_destroy(dma);
+ 			mpp_iommu_up_write(mpp->iommu_info);
++			mutex_unlock(&session->result_lock);
+ 		}
+ 		return ret;
+ 	} break;
+@@ -1706,6 +1810,26 @@ static int mpp_process_request(struct mpp_session *session,
+ 	return 0;
+ }
+ 
++static int mpp_process_request(struct mpp_session *session,
++			       struct mpp_service *srv,
++			       struct mpp_request *req,
++			       struct mpp_task_msgs *msgs)
++{
++	int ret;
++
++	/*
++	 * Protect device binding, session configuration and the DMA-session
++	 * pointer from concurrent ioctls on the same file.  Task construction
++	 * takes this same lock in task_msgs_add(), closing the reset-vs-import
++	 * window without holding the lock over a blocking result wait.
++	 */
++	mutex_lock(&session->state_lock);
++	ret = __mpp_process_request(session, srv, req, msgs);
++	mutex_unlock(&session->state_lock);
++
++	return ret;
++}
++
+ static void task_msgs_add(struct mpp_task_msgs *msgs, struct list_head *head)
+ {
+ 	struct mpp_session *session = msgs->session;
+@@ -1714,8 +1838,10 @@ static void task_msgs_add(struct mpp_task_msgs *msgs, struct list_head *head)
+ 	/* process each task */
+ 	if (msgs->set_cnt) {
+ 		/* NOTE: update msg_flags for fd over 1024 */
++		mutex_lock(&session->state_lock);
+ 		session->msg_flags = msgs->flags;
+ 		ret = mpp_process_task(session, msgs);
++		mutex_unlock(&session->state_lock);
+ 	}
+ 
+ 	if (!ret) {
+diff --git a/drivers/video/rockchip/mpp/mpp_common.h b/drivers/video/rockchip/mpp/mpp_common.h
+index e079a50ab661e..96b318a9822ee 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.h
++++ b/drivers/video/rockchip/mpp/mpp_common.h
+@@ -347,6 +347,10 @@ struct mpp_session {
+ 	struct mpp_service *srv;
+ 	struct mpp_dev *mpp;
+ 	struct mpp_dma_session *dma;
++	/* serialize mutable session state and task construction */
++	struct mutex state_lock;
++	/* serialize consumption of the head pending result */
++	struct mutex result_lock;
+ 
+ 	/* lock for session task pending list */
+ 	struct mutex pending_lock;
+diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
+index d9feeaf63dcd0..c2ebe43d62546 100644
+--- a/drivers/video/rockchip/mpp/mpp_iommu.c
++++ b/drivers/video/rockchip/mpp/mpp_iommu.c
+@@ -352,28 +352,42 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
+ 	if (!IS_ENABLED(CONFIG_DMABUF_CACHE))
+ 		mpp_dma_remove_extra_buffer(dma);
+ 
+-	/* Check whether in dma session */
+-	buffer = mpp_dma_find_buffer_fd(dma, fd);
+-	if (!IS_ERR_OR_NULL(buffer)) {
+-		if (kref_get_unless_zero(&buffer->ref)) {
+-			if (static_use) {
+-				mutex_lock(&dma->list_mutex);
+-				buffer->static_cnt++;
+-				mutex_unlock(&dma->list_mutex);
+-			}
+-			return buffer;
+-		}
+-		dev_dbg(dma->dev, "missing the fd %d\n", fd);
+-	}
+-
+ 	dmabuf = dma_buf_get(fd);
+ 	if (IS_ERR(dmabuf)) {
+ 		ret = PTR_ERR(dmabuf);
+ 		mpp_err("dma_buf_get fd %d failed(%d)\n", fd, ret);
+ 		return ERR_PTR(ret);
+ 	}
+-	/* A new DMA buffer */
++
++	/*
++	 * Keep identity lookup, reference acquisition and new-slot publication
++	 * under one lock.  Dropping list_mutex after returning a bare slot used
++	 * to let its last reference recycle it for another dma-buf before the
++	 * caller's kref_get; two simultaneous first imports could also map and
++	 * publish duplicate slots for the same dma-buf.
++	 */
+ 	mutex_lock(&dma->list_mutex);
++	buffer = mpp_dma_find_buffer_locked(dma, dmabuf);
++	if (buffer) {
++		/* TRANS_FD_TO_IOVA is a session pin, not a pin per invocation. */
++		if (static_use && buffer->static_cnt) {
++			mutex_unlock(&dma->list_mutex);
++			dma_buf_put(dmabuf);
++			return buffer;
++		}
++		if (!kref_get_unless_zero(&buffer->ref)) {
++			mutex_unlock(&dma->list_mutex);
++			dma_buf_put(dmabuf);
++			return ERR_PTR(-ENOENT);
++		}
++		if (static_use)
++			buffer->static_cnt = 1;
++		mutex_unlock(&dma->list_mutex);
++		dma_buf_put(dmabuf);
++		return buffer;
++	}
++
++	/* A new DMA buffer.  Retain the lock until the slot is fully published. */
+ 	buffer = list_first_entry_or_null(&dma->unused_list,
+ 					   struct mpp_dma_buffer,
+ 					   link);
+@@ -383,7 +397,6 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
+ 		goto fail;
+ 	}
+ 	list_del_init(&buffer->link);
+-	mutex_unlock(&dma->list_mutex);
+ 
+ 	buffer->dmabuf = dmabuf;
+ 	buffer->dir = DMA_BIDIRECTIONAL;
+@@ -392,7 +405,7 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
+ 	if (IS_ERR(attach)) {
+ 		ret = PTR_ERR(attach);
+ 		mpp_err("dma_buf_attach fd %d failed(%d)\n", fd, ret);
+-		goto fail_attach;
++		goto fail_attach_locked;
+ 	}
+ 
+ 	/* 6.18: locked variant now asserts dma_resv held; use _unlocked */
+@@ -400,11 +413,11 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
+ 	if (IS_ERR(sgt)) {
+ 		ret = PTR_ERR(sgt);
+ 		mpp_err("dma_buf_map_attachment fd %d failed(%d)\n", fd, ret);
+-		goto fail_map;
++		goto fail_map_locked;
+ 	}
+ 	ret = mpp_dma_check_iova_contract(dma, fd, sgt);
+ 	if (ret)
+-		goto fail_map_attachment;
++		goto fail_map_attachment_locked;
+ 
+ 	buffer->iova = sg_dma_address(sgt->sgl);
+ 	buffer->size = sg_dma_len(sgt->sgl);
+@@ -418,7 +431,6 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
+ 		/* Increase the reference for used outside the buffer pool */
+ 		kref_get(&buffer->ref);
+ 
+-	mutex_lock(&dma->list_mutex);
+ 	dma->buffer_count++;
+ 	if (static_use) {
+ 		buffer->static_cnt = 1;
+@@ -431,12 +443,14 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
+ 
+ 	return buffer;
+ 
+-fail_map_attachment:
++fail_map_attachment_locked:
+ 	dma_buf_unmap_attachment_unlocked(attach, sgt, buffer->dir);
+-fail_map:
++fail_map_locked:
+ 	dma_buf_detach(buffer->dmabuf, attach);
+-fail_attach:
+-	mutex_lock(&dma->list_mutex);
++fail_attach_locked:
++	buffer->dmabuf = NULL;
++	buffer->attach = NULL;
++	buffer->sgt = NULL;
+ 	list_add_tail(&buffer->link, &dma->unused_list);
+ 	mutex_unlock(&dma->list_mutex);
+ fail:
+@@ -508,12 +522,28 @@ int mpp_dma_session_destroy(struct mpp_dma_session *dma)
+ 	list_for_each_entry_safe(buffer, n,
+ 				 &dma->used_list,
+ 				 link) {
+-		kref_put(&buffer->ref, mpp_dma_release_buffer);
++		u32 refs = buffer->static_cnt;
++
++		/* used_list owns a cache pin only when the cache is disabled. */
++		if (!IS_ENABLED(CONFIG_DMABUF_CACHE))
++			refs++;
++		buffer->static_cnt = 0;
++		while (refs--)
++			kref_put(&buffer->ref, mpp_dma_release_buffer);
+ 	}
+ 	list_for_each_entry_safe(buffer, n,
+ 				 &dma->static_list,
+ 				 link) {
+-		kref_put(&buffer->ref, mpp_dma_release_buffer);
++		u32 refs = buffer->static_cnt;
++
++		/*
++		 * Older userspace may have repeated the static translation ioctl.
++		 * Drain every session-owned pin before freeing the embedded slot
++		 * array; new imports are idempotent and normally leave refs == 1.
++		 */
++		buffer->static_cnt = 0;
++		while (refs--)
++			kref_put(&buffer->ref, mpp_dma_release_buffer);
+ 	}
+ 	mutex_unlock(&dma->list_mutex);
+ 
+@@ -1122,6 +1152,37 @@ int mpp_iommu_flush_tlb(struct mpp_iommu_info *info)
+ 	return 0;
+ }
+ 
++/* Caller holds info->dev_lock. */
++static int mpp_iommu_install_fault_handler(struct mpp_iommu_info *info,
++					   struct mpp_dev *dev)
++{
++	iommu_fault_handler_t handler;
++	int ret;
++
++	/*
++	 * MPP uses normal DMA domains, so the generic fault-handler cookie path
++	 * cannot be used for Rockchip IOMMUs. The provider hook handles that
++	 * path and we keep the generic fallback for any cookie-less domain.
++	 */
++	handler = dev->fault_handler ? dev->fault_handler : mpp_iommu_handle;
++	ret = rockchip_iommu_set_fault_handler(info->dev, handler, dev);
++	if (!ret) {
++		info->rockchip_fault_handler = true;
++	} else if (ret == -ENODEV) {
++		ret = vsi_iommu_set_fault_handler(info->dev, handler, dev);
++		if (!ret)
++			info->vsi_fault_handler = true;
++	}
++	if (ret == -ENODEV && info->domain &&
++	    info->domain->cookie_type == IOMMU_COOKIE_NONE) {
++		iommu_set_fault_handler(info->domain, handler, dev);
++		info->generic_fault_handler = true;
++		ret = 0;
++	}
++
++	return ret;
++}
++
+ int mpp_iommu_dev_activate(struct mpp_iommu_info *info, struct mpp_dev *dev)
+ {
+ 	unsigned long flags;
+@@ -1132,40 +1193,13 @@ int mpp_iommu_dev_activate(struct mpp_iommu_info *info, struct mpp_dev *dev)
+ 
+ 	spin_lock_irqsave(&info->dev_lock, flags);
+ 
+-	if (info->dev_active || !dev) {
++	if (info->dev_active || info->task_admission_owner || !dev) {
+ 		dev_err(info->dev, "can not activate %s -> %s\n",
+ 			info->dev_active ? dev_name(info->dev_active->dev) : NULL,
+ 			dev ? dev_name(dev->dev) : NULL);
+ 		ret = -EINVAL;
+ 	} else {
+-		iommu_fault_handler_t handler;
+-
+-		/*
+-		 * MPP uses normal DMA domains, so the generic fault-handler cookie path
+-		 * cannot be used for Rockchip IOMMUs. The provider hook handles that
+-		 * path and we keep the generic fallback for any cookie-less domain.
+-		 */
+-		handler = dev->fault_handler ? dev->fault_handler : mpp_iommu_handle;
+-		ret = rockchip_iommu_set_fault_handler(info->dev,
+-						       handler, dev);
+-		if (!ret) {
+-			info->rockchip_fault_handler = true;
+-		} else if (ret == -ENODEV) {
+-			ret = vsi_iommu_set_fault_handler(info->dev,
+-							  handler, dev);
+-			if (!ret)
+-				info->vsi_fault_handler = true;
+-		}
+-		if (ret == -ENODEV) {
+-			if (info->domain &&
+-			    info->domain->cookie_type == IOMMU_COOKIE_NONE) {
+-				iommu_set_fault_handler(info->domain,
+-							handler, dev);
+-				info->generic_fault_handler = true;
+-				ret = 0;
+-			}
+-		}
+-
++		ret = mpp_iommu_install_fault_handler(info, dev);
+ 		if (!ret) {
+ 			info->dev_active = dev;
+ 			dev_dbg(info->dev, "activate -> %p %s\n", dev, dev_name(dev->dev));
+@@ -1177,26 +1211,204 @@ int mpp_iommu_dev_activate(struct mpp_iommu_info *info, struct mpp_dev *dev)
+ 	return ret;
+ }
+ 
++int mpp_iommu_dev_activate_task(struct mpp_iommu_info *info,
++				struct mpp_dev *dev)
++{
++	unsigned long flags;
++	int ret = 0;
++
++	if (!info)
++		return 0;
++
++	spin_lock_irqsave(&info->dev_lock, flags);
++	if (!dev || info->task_admission_owner != dev || info->dev_active) {
++		ret = -EBUSY;
++	} else {
++		ret = mpp_iommu_install_fault_handler(info, dev);
++		if (!ret)
++			info->dev_active = dev;
++	}
++	spin_unlock_irqrestore(&info->dev_lock, flags);
++
++	return ret;
++}
++
++int mpp_iommu_dev_prepare_task(struct mpp_iommu_info *info,
++			       struct mpp_dev *dev)
++{
++	unsigned long flags;
++	int ret;
++
++	if (!info)
++		return 0;
++	if (!dev)
++		return -EINVAL;
++
++	/* Reserve admission before any provider state can be changed. */
++	spin_lock_irqsave(&info->dev_lock, flags);
++	if (info->dev_active || info->task_admission_owner) {
++		ret = -EBUSY;
++	} else {
++		info->task_admission_owner = dev;
++		ret = 0;
++	}
++	spin_unlock_irqrestore(&info->dev_lock, flags);
++	if (ret)
++		return ret;
++
++	/*
++	 * Provider prepare masks delivery, synchronizes an in-flight IRQ and
++	 * acknowledges only pre-task status while remaining masked.  It never
++	 * refreshes paging and never opens an unmask/remask window.
++	 */
++	ret = rockchip_iommu_prepare_irq(info->dev);
++	if (ret == -ENODEV)
++		ret = vsi_iommu_prepare_irq(info->dev);
++	if (ret == -ENODEV)
++		ret = 0;
++
++	if (ret) {
++		/* Restore legacy delivery while the failed prepare still owns it. */
++		rockchip_iommu_unmask_irq(info->dev);
++		vsi_iommu_unmask_irq(info->dev);
++		spin_lock_irqsave(&info->dev_lock, flags);
++		if (info->task_admission_owner == dev && !info->dev_active)
++			info->task_admission_owner = NULL;
++		spin_unlock_irqrestore(&info->dev_lock, flags);
++	}
++
++	return ret;
++}
++
++int mpp_iommu_dev_commit_task(struct mpp_iommu_info *info,
++			      struct mpp_dev *dev)
++{
++	unsigned long flags;
++	bool rockchip;
++	bool vsi;
++	int ret = 0;
++
++	if (!info)
++		return 0;
++
++	/*
++	 * mpp_task_run() keeps the codec IRQ disabled from publication through
++	 * this commit, so hard-IRQ deactivation cannot race this ownership check.
++	 * Do not hold dev_lock while enabling provider delivery: both providers
++	 * use runtime-PM APIs and their own spinlocks internally.
++	 */
++	spin_lock_irqsave(&info->dev_lock, flags);
++	if (info->task_admission_owner != dev || info->dev_active != dev) {
++		ret = -EBUSY;
++		rockchip = false;
++		vsi = false;
++	} else {
++		rockchip = info->rockchip_fault_handler;
++		vsi = info->vsi_fault_handler;
++	}
++	spin_unlock_irqrestore(&info->dev_lock, flags);
++
++	/* Enable delivery only; preserve a task fault latched after START. */
++	if (!ret && rockchip)
++		ret = rockchip_iommu_enable_irq_delivery(info->dev);
++	else if (!ret && vsi)
++		ret = vsi_iommu_enable_irq_delivery(info->dev);
++
++	return ret;
++}
++
++int mpp_iommu_dev_abort_task(struct mpp_iommu_info *info,
++			     struct mpp_dev *dev)
++{
++	unsigned long flags;
++	bool cancel_prepare;
++	int ret;
++
++	if (!info)
++		return 0;
++
++	/* Activation can fail after prepare but before a callback is installed. */
++	spin_lock_irqsave(&info->dev_lock, flags);
++	if (info->task_admission_owner != dev) {
++		ret = -EBUSY;
++		cancel_prepare = false;
++	} else if (!info->dev_active) {
++		cancel_prepare = true;
++		ret = 0;
++	} else if (info->dev_active != dev) {
++		ret = -EBUSY;
++		cancel_prepare = false;
++	} else {
++		ret = 0;
++		cancel_prepare = false;
++	}
++	spin_unlock_irqrestore(&info->dev_lock, flags);
++	if (ret)
++		return ret;
++	if (cancel_prepare) {
++		/* No START occurred, so recovery-style acknowledgment is safe. */
++		rockchip_iommu_unmask_irq(info->dev);
++		vsi_iommu_unmask_irq(info->dev);
++		spin_lock_irqsave(&info->dev_lock, flags);
++		if (info->task_admission_owner == dev && !info->dev_active) {
++			info->task_admission_owner = NULL;
++			ret = 0;
++		} else {
++			ret = -EBUSY;
++		}
++		spin_unlock_irqrestore(&info->dev_lock, flags);
++		return ret;
++	}
++
++	ret = mpp_iommu_dev_deactivate(info, dev);
++	/* Run-error unwind is process context: wait out any old callback token. */
++	rockchip_iommu_sync_fault_handler(info->dev);
++	vsi_iommu_sync_fault_handler(info->dev);
++
++	return ret;
++}
++
+ int mpp_iommu_dev_deactivate(struct mpp_iommu_info *info, struct mpp_dev *dev)
+ {
+ 	unsigned long flags;
++	bool task_admission;
+ 
+ 	if (!info)
+ 		return 0;
+ 
+ 	spin_lock_irqsave(&info->dev_lock, flags);
+ 
+-	if (info->dev_active != dev) {
++	if (info->dev_active != dev ||
++	    (info->task_admission_owner &&
++	     info->task_admission_owner != dev)) {
+ 		dev_err(info->dev, "can not deactivate %s when %s activated\n",
+ 			dev_name(dev->dev),
+ 			info->dev_active ? dev_name(info->dev_active->dev) : NULL);
+ 		spin_unlock_irqrestore(&info->dev_lock, flags);
+ 		return -EBUSY;
+ 	}
++	task_admission = info->task_admission_owner == dev;
++	if (!task_admission) {
++		mpp_iommu_clear_fault_handler(info);
++		info->dev_active = NULL;
++		spin_unlock_irqrestore(&info->dev_lock, flags);
++		return 0;
++	}
++	spin_unlock_irqrestore(&info->dev_lock, flags);
+ 
+ 	dev_dbg(info->dev, "deactivate %p\n", info->dev_active);
++	/* Stop new provider IRQs before removing the task callback token. */
++	rockchip_iommu_mask_irq(info->dev);
++	vsi_iommu_mask_irq(info->dev);
++
++	spin_lock_irqsave(&info->dev_lock, flags);
++	if (info->dev_active != dev || info->task_admission_owner != dev) {
++		spin_unlock_irqrestore(&info->dev_lock, flags);
++		return -EBUSY;
++	}
+ 	mpp_iommu_clear_fault_handler(info);
+ 	info->dev_active = NULL;
++	info->task_admission_owner = NULL;
+ 	spin_unlock_irqrestore(&info->dev_lock, flags);
+ 
+ 	return 0;
+diff --git a/drivers/video/rockchip/mpp/mpp_iommu.h b/drivers/video/rockchip/mpp/mpp_iommu.h
+index 206599d800786..c4f661cb313b8 100644
+--- a/drivers/video/rockchip/mpp/mpp_iommu.h
++++ b/drivers/video/rockchip/mpp/mpp_iommu.h
+@@ -103,6 +103,8 @@ struct mpp_iommu_info {
+ 
+ 	spinlock_t dev_lock;
+ 	struct mpp_dev *dev_active;
++	/* reservation held from task prepare through task deactivate/abort */
++	struct mpp_dev *task_admission_owner;
+ 
+ 	int irq;
+ 	int got_irq;
+@@ -205,7 +207,15 @@ int mpp_iommu_refresh(struct mpp_iommu_info *info, struct device *dev);
+ int mpp_iommu_flush_tlb(struct mpp_iommu_info *info);
+ 
+ int mpp_iommu_dev_activate(struct mpp_iommu_info *info, struct mpp_dev *dev);
++int mpp_iommu_dev_activate_task(struct mpp_iommu_info *info,
++				struct mpp_dev *dev);
+ int mpp_iommu_dev_deactivate(struct mpp_iommu_info *info, struct mpp_dev *dev);
++int mpp_iommu_dev_prepare_task(struct mpp_iommu_info *info,
++			       struct mpp_dev *dev);
++int mpp_iommu_dev_commit_task(struct mpp_iommu_info *info,
++			      struct mpp_dev *dev);
++int mpp_iommu_dev_abort_task(struct mpp_iommu_info *info,
++			     struct mpp_dev *dev);
+ int mpp_iommu_reserve_iova(struct mpp_iommu_info *info, dma_addr_t iova, size_t size);
+ void mpp_iommu_unreserve_iova(struct mpp_iommu_info *info, dma_addr_t iova, size_t size);
+ 
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+index c0f9cff40fc43..1114d863418a4 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+@@ -1476,8 +1476,10 @@ int rkvdec2_link_wait_result(struct mpp_session *session,
+ 	}
+ 
+ 	ret = wait_event_interruptible(mpp_task->wait, task_is_done(mpp_task));
+-	if (ret == -ERESTARTSYS)
++	if (ret) {
+ 		mpp_err("wait task break by signal\n");
++		return ret;
++	}
+ 
+ 	ret = rkvdec2_result(mpp, mpp_task, msgs);
+ 	if (!ret && test_bit(TASK_STATE_ABORT, &mpp_task->state))
+@@ -1636,6 +1638,16 @@ int rkvdec2_attach_ccu(struct device *dev, struct rkvdec2_dev *dec)
+ 
+ 	INIT_LIST_HEAD(&dec->core_link);
+ 	mutex_lock(&ccu->lock);
++	/*
++	 * Hard CCU mode can retire timed-out tasks while the hardware may still
++	 * be fetching their link tables and DMA mappings.  Keep that unsupported
++	 * path unreachable: attach runs before core probe selects task_worker.
++	 */
++	if (ccu->ccu_mode == RKVDEC2_CCU_TASK_HARD) {
++		dev_warn_once(ccu->dev,
++			      "hard CCU mode is disabled; using soft CCU mode\n");
++		ccu->ccu_mode = RKVDEC2_CCU_TASK_SOFT;
++	}
+ 	list_add_tail(&dec->core_link, &ccu->core_list);
+ 
+ 	/*
+diff --git a/include/soc/rockchip/rockchip_iommu.h b/include/soc/rockchip/rockchip_iommu.h
+index b0e810c10395f..3a19dee05a91e 100644
+--- a/include/soc/rockchip/rockchip_iommu.h
++++ b/include/soc/rockchip/rockchip_iommu.h
+@@ -20,6 +20,8 @@ bool rockchip_iommu_is_enabled(struct device *dev);
+ int rockchip_iommu_force_reset(struct device *dev);
+ void rockchip_iommu_mask_irq(struct device *dev);
+ void rockchip_iommu_unmask_irq(struct device *dev);
++int rockchip_iommu_prepare_irq(struct device *dev);
++int rockchip_iommu_enable_irq_delivery(struct device *dev);
+ int rockchip_pagefault_done(struct device *dev);
+ int rockchip_iommu_set_fault_handler(struct device *dev,
+ 				     iommu_fault_handler_t handler, void *token);
+@@ -54,6 +56,16 @@ static inline void rockchip_iommu_unmask_irq(struct device *dev)
+ {
+ }
+ 
++static inline int rockchip_iommu_prepare_irq(struct device *dev)
++{
++	return -ENODEV;
++}
++
++static inline int rockchip_iommu_enable_irq_delivery(struct device *dev)
++{
++	return -ENODEV;
++}
++
+ static inline int rockchip_pagefault_done(struct device *dev)
+ {
+ 	return -ENODEV;
+diff --git a/include/soc/rockchip/vsi_iommu.h b/include/soc/rockchip/vsi_iommu.h
+index 7a5ae91724d66..37f83d5f45947 100644
+--- a/include/soc/rockchip/vsi_iommu.h
++++ b/include/soc/rockchip/vsi_iommu.h
+@@ -10,6 +10,9 @@ struct device;
+ #if IS_ENABLED(CONFIG_VSI_IOMMU)
+ int vsi_iommu_refresh(struct device *dev);
+ void vsi_iommu_mask_irq(struct device *dev);
++void vsi_iommu_unmask_irq(struct device *dev);
++int vsi_iommu_prepare_irq(struct device *dev);
++int vsi_iommu_enable_irq_delivery(struct device *dev);
+ int vsi_iommu_set_fault_handler(struct device *dev,
+ 					iommu_fault_handler_t handler, void *token);
+ int vsi_iommu_sync_fault_handler(struct device *dev);
+@@ -23,6 +26,20 @@ static inline void vsi_iommu_mask_irq(struct device *dev)
+ {
+ }
+ 
++static inline void vsi_iommu_unmask_irq(struct device *dev)
++{
++}
++
++static inline int vsi_iommu_prepare_irq(struct device *dev)
++{
++	return -ENODEV;
++}
++
++static inline int vsi_iommu_enable_irq_delivery(struct device *dev)
++{
++	return -ENODEV;
++}
++
+ static inline int vsi_iommu_set_fault_handler(struct device *dev,
+ 				     iommu_fault_handler_t handler, void *token)
+ {
+-- 
+2.55.0
+

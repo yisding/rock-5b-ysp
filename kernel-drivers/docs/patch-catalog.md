@@ -247,13 +247,13 @@ against a silent-corruption case rather than fixing a specific commit's mistake.
 |---|--------------|-------|--------------|----------|
 | 0072 | RGA3: reject a non-16-byte-aligned IOMMU window base in `rga_mm_get_buffer_info()` with `-EINVAL` instead of silently returning all-zero pixels. RGA3 fetches the base on a 16-byte granularity; the scattered-userptr `shadow_page` path carries the raw sub-page byte offset in the base with a zeroed head, so a non-16-aligned source read the zero head. | `FWPORT-ROBUSTNESS` | Concerns forward-port-only scattered-userptr / `shadow_page` code (not in the BSP); fail-loud, no functional change to aligned userptr or dma-buf. | **No** — forward-port-specific path; see [finding](../../findings/2026-07-23-rga-scattered-userptr-unaligned-src-zero-output.md) |
 
-## Current `0072`–`0094` — outside the 2026-07-22 compilation
+## Current `0072`–`0096` — outside the 2026-07-22 compilation
 
 This compatibility heading records the range added after the catalog's first
 compilation. It is not a moving “current tip” owner.
 
 > **These rows use CURRENT numbering**, unlike everything above, which uses the
-> pre-cleanup scheme (this page's `0072` is current `0071`). The 23 patches
+> pre-cleanup scheme (this page's `0072` is current `0071`). The 25 patches
 > below all landed after this page was compiled on 2026-07-22.
 
 `0072`–`0075` are the 10-bit RGA stride/UV-offset trio and the RKVENC2
@@ -308,6 +308,21 @@ the exact SWIOTLB attachment failure. This is another forward-port capability
 repair, not a literal BSP backport. The clean-room rewrite has a separate
 recorded design because its job, dispatch, and mapping ownership are different.
 
+`0095` corrects the forward port's remaining RGA alias boundary: successful
+per-use SWIOTLB mappings are separate bounce images, so staging only after
+`-EIO` is insufficient. It stages every high DMA-BUF through one job-shared
+object and closes the request, scheduler, fence, import, PM, and shutdown
+ownership gaps found while reviewing that path. The staging half is a 6.18
+forward-port capability repair; several request/import lifetime shapes descend
+from vendor code and need equivalent, not necessarily literal, BSP changes.
+
+`0096` closes MPP session/result/DMA races and makes provider fault admission
+an explicit prepare/publish/START/delivery transaction. The session and DMA
+ownership defects are BSP-shaped, while the Rockchip/VSI provider hooks are
+6.18 forward-port plumbing. Hard RKVDEC2 CCU selection is disabled for this
+forward-port support profile by forcing requests to the soft worker before
+hook selection.
+
 | # | What it does | Class | BSP evidence | Backport |
 |---|--------------|-------|--------------|----------|
 | 0076 | MPP core: fix `mpp_check_req()` clamping to the overflow amount and using a signed offset (two independent bypasses); bound the register-offset translation index, the `trans_info[]` format index, and user-supplied `trans_table[]` register indexes; publish the `RESET_SESSION` DMA teardown under `srv->session_lock`. | `BSP-BUG` | All five sites are vendor code carried unchanged from the BSP import; the bounds and the clamp expression are byte-identical in `develop-6.1`. The `session_lock` half is partly forward-port shaped — `mpp_session_deinit()`'s unlink is ours — so confirm the BSP's procfs exposure before sending that hunk. | **Yes** — the four bounds fixes close unprivileged heap corruption in vendor code |
@@ -329,6 +344,8 @@ recorded design because its job, dispatch, and mapping ownership are different.
 | 0092 | RKVDEC2: retain failed soft-CCU tasks until reset quiesces DMA, claim reset requests before soft/hard reset so concurrent requests survive, and keep the link-mode fault task walk locked. | `BSP-BUG` | `develop-6.1` has the same retire-before-reset, clear-after-reset, and unlock-before-task-dump shapes. | **Yes**, adapted and runtime-tested on each supported CCU mode |
 | 0093 | RGA2: cap direct and transient USERPTR SG entries at the selected DMA backend's maximum mapping size before SWIOTLB bounce. | `PORT-FIX` | The failure is in the forward-port-only over-4-GiB RGA2 service introduced by `0050`; the BSP rejects those high buffers instead of bouncing them. | **No** — forward-port-specific capability repair; see the [6.18.43 finding](../../findings/2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md) |
 | 0094 | RGA2: prefer zero-copy RGA3 for high DMA-BUFs, then stage CPU-accessible RGA2-only buffers in shared job-owned DMA32 pages after an exact attachment `-EIO`; copy back only on successful completion and publish lifecycle counters. | `PORT-FIX` | The BSP's RGA2 path requires below-4-GiB inputs and has no equivalent high-DMA-BUF service. The rewrite owns a different reroute/queue lifetime and needs the separately recorded design rather than this patch. | **No** — forward-port-specific capability repair; see the [staging finding](../../findings/2026-08-08-forward-port-rga2-dmabuf-staging.md) |
+| 0095 | RGA: stage every high-address RGA2 DMA-BUF through one bounded job-shared object; authenticate per-session handles/imports; serialize request, fence, scheduler, MPI, PM-unwind, and shutdown ownership. | Mixed: `PORT-FIX` + `BSP-BUG` | All-high staging is specific to the forward port's per-use RGA2 SWIOTLB attachments. The request/import/session lifetime shapes largely descend from vendor code, but the audited line has accumulated later batching and 6.18 adaptations. | **Partial** — carry equivalent request/import ownership repairs after matching the donor lifecycle; do not backport the staging policy to a BSP that rejects high RGA2 memory |
+| 0096 | MPP: serialize session/result/DMA-cache state; reserve provider fault admission across publication and START; harden Rockchip/VSI links, IRQ delivery, PM, and callback teardown; force hard RKVDEC2 CCU requests to soft mode. | Mixed: `PORT-FIX` + `BSP-BUG` | Session/result/DMA and interrupted-wait shapes descend from vendor code. Provider admission APIs are 6.18 plumbing, and disabling hard CCU is a forward-port support-policy decision rather than a donor fix. | **Partial** — adapt the session/DMA ownership fixes; do not copy provider APIs or CCU policy without matching the target provider and recovery model |
 
 The `0079` session-ownership fix deliberately does **not** revert
 `0071`/catalog-`0072`'s force-free-under-the-held-lock decision: that decision is

@@ -1,16 +1,23 @@
 # Forward port stages exporter-owned high DMA-BUFs for RGA2-only work
 
 > Scope: RK3588 6.18 forward-port RGA scheduler and RGA2 DMA-BUF mapping
-> Source: `rk3588-video-6.18@65f5b67940a79`, patch `0094`;
+> Source: `rk3588-video-6.18@65f5b67940a79`, patch `0094`, corrected by
+> `rk3588-video-6.18@b734ddf33a40d`, patch `0095`;
 > `drivers/video/rockchip/rga3/rga_job.c` `rga_job_judgment_support_core()` /
 > `rga_job_alloc()`, `rga_policy.c` `rga_job_assign()`, and `rga_mm.c`
 > `rga_mm_get_rga2_sgt()` / `rga2_stage_get()` / `rga2_stage_put()`
 > Date: 2026-08-08
 > Trust: **CODE-INSPECTED** / **FIX-COMPILE-VERIFIED** / **PARTIAL**
 
+> **Corrected 2026-08-08 by**
+> [`2026-08-08-forward-port-rga-mpp-ownership-audit-fixes.md`](2026-08-08-forward-port-rga-mpp-ownership-audit-fixes.md).
+> Exact-`-EIO` staging was insufficient in the forward port: successful
+> per-use SWIOTLB mappings also created independent alias images. Patch `0095`
+> now stages every high-address RGA2 DMA-BUF through one job-shared object.
+
 ## Result
 
-Patch `0094` closes the forward port's remaining source-level response to the
+Patch `0094` supplied the forward port's first source-level response to the
 exporter-owned SG form of the RGA2/SWIOTLB limit. The generic system DMA heap
 may export a physically contiguous 1 MiB entry above 4 GiB. Unlike the
 driver-owned USERPTR table repaired by `0093`, an importer cannot split that
@@ -26,11 +33,10 @@ The forward port now distinguishes three cases during handle scheduling:
 - raw high physical memory remains unsupported because no exporter authorizes
   CPU access or owns a copy lifetime.
 
-When a task is RGA2-only or explicitly pins RGA2, only an exact RGA2 DMA-BUF
-mapping `-EIO` enables staging. Other mapping errors retain their existing
-fail-closed behavior. Direct-fd jobs keep a normal IOMMU-backed attachment
-alive after the failed RGA2 probe; imported handles remember the incompatibility
-so they do not repeat the doomed attachment on later jobs.
+Patch `0094` enabled staging only after an exact RGA2 DMA-BUF mapping `-EIO`.
+Patch `0095` supersedes that trigger for the forward port: every high-address
+RGA2 DMA-BUF enters the shared staging path, while raw high physical memory and
+CPU-inaccessible exporters still fail closed.
 
 The staging object has these ownership rules:
 
@@ -73,7 +79,7 @@ The build state is retained under
 
 ## Verification gate
 
-Build and package the exact `0001`–`0094` series, install it with a recovery
+Build and package the exact `0001`–`0096` series, install it with a recovery
 kernel retained, and boot the matching YSP DTB. First require the original
 three RGA2-only USERPTR failures to pass, proving `0093`. Then run the plain
 system-heap DMA-BUF allocator sample and at least one forced-RGA2 partial write,
@@ -89,10 +95,11 @@ IOMMU, warning, oops, or recovery signature.
 
 ## Boundary
 
-This change is source-, style-, and compile-verified only. It is not packaged,
-installed, booted, or runtime-verified. CPU-inaccessible/secure exporters,
+The corrected `0095` tail is source-, style-, and compile-verified only. It is
+not packaged, installed, booted, or runtime-verified. CPU-inaccessible/secure
+exporters,
 DMA-BUFs that would exceed the 64 MiB per-job cap, raw high physical memory,
-and non-`-EIO` mapping failures remain deliberately unsupported on RGA2. The
+and arbitrary mapping failures remain deliberately unsupported on RGA2. The
 separate rewrite implementation remains untouched; its proposed equivalent is
 recorded in
 [`2026-08-08-rewrite-rga2-dmabuf-staging-design.md`](2026-08-08-rewrite-rga2-dmabuf-staging-design.md).

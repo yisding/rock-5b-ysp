@@ -2,10 +2,11 @@
 
 > Scope: clean-room RGA rewrite, specifically the remaining RGA2-only and
 > explicitly RGA2-pinned high-memory DMA-BUF gap
-> Source: rewrite tree `rk3588-rewrite-6.18@7d1ba613d589` inspected at
+> Source: rewrite tree `rk3588-rewrite-6.18@fe9edef36346` inspected at
 > `drivers/video/rockchip/rga-rewrite/rga_rewrite.c`
-> `rk_rga_job_map_import()` / `rk_rga_hw_dispatch()`; forward-port comparison
-> at `rk3588-video-6.18@b54ba6079824b` `rga_mm_get_rga2_sgt()`; measured
+> `rk_rga_resolve_direct_img()` / `rk_rga_job_map_import()` /
+> `rk_rga_hw_dispatch()`; forward-port comparison at
+> `rk3588-video-6.18@7698e7018e3d5` `rga_mm_get_rga2_sgt()`; measured
 > mechanism in [`2026-08-05-rewrite-rga2-dmabuf-userptr-bounce-followup.md`](2026-08-05-rewrite-rga2-dmabuf-userptr-bounce-followup.md)
 > Date: 2026-08-08
 > Trust: **DESIGN** / **SOURCE-INSPECTED** / **UNVERIFIED**
@@ -58,6 +59,30 @@ DMA-BUF importer's attachment table is exporter-owned and cannot be legally
 rewritten in place. Staging is therefore a different repair for the same
 256-KiB SWIOTLB per-entry constraint.
 
+## Why the rewrite and forward-port fixes differ
+
+The rewrite must keep the exact-`-EIO` boundary above; it should **not** copy
+the forward port's later rule of staging every high DMA-BUF. The two drivers
+reach RGA2 through different mapping ownership:
+
+- the rewrite resolves direct-fd aliases by acquired `struct dma_buf *`
+  identity in `rk_rga_resolve_direct_img()`, and `rk_rga_job_map_import()`
+  reuses one mapping for the same `(import, hw)` pair for the whole job;
+- therefore a successful SWIOTLB mapping is shared by every same-buffer plane
+  and sequential task in that rewrite job, so producer/consumer aliases see
+  one bounce image and it is copied back once by one attachment teardown; but
+- the forward-port predecessor at `0094` created a successful transient RGA2
+  attachment per channel/task and only canonicalized the later staging fallback. Separate
+  successful SWIOTLB bounces are independent pre-execution snapshots and can
+  copy stale source data over a prior destination result during teardown.
+
+The forward-port successor must consequently canonicalize **all** high
+DMA-BUF RGA2 mappings (the selected implementation stages them immediately),
+while the rewrite needs staging only when its already-canonical direct mapping
+returns the exact SWIOTLB size-limit `-EIO` and no RGA3 reroute is available.
+Both implementations still key staging by DMA-BUF identity and suppress
+copy-back after reset, cancel, timeout, or any failed execution.
+
 ## Verification gate
 
 Implementation is not complete until the rewrite passes all of the following:
@@ -66,6 +91,8 @@ Implementation is not complete until the rewrite passes all of the following:
   zero active staging objects and bytes after each unwind;
 - source and KUnit checks that one DMA-BUF used by multiple planes/tasks maps
   to one staging object and copies back once;
+- a below-limit high-memory alias case whose SWIOTLB mapping succeeds, proving
+  the rewrite keeps one shared direct mapping and does not enter staging;
 - source-only, destination-only, read-modify-write, and partial-rectangle tests;
 - timeout, reset, cancel, and interrupt-error tests proving no copy-back and no
   success fence before teardown;

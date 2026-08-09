@@ -1,0 +1,2694 @@
+From b734ddf33a40ddb7f6bebfb72fd10bb1d69dc195 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sat, 8 Aug 2026 16:48:38 -0700
+Subject: [PATCH 95/96] video: rockchip: rga3: harden request and DMA-BUF
+ ownership
+
+Canonicalize every high-address RGA2 DMA-BUF through a bounded job-shared DMA32 staging object so aliases share one image even when a direct SWIOTLB mapping would succeed. Copy staged output back once only after successful quiesced completion, and account job, session, and global staging limits.
+
+Make imported handles session-authorized and transactional, close duplicate-import and diagnostic lifetime races, balance runtime-PM and pre-start unwind paths, and serialize request configuration, execution, cancellation, completion, fence callbacks, and shutdown. Reusable MPI contexts now retain one explicit owner and one run at a time; scheduler shutdown drains all work even if hardware cannot be resumed.
+---
+ .../video/rockchip/rga3/include/rga_common.h  |   5 +-
+ drivers/video/rockchip/rga3/include/rga_drv.h |  44 +-
+ .../video/rockchip/rga3/include/rga_fence.h   |  27 +-
+ drivers/video/rockchip/rga3/include/rga_job.h |   9 +-
+ drivers/video/rockchip/rga3/include/rga_mm.h  |   3 +-
+ drivers/video/rockchip/rga3/rga_debugger.c    |  16 +-
+ drivers/video/rockchip/rga3/rga_drv.c         | 168 +++--
+ drivers/video/rockchip/rga3/rga_fence.c       |  25 +-
+ drivers/video/rockchip/rga3/rga_job.c         | 637 ++++++++++++------
+ drivers/video/rockchip/rga3/rga_mm.c          | 417 ++++++++----
+ 10 files changed, 912 insertions(+), 439 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/include/rga_common.h b/drivers/video/rockchip/rga3/include/rga_common.h
+index 4ed75821f89a4..80014ff09e7c2 100644
+--- a/drivers/video/rockchip/rga3/include/rga_common.h
++++ b/drivers/video/rockchip/rga3/include/rga_common.h
+@@ -41,9 +41,10 @@
+ 
+ #define rga_buf_log(buf, fmt, args...) \
+ 	pr_info("%-6d %-6d: handle[%d]: " fmt, \
+-	buf->session->tgid, current->pid, buf->handle, ##args)
++	buf->session ? buf->session->tgid : -1, current->pid, buf->handle, ##args)
+ #define rga_buf_err(buf, fmt, args...) \
+-	pr_err("%-6d %-6d: handle[%d]: " fmt, buf->session->tgid, current->pid, buf->handle, ##args)
++	pr_err("%-6d %-6d: handle[%d]: " fmt, \
++	buf->session ? buf->session->tgid : -1, current->pid, buf->handle, ##args)
+ 
+ #define RGA_GET_PAGE_COUNT(size) (((size) >> PAGE_SHIFT) + (((size) & (~PAGE_MASK)) ? 1 : 0))
+ 
+diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
+index c6ff097daf498..daf530c0879a6 100644
+--- a/drivers/video/rockchip/rga3/include/rga_drv.h
++++ b/drivers/video/rockchip/rga3/include/rga_drv.h
+@@ -238,26 +238,23 @@ struct rga_internal_buffer {
+ 	uint32_t mm_flag;
+ 
+ 	struct kref refcount;
++	/* Per-open import authorizations, protected by rga_mm::lock. */
++	struct list_head import_list;
++	/* First authorized session, retained only for diagnostics. */
+ 	struct rga_session *session;
+-	/*
+-	 * Outstanding RGA_IOC_IMPORT_BUFFER references held by `session`, the
+-	 * owner -- not by any other session that de-dupped onto this buffer,
+-	 * since teardown spends this count on the owner's behalf. Guarded by
+-	 * mm->lock once the buffer is published in memory_idr; the initial
+-	 * store happens before publication, alongside kref_init().
+-	 *
+-	 * Imports are de-duplicated, so one buffer can be imported several
+-	 * times; ownership must survive until the last of those is released,
+-	 * otherwise the buffer is orphaned (session == NULL) and the owning
+-	 * session's teardown walk skips it, leaking its pages and mm ref.
+-	 */
+-	uint32_t import_cnt;
+ 
+ 	/* The scheduler of the mapping */
+ 	struct rga_scheduler_t *scheduler;
+ 
+-	/* The RGA2 attachment hit the exporter/SWIOTLB segment-size limit. */
++	/* The persistent RGA2 attachment required an alternate map device. */
+ 	bool rga2_dma_incompatible;
++
++};
++
++struct rga_buffer_import {
++	struct list_head node;
++	struct rga_session *session;
++	u32 count;
+ };
+ 
+ struct rga_scheduler_t;
+@@ -275,6 +272,7 @@ struct rga_session {
+ 	bool release;
+ 	struct rw_semaphore release_rwsem;
+ 	struct kref refcount;
++	atomic64_t rga2_stage_active_bytes;
+ };
+ 
+ struct rga_job_buffer {
+@@ -347,6 +345,8 @@ struct rga_job {
+ 
+ 	struct rga_scheduler_t *scheduler;
+ 	struct rga_session *session;
++	/* Stable even after cancel retires the request's initial reference. */
++	struct rga_request *request;
+ 
+ 	struct rga_full_csc full_csc;
+ 	struct rga_csc_clip full_csc_clip;
+@@ -412,6 +412,10 @@ struct rga_scheduler_t {
+ 
+ 	struct rga_job *running_job;
+ 	struct list_head todo_list;
++	/* Serializes PREPARE/start, completion and every abort/reset path. */
++	struct mutex job_mutex;
++	/* Once set at remove, no queued work may start on this scheduler. */
++	bool shutdown;
+ 	spinlock_t irq_lock;
+ 	wait_queue_head_t job_done_wq;
+ 
+@@ -437,12 +441,20 @@ struct rga_request {
+ 
+ 	bool is_running;
+ 	bool is_done;
++	bool aborting;
++	/* Permanent retirement; retryable MPI run failures leave this clear. */
++	bool terminal;
++	/* MPI contexts retain their initial IDR reference across runs. */
++	bool reusable;
+ 	int ret;
+ 	uint32_t sync_mode;
+ 
+ 	int32_t acquire_fence_fd;
+ 	int32_t release_fence_fd;
+ 	struct dma_fence *release_fence;
++	struct dma_fence *acquire_fence;
++	struct dma_fence_cb acquire_fence_cb;
++	atomic_t acquire_fence_state;
+ 	spinlock_t fence_lock;
+ 	struct work_struct fence_work;
+ 
+@@ -454,6 +466,10 @@ struct rga_request {
+ 	struct rga_session *session;
+ 
+ 	spinlock_t lock;
++	/* Serializes job publication against cancel/session teardown. */
++	struct mutex commit_lock;
++	/* Serializes reusable callers through synchronous completion. */
++	struct mutex run_lock;
+ 	struct kref refcount;
+ 	/*
+ 	 * Set once the initial reference taken by rga_request_alloc() has been
+diff --git a/drivers/video/rockchip/rga3/include/rga_fence.h b/drivers/video/rockchip/rga3/include/rga_fence.h
+index 75c7c22926a2e..e24dbed09333e 100644
+--- a/drivers/video/rockchip/rga3/include/rga_fence.h
++++ b/drivers/video/rockchip/rga3/include/rga_fence.h
+@@ -14,13 +14,6 @@ struct rga_fence_context {
+ 	spinlock_t spinlock;
+ };
+ 
+-struct rga_fence_waiter {
+-	/* Base sync driver waiter structure */
+-	struct dma_fence_cb waiter;
+-
+-	void *private;
+-};
+-
+ #ifdef CONFIG_ROCKCHIP_RGA_ASYNC
+ int rga_fence_context_init(struct rga_fence_context **ctx);
+ void rga_fence_context_remove(struct rga_fence_context **ctx);
+@@ -29,7 +22,15 @@ struct dma_fence *rga_dma_fence_alloc(void);
+ int rga_dma_fence_get_fd(struct dma_fence *fence);
+ struct dma_fence *rga_get_dma_fence_from_fd(int fence_fd);
+ int rga_dma_fence_wait(struct dma_fence *fence);
+-int rga_dma_fence_add_callback(struct dma_fence *fence, dma_fence_func_t func, void *private);
++int rga_dma_fence_add_callback(struct dma_fence *fence,
++			       struct dma_fence_cb *callback,
++			       dma_fence_func_t func);
++
++static inline bool rga_dma_fence_remove_callback(struct dma_fence *fence,
++						 struct dma_fence_cb *callback)
++{
++	return dma_fence_remove_callback(fence, callback);
++}
+ 
+ 
+ static inline void rga_dma_fence_put(struct dma_fence *fence)
+@@ -77,12 +78,18 @@ static inline int rga_dma_fence_wait(struct dma_fence *fence)
+ }
+ 
+ static inline int rga_dma_fence_add_callback(struct dma_fence *fence,
+-					     dma_fence_func_t func,
+-					     void *private)
++					     struct dma_fence_cb *callback,
++					     dma_fence_func_t func)
+ {
+ 	return -EINVAL;
+ }
+ 
++static inline bool rga_dma_fence_remove_callback(struct dma_fence *fence,
++						 struct dma_fence_cb *callback)
++{
++	return false;
++}
++
+ static inline void rga_dma_fence_put(struct dma_fence *fence)
+ {
+ }
+diff --git a/drivers/video/rockchip/rga3/include/rga_job.h b/drivers/video/rockchip/rga3/include/rga_job.h
+index 83d3e2e5e1400..62c9caa0752ab 100644
+--- a/drivers/video/rockchip/rga3/include/rga_job.h
++++ b/drivers/video/rockchip/rga3/include/rga_job.h
+@@ -41,16 +41,17 @@ int rga_request_commit(struct rga_request *user_request);
+ void rga_request_scheduler_shutdown(struct rga_scheduler_t *scheduler);
+ void rga_request_scheduler_abort(struct rga_scheduler_t *scheduler);
+ void rga_request_session_destroy_abort(struct rga_session *session);
++void rga_request_cancel(struct rga_request *request, int err_code);
+ int rga_request_put(struct rga_request *request);
+ void rga_request_release_ref(struct rga_request *request);
+ void rga_request_get(struct rga_request *request);
+ int rga_request_free(struct rga_request *request);
+ int rga_request_alloc(uint32_t flags, struct rga_session *session);
+ 
+-struct rga_request *rga_request_config(struct rga_user_request *user_request,
+-				       struct rga_session *session);
+-struct rga_request *rga_request_kernel_config(struct rga_user_request *user_request);
+-int rga_request_submit(struct rga_request *request);
++struct rga_request *rga_request_config_locked(struct rga_user_request *user_request,
++					      struct rga_session *session);
++struct rga_request *rga_request_kernel_config_locked(struct rga_user_request *user_request);
++int rga_request_submit_locked(struct rga_request *request);
+ int rga_request_mpi_submit(struct rga_req *req, struct rga_request *request);
+ int rga_request_release_signal(struct rga_scheduler_t *scheduler, struct rga_job *job);
+ 
+diff --git a/drivers/video/rockchip/rga3/include/rga_mm.h b/drivers/video/rockchip/rga3/include/rga_mm.h
+index 425410464a689..6dc8c87104ae7 100644
+--- a/drivers/video/rockchip/rga3/include/rga_mm.h
++++ b/drivers/video/rockchip/rga3/include/rga_mm.h
+@@ -67,7 +67,8 @@ static inline bool rga_mm_is_invalid_dma_buffer(struct rga_dma_buffer *buffer)
+ 
+ struct rga_internal_buffer *rga_mm_lookup_handle(struct rga_mm *mm_session, uint32_t handle);
+ int rga_mm_lookup_flag(struct rga_mm *mm_session, uint64_t handle);
+-int rga_mm_lookup_rga2_support(struct rga_mm *mm_session, uint64_t handle);
++int rga_mm_lookup_rga2_support(struct rga_mm *mm_session, uint64_t handle,
++			       struct rga_session *session);
+ dma_addr_t rga_mm_lookup_iova(struct rga_internal_buffer *buffer);
+ struct sg_table *rga_mm_lookup_sgt(struct rga_internal_buffer *buffer);
+ 
+diff --git a/drivers/video/rockchip/rga3/rga_debugger.c b/drivers/video/rockchip/rga3/rga_debugger.c
+index 6cfa841422ec0..239992b414d89 100644
+--- a/drivers/video/rockchip/rga3/rga_debugger.c
++++ b/drivers/video/rockchip/rga3/rga_debugger.c
+@@ -219,17 +219,19 @@ static int rga_load_show(struct seq_file *m, void *data)
+ 	}
+ 
+ 	seq_puts(m, "=========================================\n");
+-	seq_puts(m, "<session>  <status>  <tgid>  <process>\n");
++	seq_puts(m, "<session>  <status>  <tgid>  <rga2-stage-bytes>  <process>\n");
+ 
+ 	mutex_lock(&session_manager->lock);
+ 
+ 	now = ktime_get();
+ 	idr_for_each_entry(&session_manager->ctx_id_idr, session, id)
+-		seq_printf(m, "%-9d  %-8s  %-6d  %-s\n",
+-			session->id,
+-			ktime_us_delta(now, session->last_active) < RGA_LOAD_ACTIVE_MAX_US ?
+-				"active" : "idle",
+-			session->tgid, session->pname);
++		seq_printf(m, "%-9d  %-8s  %-6d  %-18lld  %-s\n",
++			   session->id,
++			   ktime_us_delta(now, session->last_active) < RGA_LOAD_ACTIVE_MAX_US ?
++				   "active" : "idle",
++			   session->tgid,
++			   atomic64_read(&session->rga2_stage_active_bytes),
++			   session->pname);
+ 
+ 	mutex_unlock(&session_manager->lock);
+ 
+@@ -399,7 +401,7 @@ static int rga_request_manager_show(struct seq_file *m, void *data)
+ 		seq_puts(m, "\t cmd dump:\n\n");
+ 
+ 		/*
+-		 * Stay under request->lock for the dump: rga_request_config()
++		 * Stay under request->lock for the dump: rga_request_config_locked()
+ 		 * swaps task_list and frees the old one, so dropping the lock
+ 		 * here would walk freed memory. The bound must be the snapshot
+ 		 * too -- the live count describes the replacement list.
+diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
+index 2fea79e57d2f8..0b43558c38959 100644
+--- a/drivers/video/rockchip/rga3/rga_drv.c
++++ b/drivers/video/rockchip/rga3/rga_drv.c
+@@ -136,9 +136,12 @@ int rga_mpi_commit(struct rga_mpi_job_t *mpi_job)
+ 	struct rga_pending_request_manager *request_manager;
+ 	struct rga_request *request;
+ 	struct rga_req *cached_cmd;
+-	struct rga_req mpi_cmd;
++	struct rga_req mpi_cmd = {};
+ 	unsigned long flags;
+ 	bool need_swap_act = false;
++	bool src0_imported = false;
++	bool src1_imported = false;
++	bool dst_imported = false;
+ 
+ 	request_manager = rga_drvdata->pend_request_manager;
+ 
+@@ -149,12 +152,9 @@ int rga_mpi_commit(struct rga_mpi_job_t *mpi_job)
+ 		mutex_unlock(&request_manager->lock);
+ 		return -EINVAL;
+ 	}
+-
+-	if (request->task_count > 1) {
+-		/* TODO */
+-		rga_req_err(request, "Currently request does not support multiple tasks!");
++	if (request->release_ref_dropped) {
+ 		mutex_unlock(&request_manager->lock);
+-		return -EINVAL;
++		return -ENOENT;
+ 	}
+ 
+ 	rga_request_get(request);
+@@ -167,7 +167,23 @@ int rga_mpi_commit(struct rga_mpi_job_t *mpi_job)
+ 		goto err_release_rwsem;
+ 	}
+ 
++	mutex_lock(&request->run_lock);
++	mutex_lock(&request->commit_lock);
+ 	spin_lock_irqsave(&request->lock, flags);
++	if (request->terminal || request->is_running ||
++	    (request->aborting && (!request->reusable || !request->is_done)) ||
++	    !request->task_list) {
++		spin_unlock_irqrestore(&request->lock, flags);
++		ret = -EBUSY;
++		goto err_unlock_config;
++	}
++	if (request->task_count > 1) {
++		spin_unlock_irqrestore(&request->lock, flags);
++		rga_req_err(request,
++			    "Currently request does not support multiple tasks!");
++		ret = -EINVAL;
++		goto err_unlock_config;
++	}
+ 
+ 	/* TODO: batch mode need mpi async mode */
+ 	request->sync_mode = RGA_BLIT_SYNC;
+@@ -220,8 +236,9 @@ int rga_mpi_commit(struct rga_mpi_job_t *mpi_job)
+ 						 request->session);
+ 		if (ret < 0) {
+ 			rga_req_err(request, "src channel set buffer handle failed!\n");
+-			goto err_put_request;
++			goto err_unlock_config;
+ 		}
++		src0_imported = true;
+ 	}
+ 
+ 	if (mpi_job->dma_buf_src1 != NULL) {
+@@ -230,8 +247,9 @@ int rga_mpi_commit(struct rga_mpi_job_t *mpi_job)
+ 						 request->session);
+ 		if (ret < 0) {
+ 			rga_req_err(request, "src1 channel set buffer handle failed!\n");
+-			goto err_put_request;
++			goto err_unlock_config;
+ 		}
++		src1_imported = true;
+ 	}
+ 
+ 	if (mpi_job->dma_buf_dst != NULL) {
+@@ -240,8 +258,9 @@ int rga_mpi_commit(struct rga_mpi_job_t *mpi_job)
+ 						 request->session);
+ 		if (ret < 0) {
+ 			rga_req_err(request, "dst channel set buffer handle failed!\n");
+-			goto err_put_request;
++			goto err_unlock_config;
+ 		}
++		dst_imported = true;
+ 	}
+ 
+ 	rga_mpi_scale_protect(&mpi_cmd);
+@@ -253,6 +272,7 @@ int rga_mpi_commit(struct rga_mpi_job_t *mpi_job)
+ 	if (DEBUGGER_EN(MSG))
+ 		rga_dump_req(request, &mpi_cmd);
+ 
++	/* rga_request_mpi_submit() consumes commit_lock before it waits. */
+ 	ret = rga_request_mpi_submit(&mpi_cmd, request);
+ 	if (ret < 0) {
+ 		if (ret == -ERESTARTSYS) {
+@@ -281,14 +301,19 @@ int rga_mpi_commit(struct rga_mpi_job_t *mpi_job)
+ 		if (need_swap_act)
+ 			swap(mpi_job->output->width, mpi_job->output->height);
+ 	}
++	goto err_put_request;
++
++err_unlock_config:
++	mutex_unlock(&request->commit_lock);
+ 
+ err_put_request:
+-	if ((mpi_job->dma_buf_src0 != NULL) && (mpi_cmd.src.yrgb_addr > 0))
+-		rga_mm_release_buffer(mpi_cmd.src.yrgb_addr, NULL);
+-	if ((mpi_job->dma_buf_src1 != NULL) && (mpi_cmd.pat.yrgb_addr > 0))
+-		rga_mm_release_buffer(mpi_cmd.pat.yrgb_addr, NULL);
+-	if ((mpi_job->dma_buf_dst != NULL) && (mpi_cmd.dst.yrgb_addr > 0))
+-		rga_mm_release_buffer(mpi_cmd.dst.yrgb_addr, NULL);
++	if (src0_imported)
++		rga_mm_release_buffer(mpi_cmd.src.yrgb_addr, request->session);
++	if (src1_imported)
++		rga_mm_release_buffer(mpi_cmd.pat.yrgb_addr, request->session);
++	if (dst_imported)
++		rga_mm_release_buffer(mpi_cmd.dst.yrgb_addr, request->session);
++	mutex_unlock(&request->run_lock);
+ 
+ err_release_rwsem:
+ 	up_read(&request->session->release_rwsem);
+@@ -335,10 +360,11 @@ int rga_kernel_commit(struct rga_req *cmd)
+ 		goto err_put_request;
+ 	}
+ 
+-	request = rga_request_kernel_config(&kernel_request);
++	request = rga_request_kernel_config_locked(&kernel_request);
+ 	if (IS_ERR(request)) {
+ 		rga_err("ID[%d]: config failed!\n", kernel_request.id);
+-		ret = -EFAULT;
++		ret = PTR_ERR(request);
++		request = NULL;
+ 		goto err_put_request;
+ 	}
+ 
+@@ -347,7 +373,8 @@ int rga_kernel_commit(struct rga_req *cmd)
+ 		rga_dump_req(request, cmd);
+ 	}
+ 
+-	ret = rga_request_submit(request);
++	ret = rga_request_submit_locked(request);
++	mutex_unlock(&request->run_lock);
+ 	if (ret < 0)
+ 		rga_req_err(request, "submit failed!\n");
+ 
+@@ -360,13 +387,13 @@ int rga_kernel_commit(struct rga_req *cmd)
+ 			rga_err("can not find request from id[%d]", request_id);
+ 
+ 			mutex_unlock(&request_manager->lock);
+-			ret = -EINVAL;
+ 			goto err_put_session;
+ 		}
++		rga_request_release_ref(request);
++	} else {
++		rga_request_put(request);
+ 	}
+ 
+-	rga_request_put(request);
+-
+ 	mutex_unlock(&request_manager->lock);
+ 
+ err_put_session:
+@@ -428,7 +455,10 @@ int rga_power_enable(struct rga_scheduler_t *scheduler)
+ 	int ret = -EINVAL;
+ 	unsigned long flags;
+ 
+-	pm_runtime_get_sync(scheduler->dev);
++	ret = pm_runtime_resume_and_get(scheduler->dev);
++	if (ret < 0)
++		return ret;
++
+ 	pm_stay_awake(scheduler->dev);
+ 
+ 	ret = clk_bulk_prepare_enable(scheduler->num_clks, scheduler->clks);
+@@ -479,18 +509,24 @@ int rga_power_disable(struct rga_scheduler_t *scheduler)
+ 	return 0;
+ }
+ 
+-static void rga_power_enable_all(void)
++static int rga_power_enable_all(void)
+ {
+ 	struct rga_scheduler_t *scheduler = NULL;
+-	int ret = 0;
++	int ret;
+ 	int i;
+ 
+ 	for (i = 0; i < rga_drvdata->num_of_scheduler; i++) {
+ 		scheduler = rga_drvdata->scheduler[i];
+ 		ret = rga_power_enable(scheduler);
+-		if (ret < 0)
+-			rga_err("power enable failed");
++		if (ret < 0) {
++			rga_err("power enable failed: %d\n", ret);
++			while (--i >= 0)
++				rga_power_disable(rga_drvdata->scheduler[i]);
++			return ret;
++		}
+ 	}
++
++	return 0;
+ }
+ 
+ static void rga_power_disable_all(void)
+@@ -515,7 +551,7 @@ int rga_power_disable(struct rga_scheduler_t *scheduler)
+ 	return 0;
+ }
+ 
+-static inline void rga_power_enable_all(void) {}
++static inline int rga_power_enable_all(void) { return 0; }
+ static inline void rga_power_disable_all(void) {}
+ #endif /* #ifndef RGA_DISABLE_PM */
+ 
+@@ -629,6 +665,7 @@ static struct rga_session *rga_session_init(void)
+ 	session->release = false;
+ 	init_rwsem(&session->release_rwsem);
+ 	kref_init(&session->refcount);
++	atomic64_set(&session->rga2_stage_active_bytes, 0);
+ 
+ 	return session;
+ }
+@@ -658,6 +695,7 @@ void rga_session_get(struct rga_session *session)
+ static long rga_ioctl_import_buffer(unsigned long arg, struct rga_session *session)
+ {
+ 	int i;
++	int imported = 0;
+ 	int ret = 0;
+ 	struct rga_buffer_pool buffer_pool;
+ 	struct rga_external_buffer *external_buffer = NULL;
+@@ -736,10 +774,11 @@ static long rga_ioctl_import_buffer(unsigned long arg, struct rga_session *sessi
+ 			       rga_get_memory_type_str(external_buffer[i].type),
+ 			       external_buffer[i].type);
+ 
+-			goto err_free_external_buffer;
++			goto err_rollback_imports;
+ 		}
+ 
+ 		external_buffer[i].handle = ret;
++		imported++;
+ 	}
+ 
+ 	if (unlikely(copy_to_user(u64_to_user_ptr(buffer_pool.buffers_ptr),
+@@ -748,7 +787,21 @@ static long rga_ioctl_import_buffer(unsigned long arg, struct rga_session *sessi
+ 		rga_err("rga_buffer_pool external_buffer list copy_to_user failed\n");
+ 		ret = -EFAULT;
+ 
+-		goto err_free_external_buffer;
++		goto err_rollback_imports;
++	}
++
++	goto err_free_external_buffer;
++
++err_rollback_imports:
++	/* The pool ioctl is transactional: never strand invisible handles. */
++	while (imported-- > 0) {
++		int release_ret;
++
++		release_ret = rga_mm_release_buffer(external_buffer[imported].handle,
++						    session);
++		if (release_ret)
++			rga_err("failed to roll back imported handle[%d]: %d\n",
++				external_buffer[imported].handle, release_ret);
+ 	}
+ 
+ err_free_external_buffer:
+@@ -818,7 +871,10 @@ static long rga_ioctl_release_buffer(unsigned long arg,
+ 
+ static long rga_ioctl_request_create(unsigned long arg, struct rga_session *session)
+ {
+-	uint32_t id;
++	struct rga_pending_request_manager *request_manager;
++	struct rga_request *request;
++	u32 user_id;
++	int id;
+ 	uint32_t flags;
+ 
+ 	if (copy_from_user(&flags, (void *)arg, sizeof(uint32_t))) {
+@@ -827,9 +883,19 @@ static long rga_ioctl_request_create(unsigned long arg, struct rga_session *sess
+ 	}
+ 
+ 	id = rga_request_alloc(flags, session);
++	if (id < 0)
++		return id;
++	user_id = id;
+ 
+-	if (copy_to_user((void *)arg, &id, sizeof(uint32_t))) {
++	if (copy_to_user((void *)arg, &user_id, sizeof(user_id))) {
+ 		rga_err("%s failed to copy to user!\n", __func__);
++		/* The new id was never published to userspace; retire it now. */
++		request_manager = rga_drvdata->pend_request_manager;
++		mutex_lock(&request_manager->lock);
++		request = rga_request_lookup(request_manager, id);
++		if (request && request->session == session)
++			rga_request_release_ref(request);
++		mutex_unlock(&request_manager->lock);
+ 		return -EFAULT;
+ 	}
+ 
+@@ -862,14 +928,15 @@ static long rga_ioctl_request_submit(unsigned long arg, bool run_enbale,
+ 	if (DEBUGGER_EN(MSG))
+ 		rga_log("config request id = %d", user_request.id);
+ 
+-	request = rga_request_config(&user_request, session);
++	request = rga_request_config_locked(&user_request, session);
+ 	if (IS_ERR_OR_NULL(request)) {
+ 		rga_err("request[%d] config failed!\n", user_request.id);
+ 		return -EFAULT;
+ 	}
+ 
+ 	if (run_enbale) {
+-		ret = rga_request_submit(request);
++		ret = rga_request_submit_locked(request);
++		mutex_unlock(&request->run_lock);
+ 		if (ret < 0) {
+ 			rga_err("request[%d] submit failed!\n", user_request.id);
+ 		} else if (request->sync_mode == RGA_BLIT_ASYNC) {
+@@ -880,6 +947,9 @@ static long rga_ioctl_request_submit(unsigned long arg, bool run_enbale,
+ 				ret = -EFAULT;
+ 			}
+ 		}
++	} else {
++		mutex_unlock(&request->commit_lock);
++		mutex_unlock(&request->run_lock);
+ 	}
+ 
+ 	mutex_lock(&request_manager->lock);
+@@ -931,9 +1001,14 @@ static long rga_ioctl_request_cancel(unsigned long arg,
+ 		return -EPERM;
+ 	}
+ 
+-	/* Retire the request's initial reference (idempotent). */
+-	rga_request_release_ref(request);
++	/* Keep the object alive while abort/reset runs outside the idr lock. */
++	rga_request_get(request);
++	mutex_unlock(&request_manager->lock);
++
++	rga_request_cancel(request, -ECANCELED);
+ 
++	mutex_lock(&request_manager->lock);
++	rga_request_put(request);
+ 	mutex_unlock(&request_manager->lock);
+ 
+ 	return 0;
+@@ -967,7 +1042,7 @@ static long rga_ioctl_blit(unsigned long arg, uint32_t cmd, struct rga_session *
+ 		goto err_free_request_by_id;
+ 	}
+ 
+-	request = rga_request_config(&user_request, session);
++	request = rga_request_config_locked(&user_request, session);
+ 	if (IS_ERR(request)) {
+ 		rga_err("ID[%d]: config failed!\n", user_request.id);
+ 		ret = -EFAULT;
+@@ -978,7 +1053,8 @@ static long rga_ioctl_blit(unsigned long arg, uint32_t cmd, struct rga_session *
+ 	/* In the BLIT_SYNC/BLIT_ASYNC command, in_fence_fd needs to be set. */
+ 	request->acquire_fence_fd = rga_req->in_fence_fd;
+ 
+-	ret = rga_request_submit(request);
++	ret = rga_request_submit_locked(request);
++	mutex_unlock(&request->run_lock);
+ 	if (ret < 0) {
+ 		rga_req_err(request, "submit failed!\n");
+ 		goto err_put_request;
+@@ -1013,7 +1089,7 @@ static long rga_ioctl_blit(unsigned long arg, uint32_t cmd, struct rga_session *
+ 	/*
+ 	 * Retire through the refcount, never rga_request_free(). That is the
+ 	 * raw destructor -- it idr_removes, kfrees task_list and kfrees the
+-	 * request without consulting the kref -- while rga_request_config()
++	 * request without consulting the kref -- while rga_request_config_locked()
+ 	 * holds a reference across a sleeping copy_from_user(). A concurrent
+ 	 * config on this id would then walk, write and kfree through freed
+ 	 * memory. Every other retire path in the driver uses this helper.
+@@ -1147,7 +1223,9 @@ static long rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
+ 		break;
+ 
+ 	case RGA_IOC_IMPORT_BUFFER:
+-		rga_power_enable_all();
++		ret = rga_power_enable_all();
++		if (ret)
++			break;
+ 
+ 		ret = rga_ioctl_import_buffer(arg, session);
+ 
+@@ -1156,7 +1234,9 @@ static long rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
+ 		break;
+ 
+ 	case RGA_IOC_RELEASE_BUFFER:
+-		rga_power_enable_all();
++		ret = rga_power_enable_all();
++		if (ret)
++			break;
+ 
+ 		ret = rga_ioctl_release_buffer(arg, session);
+ 
+@@ -1422,6 +1502,8 @@ static int init_scheduler(struct rga_scheduler_t *scheduler,
+ 	scheduler->ops = match_data->ops;
+ 	scheduler->dev = dev;
+ 
++	mutex_init(&scheduler->job_mutex);
++	scheduler->shutdown = false;
+ 	spin_lock_init(&scheduler->irq_lock);
+ 	INIT_LIST_HEAD(&scheduler->todo_list);
+ 	init_waitqueue_head(&scheduler->job_done_wq);
+@@ -1515,7 +1597,7 @@ static int rga_drv_probe(struct platform_device *pdev)
+ 	device_init_wakeup(dev, true);
+ 	pm_runtime_enable(scheduler->dev);
+ 
+-	ret = pm_runtime_get_sync(scheduler->dev);
++	ret = pm_runtime_resume_and_get(scheduler->dev);
+ 	if (ret < 0) {
+ 		dev_err(dev, "failed to get pm runtime, ret = %d\n", ret);
+ 		goto pm_disable;
+@@ -1524,7 +1606,7 @@ static int rga_drv_probe(struct platform_device *pdev)
+ 	ret = clk_bulk_prepare_enable(scheduler->num_clks, scheduler->clks);
+ 	if (ret < 0) {
+ 		dev_err(dev, "failed to enable clk\n");
+-		goto pm_disable;
++		goto pm_put;
+ 	}
+ #endif /* #ifndef RGA_DISABLE_PM */
+ 
+@@ -1609,6 +1691,8 @@ static int rga_drv_probe(struct platform_device *pdev)
+ 	return 0;
+ 
+ #ifndef RGA_DISABLE_PM
++pm_put:
++	pm_runtime_put_sync(dev);
+ pm_disable:
+ 	device_init_wakeup(dev, false);
+ 	pm_runtime_disable(dev);
+diff --git a/drivers/video/rockchip/rga3/rga_fence.c b/drivers/video/rockchip/rga3/rga_fence.c
+index 10cb6586d1538..3c52b0db9d4e9 100644
+--- a/drivers/video/rockchip/rga3/rga_fence.c
++++ b/drivers/video/rockchip/rga3/rga_fence.c
+@@ -115,30 +115,15 @@ int rga_dma_fence_wait(struct dma_fence *fence)
+ 	return ret;
+ }
+ 
+-int rga_dma_fence_add_callback(struct dma_fence *fence, dma_fence_func_t func, void *private)
++int rga_dma_fence_add_callback(struct dma_fence *fence,
++			       struct dma_fence_cb *callback,
++			       dma_fence_func_t func)
+ {
+ 	int ret;
+-	struct rga_fence_waiter *waiter = NULL;
+ 
+-	waiter = kmalloc(sizeof(*waiter), GFP_KERNEL);
+-	if (!waiter) {
+-		rga_err("%s: Failed to allocate waiter\n", __func__);
+-		return -ENOMEM;
+-	}
+-
+-	waiter->private = private;
+-
+-	ret = dma_fence_add_callback(fence, &waiter->waiter, func);
+-	if (ret == -ENOENT) {
+-		goto err_free_waiter;
+-	} else if (ret == -EINVAL) {
++	ret = dma_fence_add_callback(fence, callback, func);
++	if (ret == -EINVAL)
+ 		rga_err("%s: failed to add callback to dma_fence, err: %d\n", __func__, ret);
+-		goto err_free_waiter;
+-	}
+-
+-	return ret;
+ 
+-err_free_waiter:
+-	kfree(waiter);
+ 	return ret;
+ }
+diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
+index 48cc568d7a3eb..037c51e69a0f3 100644
+--- a/drivers/video/rockchip/rga3/rga_job.c
++++ b/drivers/video/rockchip/rga3/rga_job.c
+@@ -13,8 +13,18 @@
+ #include "rga_debugger.h"
+ #include "rga_common.h"
+ 
++enum rga_acquire_fence_state {
++	RGA_ACQUIRE_FENCE_NONE,
++	RGA_ACQUIRE_FENCE_ARMED,
++	RGA_ACQUIRE_FENCE_CANCELED,
++	RGA_ACQUIRE_FENCE_WORK,
++};
++
+ static void rga_job_free(struct rga_job *job)
+ {
++	struct rga_pending_request_manager *request_manager =
++		rga_drvdata->pend_request_manager;
++
+ 	WARN_ON_ONCE(!list_empty(&job->rga2_stage_list));
+ 
+ 	if (job->cmd_buf) {
+@@ -37,6 +47,14 @@ static void rga_job_free(struct rga_job *job)
+ 	 */
+ 	if (job->session)
+ 		rga_session_put(job->session);
++	if (job->request) {
++		WARN_ON_ONCE(!request_manager);
++		if (request_manager) {
++			mutex_lock(&request_manager->lock);
++			rga_request_put(job->request);
++			mutex_unlock(&request_manager->lock);
++		}
++	}
+ 
+ 	kfree(job);
+ }
+@@ -86,7 +104,8 @@ static int rga_job_judgment_support_core(struct rga_job *job, struct rga_req *re
+ 	 * per-job DMA mapping of the 32-bit RGA2 device.
+ 	 */
+ 	if (likely(req->src.yrgb_addr > 0)) {
+-		ret = rga_mm_lookup_rga2_support(mm, req->src.yrgb_addr);
++		ret = rga_mm_lookup_rga2_support(mm, req->src.yrgb_addr,
++						 job->session);
+ 		if (ret < 0)
+ 			goto out_finish;
+ 
+@@ -99,7 +118,8 @@ static int rga_job_judgment_support_core(struct rga_job *job, struct rga_req *re
+ 	}
+ 
+ 	if (likely(req->dst.yrgb_addr > 0)) {
+-		ret = rga_mm_lookup_rga2_support(mm, req->dst.yrgb_addr);
++		ret = rga_mm_lookup_rga2_support(mm, req->dst.yrgb_addr,
++						 job->session);
+ 		if (ret < 0)
+ 			goto out_finish;
+ 
+@@ -112,7 +132,8 @@ static int rga_job_judgment_support_core(struct rga_job *job, struct rga_req *re
+ 	}
+ 
+ 	if (req->pat.yrgb_addr > 0) {
+-		ret = rga_mm_lookup_rga2_support(mm, req->pat.yrgb_addr);
++		ret = rga_mm_lookup_rga2_support(mm, req->pat.yrgb_addr,
++						 job->session);
+ 		if (ret < 0)
+ 			goto out_finish;
+ 
+@@ -130,7 +151,8 @@ static int rga_job_judgment_support_core(struct rga_job *job, struct rga_req *re
+ 	return ret;
+ }
+ 
+-static struct rga_job *rga_job_alloc(struct rga_req *task_list, size_t task_count)
++static struct rga_job *rga_job_alloc(struct rga_req *task_list, size_t task_count,
++				     struct rga_session *session)
+ {
+ 	int i;
+ 	struct rga_job *job = NULL;
+@@ -142,6 +164,8 @@ static struct rga_job *rga_job_alloc(struct rga_req *task_list, size_t task_coun
+ 	INIT_LIST_HEAD(&job->head);
+ 	INIT_LIST_HEAD(&job->rga2_stage_list);
+ 	kref_init(&job->refcount);
++	rga_session_get(session);
++	job->session = session;
+ 
+ 	job->timestamp.init = ktime_get();
+ 	job->pid = current->pid;
+@@ -149,7 +173,7 @@ static struct rga_job *rga_job_alloc(struct rga_req *task_list, size_t task_coun
+ 	job->task_list = kmemdup_array(task_list, task_count,
+ 				       sizeof(*task_list), GFP_KERNEL);
+ 	if (!job->task_list) {
+-		kfree(job);
++		rga_job_free(job);
+ 		return NULL;
+ 	}
+ 	job->task_count = task_count;
+@@ -212,11 +236,13 @@ void rga_job_next(struct rga_scheduler_t *scheduler)
+ 	unsigned long flags;
+ 
+ next_job:
++	mutex_lock(&scheduler->job_mutex);
+ 	spin_lock_irqsave(&scheduler->irq_lock, flags);
+ 
+-	if (scheduler->running_job ||
+-		list_empty(&scheduler->todo_list)) {
++	if (scheduler->shutdown || scheduler->running_job ||
++	    list_empty(&scheduler->todo_list)) {
+ 		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
++		mutex_unlock(&scheduler->job_mutex);
+ 		return;
+ 	}
+ 
+@@ -243,6 +269,10 @@ void rga_job_next(struct rga_scheduler_t *scheduler)
+ 		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
+ 
+ 		job->ret = ret;
++		set_bit(RGA_JOB_STATE_INTR_ERR, &job->state);
++		/* Mapping happened at commit time; no IRQ will release it now. */
++		rga_mm_unmap_job_info(job);
++		mutex_unlock(&scheduler->job_mutex);
+ 		rga_request_release_signal(scheduler, job);
+ 
+ 		rga_job_put(job);
+@@ -251,6 +281,7 @@ void rga_job_next(struct rga_scheduler_t *scheduler)
+ 	}
+ 
+ 	rga_job_put(job);
++	mutex_unlock(&scheduler->job_mutex);
+ }
+ 
+ struct rga_job *rga_job_done(struct rga_scheduler_t *scheduler)
+@@ -258,6 +289,7 @@ struct rga_job *rga_job_done(struct rga_scheduler_t *scheduler)
+ 	struct rga_job *job;
+ 	unsigned long flags;
+ 
++	mutex_lock(&scheduler->job_mutex);
+ 	spin_lock_irqsave(&scheduler->irq_lock, flags);
+ 
+ 	job = scheduler->running_job;
+@@ -266,6 +298,7 @@ struct rga_job *rga_job_done(struct rga_scheduler_t *scheduler)
+ 			rga_get_core_name(scheduler->core), scheduler->core);
+ 
+ 		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
++		mutex_unlock(&scheduler->job_mutex);
+ 		return NULL;
+ 	}
+ 
+@@ -275,6 +308,7 @@ struct rga_job *rga_job_done(struct rga_scheduler_t *scheduler)
+ 			rga_get_core_name(scheduler->core), scheduler->core);
+ 
+ 		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
++		mutex_unlock(&scheduler->job_mutex);
+ 		return NULL;
+ 	}
+ 
+@@ -300,6 +334,7 @@ struct rga_job *rga_job_done(struct rga_scheduler_t *scheduler)
+ 			job->work_cycle);
+ 
+ 	rga_mm_unmap_job_info(job);
++	mutex_unlock(&scheduler->job_mutex);
+ 
+ 	return job;
+ }
+@@ -340,10 +375,12 @@ static void rga_job_scheduler_timeout_clean(struct rga_scheduler_t *scheduler)
+ 	unsigned long flags;
+ 	struct rga_job *job = NULL;
+ 
++	mutex_lock(&scheduler->job_mutex);
+ 	spin_lock_irqsave(&scheduler->irq_lock, flags);
+ 
+ 	if (scheduler->running_job == NULL || scheduler->running_job->timestamp.hw_execute == 0) {
+ 		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
++		mutex_unlock(&scheduler->job_mutex);
+ 		return;
+ 	}
+ 
+@@ -358,22 +395,30 @@ static void rga_job_scheduler_timeout_clean(struct rga_scheduler_t *scheduler)
+ 		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
+ 
+ 		rga_mm_unmap_job_info(job);
++		mutex_unlock(&scheduler->job_mutex);
+ 		rga_request_release_signal(scheduler, job);
+ 
+ 		rga_power_disable(scheduler);
+ 	} else {
+ 		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
++		mutex_unlock(&scheduler->job_mutex);
+ 	}
+ }
+ 
+-static void rga_job_insert_todo_list(struct rga_job *job)
++static int rga_job_insert_todo_list(struct rga_job *job)
+ {
+ 	bool first_match = 0;
+ 	unsigned long flags;
+ 	struct rga_job *job_pos;
+ 	struct rga_scheduler_t *scheduler = job->scheduler;
+ 
++	mutex_lock(&scheduler->job_mutex);
+ 	spin_lock_irqsave(&scheduler->irq_lock, flags);
++	if (scheduler->shutdown) {
++		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
++		mutex_unlock(&scheduler->job_mutex);
++		return -ESHUTDOWN;
++	}
+ 
+ 	/* priority policy set by userspace */
+ 	if (list_empty(&scheduler->todo_list)
+@@ -404,6 +449,9 @@ static void rga_job_insert_todo_list(struct rga_job *job)
+ 	set_bit(RGA_JOB_STATE_PENDING, &job->state);
+ 
+ 	spin_unlock_irqrestore(&scheduler->irq_lock, flags);
++	mutex_unlock(&scheduler->job_mutex);
++
++	return 0;
+ }
+ 
+ static struct rga_scheduler_t *rga_job_schedule(struct rga_job *job)
+@@ -443,15 +491,16 @@ int rga_job_commit(struct rga_req *task_list, size_t task_count,
+ 	struct rga_job *job = NULL;
+ 	struct rga_scheduler_t *scheduler = NULL;
+ 
+-	job = rga_job_alloc(task_list, task_count);
++	job = rga_job_alloc(task_list, task_count, request->session);
+ 	if (!job) {
+ 		rga_err("failed to alloc rga job!\n");
+ 		return -ENOMEM;
+ 	}
+ 
+ 	job->request_id = request->id;
++	job->request = request;
++	rga_request_get(request);
+ 	job->task_start = task_start;
+-	job->session = request->session;
+ 	/*
+ 	 * The job caches the owning session pointer and dereferences it from
+ 	 * the async completion path (job->session->last_active / ->pname), which
+@@ -462,7 +511,6 @@ int rga_job_commit(struct rga_req *task_list, size_t task_count,
+ 	 * so the session cannot be freed under the completing IRQ thread; it is
+ 	 * released in rga_job_free().
+ 	 */
+-	rga_session_get(request->session);
+ 	job->mm = request->current_mm;
+ 
+ 	scheduler = rga_job_schedule(job);
+@@ -515,7 +563,9 @@ int rga_job_commit(struct rga_req *task_list, size_t task_count,
+ 		goto err_unmap_job_info;
+ 	}
+ 
+-	rga_job_insert_todo_list(job);
++	ret = rga_job_insert_todo_list(job);
++	if (ret)
++		goto err_unmap_job_info;
+ 
+ 	rga_job_next(scheduler);
+ 
+@@ -602,11 +652,14 @@ static void rga_request_put_current_mm(struct mm_struct *mm)
+ 	mmdrop(mm);
+ }
+ 
++static void rga_request_cancel_acquire_fence(struct rga_request *request);
++
+ static int rga_request_add_acquire_fence_callback(int acquire_fence_fd,
+ 						  struct rga_request *request,
+ 						  dma_fence_func_t cb_func)
+ {
+ 	int ret;
++	unsigned long flags;
+ 	struct dma_fence *acquire_fence = NULL;
+ 	struct rga_pending_request_manager *request_manager = rga_drvdata->pend_request_manager;
+ 
+@@ -656,25 +709,73 @@ static int rga_request_add_acquire_fence_callback(int acquire_fence_fd,
+ 	rga_request_get(request);
+ 	mutex_unlock(&request_manager->lock);
+ 
+-	ret = rga_dma_fence_add_callback(acquire_fence, cb_func, (void *)request);
++	/*
++	 * Publish and register the callback while cancel cannot set aborting.
++	 * Otherwise cancel could try to remove an embedded callback whose list
++	 * node has not yet been initialized by dma_fence_add_callback().
++	 */
++	spin_lock_irqsave(&request->lock, flags);
++	if (request->aborting || request->is_done) {
++		spin_unlock_irqrestore(&request->lock, flags);
++		ret = -ECANCELED;
++		goto err_put_refs;
++	}
++
++	WRITE_ONCE(request->acquire_fence, acquire_fence);
++	atomic_set(&request->acquire_fence_state, RGA_ACQUIRE_FENCE_ARMED);
++	ret = rga_dma_fence_add_callback(acquire_fence,
++					 &request->acquire_fence_cb, cb_func);
+ 	if (ret < 0) {
+ 		if (ret == -ENOENT)
+ 			/* The acquire fence has been signaled after the status check. */
+ 			ret = 1;
+ 		else
+ 			rga_req_err(request, "%s: failed to add fence callback\n", __func__);
++		atomic_set(&request->acquire_fence_state, RGA_ACQUIRE_FENCE_NONE);
++		WRITE_ONCE(request->acquire_fence, NULL);
++	}
++	spin_unlock_irqrestore(&request->lock, flags);
++	if (ret)
++		goto err_put_refs;
+ 
+-		mutex_lock(&request_manager->lock);
+-		rga_request_put(request);
+-		mutex_unlock(&request_manager->lock);
++	return 0;
+ 
+-		/* The callback was not registered, so release our fence ref. */
+-		rga_dma_fence_put(acquire_fence);
++err_put_refs:
++	mutex_lock(&request_manager->lock);
++	rga_request_put(request);
++	mutex_unlock(&request_manager->lock);
+ 
+-		return ret;
+-	}
++	/* The callback was not registered, so release our fence ref. */
++	rga_dma_fence_put(acquire_fence);
+ 
+-	return 0;
++	return ret;
++}
++
++static void rga_request_cancel_acquire_fence(struct rga_request *request)
++{
++	struct rga_pending_request_manager *request_manager =
++		rga_drvdata->pend_request_manager;
++	struct dma_fence *fence;
++
++	if (atomic_cmpxchg(&request->acquire_fence_state,
++			   RGA_ACQUIRE_FENCE_ARMED,
++			   RGA_ACQUIRE_FENCE_CANCELED) !=
++	    RGA_ACQUIRE_FENCE_ARMED)
++		return;
++
++	fence = READ_ONCE(request->acquire_fence);
++	if (!fence ||
++	    !rga_dma_fence_remove_callback(fence,
++					   &request->acquire_fence_cb))
++		return;
++
++	WRITE_ONCE(request->acquire_fence, NULL);
++	atomic_set(&request->acquire_fence_state, RGA_ACQUIRE_FENCE_NONE);
++	rga_dma_fence_put(fence);
++
++	mutex_lock(&request_manager->lock);
++	rga_request_put(request);
++	mutex_unlock(&request_manager->lock);
+ }
+ 
+ int rga_request_check(struct rga_user_request *req)
+@@ -775,81 +876,87 @@ void rga_request_scheduler_shutdown(struct rga_scheduler_t *scheduler)
+ {
+ 	struct rga_job *job, *job_q;
+ 	unsigned long flags;
++	int power_ret;
++	bool had_running = false;
+ 	LIST_HEAD(list_to_free);
+ 
+-	rga_power_enable(scheduler);
+-
++	mutex_lock(&scheduler->job_mutex);
+ 	spin_lock_irqsave(&scheduler->irq_lock, flags);
++	scheduler->shutdown = true;
++	scheduler->status = RGA_SCHEDULER_ABORT;
+ 
+ 	job = scheduler->running_job;
+ 	if (job) {
+-		if (test_bit(RGA_JOB_STATE_INTR_ERR, &job->state) ||
+-		    test_bit(RGA_JOB_STATE_FINISH, &job->state)) {
+-			spin_unlock_irqrestore(&scheduler->irq_lock, flags);
+-			goto finish;
+-		}
+-
++		had_running = true;
+ 		scheduler->running_job = NULL;
+-		scheduler->status = RGA_SCHEDULER_ABORT;
+-		scheduler->ops->soft_reset(scheduler);
+-
+-		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
+-
+-		rga_mm_unmap_job_info(job);
++		job->ret = -ESHUTDOWN;
++		set_bit(RGA_JOB_STATE_INTR_ERR, &job->state);
++		list_add_tail(&job->head, &list_to_free);
++	}
+ 
+-		job->ret = -EBUSY;
+-		rga_request_release_signal(scheduler, job);
++	list_for_each_entry_safe(job, job_q, &scheduler->todo_list, head) {
++		job->ret = -ESHUTDOWN;
++		set_bit(RGA_JOB_STATE_INTR_ERR, &job->state);
++		list_move_tail(&job->head, &list_to_free);
++		scheduler->job_count--;
++	}
+ 
+-		/*
+-		 *  Since the running job was abort, turn off the power here that
+-		 * should have been turned off after job done (corresponds to
+-		 * power_enable in rga_job_run()).
+-		 */
+-		rga_power_disable(scheduler);
+-	} else {
+-		/* Move the todo jobs that need to be freed to a local list. */
+-		list_for_each_entry_safe(job, job_q, &scheduler->todo_list, head) {
+-			list_move(&job->head, &list_to_free);
+-			scheduler->job_count--;
+-		}
++	spin_unlock_irqrestore(&scheduler->irq_lock, flags);
++	mutex_unlock(&scheduler->job_mutex);
+ 
++	power_ret = rga_power_enable(scheduler);
++	if (power_ret) {
++		rga_err("failed to power core[%d] for shutdown: %d\n",
++			scheduler->core, power_ret);
++	} else if (had_running) {
++		spin_lock_irqsave(&scheduler->irq_lock, flags);
++		scheduler->ops->soft_reset(scheduler);
+ 		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
++	}
+ 
+-		/* Clean up outside the lock since the callees may sleep. */
+-		list_for_each_entry_safe(job, job_q, &list_to_free, head) {
+-			rga_mm_unmap_job_info(job);
+-
+-			job->ret = -EBUSY;
+-			rga_request_release_signal(scheduler, job);
+-		}
++	/* No IRQ or restart path owns these jobs after shutdown was published. */
++	list_for_each_entry_safe(job, job_q, &list_to_free, head) {
++		rga_mm_unmap_job_info(job);
++		rga_request_release_signal(scheduler, job);
+ 	}
+ 
+-finish:
+-	rga_power_disable(scheduler);
++	/* Balance the running job and temporary reset power references. */
++	if (had_running)
++		rga_power_disable(scheduler);
++	if (!power_ret)
++		rga_power_disable(scheduler);
+ }
+ 
+ void rga_request_scheduler_abort(struct rga_scheduler_t *scheduler)
+ {
+ 	struct rga_job *job;
+ 	unsigned long flags;
++	int power_ret;
+ 
+-	rga_power_enable(scheduler);
++	power_ret = rga_power_enable(scheduler);
++	if (power_ret)
++		rga_err("failed to power core[%d] for reset: %d\n",
++			scheduler->core, power_ret);
+ 
++	mutex_lock(&scheduler->job_mutex);
+ 	spin_lock_irqsave(&scheduler->irq_lock, flags);
+ 
+ 	job = scheduler->running_job;
+ 	if (job) {
+ 		scheduler->running_job = NULL;
+ 		scheduler->status = RGA_SCHEDULER_ABORT;
+-		scheduler->ops->soft_reset(scheduler);
++		job->ret = -ECANCELED;
++		set_bit(RGA_JOB_STATE_INTR_ERR, &job->state);
++		if (!power_ret)
++			scheduler->ops->soft_reset(scheduler);
+ 
+ 		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
+ 
+ 		rga_mm_unmap_job_info(job);
+ 
+-		job->ret = -EBUSY;
+ 		rga_request_release_signal(scheduler, job);
+ 
++		mutex_unlock(&scheduler->job_mutex);
+ 		rga_job_next(scheduler);
+ 
+ 		/*
+@@ -860,34 +967,42 @@ void rga_request_scheduler_abort(struct rga_scheduler_t *scheduler)
+ 		rga_power_disable(scheduler);
+ 	} else {
+ 		scheduler->status = RGA_SCHEDULER_ABORT;
+-		scheduler->ops->soft_reset(scheduler);
++		if (!power_ret)
++			scheduler->ops->soft_reset(scheduler);
+ 
+ 		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
++		mutex_unlock(&scheduler->job_mutex);
+ 	}
+ 
+-	rga_power_disable(scheduler);
++	if (!power_ret)
++		rga_power_disable(scheduler);
+ }
+ 
+-static int rga_request_scheduler_job_abort(struct rga_request *request)
++static void rga_request_scheduler_job_abort(struct rga_request *request)
+ {
+ 	int i;
+ 	unsigned long flags;
+ 	enum rga_scheduler_status scheduler_status;
+-	int running_abort_count = 0, todo_abort_count = 0, all_task_count = 0;
++	int running_abort_count = 0, todo_abort_count = 0;
+ 	struct rga_scheduler_t *scheduler = NULL;
+ 	struct rga_job *job, *job_q;
++	bool restart[RGA_MAX_SCHEDULER] = {};
+ 	LIST_HEAD(list_to_free);
+ 
+ 	for (i = 0; i < rga_drvdata->num_of_scheduler; i++) {
+ 		scheduler = rga_drvdata->scheduler[i];
++		mutex_lock(&scheduler->job_mutex);
+ 		spin_lock_irqsave(&scheduler->irq_lock, flags);
+ 
+ 		list_for_each_entry_safe(job, job_q, &scheduler->todo_list, head) {
+ 			if (request->id == job->request_id) {
++				job->ret = -ECANCELED;
++				set_bit(RGA_JOB_STATE_INTR_ERR, &job->state);
+ 				list_move(&job->head, &list_to_free);
+ 				scheduler->job_count--;
+ 
+ 				todo_abort_count += job->task_count;
++				restart[i] = true;
+ 			}
+ 		}
+ 
+@@ -898,6 +1013,8 @@ static int rga_request_scheduler_job_abort(struct rga_request *request)
+ 				scheduler_status = scheduler->status;
+ 				scheduler->running_job = NULL;
+ 				scheduler->status = RGA_SCHEDULER_ABORT;
++				job->ret = -ECANCELED;
++				set_bit(RGA_JOB_STATE_INTR_ERR, &job->state);
+ 				list_add_tail(&job->head, &list_to_free);
+ 
+ 				if (job->timestamp.hw_execute != 0) {
+@@ -911,6 +1028,7 @@ static int rga_request_scheduler_job_abort(struct rga_request *request)
+ 				rga_req_err(request, "reset core[%d] by request abort",
+ 					scheduler->core);
+ 				running_abort_count += job->task_count - job->finished_count;
++				restart[i] = true;
+ 			}
+ 		}
+ 
+@@ -918,49 +1036,62 @@ static int rga_request_scheduler_job_abort(struct rga_request *request)
+ 
+ 		if (job && scheduler_status == RGA_SCHEDULER_WORKING)
+ 			rga_power_disable(scheduler);
++		mutex_unlock(&scheduler->job_mutex);
+ 	}
+ 
+ 	/* Clean up the jobs in the todo list that need to be free. */
+ 	list_for_each_entry_safe(job, job_q, &list_to_free, head) {
+ 		rga_mm_unmap_job_info(job);
+ 
+-		job->ret = -EBUSY;
+ 		rga_job_cleanup(job);
+ 	}
+ 
+-	all_task_count = request->finished_task_count + request->failed_task_count +
+-			 running_abort_count + todo_abort_count;
+-
+-	/* This means it has been cleaned up. */
+-	if (running_abort_count + todo_abort_count == 0 &&
+-	    all_task_count == request->task_count)
+-		return 1;
++	/* Aborting one request must not strand unrelated work on the core. */
++	for (i = 0; i < rga_drvdata->num_of_scheduler; i++)
++		if (restart[i])
++			rga_job_next(rga_drvdata->scheduler[i]);
+ 
+-	rga_err("request[%d] abort! finished %d failed %d running_abort %d todo_abort %d\n",
+-		request->id, request->finished_task_count, request->failed_task_count,
+-		running_abort_count, todo_abort_count);
+-
+-	return 0;
++	if (running_abort_count || todo_abort_count)
++		rga_err("request[%d] abort! running_abort %d todo_abort %d\n",
++			request->id, running_abort_count, todo_abort_count);
+ }
+ 
+-static void rga_request_release_abort(struct rga_request *request, int err_code)
++static void rga_request_release_abort(struct rga_request *request, int err_code,
++				      bool retire)
+ {
+ 	unsigned long flags;
+ 	struct mm_struct *current_mm;
+ 	struct rga_pending_request_manager *request_manager = rga_drvdata->pend_request_manager;
+ 
+-	if (rga_request_scheduler_job_abort(request) > 0)
+-		return;
+-
++	/* Make abort and CONFIG/SUBMIT publication choose a single winner. */
++	mutex_lock(&request->commit_lock);
+ 	spin_lock_irqsave(&request->lock, flags);
++	if (retire)
++		request->terminal = true;
+ 
+ 	if (request->is_done) {
+ 		spin_unlock_irqrestore(&request->lock, flags);
+-		return;
++		mutex_unlock(&request->commit_lock);
++		goto out_retire;
++	}
++	request->aborting = true;
++	spin_unlock_irqrestore(&request->lock, flags);
++	mutex_unlock(&request->commit_lock);
++
++	rga_request_cancel_acquire_fence(request);
++
++	rga_request_scheduler_job_abort(request);
++
++	spin_lock_irqsave(&request->lock, flags);
++	/* Completion may have won while abort waited for scheduler start. */
++	if (request->is_done) {
++		spin_unlock_irqrestore(&request->lock, flags);
++		goto out_retire;
+ 	}
+ 
+ 	request->is_running = false;
+-	request->is_done = false;
++	request->is_done = true;
++	request->ret = err_code;
+ 	current_mm = request->current_mm;
+ 	request->current_mm = NULL;
+ 
+@@ -968,12 +1099,22 @@ static void rga_request_release_abort(struct rga_request *request, int err_code)
+ 
+ 	rga_request_put_current_mm(current_mm);
+ 
+-	rga_dma_fence_signal(request->release_fence, err_code);
++	if (rga_dma_fence_get_status(request->release_fence) == 0)
++		rga_dma_fence_signal(request->release_fence, err_code);
++	wake_up(&request->finished_wq);
+ 
+-	mutex_lock(&request_manager->lock);
+-	/* Retire the request's initial reference (idempotent). */
+-	rga_request_release_ref(request);
+-	mutex_unlock(&request_manager->lock);
++out_retire:
++	if (retire) {
++		mutex_lock(&request_manager->lock);
++		/* Retire the request's initial reference (idempotent). */
++		rga_request_release_ref(request);
++		mutex_unlock(&request_manager->lock);
++	}
++}
++
++void rga_request_cancel(struct rga_request *request, int err_code)
++{
++	rga_request_release_abort(request, err_code, true);
+ }
+ 
+ void rga_request_session_destroy_abort(struct rga_session *session)
+@@ -988,17 +1129,32 @@ void rga_request_session_destroy_abort(struct rga_session *session)
+ 		return;
+ 	}
+ 
+-	mutex_lock(&request_manager->lock);
+-
+-	idr_for_each_entry(&request_manager->request_idr, request, request_id) {
+-		if (session == request->session) {
+-			rga_req_err(request, "destroy when the user exits, current refcount = %d\n",
+-				kref_read(&request->refcount));
+-			rga_request_release_ref(request);
++	for (;;) {
++		request = NULL;
++		mutex_lock(&request_manager->lock);
++		idr_for_each_entry(&request_manager->request_idr, request,
++				   request_id) {
++			if (session == request->session &&
++			    !request->release_ref_dropped) {
++				rga_request_get(request);
++				break;
++			}
++			request = NULL;
+ 		}
+-	}
++		mutex_unlock(&request_manager->lock);
+ 
+-	mutex_unlock(&request_manager->lock);
++		if (!request)
++			break;
++
++		rga_req_err(request,
++			    "destroy when the user exits, aborting refcount = %d\n",
++			    kref_read(&request->refcount));
++		rga_request_release_abort(request, -ECANCELED, true);
++
++		mutex_lock(&request_manager->lock);
++		rga_request_put(request);
++		mutex_unlock(&request_manager->lock);
++	}
+ }
+ 
+ static int rga_request_timeout_query_state(struct rga_request *request)
+@@ -1057,6 +1213,16 @@ int rga_request_commit(struct rga_request *request)
+ {
+ 	int ret;
+ 	int i = 0;
++	unsigned long flags;
++
++	mutex_lock(&request->commit_lock);
++	spin_lock_irqsave(&request->lock, flags);
++	if (request->terminal || request->aborting) {
++		spin_unlock_irqrestore(&request->lock, flags);
++		mutex_unlock(&request->commit_lock);
++		return -ECANCELED;
++	}
++	spin_unlock_irqrestore(&request->lock, flags);
+ 
+ 	if (DEBUGGER_EN(MSG)) {
+ 		rga_req_log(request, "commit process: %s\n", request->session->pname);
+@@ -1076,13 +1242,20 @@ int rga_request_commit(struct rga_request *request)
+ 				     request, 0);
+ 		if (ret < 0) {
+ 			rga_req_err(request, "task_list job_commit failed.\n");
+-
+-			return ret;
++			goto out_unlock;
+ 		}
+ 	} else {
+ 		for (i = 0; i < request->task_count; i++) {
+ 			struct rga_req *req = &(request->task_list[i]);
+ 
++			spin_lock_irqsave(&request->lock, flags);
++			if (request->aborting) {
++				spin_unlock_irqrestore(&request->lock, flags);
++				ret = -ECANCELED;
++				goto out_unlock;
++			}
++			spin_unlock_irqrestore(&request->lock, flags);
++
+ 			if (DEBUGGER_EN(MSG)) {
+ 				rga_req_log(request, "commit task[%d]:\n", i);
+ 				rga_dump_req(request, req);
+@@ -1091,11 +1264,11 @@ int rga_request_commit(struct rga_request *request)
+ 			ret = rga_job_commit(req, 1, request, i);
+ 			if (ret < 0) {
+ 				rga_req_err(request, "task[%d] job_commit failed.\n", i);
+-
+-				return ret;
++				goto out_unlock;
+ 			}
+ 		}
+ 	}
++	mutex_unlock(&request->commit_lock);
+ 
+ 	if (request->sync_mode == RGA_BLIT_SYNC) {
+ 		ret = rga_request_wait(request);
+@@ -1104,33 +1277,35 @@ int rga_request_commit(struct rga_request *request)
+ 	}
+ 
+ 	return 0;
++
++out_unlock:
++	mutex_unlock(&request->commit_lock);
++	return ret;
+ }
+ 
+ static void rga_request_acquire_fence_work(struct work_struct *work)
+ {
+ 	int ret;
+ 	unsigned long flags;
+-	struct mm_struct *current_mm;
++	bool aborting;
+ 	struct rga_request *request = container_of(work, struct rga_request, fence_work);
+ 	struct rga_pending_request_manager *request_manager = rga_drvdata->pend_request_manager;
+ 
+-	ret = rga_request_commit(request);
+-	if (ret < 0) {
+-		rga_req_err(request, "acquire_fence callback: request commit failed!\n");
+-
+-		spin_lock_irqsave(&request->lock, flags);
+-
+-		request->is_running = false;
+-		current_mm = request->current_mm;
+-		request->current_mm = NULL;
+-
+-		spin_unlock_irqrestore(&request->lock, flags);
+-
+-		rga_request_put_current_mm(current_mm);
++	spin_lock_irqsave(&request->lock, flags);
++	aborting = request->aborting;
++	spin_unlock_irqrestore(&request->lock, flags);
+ 
+-		if (rga_dma_fence_get_status(request->release_fence) == 0)
+-			rga_dma_fence_signal(request->release_fence, ret);
++	if (!aborting) {
++		ret = rga_request_commit(request);
++		if (ret < 0) {
++			rga_req_err(request,
++				    "acquire-fence request commit failed: %d\n",
++				    ret);
++			/* Earlier tasks may already be queued/running. */
++			rga_request_release_abort(request, ret, true);
++		}
+ 	}
++	atomic_set(&request->acquire_fence_state, RGA_ACQUIRE_FENCE_NONE);
+ 
+ 	mutex_lock(&request_manager->lock);
+ 	rga_request_put(request);
+@@ -1138,14 +1313,25 @@ static void rga_request_acquire_fence_work(struct work_struct *work)
+ }
+ 
+ static void rga_request_acquire_fence_signaled_cb(struct dma_fence *fence,
+-						  struct dma_fence_cb *_waiter)
++						  struct dma_fence_cb *callback)
+ {
+-	struct rga_fence_waiter *waiter = (struct rga_fence_waiter *)_waiter;
+-	struct rga_request *request = (struct rga_request *)waiter->private;
+-
++	struct rga_request *request =
++		container_of(callback, struct rga_request, acquire_fence_cb);
++	int state;
++
++	state = atomic_cmpxchg(&request->acquire_fence_state,
++			       RGA_ACQUIRE_FENCE_ARMED,
++			       RGA_ACQUIRE_FENCE_WORK);
++	if (state == RGA_ACQUIRE_FENCE_CANCELED)
++		atomic_set(&request->acquire_fence_state,
++			   RGA_ACQUIRE_FENCE_WORK);
++	else if (WARN_ON_ONCE(state != RGA_ACQUIRE_FENCE_ARMED))
++		goto out_put_fence;
++
++	WRITE_ONCE(request->acquire_fence, NULL);
+ 	queue_work(system_highpri_wq, &request->fence_work);
+-	kfree(waiter);
+ 
++out_put_fence:
+ 	dma_fence_put(fence);
+ }
+ 
+@@ -1153,30 +1339,34 @@ int rga_request_release_signal(struct rga_scheduler_t *scheduler, struct rga_job
+ {
+ 	struct rga_pending_request_manager *request_manager;
+ 	struct rga_request *request;
+-	struct mm_struct *current_mm;
++	struct mm_struct *current_mm = NULL;
+ 	int finished_count, failed_count;
+ 	bool is_finished = false;
++	bool reusable = false;
+ 	unsigned long flags;
+ 
+ 	request_manager = rga_drvdata->pend_request_manager;
+ 	if (request_manager == NULL) {
+ 		rga_job_err(job, "rga_pending_request_manager is null!\n");
++		rga_job_cleanup(job);
+ 		return -EFAULT;
+ 	}
+ 
+-	mutex_lock(&request_manager->lock);
+-
+-	request = rga_request_lookup(request_manager, job->request_id);
+-	if (IS_ERR_OR_NULL(request)) {
+-		rga_job_err(job, "can not find internal request from id[%d]", job->request_id);
+-		mutex_unlock(&request_manager->lock);
++	request = job->request;
++	if (!request) {
++		rga_job_err(job, "request reference is missing\n");
++		rga_job_cleanup(job);
+ 		return -EINVAL;
+ 	}
+ 
+-	rga_request_get(request);
+-	mutex_unlock(&request_manager->lock);
+-
+ 	spin_lock_irqsave(&request->lock, flags);
++	/* Cancel won the race after rga_job_done(); it owns final signaling. */
++	if (request->aborting || request->is_done) {
++		spin_unlock_irqrestore(&request->lock, flags);
++		rga_job_cleanup(job);
++		return 0;
++	}
++
+ 	/* Publish the hardware OSD result while the request is still pinned. */
+ 	if (request->task_list &&
+ 	    job->task_start <= (size_t)request->task_count &&
+@@ -1205,43 +1395,35 @@ int rga_request_release_signal(struct rga_scheduler_t *scheduler, struct rga_job
+ 
+ 	failed_count = request->failed_task_count;
+ 	finished_count = request->finished_task_count;
+-
+-	spin_unlock_irqrestore(&request->lock, flags);
+-
+ 	if ((failed_count + finished_count) >= request->task_count) {
+-		spin_lock_irqsave(&request->lock, flags);
+-
+ 		request->is_running = false;
+ 		request->is_done = true;
++		if (!request->reusable)
++			request->terminal = true;
+ 		current_mm = request->current_mm;
+ 		request->current_mm = NULL;
+-
+-		spin_unlock_irqrestore(&request->lock, flags);
+-
+-		rga_request_put_current_mm(current_mm);
+-
+-		rga_dma_fence_signal(request->release_fence, request->ret);
+-
++		reusable = request->reusable;
+ 		is_finished = true;
+ 		job->timestamp.done = ktime_get();
+-
+-		if (DEBUGGER_EN(MSG))
+-			rga_job_log(job, "finished %d failed %d\n", finished_count, failed_count);
+-
+-		/* Retire the request's initial reference (idempotent). */
+-		mutex_lock(&request_manager->lock);
+-		rga_request_release_ref(request);
+-		mutex_unlock(&request_manager->lock);
+ 	}
++	spin_unlock_irqrestore(&request->lock, flags);
+ 
+-	mutex_lock(&request_manager->lock);
+-
+-	if (is_finished)
++	if (is_finished) {
++		rga_request_put_current_mm(current_mm);
++		rga_dma_fence_signal(request->release_fence, request->ret);
+ 		wake_up(&request->finished_wq);
+ 
+-	rga_request_put(request);
++		if (DEBUGGER_EN(MSG))
++			rga_job_log(job, "finished %d failed %d\n",
++				    finished_count, failed_count);
+ 
+-	mutex_unlock(&request_manager->lock);
++		/* Reusable MPI contexts retain their explicit IDR ownership. */
++		if (!reusable) {
++			mutex_lock(&request_manager->lock);
++			rga_request_release_ref(request);
++			mutex_unlock(&request_manager->lock);
++		}
++	}
+ 
+ 	if (DEBUGGER_EN(TIME)) {
+ 		rga_job_log(job,
+@@ -1260,8 +1442,9 @@ int rga_request_release_signal(struct rga_scheduler_t *scheduler, struct rga_job
+ 	return 0;
+ }
+ 
+-struct rga_request *rga_request_config(struct rga_user_request *user_request,
+-				       struct rga_session *session)
++struct rga_request *
++rga_request_config_locked(struct rga_user_request *user_request,
++			  struct rga_session *session)
+ {
+ 	int ret;
+ 	unsigned long flags;
+@@ -1298,6 +1481,10 @@ struct rga_request *rga_request_config(struct rga_user_request *user_request,
+ 		mutex_unlock(&request_manager->lock);
+ 		return ERR_PTR(-EPERM);
+ 	}
++	if (request->release_ref_dropped) {
++		mutex_unlock(&request_manager->lock);
++		return ERR_PTR(-ENOENT);
++	}
+ 
+ 	rga_request_get(request);
+ 	mutex_unlock(&request_manager->lock);
+@@ -1322,10 +1509,14 @@ struct rga_request *rga_request_config(struct rga_user_request *user_request,
+ 		goto err_free_task_list;
+ 	}
+ 
++	mutex_lock(&request->run_lock);
++	mutex_lock(&request->commit_lock);
+ 	spin_lock_irqsave(&request->lock, flags);
+ 
+-	if (request->is_running) {
++	if (request->terminal || request->is_running || request->aborting) {
+ 		spin_unlock_irqrestore(&request->lock, flags);
++		mutex_unlock(&request->commit_lock);
++		mutex_unlock(&request->run_lock);
+ 		ret = -EBUSY;
+ 		goto err_free_task_list;
+ 	}
+@@ -1341,6 +1532,7 @@ struct rga_request *rga_request_config(struct rga_user_request *user_request,
+ 	spin_unlock_irqrestore(&request->lock, flags);
+ 	kfree(old_task_list);
+ 
++		/* The caller atomically follows with submit, or explicitly unlocks. */
+ 	return request;
+ 
+ err_free_task_list:
+@@ -1353,12 +1545,14 @@ struct rga_request *rga_request_config(struct rga_user_request *user_request,
+ 	return ERR_PTR(ret);
+ }
+ 
+-struct rga_request *rga_request_kernel_config(struct rga_user_request *user_request)
++struct rga_request *
++rga_request_kernel_config_locked(struct rga_user_request *user_request)
+ {
+ 	int ret = 0;
+ 	unsigned long flags;
+ 	struct rga_pending_request_manager *request_manager;
+ 	struct rga_request *request;
++	struct rga_req *old_task_list;
+ 	struct rga_req *task_list;
+ 
+ 	request_manager = rga_drvdata->pend_request_manager;
+@@ -1375,6 +1569,10 @@ struct rga_request *rga_request_kernel_config(struct rga_user_request *user_requ
+ 		mutex_unlock(&request_manager->lock);
+ 		return ERR_PTR(-EINVAL);
+ 	}
++	if (request->release_ref_dropped) {
++		mutex_unlock(&request_manager->lock);
++		return ERR_PTR(-ENOENT);
++	}
+ 
+ 	rga_request_get(request);
+ 	mutex_unlock(&request_manager->lock);
+@@ -1389,8 +1587,18 @@ struct rga_request *rga_request_kernel_config(struct rga_user_request *user_requ
+ 	memcpy(task_list, u64_to_user_ptr(user_request->task_ptr),
+ 	       sizeof(struct rga_req) * user_request->task_num);
+ 
++	mutex_lock(&request->run_lock);
++	mutex_lock(&request->commit_lock);
+ 	spin_lock_irqsave(&request->lock, flags);
++	if (request->terminal || request->is_running || request->aborting) {
++		spin_unlock_irqrestore(&request->lock, flags);
++		mutex_unlock(&request->commit_lock);
++		mutex_unlock(&request->run_lock);
++		ret = -EBUSY;
++		goto err_free_task_list;
++	}
+ 
++	old_task_list = request->task_list;
+ 	request->task_list = task_list;
+ 	request->task_count = user_request->task_num;
+ 	request->sync_mode = user_request->sync_mode;
+@@ -1398,9 +1606,13 @@ struct rga_request *rga_request_kernel_config(struct rga_user_request *user_requ
+ 	request->acquire_fence_fd = user_request->acquire_fence_fd;
+ 
+ 	spin_unlock_irqrestore(&request->lock, flags);
++	kfree(old_task_list);
+ 
++	/* The caller atomically follows with submit. */
+ 	return request;
+ 
++err_free_task_list:
++	kfree(task_list);
+ err_put_request:
+ 	mutex_lock(&request_manager->lock);
+ 	rga_request_put(request);
+@@ -1409,17 +1621,20 @@ struct rga_request *rga_request_kernel_config(struct rga_user_request *user_requ
+ 	return ERR_PTR(ret);
+ }
+ 
+-int rga_request_submit(struct rga_request *request)
++int rga_request_submit_locked(struct rga_request *request)
+ {
+ 	int ret = 0;
+ 	unsigned long flags;
+ 	struct dma_fence *release_fence;
+-	struct mm_struct *current_mm;
++	struct mm_struct *current_mm = NULL;
+ 
++	lockdep_assert_held(&request->commit_lock);
++	lockdep_assert_held(&request->run_lock);
+ 	spin_lock_irqsave(&request->lock, flags);
+ 
+-	if (request->is_running) {
++	if (request->terminal || request->is_running || request->aborting) {
+ 		spin_unlock_irqrestore(&request->lock, flags);
++		mutex_unlock(&request->commit_lock);
+ 
+ 		rga_req_err(request, "can not re-config when request is running\n");
+ 		ret = -EFAULT;
+@@ -1428,6 +1643,7 @@ int rga_request_submit(struct rga_request *request)
+ 
+ 	if (request->task_list == NULL) {
+ 		spin_unlock_irqrestore(&request->lock, flags);
++		mutex_unlock(&request->commit_lock);
+ 
+ 		rga_req_err(request, "can not find task list\n");
+ 		ret = -EINVAL;
+@@ -1435,6 +1651,7 @@ int rga_request_submit(struct rga_request *request)
+ 	}
+ 
+ 	/* Reset */
++	request->reusable = false;
+ 	request->is_running = true;
+ 	request->is_done = false;
+ 	request->finished_task_count = 0;
+@@ -1443,6 +1660,7 @@ int rga_request_submit(struct rga_request *request)
+ 
+ 	/* Unlock after ensuring that the current request will not be resubmitted. */
+ 	spin_unlock_irqrestore(&request->lock, flags);
++	mutex_unlock(&request->commit_lock);
+ 
+ 	if (request->sync_mode == RGA_BLIT_ASYNC) {
+ 		release_fence = rga_dma_fence_alloc();
+@@ -1452,11 +1670,21 @@ int rga_request_submit(struct rga_request *request)
+ 			goto err_abort_request;
+ 		}
+ 
+-		request->current_mm = rga_request_get_current_mm(request);
++		current_mm = rga_request_get_current_mm(request);
++		spin_lock_irqsave(&request->lock, flags);
++		if (request->aborting || request->is_done) {
++			spin_unlock_irqrestore(&request->lock, flags);
++			rga_request_put_current_mm(current_mm);
++			rga_dma_fence_put(release_fence);
++			ret = -ECANCELED;
++			goto err_abort_request;
++		}
++		request->current_mm = current_mm;
+ 		request->release_fence = release_fence;
++		spin_unlock_irqrestore(&request->lock, flags);
++		current_mm = NULL;
+ 
+ 		if (request->acquire_fence_fd > 0) {
+-			INIT_WORK(&request->fence_work, rga_request_acquire_fence_work);
+ 			ret = rga_request_add_acquire_fence_callback(
+ 				request->acquire_fence_fd, request,
+ 				rga_request_acquire_fence_signaled_cb);
+@@ -1470,14 +1698,22 @@ int rga_request_submit(struct rga_request *request)
+ 				rga_req_err(request, "Failed to add callback with acquire fence fd[%d]!, ret = %d\n",
+ 					request->acquire_fence_fd, ret);
+ 
+-				rga_dma_fence_put(request->release_fence);
+-				request->release_fence = NULL;
+ 				goto err_put_current_mm;
+ 			}
+ 		}
+ 	} else {
+-		request->current_mm = rga_request_get_current_mm(request);
++		current_mm = rga_request_get_current_mm(request);
++		spin_lock_irqsave(&request->lock, flags);
++		if (request->aborting || request->is_done) {
++			spin_unlock_irqrestore(&request->lock, flags);
++			rga_request_put_current_mm(current_mm);
++			ret = -ECANCELED;
++			goto err_abort_request;
++		}
++		request->current_mm = current_mm;
+ 		request->release_fence = NULL;
++		spin_unlock_irqrestore(&request->lock, flags);
++		current_mm = NULL;
+ 	}
+ 
+ request_commit:
+@@ -1514,7 +1750,7 @@ int rga_request_submit(struct rga_request *request)
+ 	rga_request_put_current_mm(current_mm);
+ 
+ err_abort_request:
+-	rga_request_release_abort(request, ret);
++	rga_request_release_abort(request, ret, true);
+ 
+ 	return ret;
+ }
+@@ -1523,33 +1759,38 @@ int rga_request_mpi_submit(struct rga_req *req, struct rga_request *request)
+ {
+ 	int ret = 0;
+ 	unsigned long flags;
+-	struct rga_pending_request_manager *request_manager;
+ 
+-	request_manager = rga_drvdata->pend_request_manager;
++	lockdep_assert_held(&request->commit_lock);
++	lockdep_assert_held(&request->run_lock);
++	spin_lock_irqsave(&request->lock, flags);
++	request->reusable = true;
++	spin_unlock_irqrestore(&request->lock, flags);
+ 
+ 	if (request->sync_mode == RGA_BLIT_ASYNC) {
+ 		rga_req_err(request, "mpi unsupported async mode!\n");
+ 		ret = -EINVAL;
+-		goto err_abort_request;
++		goto err_unlock_abort;
+ 	}
+ 
+ 	spin_lock_irqsave(&request->lock, flags);
+ 
+-	if (request->is_running) {
++	if (request->terminal || request->is_running ||
++	    (request->aborting && (!request->reusable || !request->is_done))) {
+ 		rga_req_err(request, "can not re-config when request is running");
+ 		spin_unlock_irqrestore(&request->lock, flags);
+ 		ret = -EFAULT;
+-		goto err_abort_request;
++		goto err_unlock_abort;
+ 	}
+ 
+ 	if (request->task_list == NULL) {
+ 		rga_req_err(request, "can not find task list");
+ 		spin_unlock_irqrestore(&request->lock, flags);
+ 		ret = -EINVAL;
+-		goto err_abort_request;
++		goto err_unlock_abort;
+ 	}
+ 
+ 	/* Reset */
++	request->aborting = false;
+ 	request->is_running = true;
+ 	request->is_done = false;
+ 	request->finished_task_count = 0;
+@@ -1558,19 +1799,12 @@ int rga_request_mpi_submit(struct rga_req *req, struct rga_request *request)
+ 
+ 	spin_unlock_irqrestore(&request->lock, flags);
+ 
+-	/*
+-	 * The mpi submit will use the request repeatedly, so an additional
+-	 * get() is added here.
+-	 */
+-	mutex_lock(&request_manager->lock);
+-	rga_request_get(request);
+-	mutex_unlock(&request_manager->lock);
+-
+ 	ret = rga_job_commit(req, 1, request, 0);
+ 	if (ret < 0) {
+ 		rga_req_err(request, "failed to commit job!\n");
+-		goto err_abort_request;
++		goto err_unlock_abort;
+ 	}
++	mutex_unlock(&request->commit_lock);
+ 
+ 	ret = rga_request_wait(request);
+ 	if (ret < 0)
+@@ -1578,8 +1812,11 @@ int rga_request_mpi_submit(struct rga_req *req, struct rga_request *request)
+ 
+ 	return 0;
+ 
++err_unlock_abort:
++	mutex_unlock(&request->commit_lock);
+ err_abort_request:
+-	rga_request_release_abort(request, ret);
++	/* A failed run does not retire the reusable MPI context. */
++	rga_request_release_abort(request, ret, false);
+ 
+ 	return ret;
+ }
+@@ -1627,33 +1864,27 @@ static void rga_request_kref_release(struct kref *ref)
+ 	struct rga_request *request;
+ 	struct mm_struct *current_mm;
+ 	unsigned long flags;
++	bool need_abort;
+ 
+ 	request = container_of(ref, struct rga_request, refcount);
+ 
+-	if (rga_dma_fence_get_status(request->release_fence) == 0)
+-		rga_dma_fence_signal(request->release_fence, -EFAULT);
+-
+ 	spin_lock_irqsave(&request->lock, flags);
+ 
+-	rga_dma_fence_put(request->release_fence);
+ 	current_mm = request->current_mm;
+ 	request->current_mm = NULL;
+-
+-	if (!request->is_running || request->is_done) {
+-		spin_unlock_irqrestore(&request->lock, flags);
+-
+-		rga_request_put_current_mm(current_mm);
+-
+-		goto free_request;
+-	}
++	need_abort = request->is_running && !request->is_done;
+ 
+ 	spin_unlock_irqrestore(&request->lock, flags);
+ 
++	/* Every published job and acquire callback now holds its own kref. */
++	WARN_ON_ONCE(need_abort);
++
+ 	rga_request_put_current_mm(current_mm);
+ 
+-	rga_request_scheduler_job_abort(request);
++	if (rga_dma_fence_get_status(request->release_fence) == 0)
++		rga_dma_fence_signal(request->release_fence, -EFAULT);
++	rga_dma_fence_put(request->release_fence);
+ 
+-free_request:
+ 	rga_request_free(request);
+ }
+ 
+@@ -1684,7 +1915,11 @@ int rga_request_alloc(uint32_t flags, struct rga_session *session)
+ 	}
+ 
+ 	spin_lock_init(&request->lock);
++	mutex_init(&request->commit_lock);
++	mutex_init(&request->run_lock);
+ 	init_waitqueue_head(&request->finished_wq);
++	INIT_WORK(&request->fence_work, rga_request_acquire_fence_work);
++	atomic_set(&request->acquire_fence_state, RGA_ACQUIRE_FENCE_NONE);
+ 
+ 	request->pid = current->pid;
+ 	request->flags = flags;
+diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
+index 15834b04c5938..16ba3bf69e4af 100644
+--- a/drivers/video/rockchip/rga3/rga_mm.c
++++ b/drivers/video/rockchip/rga3/rga_mm.c
+@@ -29,7 +29,9 @@
+  * must be 16-byte aligned to read/write the intended bytes.
+  */
+ #define RGA_IOMMU_ADDR_ALIGN 16
+-#define RGA2_STAGE_MAX_SIZE SZ_64M
++#define RGA2_STAGE_MAX_SIZE		SZ_64M
++#define RGA2_STAGE_SESSION_MAX_SIZE	SZ_128M
++#define RGA2_STAGE_GLOBAL_MAX_SIZE	SZ_256M
+ 
+ struct rga_rga2_stage {
+ 	struct list_head node;
+@@ -39,9 +41,11 @@ struct rga_rga2_stage {
+ 	void *vaddr;
+ 	struct sg_table *sgt;
+ 	struct rga_dma_buffer mapping;
++	struct rga_session *session;
+ 	size_t size;
+ 	unsigned int users;
+ 	bool copy_back;
++	bool budget_charged;
+ };
+ 
+ static atomic64_t rga2_stage_attempt_count = ATOMIC64_INIT(0);
+@@ -70,7 +74,11 @@ static void rga2_stage_update_peak(s64 active_bytes)
+ 
+ void rga_mm_rga2_stage_show(struct seq_file *m)
+ {
+-	seq_printf(m, "max_bytes: %u\n", RGA2_STAGE_MAX_SIZE);
++	seq_printf(m, "job_max_bytes: %u\n", RGA2_STAGE_MAX_SIZE);
++	seq_printf(m, "session_max_bytes: %u\n",
++		   RGA2_STAGE_SESSION_MAX_SIZE);
++	seq_printf(m, "global_max_bytes: %u\n",
++		   RGA2_STAGE_GLOBAL_MAX_SIZE);
+ 	seq_printf(m, "attempt_count: %lld\n",
+ 		   atomic64_read(&rga2_stage_attempt_count));
+ 	seq_printf(m, "success_count: %lld\n",
+@@ -1340,7 +1348,7 @@ static void rga_mm_kref_release_buffer(struct kref *ref)
+ 	mm->buffer_count--;
+ 	mutex_unlock(&mm->lock);
+ 
+-
++	WARN_ON_ONCE(!list_empty(&internal_buffer->import_list));
+ 	rga_mm_unmap_buffer(internal_buffer);
+ 	kfree(internal_buffer);
+ 
+@@ -1351,11 +1359,16 @@ static void rga_mm_kref_release_buffer(struct kref *ref)
+ static void rga_mm_force_releaser_buffer(struct rga_internal_buffer *buffer)
+ {
+ 	struct rga_mm *mm = rga_drvdata->mm;
++	struct rga_buffer_import *import, *next;
+ 
+ 	WARN_ON(!mutex_is_locked(&mm->lock));
+ 
+ 	idr_remove(&mm->memory_idr, buffer->handle);
+ 	mm->buffer_count--;
++	list_for_each_entry_safe(import, next, &buffer->import_list, node) {
++		list_del(&import->node);
++		kfree(import);
++	}
+ 
+ 	rga_mm_unmap_buffer(buffer);
+ 	kfree(buffer);
+@@ -1473,6 +1486,46 @@ rga_mm_lookup_external(struct rga_mm *mm_session,
+ 	return output_buffer;
+ }
+ 
++/* Compare a completed mapping without resolving a userspace fd a second time. */
++static struct rga_internal_buffer *
++rga_mm_lookup_mapped(struct rga_mm *mm, struct rga_internal_buffer *mapped)
++{
++	struct rga_internal_buffer *buffer;
++	int id;
++
++	WARN_ON(!mutex_is_locked(&mm->lock));
++
++	idr_for_each_entry(&mm->memory_idr, buffer, id) {
++		switch (mapped->type) {
++		case RGA_DMA_BUFFER:
++		case RGA_DMA_BUFFER_PTR:
++			if ((buffer->type == RGA_DMA_BUFFER ||
++			     buffer->type == RGA_DMA_BUFFER_PTR) &&
++			    buffer->dma_buffer && mapped->dma_buffer &&
++			    buffer->dma_buffer->dma_buf ==
++				mapped->dma_buffer->dma_buf)
++				return buffer;
++			break;
++		case RGA_VIRTUAL_ADDRESS:
++			if (buffer->type == RGA_VIRTUAL_ADDRESS &&
++			    buffer->virt_addr && mapped->virt_addr &&
++			    buffer->current_mm == mapped->current_mm &&
++			    buffer->virt_addr->addr == mapped->virt_addr->addr)
++				return buffer;
++			break;
++		case RGA_PHYSICAL_ADDRESS:
++			if (buffer->type == RGA_PHYSICAL_ADDRESS &&
++			    buffer->phys_addr == mapped->phys_addr)
++				return buffer;
++			break;
++		default:
++			return NULL;
++		}
++	}
++
++	return NULL;
++}
++
+ struct rga_internal_buffer *rga_mm_lookup_handle(struct rga_mm *mm_session, uint32_t handle)
+ {
+ 	struct rga_internal_buffer *output_buffer;
+@@ -1484,6 +1537,70 @@ struct rga_internal_buffer *rga_mm_lookup_handle(struct rga_mm *mm_session, uint
+ 	return output_buffer;
+ }
+ 
++static struct rga_buffer_import *
++rga_mm_lookup_import(struct rga_internal_buffer *buffer,
++		     struct rga_session *session)
++{
++	struct rga_buffer_import *import;
++
++	list_for_each_entry(import, &buffer->import_list, node)
++		if (import->session == session)
++			return import;
++
++	return NULL;
++}
++
++static bool rga_mm_handle_authorized(struct rga_internal_buffer *buffer,
++				     struct rga_session *session)
++{
++	return session && rga_mm_lookup_import(buffer, session);
++}
++
++static int rga_mm_record_import(struct rga_internal_buffer *buffer,
++				struct rga_session *session, bool take_ref)
++{
++	struct rga_buffer_import *import;
++
++	if (!session)
++		return -EINVAL;
++
++	import = rga_mm_lookup_import(buffer, session);
++	if (import) {
++		if (import->count == UINT_MAX)
++			return -EOVERFLOW;
++		import->count++;
++	} else {
++		import = kzalloc(sizeof(*import), GFP_KERNEL);
++		if (!import)
++			return -ENOMEM;
++
++		import->session = session;
++		import->count = 1;
++		list_add_tail(&import->node, &buffer->import_list);
++		if (!buffer->session)
++			buffer->session = session;
++	}
++
++	if (take_ref)
++		kref_get(&buffer->refcount);
++
++	return 0;
++}
++
++static void rga_mm_refresh_diagnostic_owner(struct rga_internal_buffer *buffer)
++{
++	struct rga_buffer_import *import;
++
++	if (list_empty(&buffer->import_list)) {
++		buffer->session = NULL;
++		return;
++	}
++
++	import = list_first_entry(&buffer->import_list,
++				  struct rga_buffer_import, node);
++	buffer->session = import->session;
++}
++
+ int rga_mm_lookup_flag(struct rga_mm *mm_session, uint64_t handle)
+ {
+ 	struct rga_internal_buffer *output_buffer;
+@@ -1497,7 +1614,8 @@ int rga_mm_lookup_flag(struct rga_mm *mm_session, uint64_t handle)
+ 	return output_buffer->mm_flag;
+ }
+ 
+-int rga_mm_lookup_rga2_support(struct rga_mm *mm_session, uint64_t handle)
++int rga_mm_lookup_rga2_support(struct rga_mm *mm_session, uint64_t handle,
++			       struct rga_session *session)
+ {
+ 	struct rga_internal_buffer *buffer;
+ 
+@@ -1506,6 +1624,11 @@ int rga_mm_lookup_rga2_support(struct rga_mm *mm_session, uint64_t handle)
+ 		rga_err("This handle[%ld] is illegal.\n", (unsigned long)handle);
+ 		return -EINVAL;
+ 	}
++	if (!rga_mm_handle_authorized(buffer, session)) {
++		rga_err("This session did not import handle[%ld].\n",
++			(unsigned long)handle);
++		return -EPERM;
++	}
+ 
+ 	if (buffer->mm_flag & RGA_MEM_UNDER_4G)
+ 		return RGA2_BUFFER_DIRECT;
+@@ -1899,10 +2022,58 @@ static int rga2_stage_copy_to_origin(struct rga_rga2_stage *stage)
+ 	return ret;
+ }
+ 
++static int rga2_stage_reserve(atomic64_t *counter, size_t size, s64 limit)
++{
++	s64 old = atomic64_read(counter);
++
++	for (;;) {
++		if (old < 0 || size > limit - old)
++			return -EDQUOT;
++		if (atomic64_try_cmpxchg(counter, &old, old + size))
++			return 0;
++	}
++}
++
++static int rga2_stage_charge(struct rga_rga2_stage *stage,
++			     struct rga_session *session)
++{
++	int ret;
++
++	ret = rga2_stage_reserve(&session->rga2_stage_active_bytes,
++				 stage->size, RGA2_STAGE_SESSION_MAX_SIZE);
++	if (ret)
++		return ret;
++
++	ret = rga2_stage_reserve(&rga2_stage_active_bytes, stage->size,
++				 RGA2_STAGE_GLOBAL_MAX_SIZE);
++	if (ret) {
++		atomic64_sub(stage->size, &session->rga2_stage_active_bytes);
++		return ret;
++	}
++
++	stage->session = session;
++	stage->budget_charged = true;
++	rga2_stage_update_peak(atomic64_read(&rga2_stage_active_bytes));
++
++	return 0;
++}
++
++static void rga2_stage_uncharge(struct rga_rga2_stage *stage)
++{
++	if (!stage->budget_charged)
++		return;
++
++	atomic64_sub(stage->size, &rga2_stage_active_bytes);
++	atomic64_sub(stage->size, &stage->session->rga2_stage_active_bytes);
++	stage->budget_charged = false;
++}
++
+ static void rga2_stage_free(struct rga_rga2_stage *stage)
+ {
+ 	unsigned int i;
+ 
++	rga2_stage_uncharge(stage);
++
+ 	if (stage->mapping.map_dev)
+ 		rga_dma_unmap_sgt(&stage->mapping);
+ 	if (stage->sgt)
+@@ -1925,7 +2096,6 @@ rga2_stage_get(struct rga_job *job, struct rga_internal_buffer *buffer)
+ {
+ 	struct rga_rga2_stage *stage;
+ 	struct dma_buf *origin;
+-	s64 active_bytes;
+ 	size_t staged_bytes = 0;
+ 	unsigned int i;
+ 	int ret;
+@@ -1964,6 +2134,10 @@ rga2_stage_get(struct rga_job *job, struct rga_internal_buffer *buffer)
+ 	stage->origin = origin;
+ 	get_dma_buf(origin);
+ 	stage->size = origin->size;
++	ret = rga2_stage_charge(stage, job->session);
++	if (ret)
++		goto err_free;
++
+ 	stage->page_count = DIV_ROUND_UP(stage->size, PAGE_SIZE);
+ 	stage->pages = kvcalloc(stage->page_count, sizeof(*stage->pages),
+ 				GFP_KERNEL);
+@@ -2011,9 +2185,6 @@ rga2_stage_get(struct rga_job *job, struct rga_internal_buffer *buffer)
+ 	list_add_tail(&stage->node, &job->rga2_stage_list);
+ 	atomic64_inc(&rga2_stage_success_count);
+ 	atomic64_inc(&rga2_stage_active_count);
+-	active_bytes = atomic64_add_return(stage->size,
+-					   &rga2_stage_active_bytes);
+-	rga2_stage_update_peak(active_bytes);
+ 
+ 	return stage;
+ 
+@@ -2057,7 +2228,6 @@ static void rga2_stage_put(struct rga_job *job,
+ 	}
+ 
+ 	atomic64_dec(&rga2_stage_active_count);
+-	atomic64_sub(stage->size, &rga2_stage_active_bytes);
+ 	rga2_stage_free(stage);
+ }
+ 
+@@ -2135,6 +2305,17 @@ static struct sg_table *rga_mm_get_rga2_sgt(struct rga_job *job,
+ 	if (buffer == NULL)
+ 		return NULL;
+ 
++	/*
++	 * High DMA-BUFs always use the job-shared stage. A successful SWIOTLB
++	 * mapping is still private to one channel, so aliases in a sequential
++	 * job would otherwise operate on independent snapshots and copy back
++	 * stale data in unmap order.
++	 */
++	if (!(buffer->mm_flag & RGA_MEM_UNDER_4G) &&
++	    (buffer->type == RGA_DMA_BUFFER ||
++	     buffer->type == RGA_DMA_BUFFER_PTR))
++		goto stage_dma_buf;
++
+ 	if (rga_mm_buffer_uses_dma_address(job, buffer)) {
+ 		*use_dma_address = true;
+ 		return rga_mm_lookup_sgt(buffer);
+@@ -2142,11 +2323,6 @@ static struct sg_table *rga_mm_get_rga2_sgt(struct rga_job *job,
+ 
+ 	if (buffer->mm_flag & RGA_MEM_UNDER_4G)
+ 		return rga_mm_lookup_sgt(buffer);
+-	if ((buffer->type == RGA_DMA_BUFFER ||
+-	     buffer->type == RGA_DMA_BUFFER_PTR) &&
+-	    READ_ONCE(buffer->rga2_dma_incompatible))
+-		goto stage_dma_buf;
+-
+ 	if (job_buf->rga2_bounce_count >= ARRAY_SIZE(job_buf->rga2_bounce))
+ 		return ERR_PTR(-EOPNOTSUPP);
+ 
+@@ -2208,12 +2384,6 @@ static struct sg_table *rga_mm_get_rga2_sgt(struct rga_job *job,
+ 
+ 	if (ret < 0) {
+ 		kfree(bounce);
+-		if (ret == -EIO &&
+-		    (buffer->type == RGA_DMA_BUFFER ||
+-		     buffer->type == RGA_DMA_BUFFER_PTR)) {
+-			WRITE_ONCE(buffer->rga2_dma_incompatible, true);
+-			goto stage_dma_buf;
+-		}
+ 		rga_job_err(job,
+ 			    "RGA2: can not map over-4G buffer below 4G (%d); use below-4G (e.g. CMA/DMA32) buffers\n",
+ 			    ret);
+@@ -2687,6 +2857,14 @@ static int rga_mm_get_buffer(struct rga_mm *mm,
+ 		mutex_unlock(&mm->lock);
+ 		return -EFAULT;
+ 	}
++	if (!rga_mm_handle_authorized(*buf, job->session)) {
++		rga_job_err(job,
++			    "session did not import handle[%ld]\n",
++			    (unsigned long)handle);
++		*buf = NULL;
++		mutex_unlock(&mm->lock);
++		return -EPERM;
++	}
+ 
+ 	internal_buffer = *buf;
+ 	kref_get(&internal_buffer->refcount);
+@@ -3609,6 +3787,8 @@ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
+ 	int ret = 0, new_id;
+ 	struct rga_mm *mm;
+ 	struct rga_internal_buffer *internal_buffer;
++	struct rga_internal_buffer *existing;
++	u32 handle;
+ 	ktime_t timestamp = ktime_get();
+ 
+ 	mm = rga_drvdata->mm;
+@@ -3621,36 +3801,26 @@ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
+ 
+ 	/* first, Check whether to rga_mm */
+ 	internal_buffer = rga_mm_lookup_external(mm, external_buffer, current->mm);
+-	if (!IS_ERR_OR_NULL(internal_buffer)) {
+-		kref_get(&internal_buffer->refcount);
+-		/*
+-		 * Adopt an orphaned buffer. rga_mm_release_buffer() clears the
+-		 * owner when the last import reference goes away, so a buffer
+-		 * that a job still referenced could otherwise sit unowned and be
+-		 * skipped by every session-teardown walk.
+-		 */
+-		if (!internal_buffer->session)
+-			internal_buffer->session = session;
+-
+-		/*
+-		 * import_cnt is what the *owner* took, and is spent as such at
+-		 * session teardown. Lookup is global -- another session, or a
+-		 * second fd in this one, can de-dup onto this buffer -- so
+-		 * counting a foreign import here would make the owner's close
+-		 * hand back references it never held, freeing the buffer under
+-		 * the other session's handle or its running job.
+-		 */
+-		if (internal_buffer->session == session)
+-			internal_buffer->import_cnt++;
+-
++	if (IS_ERR(internal_buffer)) {
++		ret = PTR_ERR(internal_buffer);
+ 		mutex_unlock(&mm->lock);
++		return ret;
++	}
++	if (internal_buffer) {
++		ret = rga_mm_record_import(internal_buffer, session, true);
++		if (ret) {
++			mutex_unlock(&mm->lock);
++			return ret;
++		}
++		handle = internal_buffer->handle;
+ 
+ 		if (DEBUGGER_EN(MM)) {
+ 			rga_buf_log(internal_buffer, "import existing buffer:\n");
+ 			rga_mm_dump_buffer(internal_buffer);
+ 		}
++		mutex_unlock(&mm->lock);
+ 
+-		return internal_buffer->handle;
++		return handle;
+ 	}
+ 
+ 	mutex_unlock(&mm->lock);
+@@ -3662,15 +3832,33 @@ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
+ 		return -ENOMEM;
+ 	}
+ 
++	INIT_LIST_HEAD(&internal_buffer->import_list);
+ 	ret = rga_mm_map_buffer(external_buffer, internal_buffer, NULL, true);
+ 	if (ret < 0)
+ 		goto FREE_INTERNAL_BUFFER;
+ 
+ 	kref_init(&internal_buffer->refcount);
+-	internal_buffer->session = session;
+-	internal_buffer->import_cnt = 1;
+ 
+ 	mutex_lock(&mm->lock);
++	/* Another importer may have published this object while mapping slept. */
++	existing = rga_mm_lookup_mapped(mm, internal_buffer);
++	if (existing) {
++		ret = rga_mm_record_import(existing, session, true);
++		handle = existing->handle;
++		mutex_unlock(&mm->lock);
++		rga_mm_unmap_buffer(internal_buffer);
++		kfree(internal_buffer);
++		if (ret)
++			return ret;
++		return handle;
++	}
++
++	ret = rga_mm_record_import(internal_buffer, session, false);
++	if (ret) {
++		mutex_unlock(&mm->lock);
++		goto UNMAP_INTERNAL_BUFFER;
++	}
++
+ 	/*
+ 	 * Get the user-visible handle using idr. Preload and perform
+ 	 * allocation under our spinlock.
+@@ -3682,26 +3870,36 @@ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
+ 		rga_err("internal_buffer alloc id failed!\n");
+ 		ret = new_id;
+ 
++		while (!list_empty(&internal_buffer->import_list)) {
++			struct rga_buffer_import *import;
++
++			import = list_first_entry(&internal_buffer->import_list,
++						  struct rga_buffer_import, node);
++			list_del(&import->node);
++			kfree(import);
++		}
+ 		mutex_unlock(&mm->lock);
+-		goto FREE_INTERNAL_BUFFER;
++		goto UNMAP_INTERNAL_BUFFER;
+ 	}
+ 
+ 	internal_buffer->handle = new_id;
++	handle = new_id;
+ 	mm->buffer_count++;
+ 
+ 	if (DEBUGGER_EN(MM)) {
+ 		rga_buf_log(internal_buffer, "import buffer:\n");
+ 		rga_mm_dump_buffer(internal_buffer);
+ 	}
+-
+-	mutex_unlock(&mm->lock);
+-
+ 	if (DEBUGGER_EN(TIME))
+ 		rga_buf_log(internal_buffer, "import buffer cost %lld us\n",
+ 			ktime_us_delta(ktime_get(), timestamp));
+ 
+-	return internal_buffer->handle;
++	mutex_unlock(&mm->lock);
++
++	return handle;
+ 
++UNMAP_INTERNAL_BUFFER:
++	rga_mm_unmap_buffer(internal_buffer);
+ FREE_INTERNAL_BUFFER:
+ 	kfree(internal_buffer);
+ 
+@@ -3712,6 +3910,7 @@ int rga_mm_release_buffer(uint32_t handle, struct rga_session *session)
+ {
+ 	struct rga_mm *mm;
+ 	struct rga_internal_buffer *internal_buffer;
++	struct rga_buffer_import *import;
+ 	ktime_t timestamp = ktime_get();
+ 
+ 	mm = rga_drvdata->mm;
+@@ -3731,14 +3930,9 @@ int rga_mm_release_buffer(uint32_t handle, struct rga_session *session)
+ 		return -ENOENT;
+ 	}
+ 
+-	/*
+-	 * Handles are a single global idr, so without this any /dev/rga opener
+-	 * could release a handle another session imported -- the same
+-	 * unauthenticated-put shape as MPP_CMD_RELEASE_FD. In-kernel callers
+-	 * pass NULL and keep the old unchecked behaviour.
+-	 */
+-	if (session && internal_buffer->session != session) {
+-		rga_err("handle[%d] does not belong to this session\n",
++	import = rga_mm_lookup_import(internal_buffer, session);
++	if (!import) {
++		rga_err("handle[%d] was not imported by this session\n",
+ 			(int)handle);
+ 
+ 		mutex_unlock(&mm->lock);
+@@ -3750,27 +3944,11 @@ int rga_mm_release_buffer(uint32_t handle, struct rga_session *session)
+ 		rga_mm_dump_buffer(internal_buffer);
+ 	}
+ 
+-	/*
+-	 * Surrender one import reference. Ownership is dropped only when the
+-	 * last one goes, which matters in both directions:
+-	 *
+-	 * Clearing it at all is what stops rga_mm_session_release_buffer()
+-	 * treating a refcount of 1 on a buffer it still owns as "the last
+-	 * reference is mine" and freeing it in place -- handles are global, so
+-	 * a session could import, hand the handle to a job in another session,
+-	 * release its own, and free the buffer under that running job on close.
+-	 *
+-	 * Clearing it only on the *last* import is what stops the opposite
+-	 * failure: imports are de-duplicated, so releasing one of several left
+-	 * the buffer unowned while an import reference was still outstanding,
+-	 * and every session-teardown walk then skipped it -- leaking the
+-	 * buffer, its pinned pages, its mapping and its mm reference for the
+-	 * lifetime of the driver.
+-	 */
+-	if (internal_buffer->import_cnt)
+-		internal_buffer->import_cnt--;
+-	if (!internal_buffer->import_cnt)
+-		internal_buffer->session = NULL;
++	if (--import->count == 0) {
++		list_del(&import->node);
++		kfree(import);
++		rga_mm_refresh_diagnostic_owner(internal_buffer);
++	}
+ 
+ 	kref_put(&internal_buffer->refcount, rga_mm_kref_release_buffer);
+ 
+@@ -3788,6 +3966,7 @@ int rga_mm_session_release_buffer(struct rga_session *session)
+ 	int i;
+ 	struct rga_mm *mm;
+ 	struct rga_internal_buffer *buffer;
++	struct rga_buffer_import *import;
+ 
+ 	mm = rga_drvdata->mm;
+ 	if (mm == NULL) {
+@@ -3795,69 +3974,31 @@ int rga_mm_session_release_buffer(struct rga_session *session)
+ 		return -EFAULT;
+ 	}
+ 
+-	mutex_lock(&mm->lock);
+-
+-	idr_for_each_entry(&mm->memory_idr, buffer, i) {
+-		if (session != buffer->session)
+-			continue;
+-
+-		/*
+-		 * Imports are de-duplicated across the whole memory_idr
+-		 * (rga_mm_lookup_external() has no session filter), and a
+-		 * running job also holds a reference (rga_mm_get_buffer()).
+-		 * So a buffer owned by the exiting session may still be
+-		 * referenced elsewhere. Drop only this session's reference
+-		 * through the normal kref path instead of forcibly unmapping
+-		 * and freeing, so a surviving reference is never left pointing
+-		 * at freed memory.
+-		 */
+-		/*
+-		 * The session may hold more than one import reference on the
+-		 * same buffer, because imports are de-duplicated. Give back
+-		 * exactly what it took.
+-		 */
+-		if (kref_read(&buffer->refcount) > buffer->import_cnt) {
+-			uint32_t n = buffer->import_cnt;
++	for (;;) {
++		u32 n = 0;
+ 
+-			rga_err("[tgid:%d] handle[%d] still referenced at exit (refcount=%u, imports=%u), dropping session references only\n",
+-			       session->tgid, buffer->handle,
+-			       kref_read(&buffer->refcount), n);
+-			/*
+-			 * The session is going away; detach it so the surviving
+-			 * reference does not dereference the freed session and a
+-			 * future session reusing this address is not mistaken
+-			 * for the owner here.
+-			 */
+-			buffer->session = NULL;
+-			buffer->import_cnt = 0;
+-			/*
+-			 * refcount > n, so these only decrement: they never run
+-			 * rga_mm_kref_release_buffer() and therefore never drop
+-			 * mm->lock -- safe to call inside idr_for_each_entry().
+-			 */
+-			while (n--)
+-				kref_put(&buffer->refcount,
+-					 rga_mm_kref_release_buffer);
+-		} else {
+-			rga_err("[tgid:%d] Destroy handle[%d] when the user exits\n",
+-			       session->tgid, buffer->handle);
+-			/*
+-			 * Last reference: free it while still holding mm->lock.
+-			 * Must NOT use kref_put(rga_mm_kref_release_buffer) here --
+-			 * that release callback drops and re-acquires mm->lock
+-			 * around the sleeping unmap, i.e. mid-idr_for_each_entry().
+-			 * On heavy session teardown that left mm->lock owned by an
+-			 * exited/freed task and wedged the next mm->lock waiter
+-			 * (e.g. rga_mm_session_show) in an unkillable D state with a
+-			 * KASAN use-after-free on the freed task_struct. Freeing in
+-			 * place under the held lock (as the BSP does) is
+-			 * iteration-safe and drops no lock.
+-			 */
+-			rga_mm_force_releaser_buffer(buffer);
++		mutex_lock(&mm->lock);
++		buffer = NULL;
++		idr_for_each_entry(&mm->memory_idr, buffer, i) {
++			import = rga_mm_lookup_import(buffer, session);
++			if (import)
++				break;
++			buffer = NULL;
+ 		}
++		if (!buffer) {
++			mutex_unlock(&mm->lock);
++			break;
++		}
++
++		n = import->count;
++		list_del(&import->node);
++		kfree(import);
++		rga_mm_refresh_diagnostic_owner(buffer);
++		while (n--)
++			kref_put(&buffer->refcount, rga_mm_kref_release_buffer);
++		mutex_unlock(&mm->lock);
+ 	}
+ 
+-	mutex_unlock(&mm->lock);
+ 	return 0;
+ }
+ 
+-- 
+2.55.0
+

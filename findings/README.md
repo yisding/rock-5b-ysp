@@ -150,10 +150,11 @@ RK3588 platform behaviour outside the media path.
 - [`2026-07-26`](2026-07-26-dwc-pcie-pmu-bus-notifier-lockdep-false-positive.md) — DWC PCIe PMU nests distinct same-class bus notifier locks and disables lockdep
 - [`2026-07-25`](2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md) — RK3588 per-die voltage binning: the BSP selects voltage from eFuse, mainline ships only the worst-die column
 
-### Kernel forward port: MPP and codec drivers (20)
+### Kernel forward port: MPP and codec drivers (21)
 
 Vendor MPP/rkvenc/rkvdec forward-ported to 6.18 — defects, audits, and whole-tip validation runs.
 
+- [`2026-08-08`](2026-08-08-forward-port-rga-mpp-ownership-audit-fixes.md) — Forward-port 0095–0096 close RGA/MPP ownership and fault-admission gaps
 - [`2026-08-04`](2026-08-04-forward-port-6-18-42-0092-production-validation.md) — Forward-port 6.18.42 production validation boots 0092 and closes the functional recovery gates
 - [`2026-08-04`](2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md) — Forward-port 0090–0092 close the RGA job-task and decoder recovery lifetime gaps
 - [`2026-08-01`](2026-08-01-forward-port-uaf-oops-audit-round-2.md) — Forward-port UAF/oops audit round 2: 18 defects, 7 of them unprivileged memory corruption
@@ -347,6 +348,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-08-08-rewrite-phase-1-focused-build-gate.md`](2026-08-08-rewrite-phase-1-focused-build-gate.md) — Rewrite Phase 1 exact tips pass focused builds and a full 6.18 package build
 - [`2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md`](2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md) — Forward-port 6.18.43 conformance isolates oversized RGA2 USERPTR SWIOTLB segments
 - [`2026-08-08-forward-port-rga2-dmabuf-staging.md`](2026-08-08-forward-port-rga2-dmabuf-staging.md) — Forward port stages exporter-owned high DMA-BUFs for RGA2-only work
+- [`2026-08-08-forward-port-rga-mpp-ownership-audit-fixes.md`](2026-08-08-forward-port-rga-mpp-ownership-audit-fixes.md) — Forward-port 0095–0096 close RGA/MPP ownership and fault-admission gaps
 - [`2026-08-08-forward-port-boot-dtb-symlink-mismatch.md`](2026-08-08-forward-port-boot-dtb-symlink-mismatch.md) — Forward-port kernel booted the mainline DTB: `/boot/dtb` and `/boot/Image` split across co-installed branches
 - [`2026-08-07-rga3-cross-process-vpp-corruption-lead.md`](2026-08-07-rga3-cross-process-vpp-corruption-lead.md) — RGA3 vpp_rkrga output corruption — first seen cross-process, now reproduced solo; not root-caused
 - [`2026-08-07-rewrite-rkvdec-drm-prime-duplicate-frame-regression.md`](2026-08-07-rewrite-rkvdec-drm-prime-duplicate-frame-regression.md) — Rewrite rkvdec zero-copy decode duplicates frames after the #8 scheduler/completion fixes

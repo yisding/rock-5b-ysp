@@ -41,8 +41,8 @@ were written — resolve any older number through the **renumber map** at the en
 
 Exported with `git format-patch 7d0a66e4bb908..rk3588-video-6.18` from the kernel
 worktree at `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` (branch
-`rk3588-video-6.18`). This checked-in export is the contiguous `0001`–`0094`
-snapshot ending at `65f5b67940a79`. W16 owns the moving branch;
+`rk3588-video-6.18`). This checked-in export is the contiguous `0001`–`0096`
+snapshot ending at `7698e7018e3d5`. W16 owns the moving branch;
 the forward-port package record owns actual artifacts; the
 [scorecard](../../docs/forward-port-status.md) owns accumulated validation.
 Backup of the pre-cleanup tip: tag
@@ -382,6 +382,37 @@ owns the design boundary and hardware gate.
 | # | Title | Commit | Was |
 |---|-------|--------|-----|
 | `0094` | video: rockchip: rga3: stage incompatible RGA2 DMA-BUFs | `65f5b67940a79` | — |
+
+### 0095 — RGA ownership and high DMA-BUF alias closure (2026-08-08)
+
+`0095` supersedes `0094`'s exact-`-EIO` staging trigger. The forward-port RGA2
+path otherwise gave each successful transient SWIOTLB mapping a separate alias
+image, so every high-address DMA-BUF now uses one bounded, job-shared DMA32
+stage keyed by DMA-BUF identity. The patch also closes request/fence/scheduler,
+session-handle/import, PM-unwind, pool-rollback, and shutdown ownership gaps
+found by the subsequent multi-agent review. Strict checkpatch, production and
+async-disabled full-RGA `W=1 WERROR=1` builds, and two final independent source
+reviews pass; package and runtime proof remain pending. The
+[audit finding](../../../findings/2026-08-08-forward-port-rga-mpp-ownership-audit-fixes.md)
+owns the complete boundary and verification gate.
+
+| # | Title | Commit | Was |
+|---|-------|--------|-----|
+| `0095` | video: rockchip: rga3: harden request and DMA-BUF ownership | `b734ddf33a40d` | — |
+
+### 0096 — MPP session and provider fault ownership (2026-08-08)
+
+`0096` serializes MPP session/result/DMA state and turns task admission into a
+provider-owned prepare/publish/START/enable-delivery transaction. Rockchip and
+VSI providers preserve faults latched after START, reject missing PM supplier
+links, and quiesce callbacks consistently. RKVDEC2 hard CCU requests are forced
+to soft mode before worker/IRQ selection. Full MPP and IOMMU-directory
+`W=1 WERROR=1` builds, strict checkpatch, and independent MPP/integration
+reviews pass; package and runtime proof remain pending.
+
+| # | Title | Commit | Was |
+|---|-------|--------|-----|
+| `0096` | video: rockchip: mpp: serialize task and fault ownership | `7698e7018e3d5` | — |
 
 ## Renumber map (2026-07-23)
 
