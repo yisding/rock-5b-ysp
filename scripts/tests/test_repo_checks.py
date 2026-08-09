@@ -2632,6 +2632,13 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\tdomain->node = node;\n"
             "\tdomain->reset_domain_state = RK_MPP_RESET_DOMAIN_IDLE;\n"
             "\tatomic_read(&domain->reset_domain_operation_pending);\n"
+            "\trk_mpp_cluster_register_member_locked(cluster, hw);\n"
+            "\trk_mpp_hw_init_cluster_locked(hw);\n"
+            "\trk_mpp_cluster_rebuild_locked(cluster);\n"
+            "\thw->cluster = cluster;\n"
+            "\tcluster->node = node;\n"
+            "\tINIT_LIST_HEAD(&cluster->members);\n"
+            "\thw->ccu_node = node;\n"
             "\thw->active_job = job;\n"
             "\tjob->rkvdec_session_dispatch = true;\n"
             "\tjob->rkvdec_ccu_powered_cores[0] = hw;\n"
@@ -2757,6 +2764,14 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("mpp-reset-domain-registry-access", baseline_text)
             self.assertIn("mpp-reset-domain-state-write", baseline_text)
             self.assertIn("mpp-reset-domain-pending-access", baseline_text)
+            self.assertIn("mpp-cluster-lifecycle-entry", baseline_text)
+            self.assertIn("mpp-cluster-topology-entry", baseline_text)
+            self.assertIn("mpp-cluster-binding-access", baseline_text)
+            self.assertIn("mpp-cluster-registry-access", baseline_text)
+            self.assertIn("mpp-cluster-state-write", baseline_text)
+            self.assertIn(
+                "mpp-cluster-topology-input-access", baseline_text
+            )
             self.assertIn("mpp-dispatch-lease-access", baseline_text)
             self.assertIn("rga-active-slot-access", baseline_text)
             self.assertIn("rga-raw-task-emitter", baseline_text)
@@ -2855,6 +2870,14 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\t\t&domains[0]->reset_domain_operation_pending);\n"
                     "\tatomic_add(1,\n"
                     "\t\t&domains[0]->reset_domain_operation_pending);\n"
+                    "\trk_mpp_cluster_unregister_member_locked(hw);\n"
+                    "\trk_mpp_cluster_get_locked(srv, node, &added);\n"
+                    "\trk_mpp_cluster_dma_group_count_locked(cluster);\n"
+                    "\thws[0]->cluster = cluster;\n"
+                    "\tclusters[0].member_count++;\n"
+                    "\tlist_add_tail(&hw->cluster_link,\n"
+                    "\t\t      &clusters[0].members);\n"
+                    "\thws[0]->iommu_domain = domain;\n"
                     "\treset_control_bulk_reset(1, NULL);\n"
                     "\treset_control_rearm(hw->resets);\n"
                 ),
@@ -2929,6 +2952,14 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn(
                 "NEW\tmpp-reset-domain-pending-access", changed.stderr
             )
+            self.assertIn("NEW\tmpp-cluster-lifecycle-entry", changed.stderr)
+            self.assertIn("NEW\tmpp-cluster-topology-entry", changed.stderr)
+            self.assertIn("NEW\tmpp-cluster-binding-access", changed.stderr)
+            self.assertIn("NEW\tmpp-cluster-registry-access", changed.stderr)
+            self.assertIn("NEW\tmpp-cluster-state-write", changed.stderr)
+            self.assertIn(
+                "NEW\tmpp-cluster-topology-input-access", changed.stderr
+            )
             self.assertIn("NEW\trga-exec-map-owner", changed.stderr)
             self.assertIn("NEW\trga-map-release-primitive", changed.stderr)
             self.assertIn("NEW\trga-command-release", changed.stderr)
@@ -2989,6 +3020,23 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                 (
                     "mpp-reset-domain-member-entry",
                     "rk_mpp_reset_domain_unregister_action",
+                ),
+                (
+                    "mpp-cluster-lifecycle-entry",
+                    "rk_mpp_cluster_unregister_member_locked",
+                ),
+                (
+                    "mpp-cluster-topology-entry",
+                    "rk_mpp_cluster_dma_group_count_locked",
+                ),
+                ("mpp-cluster-state-write", "hws[0]->cluster = cluster"),
+                (
+                    "mpp-cluster-state-write",
+                    "clusters[0].member_count++",
+                ),
+                (
+                    "mpp-cluster-topology-input-access",
+                    "hws[0]->iommu_domain = domain",
                 ),
                 (
                     "rga-watchdog-snapshot-write",

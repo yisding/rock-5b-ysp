@@ -54,9 +54,11 @@ that these symbols still delimit the same responsibilities.
 After tracing the current types, read the
 [as-built/target comparison](04-design-lessons.md#61-as-built-strengths-and-remaining-ownership-debt)
 and then the [ownership-refactor plan](../rewrite-ownership-refactor-plan.md).
-Searching the implementation for `rk_mpp_cluster`, `rk_mpp_activation`,
-`rk_rga_task_exec`, or `rk_rga_acquire_set` should return no definitions until
-that plan begins to land.
+Searching the implementation for `rk_mpp_cluster` now finds the read-only
+topology checkpoint. Searching for `rk_mpp_activation`, `rk_rga_task_exec`, or
+`rk_rga_acquire_set` should still return no definitions; cluster admission,
+power, and recovery consumers should likewise remain absent until their
+separate checkpoints land.
 
 Use `rg` to navigate by symbol:
 

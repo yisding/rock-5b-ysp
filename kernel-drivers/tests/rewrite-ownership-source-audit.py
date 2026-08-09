@@ -92,6 +92,44 @@ MPP_RESET_DOMAIN_STATE_WRITE_RE = re.compile(
 MPP_RESET_DOMAIN_PENDING_ACCESS_RE = re.compile(
     r"\breset_domain_operation_pending\b"
 )
+MPP_CLUSTER_LIFECYCLE_RE = re.compile(
+    r"\b(?:rk_mpp_cluster_(?:init|get_locked|register_member_locked|"
+    r"unregister_member_locked)|rk_mpp_hw_init_cluster_locked|"
+    r"rk_mpp_clusters_destroy)\s*\("
+)
+MPP_CLUSTER_TOPOLOGY_ENTRY_RE = re.compile(
+    r"\brk_mpp_cluster_(?:rebuild_locked|"
+    r"contains_published_view_locked|dma_group_count_locked)\s*\("
+)
+MPP_CLUSTER_BINDING_RE = re.compile(
+    rf"(?:\b(?:cluster_link|cluster_count|clusters)\b|"
+    rf"{POINTER_FIELD_TARGET}cluster\b)"
+)
+MPP_CLUSTER_OBJECT_TARGET = (
+    rf"(?:\bcluster\s*->|\bclusters\s*\[[^\]]+\]\s*\.|"
+    rf"{POINTER_FIELD_TARGET}clusters\s*\[[^\]]+\]\s*\.)"
+)
+MPP_CLUSTER_REGISTRY_ACCESS_RE = re.compile(
+    rf"{MPP_CLUSTER_OBJECT_TARGET}(?:node|members|coordinator|reset_domain|"
+    r"member_type|member_count|core_count)\b"
+)
+MPP_CLUSTER_POINTER_WRITE_RE = field_write_re(r"cluster|cluster_link")
+MPP_CLUSTER_COUNT_WRITE_RE = field_write_re(r"cluster_count")
+MPP_CLUSTER_REGISTRY_WRITE_RE = field_write_re(
+    r"node|coordinator|reset_domain|member_type|member_count|core_count",
+    target=MPP_CLUSTER_OBJECT_TARGET,
+)
+MPP_CLUSTER_STATE_WRITE_RE = re.compile(
+    rf"(?:{MPP_CLUSTER_POINTER_WRITE_RE.pattern}|"
+    rf"{MPP_CLUSTER_COUNT_WRITE_RE.pattern}|"
+    rf"{MPP_CLUSTER_REGISTRY_WRITE_RE.pattern}|"
+    r"\b(?:INIT_LIST_HEAD|list_add(?:_tail)?|list_del_init)\s*\([^;]*"
+    r"(?:cluster->members|cluster_link)\b)"
+)
+MPP_CLUSTER_TOPOLOGY_INPUT_RE = re.compile(
+    rf"{FIELD_TARGET}(?:hw_list|ccu_node|core_mask|rkvdec_ccu_mode|"
+    r"rkvdec_ccu_jobs|rkvdec_ccu_node|dma_group|iommu_domain)\b"
+)
 ACTIVE_SLOT_WRITE_RE = field_write_re(r"active_job|active_generation")
 ACTIVE_SLOT_ACCESS_RE = re.compile(r"\b(?:active_job|active_generation)\b")
 DISPATCH_LEASE_WRITE_RE = field_write_re(
@@ -460,6 +498,30 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                             (
                                 "mpp-reset-domain-pending-access",
                                 MPP_RESET_DOMAIN_PENDING_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-cluster-lifecycle-entry",
+                                MPP_CLUSTER_LIFECYCLE_RE,
+                            ),
+                            (
+                                "mpp-cluster-topology-entry",
+                                MPP_CLUSTER_TOPOLOGY_ENTRY_RE,
+                            ),
+                            (
+                                "mpp-cluster-binding-access",
+                                MPP_CLUSTER_BINDING_RE,
+                            ),
+                            (
+                                "mpp-cluster-registry-access",
+                                MPP_CLUSTER_REGISTRY_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-cluster-state-write",
+                                MPP_CLUSTER_STATE_WRITE_RE,
+                            ),
+                            (
+                                "mpp-cluster-topology-input-access",
+                                MPP_CLUSTER_TOPOLOGY_INPUT_RE,
                             ),
                             ("mpp-active-slot-access", ACTIVE_SLOT_ACCESS_RE),
                             ("mpp-active-slot-write", ACTIVE_SLOT_WRITE_RE),

@@ -195,6 +195,8 @@ owns the public verdict.
 
 | Snapshot | Pin and base | Historical relationships |
 |----------|--------------|--------------------------|
+| 6.18 rewrite Phase 2 shadow-cluster construction, 2026-08-08 | `rk3588-rewrite-6.18@e854cacd64c21` on `v6.18.42@856a9b51680c` | Reset-domain tip `53a7fa1acbc00`; adds read-only cluster membership/diagnostics without changing admission or recovery |
+| Mainline rewrite Phase 2 shadow-cluster construction, 2026-08-08 | `rk3588-rewrite-mainline@130fb983eeaf3` on `v7.2-rc6@075b74841bd0` | Reset-domain tip `ba8e11de18a8e`; byte-identical MPP cluster construction |
 | 6.18 rewrite Phase 2 reset-domain construction, 2026-08-08 | `rk3588-rewrite-6.18@53a7fa1acbc00` on `v6.18.42@856a9b51680c` | Phase 1 tip `ab69ece998642`; adds stable reset-domain identity/membership and complete single-target operations |
 | Mainline rewrite Phase 2 reset-domain construction, 2026-08-08 | `rk3588-rewrite-mainline@ba8e11de18a8e` on `v7.2-rc6@075b74841bd0` | Phase 1 tip `3a0da2f33e963`; byte-identical MPP reset-domain construction |
 | 6.18 rewrite, 2026-08-08 | `rk3588-rewrite-6.18@c20fc8c1cbf76` on `v6.18.42@856a9b51680c` | prior repair tip `f371868322027`; adds per-session RKVDEC dispatch serialization and RGA command-buffer publication |
@@ -203,12 +205,13 @@ owns the public verdict.
 | Mainline rewrite, 2026-08-06 | `rk3588-rewrite-mainline@7a6d4cb075a67` on `v7.2-rc6@075b74841bd0` | prior backups `9e503f6b16df` and `5bae68d8381c` |
 | Upstream-style RGA3 comparison | `rk3588-rewrite-mainline@180ee72a9a80` | detailed in §9 |
 
-The two Phase 2 snapshots have byte-identical tracked MPP/RGA rewrite sources,
-Kconfig, ABI ledgers, and UAPI. Their exact 96 MPP + 152 RGA manifest, 564-signal
+The two maintained Phase 2 snapshots have byte-identical tracked MPP/RGA
+rewrite sources, Kconfig, ABI ledgers, and UAPI. Their exact 98 MPP + 152 RGA
+manifest, 744-signal
 production ownership inventory, and 306-signal KUnit-debt audit pass with zero
-new or absent signals. The older 2026-08-08 rows preserve the pre-refactor
-snapshot, while the 2026-08-06 rows remain historical pins rather than claims
-about later branch heads.
+new or absent signals. The older 2026-08-08 rows preserve pre-cluster and
+pre-refactor snapshots, while the 2026-08-06 rows remain historical pins rather
+than claims about later branch heads.
 
 The historical Debian composite trees remain reconstructible:
 

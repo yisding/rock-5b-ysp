@@ -200,11 +200,12 @@ The `/dev/rga` driver — session lifetime, userptr/dma-buf imports, and the 10-
 - [`2026-07-20`](2026-07-20-rga2-unmapped-page-table-dma-sync.md) — RGA2 syncs page-table memory through an unmapped DMA address
 - [`2026-07-17`](2026-07-17-rga-session-close-uaf.md) — RGA session-close force-free ignores refcounts; a leaked test handle exposed it as a kernel Oops
 
-### Clean-room rewrite drivers (33)
+### Clean-room rewrite drivers (34)
 
 The from-scratch MPP/RGA replacement: reviews, soft-CCU wedges, and reset/lifecycle races.
 
 - [`2026-08-08`](2026-08-08-rewrite-phase-2-reset-domain-construction.md) — Rewrite Phase 2 constructs stable reset domains without claiming group recovery
+- [`2026-08-08`](2026-08-08-rewrite-phase-2-cluster-construction.md) — Rewrite Phase 2 constructs a shadow CCU cluster without changing admission
 - [`2026-08-08`](2026-08-08-rewrite-phase-1-focused-build-gate.md) — Rewrite Phase 1 exact tips pass the full build matrix and 6.18 packaging
 - [`2026-08-08`](2026-08-08-rewrite-rga2-dmabuf-staging-design.md) — Rewrite RGA2 DMA-BUF staging design for exporter SG entries larger than SWIOTLB
 - [`2026-08-08`](2026-08-08-rga3-cross-process-contention-harness-plan.md) — Plan: a dedicated RGA3 cross-process contention harness that provokes and honestly detects the silent vpp corruption
@@ -347,6 +348,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-08-08-rga3-cross-process-contention-harness-plan.md`](2026-08-08-rga3-cross-process-contention-harness-plan.md) — Plan: a dedicated RGA3 cross-process contention harness that provokes and honestly detects the silent vpp corruption
 - [`2026-08-08-rewrite-rga2-dmabuf-staging-design.md`](2026-08-08-rewrite-rga2-dmabuf-staging-design.md) — Rewrite RGA2 DMA-BUF staging design for exporter SG entries larger than SWIOTLB
 - [`2026-08-08-rewrite-phase-2-reset-domain-construction.md`](2026-08-08-rewrite-phase-2-reset-domain-construction.md) — Rewrite Phase 2 constructs stable reset domains without claiming group recovery
+- [`2026-08-08-rewrite-phase-2-cluster-construction.md`](2026-08-08-rewrite-phase-2-cluster-construction.md) — Rewrite Phase 2 constructs a shadow CCU cluster without changing admission
 - [`2026-08-08-rewrite-phase-1-focused-build-gate.md`](2026-08-08-rewrite-phase-1-focused-build-gate.md) — Rewrite Phase 1 exact tips pass the full build matrix and 6.18 packaging
 - [`2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md`](2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md) — Forward-port 6.18.43 conformance isolates oversized RGA2 USERPTR SWIOTLB segments
 - [`2026-08-08-forward-port-rga2-dmabuf-staging.md`](2026-08-08-forward-port-rga2-dmabuf-staging.md) — Forward port stages exporter-owned high DMA-BUFs for RGA2-only work

@@ -58,12 +58,13 @@ The principal objects are:
 
 | Object | Created by | Owns or tracks |
 |--------|------------|----------------|
-| `rk_mpp_service` | module init | hardware registry, global queue, stable reset-domain registry, DMA groups, counters, work item |
+| `rk_mpp_service` | module init | hardware registry, global queue, stable reset-domain and shadow-cluster registries, DMA groups, counters, work item |
 | `rk_mpp_hw` | platform probe | device, MMIO, IRQ, clocks, resets, active job, timeout/fault work, CCU state |
 | `rk_mpp_session` | `/dev/mpp_service` `open()` | client type, imports, active jobs, translation table, RCB and codec metadata |
 | `rk_mpp_import` | fd translation | DMA-BUF, attachment, mapped scatterlist, device-specific IOVA |
 | `rk_mpp_job` | ioctl message collection | copied requests, register image, imports, selected hardware, result/readback, and current CCU/DCHS/power participation |
 | `rk_mpp_reset_domain` | first matching hardware probe | immutable node identity, member lifetime, mutex, single-target reset state/epoch, responsible hardware, and operation counters; the hard-CCU group pulse is not migrated yet |
+| `rk_mpp_cluster` | first matching CCU-identity probe | stable member topology, borrowed coordinator, learned core type, construction reset authority, and derived DMA relationship count; no execution path consumes it yet |
 | `rk_mpp_dma_group` | hardware probe | IOMMU group, original DMA domain, preallocated empty isolation domain |
 
 The important reference direction is:
@@ -80,9 +81,11 @@ needed by an accepted job.
 
 This is the as-built graph. The broad `rk_mpp_job` and `rk_mpp_hw` objects
 still carry state that belongs to one admitted hardware activation or to the
-whole decoder cluster. The proposed `rk_mpp_activation` and `rk_mpp_cluster`
-objects in the [ownership-refactor plan](../rewrite-ownership-refactor-plan.md)
-do not exist in the as-built model documented here.
+whole decoder cluster. `rk_mpp_cluster` currently constructs and validates a
+shadow topology only; it does not own admission, power, reset, IOMMU recovery,
+or quarantine. The proposed `rk_mpp_activation` in the
+[ownership-refactor plan](../rewrite-ownership-refactor-plan.md) does not yet
+exist.
 
 ### 3.2 Session lifecycle
 

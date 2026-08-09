@@ -2,7 +2,7 @@
 
 The rewrite drivers use KUnit as a built-in boot gate for logic and state
 transitions that can be exercised without RK3588 hardware. The YSP result is
-green only when the named **96 MPP + 152 RGA case manifest** matches without
+green only when the named **98 MPP + 152 RGA case manifest** matches without
 duplicates, omissions, failures, or skips **and** the same kernel-log interval
 is free of sanitizer reports, warnings, lockdep findings, refcount failures,
 and media/IOMMU faults. The report also binds the run to the kernel release,
@@ -223,7 +223,7 @@ For each suite it requires:
 
 | Field | Required value |
 |-------|----------------|
-| Inner KTAP plan | exactly 96 MPP or 152 RGA |
+| Inner KTAP plan | exactly 98 MPP or 152 RGA |
 | Observed case results | exactly the planned count |
 | Failed cases | 0 |
 | Skipped cases | 0 |
@@ -340,14 +340,16 @@ plus a real two-thread fence/abort race. Its named ordered 90/152 manifest and
 source/config/package-bound evidence gate owned result attribution. See the
 [successor attribution and audit](../../findings/2026-07-27-rewrite-reset-import-fixture-lockdep.md).
 
-The maintained tips are now 6.18 `53a7fa1acbc00` on `v6.18.42` and mainline
-`ba8e11de18a8e` on `v7.2-rc6`, with an exact 96/152 manifest. Predecessor 6.18
+The maintained tips are now 6.18 `e854cacd64c21` on `v6.18.42` and mainline
+`130fb983eeaf3` on `v7.2-rc6`, with an exact 98/152 manifest. Predecessor 6.18
 `19634f4eebba` passed its exact 92/152 manifest on KASAN boot `#2` on 2026-08-05:
 244 results (92 MPP plus 152 RGA), zero failures/skips, a clean outer interval,
 and live lockdep. That runtime-verifies the patch-equivalent request/rotation
-repair after the 2026-08-04 rebases. The four newer MPP cases include two
-reset-domain construction cases added in Phase 2. Both current tips pass the
-warning-fatal clean-archive build matrix and the unchanged 306-signal KUnit
-fixture-debt audit, but neither has booted KUnit evidence. Do not carry the
+repair after the 2026-08-04 rebases. The six newer MPP cases include two
+reset-domain and two cluster-construction cases added in Phase 2. Both current
+tips pass warning-fatal KUnit-enabled MPP object builds and the unchanged
+306-signal KUnit fixture-debt audit; the full clean-archive matrix belongs to
+the preceding reset-domain tips, and neither current tip has booted KUnit
+evidence. Do not carry the
 predecessor KTAP across that source boundary; replay the entire compound
 evidence above.
