@@ -21,15 +21,17 @@ and definition of done.
 > counts into this plan; follow the status row into the dated finding and
 > correlated run artifacts.
 
-> **Current source boundary (2026-08-09):** maintained Phase 3A tips
-> `7548afe6a8b1b` / `af89363ffa5ed` embed the current-attempt generation and
-> absolute watchdog deadline without changing the job-pointer active slot or
-> terminal behavior. They pass the 1220-signal production ownership audit, the
+> **Current source boundary (2026-08-09):** maintained Phase 3B tips
+> `7b9a4fe4e3eb` / `8439e3abc142` retain the Phase 3A current-attempt
+> generation/deadline and replace the split session/job RKVDEC dispatch
+> booleans with one sched-lock-protected pointer to exact embedded activation
+> storage. The job-pointer active slot, in-place hard-CCU retry, and terminal
+> behavior are unchanged. They pass the 1221-signal production ownership audit, the
 > unchanged 306-signal KUnit-debt audit, and the complete warning-fatal
 > clean-archive `normal`, `test-disabled`, KASAN/fault-injection `memory`, and
 > KCSAN/lockdep `race` build profiles. Predecessor 6.18 `19634f4eebba` passes exact
 > 92+152 booted KUnit and 12/12 official MPP, but its librga run exposed defects
-> fixed only at later tips. No current-tip Phase 2 or Phase 3A source has booted. The source
+> fixed only at later tips. No current-tip Phase 2 or Phase 3 source has booted. The source
 > contains the separate VPU981 AV1 backend, but no rewrite AV1 kernel has passed
 > a hardware qualification rung.
 
@@ -40,7 +42,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 
 | Capability | Status in repo | This plan |
 |---|---|---|
-| Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) provides `normal`, `test-disabled`, `memory` (KASAN/fault-injection), and `race` (KCSAN/lockdep) focused object-build profiles, opt-in-default config proof, fixture-debt audit, and ABI mutation check. All four profiles pass both exact Phase 3A tips. | reuse as the pre-merge gate; run the complete profile matrix for handoff, and remember sanitizer profiles are compile coverage only |
+| Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) provides `normal`, `test-disabled`, `memory` (KASAN/fault-injection), and `race` (KCSAN/lockdep) focused object-build profiles, opt-in-default config proof, fixture-debt audit, and ABI mutation check. All four profiles pass both exact Phase 3B tips. | reuse as the pre-merge gate; run the complete profile matrix for handoff, and remember sanitizer profiles are compile coverage only |
 | Non-submit ABI probe + log diff | ✅ [`kernel-drivers/tests/abi-probe.sh`](../tests/abi-probe.sh), [`kernel-drivers/tests/abi-replay.sh`](../tests/abi-replay.sh), including optional dma-heap-backed MPP translate/release, RGA dma-buf import/release, and raw RGA physical-address import observation with an opt-in rewrite reject assertion | reuse; extend to bit-exact output (below) |
 | Consumer conformance (MPP / librga / GStreamer / FFmpeg) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/conformance.md`](../tests/conformance.md), including the target × configuration catalog and opt-in GStreamer display/KMS-capture, AV1, legacy advertised-decode, sanitizer, and race cases; `run-conformance.sh --validate` also validates MPP/GStreamer case builders, FFmpeg case-list wiring, the direct `librga-smoke.cpp` source, comparators, and evidence-audit rejection paths | reuse; wire the pass/fail gate |
 | Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode, FFmpeg transcode, MPP official-test media outputs, and the maintained direct RGA smoke paths, including RKNN/RKNPU-style preprocessing plus AFBC16x16 and tile8x8 round-trips, now have `artifacts.tsv` byte-count/SHA-256 comparison paths; broad official librga sample binaries still mostly report pass/fail/timing | extend artifact capture only where official sample outputs matter for remaining gaps |

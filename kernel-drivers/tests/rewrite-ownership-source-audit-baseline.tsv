@@ -1,6 +1,6 @@
 # Rewrite ownership inventory; new signals fail, resolved signals are allowed.
-# source-head	7548afe6a8b1b671f5092a798a94ff695cf0b0ec
-# source-head	af89363ffa5ede087af31045934d54389b548fbd
+# source-head	7b9a4fe4e3eb0bfcca3c0f35466ff4d0230d56f7
+# source-head	8439e3abc142e2c6265410a986ec2d94df961078
 # category	source	function	ordinal	normalized source signal
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	enum rk_mpp_debug_event_type { RK_MPP_DEBUG_REQUEST_FAIL, RK_MPP_DEBUG_SELECT_FAIL, RK_MPP_DEBUG_TRANSLATE_FAIL, RK_MPP_DEBUG_RCB_FAIL, RK_MPP_DEBUG_SUBMIT_FAIL, RK_MPP_DEBUG_POLL_FAIL, RK_MPP_DEBUG_QUEUED, RK_MPP_DEBUG_DISPATCH, RK_MPP_DEBUG_STARTED, RK_MPP_DEBUG_IRQ, RK_MPP_DEBUG_DONE, RK_MPP_DEBUG_TIMEOUT, RK_MPP_DEBUG_IOMMU_FAULT, RK_MPP_DEBUG_ABORT, RK_MPP_DEBUG_SPURIOUS_IRQ, };
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	struct rk_mpp_debug_event { u64 seq; u64 timestamp_ns; u64 data; u32 session_id; u32 job_id; u32 client_type; u32 irq_status; s32 core_id; s32 result; u8 type; char hw_name[20]; char dev_name[32]; };
@@ -115,6 +115,9 @@ mpp-activation-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_ac
 mpp-activation-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_activation_install_locked	1	job->activation.job = job;
 mpp-activation-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_activation_install_locked	1	job->activation.watchdog_deadline = 0;
 mpp-activation-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_activation_install_locked	1	job->activation.watchdog_deadline_valid = false;
+mpp-activation-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_acquire_locked	1	session->rkvdec_dispatch_owner = &job->activation;
+mpp-activation-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_owned_locked	1	return job->session->rkvdec_dispatch_owner == &job->activation;
+mpp-activation-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_released	1	released = session->rkvdec_dispatch_owner != &job->activation;
 mpp-activation-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_advance_active_generation_locked	1	hw->activation_generation_seq++;
 mpp-activation-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_advance_active_generation_locked	1	if (!hw->activation_generation_seq) hw->activation_generation_seq++;
 mpp-activation-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_advance_active_generation_locked	1	return hw->activation_generation_seq;
@@ -501,16 +504,14 @@ mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite
 mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvenc2_dchs_patch	1	if (!hw->ccu_node) return 0;
 mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_service_state_init	1	INIT_LIST_HEAD(&srv->hw_list);
 mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_validate_core_mask_locked	1	list_for_each_entry(hw, &srv->hw_list, link) { if (hw->match->type == match->type && hw->ccu_node == ccu_node && hw->core_mask & core_mask) return -EEXIST;
-mpp-dispatch-lease-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_acquire_locked	1	job->rkvdec_session_dispatch = true;
-mpp-dispatch-lease-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_acquire_locked	1	session->rkvdec_dispatch_active = true;
-mpp-dispatch-lease-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_active_locked	1	return session->rkvdec_dispatch_active;
-mpp-dispatch-lease-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_owned_locked	1	return job->rkvdec_session_dispatch;
-mpp-dispatch-lease-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_release_locked	1	job->rkvdec_session_dispatch = false;
-mpp-dispatch-lease-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_release_locked	1	session->rkvdec_dispatch_active = false;
-mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_acquire_locked	1	job->rkvdec_session_dispatch = true;
-mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_acquire_locked	1	session->rkvdec_dispatch_active = true;
-mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_release_locked	1	job->rkvdec_session_dispatch = false;
-mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_release_locked	1	session->rkvdec_dispatch_active = false;
+mpp-dispatch-lease-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_acquire_locked	1	session->rkvdec_dispatch_owner = &job->activation;
+mpp-dispatch-lease-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_active_locked	1	return !!session->rkvdec_dispatch_owner;
+mpp-dispatch-lease-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_owned_locked	1	return job->session->rkvdec_dispatch_owner == &job->activation;
+mpp-dispatch-lease-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_release_locked	1	session->rkvdec_dispatch_owner = NULL;
+mpp-dispatch-lease-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_released	1	released = session->rkvdec_dispatch_owner != &job->activation;
+mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_acquire_locked	1	session->rkvdec_dispatch_owner = &job->activation;
+mpp-dispatch-lease-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_dispatch_lease_release_locked	1	session->rkvdec_dispatch_owner = NULL;
+mpp-dispatch-owner-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	struct rk_mpp_activation *rkvdec_dispatch_owner;
 mpp-fault-snapshot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	__rk_mpp_hw_restore_active_job	1	if (force_iommu_fault) hw->iommu_fault_pending = true;
 mpp-fault-snapshot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	__rk_mpp_hw_restore_active_job	1	if (hw->iommu_fault_pending) hw->iommu_fault_generation = rk_mpp_hw_active_generation_locked(hw);
 mpp-fault-snapshot-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_begin_active_job	1	hw->iommu_fault_generation = 0;

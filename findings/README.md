@@ -200,11 +200,12 @@ The `/dev/rga` driver — session lifetime, userptr/dma-buf imports, and the 10-
 - [`2026-07-20`](2026-07-20-rga2-unmapped-page-table-dma-sync.md) — RGA2 syncs page-table memory through an unmapped DMA address
 - [`2026-07-17`](2026-07-17-rga-session-close-uaf.md) — RGA session-close force-free ignores refcounts; a leaked test handle exposed it as a kernel Oops
 
-### Clean-room rewrite drivers (41)
+### Clean-room rewrite drivers (42)
 
 The from-scratch MPP/RGA replacement: reviews, soft-CCU wedges, and reset/lifecycle races.
 
 - [`2026-08-09`](2026-08-09-rewrite-phase-3a-mpp-activation-identity.md) — Rewrite Phase 3A embeds MPP current-attempt identity
+- [`2026-08-09`](2026-08-09-rewrite-phase-3b-mpp-dispatch-owner.md) — Rewrite Phase 3B binds RKVDEC dispatch to exact activation storage
 - [`2026-08-08`](2026-08-08-rewrite-phase-2-irq-register-epoch-lease.md) — Rewrite Phase 2 leases hard IRQ status to the live register epoch
 - [`2026-08-08`](2026-08-08-rewrite-phase-2-hard-ccu-dma-recovery.md) — Rewrite Phase 2 types hard-CCU DMA-group recovery
 - [`2026-08-08`](2026-08-08-rewrite-phase-2-single-core-recovery-result.md) — Rewrite Phase 2 types single-core reset and DMA recovery
@@ -352,6 +353,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-08-09-rewrite-phase-3b-mpp-dispatch-owner.md`](2026-08-09-rewrite-phase-3b-mpp-dispatch-owner.md) — Rewrite Phase 3B binds RKVDEC dispatch to exact activation storage
 - [`2026-08-09-rewrite-phase-3a-mpp-activation-identity.md`](2026-08-09-rewrite-phase-3a-mpp-activation-identity.md) — Rewrite Phase 3A embeds MPP current-attempt identity
 - [`2026-08-08-rga3-cross-process-contention-harness-plan.md`](2026-08-08-rga3-cross-process-contention-harness-plan.md) — Plan: a dedicated RGA3 cross-process contention harness that provokes and honestly detects the silent vpp corruption
 - [`2026-08-08-rewrite-rga2-dmabuf-staging-design.md`](2026-08-08-rewrite-rga2-dmabuf-staging-design.md) — Rewrite RGA2 DMA-BUF staging design for exporter SG entries larger than SWIOTLB

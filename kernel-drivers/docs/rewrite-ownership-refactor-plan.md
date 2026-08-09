@@ -19,9 +19,10 @@ The priority is **ownership before convention**:
    the ownership graph has stopped changing.
 
 > **Status — 2026-08-09:** Phase 1 is source-complete, all six Phase 2
-> source items are implemented, and Phase 3A has embedded the first MPP
-> current-attempt record at `rk3588-rewrite-6.18@7548afe6a8b1b` and
-> `rk3588-rewrite-mainline@af89363ffa5ed`. Their tracked
+> source items are implemented, Phase 3A embedded the first MPP
+> current-attempt record, and Phase 3B binds the per-session RKVDEC dispatch
+> lease to that exact embedded address at `rk3588-rewrite-6.18@7b9a4fe4e3eb`
+> and `rk3588-rewrite-mainline@8439e3abc142`. Their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. Phase 1 funnels reset
 > backends, both active slots, RKVDEC dispatch and power leases,
 > publication/start, MPP outcome publication, and RGA execution-map retirement;
@@ -48,9 +49,14 @@ The priority is **ownership before convention**:
 > unchanged. Phase 3A moves the active generation and absolute watchdog
 > deadline out of `rk_mpp_hw` into an embedded `rk_mpp_activation`, while the
 > hardware slot and timeout target intentionally remain job-pointer adapters.
-> Hard-CCU retry still overwrites that embedded current-attempt record in place;
+> Phase 3B replaces the session/job boolean pair with one non-refholding
+> `session->rkvdec_dispatch_owner` pointer. Access and mutation remain under
+> `srv->sched_lock`, foreign release cannot clear another activation's lease,
+> and final job release fails closed rather than freeing storage still named by
+> the session. The pointer is current-storage identity, not a retained attempt:
+> hard-CCU retry still rewrites the same embedded record in place.
 > retained attempts, fresh retry objects, state transitions, and terminal
-> arbitration remain later Phase 3 work. The 1220-signal source-pinned
+> arbitration remain later Phase 3 work. The 1221-signal source-pinned
 > production audit freezes those activation, IRQ,
 > and recovery seams plus
 > the earlier reset-domain, cluster construction, group-reset, power-lease,
@@ -158,7 +164,7 @@ reinterpret raw geometry.
 | `rk_mpp_cluster` | stable CCU identity, unbounded member lifetime, borrowed coordinator, core/type summary, singular reset authority, derived DMA relationship count, hard-CCU reset-participant validation, member power-lease identity, coordinator running-list/link ownership, soft/hard arm/START publication, and typed single/group reuse gating | descriptor admission, quarantine policy, and complete activation lifetime remain outside cluster ownership |
 | `rk_mpp_cluster_power_lease` | refcounted exact member-core power/hardware references; transfers unchanged along the existing coordinator chain and releases once | remains attached to one legacy job at a time until an activation object owns the complete admitted lifetime; coordinator power remains per-job |
 | `rk_mpp_dma_group` | IOMMU group, normal/isolation domains, member list, terminal isolation, and serialized per-group refresh used by hard recovery | no retained refresh epoch or admission authority |
-| `rk_mpp_activation` | embedded current-attempt backpointer, nonzero hardware generation, and absolute watchdog deadline; all raw writes are field-owner allowlisted | retry still overwrites this storage in place; selected hardware, CCU/link/DCHS, power/dispatch leases, async snapshots, state, and terminal ownership remain outside it |
+| `rk_mpp_activation` | embedded current-attempt backpointer, nonzero hardware generation, absolute watchdog deadline, and exact identity named by the session-dispatch owner; all raw writes and dispatch-owner accesses are hard-allowlisted | retry still overwrites this storage in place; selected hardware, CCU/link/DCHS, power leases, async snapshots, state, and terminal ownership remain outside it |
 | `rk_mpp_hw` | private MMIO, clocks, IRQ, queue, job-pointer active/timeout adapters, and monotonic activation-generation allocator | also acts as coordinator, reset client, group-recovery participant, and IOMMU-fault owner; the slot is not yet activation-typed |
 | `rk_mpp_job` | accepted message set, retained imports, selected hardware, result, and embedded current-attempt record | also carries a temporary cluster-lease pointer, coordinator power, CCU membership, mutable register image, slice state, activation timing, and backend recovery state |
 
@@ -792,9 +798,18 @@ replaces the embedded record in place to preserve pre-engine behavior. This is
 a representation/ownership destination, not yet an authoritative lifecycle
 state, retained attempt, or terminal transition engine.
 
+Checkpoint 3B is present at `7b9a4fe4e3eb` / `8439e3abc142`: the scheduler's
+split session/job dispatch booleans are gone. One pointer in the session names
+the exact embedded activation while `srv->sched_lock` is held; acquire and
+release are the only writers, a sibling release is a no-op, and final job
+release refuses to free still-owned storage. The pointer carries no reference
+and is never dereferenced. It deliberately survives in-place hard-CCU retry,
+so it does not yet provide immutable generation retention or terminal state.
+
 1. Embed and initialize `rk_mpp_activation` in the current job.
-2. Move generation, absolute deadline, selected hardware, CCU/DCHS/link and
-   power and session-dispatch leases into it.
+2. Move generation and absolute deadline into it, then replace the split
+   session-dispatch token with exact activation identity. Selected hardware,
+   CCU/DCHS/link, and power ownership remain later coherent migrations.
 3. Change the hardware slot from job to activation in one reviewable commit,
    keeping adapter helpers for old callers.
 4. Route IRQ, timeout, fault, abort, close, remove and shutdown to one transition
@@ -919,7 +934,7 @@ read every exception.
 | sibling reset/deassert and gated-register MMIO | measured wedge fixed by domain lock; hard-IRQ architecture remains a residual concern | reset domain + cluster + IRQ-safe register lease | repeated two-core reset contention and UART/ramoops-clean recovery |
 | decoder self-reset and missing IOMMU refresh twins | hardware semantics measured; five software reset paths found without refresh; exact restore need remains hardware-sensitive | cluster recovery + DMA group reset effect | counters correlate reset effects to refresh/isolation; post-error decode remains correct |
 | CCU/DCHS power and retirement twins | several fixed call-site omissions; member-core group power now has one refcounted lease, but that lease and coordinator power still attach to legacy jobs | cluster power lease + activation | soft/hard CCU retry/abort/remove matrix, DCHS multi-core stress |
-| same-session RKVDEC overlap | ordered overlap still corrupted kernel #8; current narrow fix holds a session token through hardware retirement | session-dispatch lease owned by activation/quarantine | exact-tip H.26x red/green loop, reset-session race, and independent-session dual-core proof |
+| same-session RKVDEC overlap | ordered overlap still corrupted kernel #8; current narrow fix holds a session token through hardware retirement | session pointer now names exact embedded activation storage; retained activation/quarantine ownership remains later | exact-tip H.26x red/green loop, reset-session race, and independent-session dual-core proof |
 | post-validation MPP register writes | RCB instance fixed; recurrence is structurally possible while image stays mutable | sealed image owned by activation | source gate: no post-seal writer; byte-exact oracle |
 | RGA multi-task recovery | one omission fixed by a common helper; current job still mixes task and request lifetime | task execution + job orchestrator | fail each task position through every terminal trigger |
 | coherent command publication before START | source defect fixed with an RGA `dma_wmb()`; runtime causality for current corruption remains open | activation/execution `publish_and_start()` | immediate-IRQ injection plus exact-tip RGA3 vpp/overlay red-green replay |

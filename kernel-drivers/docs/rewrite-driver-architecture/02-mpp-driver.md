@@ -92,13 +92,14 @@ participants' DMA groups and refreshes each once before resend; terminal
 isolation reports quiesced without reuse. The
 cluster-validated power lease owns member-core holds, but remains temporarily
 attached to a legacy job; the cluster does not own admission, coordinator
-per-job power, descriptor admission, or quarantine. Phase 3A now embeds
+per-job power, descriptor admission, or quarantine. Phase 3A embeds
 `rk_mpp_activation` in the job as the source of truth for the current assigned
-generation and absolute watchdog deadline. It is not yet the active-slot type
-or a retained transition object: selected hardware, cluster/link/DCHS and
-power/dispatch leases, reason snapshots, and terminal ownership still reside
-in the legacy job/hardware graph, and hard-CCU retry overwrites the embedded
-record in place.
+generation and absolute watchdog deadline. Phase 3B makes the session's
+RKVDEC dispatch owner point at that exact embedded address instead of tracking
+two booleans. It is still not the active-slot type or a retained transition
+object: selected hardware, cluster/link/DCHS and power leases, reason
+snapshots, and terminal ownership remain in the legacy job/hardware graph, and
+hard-CCU retry overwrites the embedded record in place.
 
 ### 3.2 Session lifecycle
 
@@ -246,12 +247,19 @@ Queue publication takes references for both the session-visible active list and
 the service scheduler list. The scheduler work item removes a runnable job,
 then calls the backend's `submit()` method.
 
-RKVDEC additionally holds one dispatch token per session from scheduler take
-until complete hardware retirement. This forbids even in-order overlap between
+RKVDEC additionally stores one non-refholding activation-owner pointer per
+session from scheduler take until complete hardware retirement. The pointer is
+read or written only under `srv->sched_lock`: acquire stores
+`&job->activation`, ownership is exact pointer equality, and release clears it
+only for that exact job. This forbids even in-order overlap between
 frames of one decode session, while independent sessions can still occupy both
 decoder cores. RESET_SESSION releases the token only after abort proves that
 the dispatch can no longer start or own hardware; an unproved stop keeps it
-held fail-closed.
+held fail-closed. Final job release also refuses to free an activation still
+named by the session, avoiding a dangling pointer or slab-reuse ABA. The owner
+is current embedded-storage identity—not a separately retained activation—and
+hard-CCU retry intentionally preserves the address while replacing its
+generation/deadline record.
 
 MPP uses a small backend interface:
 
@@ -431,7 +439,7 @@ Completion:
 2. stores the result and changes state to `DONE` under the session lock;
 3. releases DCHS/link resources;
 4. drops the hardware reference;
-5. releases any RKVDEC session-dispatch token;
+5. releases the exact RKVDEC activation-dispatch owner, if held;
 6. wakes the session waitqueue;
 7. schedules the next queued work.
 

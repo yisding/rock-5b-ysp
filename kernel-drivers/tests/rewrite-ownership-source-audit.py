@@ -264,12 +264,24 @@ ACTIVE_SLOT_WRITE_RE = field_write_re(
 ACTIVE_SLOT_ACCESS_RE = re.compile(
     r"\b(?:active_job|active_generation|activation_generation_seq)\b"
 )
-DISPATCH_LEASE_WRITE_RE = field_write_re(
-    r"rkvdec_session_dispatch|rkvdec_dispatch_active"
+DISPATCH_OWNER_ACCESS_RE = re.compile(
+    rf"{FIELD_TARGET}rkvdec_dispatch_owner\b"
 )
-DISPATCH_LEASE_ACCESS_RE = re.compile(
+DISPATCH_OWNER_WRITE_RE = field_write_re(r"rkvdec_dispatch_owner")
+DISPATCH_LEGACY_RE = re.compile(
     r"\b(?:rkvdec_session_dispatch|rkvdec_dispatch_active)\b"
 )
+DISPATCH_OWNER_ACCESS_OWNERS = {
+    "rk_mpp_dispatch_lease_released",
+    "rk_mpp_dispatch_lease_active_locked",
+    "rk_mpp_dispatch_lease_owned_locked",
+    "rk_mpp_dispatch_lease_acquire_locked",
+    "rk_mpp_dispatch_lease_release_locked",
+}
+DISPATCH_OWNER_WRITE_OWNERS = {
+    "rk_mpp_dispatch_lease_acquire_locked",
+    "rk_mpp_dispatch_lease_release_locked",
+}
 POWER_FIELD_RE = re.compile(
     r"\b(?:rkvdec_ccu_power_lease|power_lease_(?:refs|cluster|core_count|"
     r"cores)|rkvdec_ccu_powered)\b"
@@ -590,6 +602,48 @@ def declaration_block(source: pathlib.Path, declaration: str) -> tuple[int, str]
     raise ValueError(f"missing or unterminated declaration {declaration} in {source}")
 
 
+def unique_struct_member_declaration(
+    source: pathlib.Path, structure: str, member: str
+) -> tuple[int, str]:
+    """Return one exact member from one exact production struct definition."""
+
+    lines = strip_comments(source.read_text(encoding="utf-8").splitlines())
+    structure_starts = [
+        index
+        for index, line in enumerate(lines)
+        if re.search(rf"\bstruct\s+{re.escape(structure)}\s*\{{", line)
+    ]
+    if len(structure_starts) != 1:
+        raise ValueError(
+            f"expected one struct {structure} definition in {source}, "
+            f"found {len(structure_starts)}"
+        )
+
+    start = structure_starts[0]
+    depth = 0
+    end: int | None = None
+    for index in range(start, len(lines)):
+        depth += brace_delta(lines[index])
+        if depth == 0 and ";" in lines[index]:
+            end = index
+            break
+    if end is None:
+        raise ValueError(f"unterminated struct {structure} definition in {source}")
+
+    in_structure = [
+        (index + 1, normalize(lines[index]))
+        for index in range(start, end + 1)
+        if member in lines[index]
+    ]
+    all_occurrences = sum(line.count(member) for line in lines)
+    if len(in_structure) != 1 or all_occurrences != 1:
+        raise ValueError(
+            f"expected one {member} in struct {structure} in {source}, "
+            f"found {len(in_structure)} there and {all_occurrences} overall"
+        )
+    return in_structure[0]
+
+
 def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int]]:
     found: list[tuple[str, str, str, str, int]] = []
     for relative in SOURCES:
@@ -606,6 +660,28 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
             found.append(
                 ("mpp-activation-schema", relative, "<file-scope>", text, line)
             )
+            line, text = unique_struct_member_declaration(
+                source,
+                "rk_mpp_session",
+                "struct rk_mpp_activation *rkvdec_dispatch_owner;",
+            )
+            found.append(
+                ("mpp-dispatch-owner-schema", relative, "<file-scope>", text, line)
+            )
+            for line, text in enumerate(
+                strip_comments(source.read_text(encoding="utf-8").splitlines()),
+                start=1,
+            ):
+                if DISPATCH_LEGACY_RE.search(text):
+                    found.append(
+                        (
+                            "mpp-dispatch-legacy",
+                            relative,
+                            "<file-scope>",
+                            normalize(text),
+                            line,
+                        )
+                    )
         functions = parse_functions(source, KUNIT_MARKERS[relative])
         for function in functions:
             command_writer = False
@@ -737,8 +813,8 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                                 "mpp-activation-write",
                                 MPP_ACTIVATION_WRITE_RE,
                             ),
-                            ("mpp-dispatch-lease-access", DISPATCH_LEASE_ACCESS_RE),
-                            ("mpp-dispatch-lease-write", DISPATCH_LEASE_WRITE_RE),
+                            ("mpp-dispatch-lease-access", DISPATCH_OWNER_ACCESS_RE),
+                            ("mpp-dispatch-lease-write", DISPATCH_OWNER_WRITE_RE),
                             ("mpp-power-field", POWER_FIELD_RE),
                             (
                                 "mpp-power-transition-entry",
@@ -975,15 +1051,26 @@ def category_counts(signals: Iterable[Signal]) -> str:
 
 
 def ownership_violations(signals: Iterable[Signal]) -> list[Signal]:
-    return [
-        signal
-        for signal in signals
-        if signal.category == "mpp-activation-write"
-        and any(
+    violations: list[Signal] = []
+    for signal in signals:
+        if signal.category == "mpp-dispatch-legacy":
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-dispatch-lease-access"
+            and signal.function not in DISPATCH_OWNER_ACCESS_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-dispatch-lease-write"
+            and signal.function not in DISPATCH_OWNER_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif signal.category == "mpp-activation-write" and any(
             pattern.search(signal.text) and signal.function not in owners
             for pattern, owners in MPP_ACTIVATION_WRITE_OWNER_RULES
-        )
-    ]
+        ):
+            violations.append(signal)
+    return violations
 
 
 def main(argv: list[str]) -> int:
@@ -1005,7 +1092,21 @@ def main(argv: list[str]) -> int:
                     f"{signal.line}\t{signal.function}\t{signal.text}",
                     file=sys.stderr,
                 )
-            raise ValueError("activation fields written outside their owners")
+            raise ValueError("ownership state used outside its allowed owners")
+        reference = {signal.key for signal in trees[0][1]}
+        mismatched = [
+            tree
+            for tree, signals in trees[1:]
+            if {signal.key for signal in signals} != reference
+        ]
+        if mismatched:
+            for tree in mismatched:
+                print(
+                    f"{tree}: ownership signals differ from {trees[0][0]}",
+                    file=sys.stderr,
+                )
+            print("rewrite ownership source audit failed", file=sys.stderr)
+            return 1
         output = (
             "\n".join(
                 baseline_lines((tree for tree, _signals in trees), trees[0][1])
@@ -1027,7 +1128,6 @@ def main(argv: list[str]) -> int:
         return 2
 
     failed = False
-    reference = {signal.key for signal in trees[0][1]}
     for tree, signals in trees:
         keys = {signal.key for signal in signals}
         head = git_head(tree)
@@ -1058,12 +1158,6 @@ def main(argv: list[str]) -> int:
             print(
                 f"{tree}: baseline categories disappeared: "
                 f"{', '.join(sorted(missing_categories))}",
-                file=sys.stderr,
-            )
-        if keys != reference:
-            failed = True
-            print(
-                f"{tree}: ownership signals differ from {trees[0][0]}",
                 file=sys.stderr,
             )
     if failed:

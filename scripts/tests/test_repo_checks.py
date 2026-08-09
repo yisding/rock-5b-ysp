@@ -2628,6 +2628,9 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\tunsigned long watchdog_deadline;\n"
             "\tbool watchdog_deadline_valid;\n"
             "};\n"
+            "struct rk_mpp_session {\n"
+            "\tstruct rk_mpp_activation *rkvdec_dispatch_owner;\n"
+            "};\n"
             "static void rk_mpp_activation_install_locked(\n"
             "\t\tstruct rk_mpp_hw *hw, struct rk_mpp_job *job,\n"
             "\t\tu64 generation)\n"
@@ -2642,6 +2645,33 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "{\n"
             "\thw->activation_generation_seq++;\n"
             "\treturn hw->activation_generation_seq;\n"
+            "}\n"
+            "static bool rk_mpp_dispatch_lease_released(\n"
+            "\t\tconst struct rk_mpp_job *job)\n"
+            "{\n"
+            "\treturn job->session->rkvdec_dispatch_owner != "
+            "&job->activation;\n"
+            "}\n"
+            "static bool rk_mpp_dispatch_lease_active_locked(\n"
+            "\t\tconst struct rk_mpp_session *session)\n"
+            "{\n"
+            "\treturn !!session->rkvdec_dispatch_owner;\n"
+            "}\n"
+            "static bool rk_mpp_dispatch_lease_owned_locked(\n"
+            "\t\tconst struct rk_mpp_job *job)\n"
+            "{\n"
+            "\treturn job->session->rkvdec_dispatch_owner == "
+            "&job->activation;\n"
+            "}\n"
+            "static void rk_mpp_dispatch_lease_acquire_locked(\n"
+            "\t\tstruct rk_mpp_job *job)\n"
+            "{\n"
+            "\tjob->session->rkvdec_dispatch_owner = &job->activation;\n"
+            "}\n"
+            "static void rk_mpp_dispatch_lease_release_locked(\n"
+            "\t\tstruct rk_mpp_job *job)\n"
+            "{\n"
+            "\tjob->session->rkvdec_dispatch_owner = NULL;\n"
             "}\n"
             "static void mpp_paths(struct rk_mpp_hw *hw, struct rk_mpp_job *job)\n"
             "{\n"
@@ -2672,7 +2702,8 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\trk_mpp_activation_init(job);\n"
             "\trk_mpp_activation_install_locked(hw, job, 1);\n"
             "\tif (job->activation.generation) job = NULL;\n"
-            "\tjob->rkvdec_session_dispatch = true;\n"
+            "\trk_mpp_dispatch_lease_acquire_locked(job);\n"
+            "\trk_mpp_dispatch_lease_release_locked(job);\n"
             "\tjob->rkvdec_ccu_power_lease = lease;\n"
             "\tlease->power_lease_core_count = 1;\n"
             "\tlease->power_lease_cores[0] = hw;\n"
@@ -2777,6 +2808,11 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
     def run_audit(
         self, tree: Path, baseline: Path, *options: str
     ) -> subprocess.CompletedProcess[str]:
+        return self.run_audit_trees((tree,), baseline, *options)
+
+    def run_audit_trees(
+        self, trees: tuple[Path, ...], baseline: Path, *options: str
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [
                 sys.executable,
@@ -2784,7 +2820,7 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                 "--baseline",
                 str(baseline),
                 *options,
-                str(tree),
+                *(str(tree) for tree in trees),
             ],
             capture_output=True,
             text=True,
@@ -2804,6 +2840,11 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("mpp-activation-entry", baseline_text)
             self.assertIn("mpp-activation-access", baseline_text)
             self.assertIn("mpp-activation-write", baseline_text)
+            self.assertIn("mpp-dispatch-owner-schema", baseline_text)
+            self.assertIn("mpp-dispatch-lease-access", baseline_text)
+            self.assertIn("mpp-dispatch-lease-write", baseline_text)
+            self.assertNotIn("rkvdec_session_dispatch", baseline_text)
+            self.assertNotIn("rkvdec_dispatch_active", baseline_text)
             self.assertNotIn("job->activation.generation = 99", baseline_text)
             self.assertIn("mpp-reset-domain-operation-entry", baseline_text)
             self.assertIn("mpp-reset-domain-member-entry", baseline_text)
@@ -2892,8 +2933,6 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\tcmpxchg(&hws[0]->active_job, job, NULL);\n"
                     "\thws[0]->active_generation <<= 1;\n"
                     "\t++(*hw).active_generation;\n"
-                    "\tif (job->rkvdec_session_dispatch) job = NULL;\n"
-                    "\t(*job).rkvdec_dispatch_active ^= true;\n"
                     "\tjob->rkvdec_ccu_powered = false;\n"
                     "\trk_mpp_hw_power_off(hw);\n"
                     "\tclk_bulk_prepare_enable(1, hw->clks);\n"
@@ -2969,7 +3008,8 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                 extra_kunit=(
                     "\treset_control_deassert(NULL);\n"
                     "\tfake.active_job = NULL;\n"
-                    "\tjob->rkvdec_session_dispatch = false;\n"
+                    "\tjob->session->rkvdec_dispatch_owner = "
+                    "&job->activation;\n"
                     "\tfake.rkvdec_ccu_powered = false;\n"
                     "\tiommu_flush_iotlb_all(NULL);\n"
                     "\tfake.result = 0;\n"
@@ -3008,7 +3048,6 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertEqual(changed.returncode, 1)
             self.assertIn("NEW\tmpp-active-slot-access", changed.stderr)
             self.assertIn("NEW\tmpp-active-slot-write", changed.stderr)
-            self.assertIn("NEW\tmpp-dispatch-lease-access", changed.stderr)
             self.assertIn("NEW\tmpp-power-field", changed.stderr)
             self.assertIn("NEW\tmpp-power-transition-entry", changed.stderr)
             self.assertIn("NEW\tmpp-power-backend-op", changed.stderr)
@@ -3087,10 +3126,6 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                 ("mpp-active-slot-write", "cmpxchg(&hws[0]->active_job"),
                 ("mpp-active-slot-write", "active_generation <<= 1"),
                 ("mpp-active-slot-write", "++(*hw).active_generation"),
-                (
-                    "mpp-dispatch-lease-write",
-                    "rkvdec_dispatch_active ^= true",
-                ),
                 ("mpp-power-count-write", "atomic_xchg(&hws[0]->power_count"),
                 ("mpp-power-count-write", "atomic_add(1, &hws[0]->power_count"),
                 ("mpp-power-backend-op", "clk_bulk_enable(1, hw->clks)"),
@@ -3178,7 +3213,7 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("(*job).result = -EIO", changed.stderr)
             self.assertNotIn("reset_control_deassert", changed.stderr)
             self.assertNotIn("fake.active_job", changed.stderr)
-            self.assertNotIn("rkvdec_session_dispatch = false", changed.stderr)
+            self.assertNotIn("rkvdec_dispatch_owner", changed.stderr)
             self.assertNotIn("fake.rkvdec_ccu_powered", changed.stderr)
             self.assertNotIn("fake.online", changed.stderr)
             self.assertNotIn("iommu_flush_iotlb_all", changed.stderr)
@@ -3201,6 +3236,147 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             wrong_head = self.run_audit(tree, baseline)
             self.assertEqual(wrong_head.returncode, 1)
             self.assertIn("source HEAD unknown is not pinned", wrong_head.stderr)
+
+    def test_dispatch_owner_identity_is_hard_guarded(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tree = root / "linux"
+            baseline = root / "baseline.tsv"
+            self.make_tree(tree)
+            updated = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(updated.returncode, 0, updated.stderr)
+
+            self.make_tree(
+                tree,
+                extra_mpp=(
+                    "\tif (session->rkvdec_dispatch_owner) job = NULL;\n"
+                    "\tWRITE_ONCE(session->rkvdec_dispatch_owner, "
+                    "&job->activation);\n"
+                    "\txchg(&session->rkvdec_dispatch_owner, NULL);\n"
+                ),
+            )
+            rejected = self.run_audit(tree, baseline)
+            self.assertEqual(rejected.returncode, 2)
+            self.assertIn("OWNER\tmpp-dispatch-lease-access", rejected.stderr)
+            self.assertIn("OWNER\tmpp-dispatch-lease-write", rejected.stderr)
+            self.assertIn("rkvdec_dispatch_owner", rejected.stderr)
+
+            rebased = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(rebased.returncode, 2)
+            self.assertIn("used outside its allowed owners", rebased.stderr)
+
+            self.make_tree(tree)
+            source = tree / "drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c"
+            source.write_text(
+                source.read_text(encoding="utf-8")
+                + "static bool rk_mpp_dispatch_lease_active_locked("
+                "struct rk_mpp_session *session)\n"
+                "{\n"
+                "\tsession->rkvdec_dispatch_owner = NULL;\n"
+                "\treturn false;\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            wrong_owner = self.run_audit(tree, baseline)
+            self.assertEqual(wrong_owner.returncode, 2)
+            self.assertIn("OWNER\tmpp-dispatch-lease-write", wrong_owner.stderr)
+            self.assertIn("rk_mpp_dispatch_lease_active_locked", wrong_owner.stderr)
+
+            self.make_tree(
+                tree,
+                extra_mpp="\tjob->rkvdec_session_dispatch = true;\n",
+            )
+            legacy = self.run_audit(tree, baseline)
+            self.assertEqual(legacy.returncode, 2)
+            self.assertIn("OWNER\tmpp-dispatch-legacy", legacy.stderr)
+            self.assertIn("rkvdec_session_dispatch", legacy.stderr)
+            legacy_rebased = self.run_audit(
+                tree, baseline, "--update-baseline"
+            )
+            self.assertEqual(legacy_rebased.returncode, 2)
+            self.assertIn("OWNER\tmpp-dispatch-legacy", legacy_rebased.stderr)
+
+            self.make_tree(
+                tree,
+                extra_kunit=(
+                    "\tsession->rkvdec_dispatch_owner = "
+                    "&job->activation;\n"
+                ),
+            )
+            kunit_only = self.run_audit(tree, baseline)
+            self.assertEqual(kunit_only.returncode, 0, kunit_only.stderr)
+
+            self.make_tree(
+                tree,
+                extra_kunit="\tjob->rkvdec_session_dispatch = true;\n",
+            )
+            legacy_kunit = self.run_audit(tree, baseline)
+            self.assertEqual(legacy_kunit.returncode, 2)
+            self.assertIn("OWNER\tmpp-dispatch-legacy", legacy_kunit.stderr)
+
+            self.make_tree(tree)
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "struct rk_mpp_activation *rkvdec_dispatch_owner;",
+                    "struct rk_mpp_job *rkvdec_dispatch_owner;",
+                ),
+                encoding="utf-8",
+            )
+            schema_changed = self.run_audit(tree, baseline)
+            self.assertEqual(schema_changed.returncode, 2)
+            self.assertIn("found 0 there and 0 overall", schema_changed.stderr)
+
+            self.make_tree(tree)
+            source.write_text(
+                source.read_text(encoding="utf-8")
+                + "struct rk_mpp_job_duplicate {\n"
+                "\tstruct rk_mpp_activation *rkvdec_dispatch_owner;\n"
+                "};\n",
+                encoding="utf-8",
+            )
+            schema_duplicated = self.run_audit(tree, baseline)
+            self.assertEqual(schema_duplicated.returncode, 2)
+            self.assertIn("found 1 there and 2 overall", schema_duplicated.stderr)
+
+            self.make_tree(tree)
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "struct rk_mpp_session {\n"
+                    "\tstruct rk_mpp_activation *rkvdec_dispatch_owner;\n"
+                    "};\n",
+                    "struct rk_mpp_session { int unused; };\n"
+                    "struct rk_mpp_job_duplicate {\n"
+                    "\tstruct rk_mpp_activation *rkvdec_dispatch_owner;\n"
+                    "};\n",
+                ),
+                encoding="utf-8",
+            )
+            schema_moved = self.run_audit(tree, baseline)
+            self.assertEqual(schema_moved.returncode, 2)
+            self.assertIn("found 0 there and 1 overall", schema_moved.stderr)
+
+    def test_baseline_output_rejects_cross_tree_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = root / "linux-first"
+            second = root / "linux-second"
+            baseline = root / "baseline.tsv"
+            self.make_tree(first)
+            self.make_tree(second)
+            updated = self.run_audit_trees(
+                (first, second), baseline, "--update-baseline"
+            )
+            self.assertEqual(updated.returncode, 0, updated.stderr)
+            original = baseline.read_text(encoding="utf-8")
+
+            self.make_tree(second, extra_mpp="\trk_mpp_hw_power_off(hw);\n")
+            for option in ("--emit-baseline", "--update-baseline"):
+                rejected = self.run_audit_trees(
+                    (first, second), baseline, option
+                )
+                self.assertEqual(rejected.returncode, 1, rejected.stderr)
+                self.assertIn("ownership signals differ", rejected.stderr)
+            self.assertEqual(baseline.read_text(encoding="utf-8"), original)
 
     def test_activation_schema_and_nested_writes_are_guarded(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -3251,7 +3427,7 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
 
             rebased = self.run_audit(tree, baseline, "--update-baseline")
             self.assertEqual(rebased.returncode, 2)
-            self.assertIn("written outside their owners", rebased.stderr)
+            self.assertIn("used outside its allowed owners", rebased.stderr)
 
             self.make_tree(tree)
             source.write_text(

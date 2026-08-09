@@ -82,7 +82,7 @@ The durable architectural boundary is:
 | ABI | supported MPP/RGA command and request shapes plus explicit unsafe or unimplemented rejections |
 | In-source tests | how pure parsing, bounds, routing, register emission, IRQ policy, and race-state transitions are modeled |
 | Hardware evidence | why compilation and KUnit cannot establish real pixels, bitstreams, IRQ wiring, DMA behavior, or reset effectiveness |
-| Target ownership | the MPP cluster owns topology and hard-CCU reset-pulse validation, and a refcounted cluster lease owns member-core power holds; Phase 3A embeds an MPP current-attempt generation/deadline record, but activation-typed slots, retained retirement, RGA task-execution/acquire-set objects, and cluster admission/coordinator-power/full-recovery authority remain refactor goals rather than current behavior claims |
+| Target ownership | the MPP cluster owns topology and hard-CCU reset-pulse validation, and a refcounted cluster lease owns member-core power holds; Phase 3A embeds an MPP current-attempt generation/deadline record and Phase 3B binds per-session RKVDEC dispatch to its exact address, but activation-typed slots, retained retirement, RGA task-execution/acquire-set objects, and cluster admission/coordinator-power/full-recovery authority remain refactor goals rather than current behavior claims |
 
 The practical design scope includes RKVENC2/RKVDEC2 H.264/H.265, decoder-parity
 VP9, the separate VPU981/VSI AV1 path, and the Linux librga/FFmpeg/GStreamer
