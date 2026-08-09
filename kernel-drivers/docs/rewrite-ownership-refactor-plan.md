@@ -24,9 +24,10 @@ The priority is **ownership before convention**:
 > lease to that exact embedded address, Phase 3C moves the retained
 > selected-core reference into it, Phase 3D stores the active and timeout
 > slots as exact activation pointers, and Phase 3E routes every active-slot
-> detach through one reasoned claim owner at
-> `rk3588-rewrite-6.18@969b91ce7d4b` and
-> `rk3588-rewrite-mainline@8f67fb6fc7d9`. Their tracked
+> detach through one reasoned claim owner. Phase 3F replaces in-place hard-CCU
+> retry reuse with distinct retained successor storage at
+> `rk3588-rewrite-6.18@3e6d682519a02` and
+> `rk3588-rewrite-mainline@e72aaf3244fbf`. Their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. Phase 1 funnels reset
 > backends, both active slots, RKVDEC dispatch and power leases,
 > publication/start, MPP outcome publication, and RGA execution-map retirement;
@@ -75,8 +76,16 @@ The priority is **ownership before convention**:
 > failure restores the same slot, reference, generation, and deadline to
 > `SLOTTED`. This records today's first-claim behavior without ranking final
 > errors or changing the session-abort outcome path.
-> Retained attempts, fresh retry objects, final retirement states, and terminal
-> arbitration remain later Phase 3 work. The 1535-signal source-pinned
+> Phase 3F gives the job an embedded first activation, a current pointer, and a
+> retained list. Every committed hard-CCU retry publishes a separately
+> allocated successor across current, dispatch, and active ownership in one
+> transaction; the predecessor freezes as `SUPERSEDED/RETRY_REPLACED` and
+> remains allocated until final job release. Each retained activation owns its
+> selected-core reference. This closes same-address retry reuse, but logical
+> supersession still occurs before per-core stop/recovery to preserve existing
+> behavior and is not proof of quiescence or final retirement.
+> Typed closure results, `RETIRED`/`RECLAIMABLE`, quarantine transfer, and
+> terminal arbitration remain later Phase 3 work. The 1688-signal source-pinned
 > production audit freezes those activation, IRQ, and recovery seams plus
 > the earlier reset-domain, cluster construction, group-reset, power-lease,
 > and CCU runtime seams; the KUnit-debt audit remains 306 signals, and the
@@ -854,6 +863,18 @@ generation replacement. The claim reason records the current winner; it does
 not rank final errno values, delay session-abort publication, retain an old
 attempt, or make `CLAIMED` equivalent to `RETIRED`.
 
+Checkpoint 3F is present at `3e6d682519a02` / `e72aaf3244fbf`: the job owns
+one embedded first activation, a `current_activation` pointer, and a retained
+list of every attempt. A hard-CCU retry allocates a distinct successor and
+atomically transfers current, dispatch, and active identity while holding the
+existing recovery/run/session/scheduler/hardware lock chain. The predecessor
+becomes `SUPERSEDED/RETRY_REPLACED`; its generation and deadline are frozen,
+and stale timeout work keeps the containing job alive until its exact old
+pointer/generation claim drains. Every committed activation owns one selected
+hardware reference, which completion/destruction drops by walking all retained
+storage. Supersession remains a logical pre-stop replacement, not a quiescence,
+retirement, or reclaimability result.
+
 1. Embed and initialize `rk_mpp_activation` in the current job.
 2. Move generation, absolute deadline, selected hardware, and exact
    session-dispatch identity into it. CCU/DCHS/link and power ownership remain
@@ -865,8 +886,10 @@ attempt, or make `CLAIMED` equivalent to `RETIRED`.
    abort, close, remove and shutdown through one reasoned claim owner while
    preserving existing first-winner and IOMMU-fault-reservation behavior.
    Retained retirement and final result arbitration remain pending.
-5. Make retry allocate a new attempt/generation; make quarantine transfer
-   resources into a tombstone; and require `RECLAIMABLE` before embedded reuse.
+5. **Fresh retry storage implemented by checkpoint 3F.** Retain a typed
+   quiescence/cleanup result for each superseded attempt; make quarantine
+   transfer resources into a tombstone; and require `RECLAIMABLE` before any
+   storage release or reuse.
 6. Delete duplicate terminal tails only after source audit proves every trigger
    reaches the engine.
 
@@ -985,11 +1008,11 @@ read every exception.
 | sibling reset/deassert and gated-register MMIO | measured wedge fixed by domain lock; hard-IRQ architecture remains a residual concern | reset domain + cluster + IRQ-safe register lease | repeated two-core reset contention and UART/ramoops-clean recovery |
 | decoder self-reset and missing IOMMU refresh twins | hardware semantics measured; five software reset paths found without refresh; exact restore need remains hardware-sensitive | cluster recovery + DMA group reset effect | counters correlate reset effects to refresh/isolation; post-error decode remains correct |
 | CCU/DCHS power and retirement twins | several fixed call-site omissions; member-core group power now has one refcounted lease, but that lease and coordinator power still attach to legacy jobs | cluster power lease + activation | soft/hard CCU retry/abort/remove matrix, DCHS multi-core stress |
-| same-session RKVDEC overlap | ordered overlap still corrupted kernel #8; current narrow fix holds a session token through hardware retirement | session pointer now names exact embedded activation storage; retained activation/quarantine ownership remains later | exact-tip H.26x red/green loop, reset-session race, and independent-session dual-core proof |
+| same-session RKVDEC overlap | ordered overlap still corrupted kernel #8; current narrow fix holds a session token through hardware retirement | session pointer now names exact current activation storage and follows a fresh hard-CCU retry successor; quarantine ownership remains later | exact-tip H.26x red/green loop, reset-session race, and independent-session dual-core proof |
 | post-validation MPP register writes | RCB instance fixed; recurrence is structurally possible while image stays mutable | sealed image owned by activation | source gate: no post-seal writer; byte-exact oracle |
 | RGA multi-task recovery | one omission fixed by a common helper; current job still mixes task and request lifetime | task execution + job orchestrator | fail each task position through every terminal trigger |
 | coherent command publication before START | source defect fixed with an RGA `dma_wmb()`; runtime causality for current corruption remains open | activation/execution `publish_and_start()` | immediate-IRQ injection plus exact-tip RGA3 vpp/overlay red-green replay |
-| retry, delayed callback, and quarantine ABA | generation checks exist, but broad job storage and terminal tails still permit ambiguous reuse/retention | refcounted attempt + reason engine + quarantine tombstone | delayed old-generation event matrix and forced unproved-stop retention |
+| retry, delayed callback, and quarantine ABA | Phase 3F gives retry a distinct retained address and freezes predecessor identity, but terminal tails still lack typed retirement/quarantine ownership | closure result + retirement engine + quarantine tombstone | delayed old-attempt event matrix and forced unproved-stop retention |
 | RGA userptr import serialization and pin budget | source-inspected global-lock window and missing locked-memory accounting | import capability + execution/cached map | concurrent import/release/remove stress and resource-limit tests |
 | RGA2 large-segment staging | 1 MiB system-heap mapping exceeds the current SWIOTLB segment policy; implementation remains open | direct/staged execution map owned by task execution | copy-in/copyback fault matrix and exact pixels without a second teardown path |
 | RGA validator/emitter geometry or feature mismatch | multiple twin fixes; three compressed-layout questions still need hardware | immutable validated task plan | golden commands plus real small/rotated/compressed pixel cases |

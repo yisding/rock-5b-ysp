@@ -206,7 +206,7 @@ MPP_REGISTER_LEASE_ACCESS_RE = re.compile(
 )
 MPP_REGISTER_LEASE_WRITE_RE = field_write_re(MPP_REGISTER_LEASE_FIELDS)
 ACTIVATION_FIELD_PUBLISHERS = rf"(?:{FIELD_PUBLISHERS}|memset|memcpy|memmove)"
-MPP_ACTIVATION_OBJECT_TARGET = rf"{FIELD_TARGET}activation"
+MPP_ACTIVATION_OBJECT_TARGET = rf"{FIELD_TARGET}activation_storage"
 MPP_ACTIVATION_FIELDS = (
     r"job|selected_hw|slot_state|transition_reason|generation|"
     r"watchdog_deadline|watchdog_deadline_valid"
@@ -249,7 +249,10 @@ def activation_field_target(
         if escaped
         else r"(?!)"
     )
-    slot_pointer = rf"{FIELD_TARGET}(?:active_activation|timeout_activation)\b"
+    slot_pointer = (
+        rf"{FIELD_TARGET}(?:active_activation|timeout_activation|"
+        r"current_activation)\b"
+    )
     slot = (
         rf"(?:{slot_pointer}\s*->|"
         rf"\(\s*\*\s*{slot_pointer}\s*\)\s*\.|"
@@ -264,10 +267,13 @@ def activation_field_target(
 
 MPP_ACTIVATION_FIELD_TARGET = activation_field_target({"activation"})
 MPP_ACTIVATION_ENTRY_RE = re.compile(
-    r"\b(?:rk_mpp_activation_(?:init|job|generation|install_locked|"
-    r"storage_released)|"
+    r"\b(?:rk_mpp_activation_(?:storage_init|init|job|generation|"
+    r"install_locked|storage_released|alloc_successor|free_unpublished)|"
+    r"rk_mpp_job_(?:activation_storage_released|"
+    r"activation_hardware_released|release_activation_storage)|"
     r"rk_mpp_hw_(?:advance_active_generation_locked|install_active_locked|"
-    r"claim_active_locked|restore_active_locked|prepare_active_retry))\s*\("
+    r"claim_active_locked|restore_active_locked|active_retry_(?:ready|"
+    r"matches_locked)|commit_active_retry))\s*\("
 )
 MPP_ACTIVATION_ACCESS_RE = re.compile(
     rf"(?:{MPP_ACTIVATION_OBJECT_TARGET}\b|"
@@ -307,6 +313,43 @@ MPP_SELECTED_HW_WRITE_RE = field_write_re(
     publishers=ACTIVATION_FIELD_PUBLISHERS,
     target=MPP_ACTIVATION_FIELD_TARGET,
 )
+MPP_CURRENT_ACTIVATION_ACCESS_RE = re.compile(
+    rf"{FIELD_TARGET}current_activation\b"
+)
+MPP_CURRENT_ACTIVATION_WRITE_RE = re.compile(
+    rf"(?:(?:\+\+|--)\s*{FIELD_TARGET}current_activation\b(?!\s*->)|"
+    rf"{FIELD_TARGET}current_activation\b(?!\s*->)"
+    rf"\s*(?:\+\+|--|{FIELD_ASSIGNMENT})|"
+    rf"\b(?:{ACTIVATION_FIELD_PUBLISHERS})\s*\(\s*&?\s*"
+    rf"{FIELD_TARGET}current_activation\b(?!\s*->))"
+)
+MPP_ACTIVATION_STORAGE_ACCESS_RE = re.compile(
+    rf"{FIELD_TARGET}activation_storage\b"
+)
+MPP_ACTIVATION_LIST_ACCESS_RE = re.compile(rf"{FIELD_TARGET}activations\b")
+MPP_ACTIVATION_LINK_ACCESS_RE = re.compile(
+    rf"{MPP_ACTIVATION_FIELD_TARGET}job_link\b"
+)
+MPP_ACTIVATION_LIST_NODE_TARGET = rf"{FIELD_TARGET}activations\s*\."
+MPP_ACTIVATION_LINK_NODE_TARGET = (
+    rf"{MPP_ACTIVATION_FIELD_TARGET}job_link\s*\."
+)
+MPP_ACTIVATION_LIST_WRITE_RE = re.compile(
+    rf"(?:{field_write_re('activations', publishers=ACTIVATION_FIELD_PUBLISHERS).pattern}|"
+    rf"{field_write_re('next|prev', publishers=ACTIVATION_FIELD_PUBLISHERS, target=MPP_ACTIVATION_LIST_NODE_TARGET).pattern}|"
+    r"\b(?:INIT_LIST_HEAD|list_(?:add(?:_tail)?|del(?:_init)?|"
+    r"move(?:_tail)?|replace(?:_init)?|splice(?:_init)?(?:_tail)?|swap|"
+    r"rotate_to_front|cut_position|bulk_move_tail))\s*\([^;]*"
+    rf"{FIELD_TARGET}activations\b)"
+)
+MPP_ACTIVATION_LINK_WRITE_RE = re.compile(
+    rf"(?:{field_write_re('job_link', publishers=ACTIVATION_FIELD_PUBLISHERS, target=MPP_ACTIVATION_FIELD_TARGET).pattern}|"
+    rf"{field_write_re('next|prev', publishers=ACTIVATION_FIELD_PUBLISHERS, target=MPP_ACTIVATION_LINK_NODE_TARGET).pattern}|"
+    r"\b(?:INIT_LIST_HEAD|list_(?:add(?:_tail)?|del(?:_init)?|"
+    r"move(?:_tail)?|replace(?:_init)?|splice(?:_init)?(?:_tail)?|swap|"
+    r"rotate_to_front|cut_position|bulk_move_tail))\s*\([^;]*"
+    rf"{MPP_ACTIVATION_FIELD_TARGET}job_link\b)"
+)
 MPP_ACTIVATION_SEQUENCE_WRITE_RE = field_write_re(
     r"activation_generation_seq", publishers=ACTIVATION_FIELD_PUBLISHERS
 )
@@ -344,7 +387,10 @@ def activation_object_write_re(
         if escaped
         else r"(?!)"
     )
-    slot_pointer = rf"{FIELD_TARGET}(?:active_activation|timeout_activation)\b"
+    slot_pointer = (
+        rf"{FIELD_TARGET}(?:active_activation|timeout_activation|"
+        r"current_activation)\b"
+    )
     slot_lvalue = (
         rf"(?:\*\s*{slot_pointer}|"
         rf"\(\s*\*\s*{slot_pointer}\s*\)|"
@@ -358,6 +404,12 @@ def activation_object_write_re(
         rf"(?:{MPP_ACTIVATION_OBJECT_TARGET}\b(?!\s*\.)|"
         rf"{alias_lvalue}|{slot_lvalue}|{cast_lvalue})"
     )
+    pointer_declaration = (
+        rf"(?:const\s+)?{activation_type}\s*\*\s*"
+        rf"{ACTIVATION_POINTER_QUALIFIERS}(?:{escaped})\s*="
+        if escaped
+        else r"(?!)"
+    )
     memory_target = (
         rf"(?:&?\s*{MPP_ACTIVATION_OBJECT_TARGET}\b(?!\s*\.)|"
         rf"&?\s*\*?\s*\b(?:{escaped})\b(?:\s*\[[^\]]+\])?|"
@@ -368,7 +420,8 @@ def activation_object_write_re(
         rf"&?\s*\*?\s*{slot_pointer}(?:\s*\[[^\]]+\])?|{cast_pointer})"
     )
     return re.compile(
-        rf"(?:^(?!\s*(?:const\s+)?struct\s+rk_mpp_activation\b)[^;]*?"
+        rf"(?:^(?![^;]*\b{pointer_declaration})"
+        rf"(?!\s*(?:const\s+)?struct\s+rk_mpp_activation\b)[^;]*?"
         rf"(?:(?:\+\+|--)\s*{object_lvalue}|"
         rf"{object_lvalue}\s*(?:\+\+|--|{FIELD_ASSIGNMENT}))|"
         rf"\b(?:{FIELD_PUBLISHERS})\s*\(\s*&?\s*{object_lvalue}|"
@@ -388,35 +441,39 @@ MPP_ACTIVATION_WRITE_RE = re.compile(
     rf"{MPP_ACTIVATION_OBJECT_WRITE_RE.pattern})"
 )
 MPP_ACTIVATION_PARENT_WRITE_OWNERS = {
-    "rk_mpp_activation_init",
-    "rk_mpp_activation_install_locked",
+    "rk_mpp_activation_storage_init",
 }
 MPP_ACTIVATION_GENERATION_WRITE_OWNERS = {
-    "rk_mpp_activation_init",
+    "rk_mpp_activation_storage_init",
     "rk_mpp_activation_install_locked",
 }
 MPP_ACTIVATION_DEADLINE_WRITE_OWNERS = {
-    "rk_mpp_activation_init",
+    "rk_mpp_activation_storage_init",
     "rk_mpp_activation_install_locked",
     "rk_mpp_hw_schedule_timeout",
 }
 MPP_ACTIVATION_SLOT_STATE_ACCESS_OWNERS = {
-    "rk_mpp_activation_init",
+    "rk_mpp_activation_storage_init",
     "rk_mpp_activation_install_locked",
     "rk_mpp_activation_storage_released",
+    "rk_mpp_activation_free_unpublished",
     "rk_mpp_hw_claim_active_locked",
     "rk_mpp_hw_restore_active_locked",
+    "rk_mpp_hw_active_retry_matches_locked",
+    "rk_mpp_hw_commit_active_retry",
 }
 MPP_ACTIVATION_SLOT_STATE_WRITE_OWNERS = {
-    "rk_mpp_activation_init",
+    "rk_mpp_activation_storage_init",
     "rk_mpp_activation_install_locked",
     "rk_mpp_hw_claim_active_locked",
     "rk_mpp_hw_restore_active_locked",
+    "rk_mpp_hw_commit_active_retry",
 }
 MPP_ACTIVATION_REASON_ACCESS_OWNERS = MPP_ACTIVATION_SLOT_STATE_ACCESS_OWNERS
 MPP_ACTIVATION_REASON_WRITE_OWNERS = MPP_ACTIVATION_SLOT_STATE_WRITE_OWNERS
 MPP_SELECTED_HW_ACCESS_OWNERS = {
-    "rk_mpp_activation_init",
+    "rk_mpp_activation_storage_init",
+    "rk_mpp_activation_free_unpublished",
     "rk_mpp_activation_install_locked",
     "rk_mpp_av1_submit",
     "rk_mpp_av1_validate",
@@ -436,8 +493,11 @@ MPP_SELECTED_HW_ACCESS_OWNERS = {
     "rk_mpp_debug_record_job",
     "rk_mpp_debug_state_show",
     "rk_mpp_hw_abort_queued_matching",
+    "rk_mpp_hw_active_retry_matches_locked",
+    "rk_mpp_hw_commit_active_retry",
     "rk_mpp_job_apply_rcb_info",
     "rk_mpp_job_apply_reg_offsets",
+    "rk_mpp_job_activation_hardware_released",
     "rk_mpp_job_drop_hw",
     "rk_mpp_job_get_hw",
     "rk_mpp_job_hold_explicit_iova",
@@ -446,7 +506,6 @@ MPP_SELECTED_HW_ACCESS_OWNERS = {
     "rk_mpp_job_queue_current_locked",
     "rk_mpp_job_read_regs",
     "rk_mpp_job_reject_reg",
-    "rk_mpp_job_release",
     "rk_mpp_job_rkvdec_rcb_enabled",
     "rk_mpp_job_select_hw",
     "rk_mpp_job_submit",
@@ -474,9 +533,124 @@ MPP_SELECTED_HW_ACCESS_OWNERS = {
     "rk_mpp_scheduler_work",
 }
 MPP_SELECTED_HW_WRITE_OWNERS = {
-    "rk_mpp_activation_init",
+    "rk_mpp_activation_storage_init",
+    "rk_mpp_hw_commit_active_retry",
     "rk_mpp_job_select_hw",
     "rk_mpp_job_drop_hw",
+}
+MPP_CURRENT_ACTIVATION_ACCESS_OWNERS = {
+    "__rk_mpp_hw_restore_active_job",
+    "rk_mpp_activation_init",
+    "rk_mpp_av1_submit",
+    "rk_mpp_av1_validate",
+    "rk_mpp_cluster_arm_soft_ccu",
+    "rk_mpp_cluster_collect_stop_cores",
+    "rk_mpp_cluster_power_lease_acquire",
+    "rk_mpp_cluster_publish_ccu_job",
+    "rk_mpp_cluster_publish_soft_ccu_job",
+    "rk_mpp_cluster_relink_ccu_tables_locked",
+    "rk_mpp_cluster_relink_unfinished_locked",
+    "rk_mpp_cluster_remove_ccu_job",
+    "rk_mpp_cluster_start_ccu_job",
+    "rk_mpp_cluster_validate_job",
+    "rk_mpp_count_dispatched_core",
+    "rk_mpp_count_scheduled_core",
+    "rk_mpp_count_started_core",
+    "rk_mpp_debug_record_job",
+    "rk_mpp_debug_state_show",
+    "rk_mpp_dispatch_lease_acquire_locked",
+    "rk_mpp_dispatch_lease_owned_locked",
+    "rk_mpp_hw_abort_queued_matching",
+    "rk_mpp_hw_active_job_is",
+    "rk_mpp_hw_active_retry_matches_locked",
+    "rk_mpp_hw_claim_active_locked",
+    "rk_mpp_hw_clear_active_job",
+    "rk_mpp_hw_commit_active_retry",
+    "rk_mpp_hw_install_active_locked",
+    "rk_mpp_hw_restore_active_locked",
+    "rk_mpp_hw_take_active_if",
+    "rk_mpp_job_apply_rcb_info",
+    "rk_mpp_job_apply_reg_offsets",
+    "rk_mpp_job_get_hw",
+    "rk_mpp_job_hold_explicit_iova",
+    "rk_mpp_job_hw_available_locked",
+    "rk_mpp_job_note_hw_done",
+    "rk_mpp_job_queue_current_locked",
+    "rk_mpp_job_read_regs",
+    "rk_mpp_job_reject_reg",
+    "rk_mpp_job_release_activation_storage",
+    "rk_mpp_job_rkvdec_rcb_enabled",
+    "rk_mpp_job_select_hw",
+    "rk_mpp_job_submit",
+    "rk_mpp_job_translate_reg",
+    "rk_mpp_job_unqueue_locked",
+    "rk_mpp_job_validate_write_regs",
+    "rk_mpp_job_write_regs",
+    "rk_mpp_rkvdec2_acquire_soft_ccu",
+    "rk_mpp_rkvdec2_prepare_ccu_descriptor",
+    "rk_mpp_rkvdec2_prepare_ccu_regs",
+    "rk_mpp_rkvdec2_prepare_ccu_retry_job",
+    "rk_mpp_rkvdec2_publish_and_start_core",
+    "rk_mpp_rkvdec2_read_perf_sel",
+    "rk_mpp_rkvdec2_release_link_table",
+    "rk_mpp_rkvdec2_reserve_link_table",
+    "rk_mpp_rkvdec2_reset_soft_ccu_job",
+    "rk_mpp_rkvdec2_stage_link_table",
+    "rk_mpp_rkvdec2_submit",
+    "rk_mpp_rkvdec2_validate",
+    "rk_mpp_rkvenc2_dchs_lifecycle_lock",
+    "rk_mpp_rkvenc2_dchs_patch",
+    "rk_mpp_rkvenc2_publish_and_start",
+    "rk_mpp_rkvenc2_submit",
+    "rk_mpp_rkvenc2_validate",
+    "rk_mpp_scheduler_take_job",
+    "rk_mpp_scheduler_work",
+}
+MPP_CURRENT_ACTIVATION_WRITE_OWNERS = {
+    "rk_mpp_activation_init",
+    "rk_mpp_hw_commit_active_retry",
+    "rk_mpp_job_release_activation_storage",
+}
+MPP_ACTIVATION_STORAGE_ACCESS_OWNERS = {
+    "rk_mpp_activation_init",
+    "rk_mpp_job_release_activation_storage",
+}
+MPP_ACTIVATION_LIST_ACCESS_OWNERS = {
+    "rk_mpp_activation_init",
+    "rk_mpp_dispatch_lease_released",
+    "rk_mpp_job_activation_storage_released",
+    "rk_mpp_job_activation_hardware_released",
+    "rk_mpp_job_drop_hw",
+    "rk_mpp_job_release_activation_storage",
+    "rk_mpp_hw_commit_active_retry",
+}
+MPP_ACTIVATION_LIST_WRITE_OWNERS = {
+    "rk_mpp_activation_init",
+    "rk_mpp_job_release_activation_storage",
+    "rk_mpp_hw_commit_active_retry",
+}
+MPP_ACTIVATION_LINK_ACCESS_OWNERS = {
+    "rk_mpp_activation_storage_init",
+    "rk_mpp_activation_init",
+    "rk_mpp_activation_free_unpublished",
+    "rk_mpp_dispatch_lease_released",
+    "rk_mpp_hw_restore_active_locked",
+    "rk_mpp_job_release_activation_storage",
+    "rk_mpp_hw_commit_active_retry",
+    "rk_mpp_rkvdec2_restart_ccu_unfinished_jobs",
+}
+MPP_ACTIVATION_LINK_WRITE_OWNERS = {
+    "rk_mpp_activation_storage_init",
+    "rk_mpp_activation_init",
+    "rk_mpp_job_release_activation_storage",
+    "rk_mpp_hw_commit_active_retry",
+}
+MPP_ACTIVATION_ALLOCATION_OWNERS = {
+    "rk_mpp_activation_alloc_successor",
+}
+MPP_ACTIVATION_FREE_OWNERS = {
+    "rk_mpp_activation_free_unpublished",
+    "rk_mpp_job_release_activation_storage",
 }
 MPP_RKVDEC_CCU_ACCESS_RE = re.compile(rf"{FIELD_TARGET}rkvdec_ccu\b")
 MPP_RKVDEC_CCU_WRITE_RE = field_write_re(r"rkvdec_ccu")
@@ -490,6 +664,7 @@ MPP_RKVDEC_CCU_ACCESS_OWNERS = {
     "rk_mpp_cluster_validate_job",
     "rk_mpp_hw_abort_job",
     "rk_mpp_hw_get_active_ccu_if",
+    "rk_mpp_hw_get_active_ccu_for_job",
     "rk_mpp_hw_recover_active",
     "rk_mpp_rkvdec2_acquire_soft_ccu",
     "rk_mpp_rkvdec2_fill_ccu_descriptor",
@@ -542,26 +717,47 @@ MPP_ACTIVE_ACTIVATION_ACCESS_OWNERS = {
     "rk_mpp_hw_claim_active_locked",
     "rk_mpp_hw_restore_active_locked",
     "rk_mpp_activation_install_locked",
+    "rk_mpp_hw_active_retry_matches_locked",
+    "rk_mpp_hw_commit_active_retry",
 }
 MPP_ACTIVE_ACTIVATION_WRITE_OWNERS = {
     "rk_mpp_hw_install_active_locked",
     "rk_mpp_hw_claim_active_locked",
     "rk_mpp_hw_restore_active_locked",
+    "rk_mpp_hw_commit_active_retry",
 }
 
 MPP_ACTIVE_TRANSITION_ENTRY_RE = re.compile(
-    r"\b(?P<callee>rk_mpp_activation_(?:init|install_locked|"
-    r"storage_released)|rk_mpp_hw_(?:advance_active_generation_locked|"
+    r"\b(?P<callee>rk_mpp_activation_(?:storage_init|init|install_locked|"
+    r"storage_released|alloc_successor|free_unpublished)|"
+    r"rk_mpp_job_(?:activation_storage_released|"
+    r"activation_hardware_released|release_activation_storage)|"
+    r"rk_mpp_hw_(?:advance_active_generation_locked|"
     r"install_active_locked|claim_active_locked|restore_active_locked|"
-    r"prepare_active_retry))\s*\("
+    r"active_retry_(?:ready|matches_locked)|commit_active_retry))\s*\("
 )
 MPP_ACTIVE_TRANSITION_ENTRY_OWNERS = {
+    "rk_mpp_activation_storage_init": {
+        "rk_mpp_activation_init",
+        "rk_mpp_activation_alloc_successor",
+    },
     "rk_mpp_activation_init": {"rk_mpp_batch_get_job"},
+    "rk_mpp_activation_alloc_successor": {
+        "rk_mpp_rkvdec2_restart_ccu_unfinished_jobs"
+    },
+    "rk_mpp_activation_free_unpublished": {
+        "rk_mpp_rkvdec2_restart_ccu_unfinished_jobs"
+    },
     "rk_mpp_activation_install_locked": {
         "rk_mpp_hw_install_active_locked",
-        "rk_mpp_hw_prepare_active_retry",
+        "rk_mpp_hw_commit_active_retry",
     },
-    "rk_mpp_activation_storage_released": {"rk_mpp_job_release"},
+    "rk_mpp_activation_storage_released": {
+        "rk_mpp_job_activation_storage_released"
+    },
+    "rk_mpp_job_activation_storage_released": {"rk_mpp_job_release"},
+    "rk_mpp_job_activation_hardware_released": {"rk_mpp_job_release"},
+    "rk_mpp_job_release_activation_storage": {"rk_mpp_job_release"},
     "rk_mpp_hw_advance_active_generation_locked": {
         "rk_mpp_activation_install_locked"
     },
@@ -575,7 +771,14 @@ MPP_ACTIVE_TRANSITION_ENTRY_OWNERS = {
         "rk_mpp_hw_take_iommu_fault_job",
     },
     "rk_mpp_hw_restore_active_locked": {"__rk_mpp_hw_restore_active_job"},
-    "rk_mpp_hw_prepare_active_retry": {
+    "rk_mpp_hw_active_retry_matches_locked": {
+        "rk_mpp_hw_active_retry_ready",
+        "rk_mpp_hw_commit_active_retry",
+    },
+    "rk_mpp_hw_active_retry_ready": {
+        "rk_mpp_rkvdec2_prepare_ccu_retry_job"
+    },
+    "rk_mpp_hw_commit_active_retry": {
         "rk_mpp_rkvdec2_prepare_ccu_retry_job"
     },
 }
@@ -612,10 +815,13 @@ DISPATCH_OWNER_ACCESS_OWNERS = {
     "rk_mpp_dispatch_lease_owned_locked",
     "rk_mpp_dispatch_lease_acquire_locked",
     "rk_mpp_dispatch_lease_release_locked",
+    "rk_mpp_dispatch_lease_transfer_locked",
+    "rk_mpp_hw_active_retry_matches_locked",
 }
 DISPATCH_OWNER_WRITE_OWNERS = {
     "rk_mpp_dispatch_lease_acquire_locked",
     "rk_mpp_dispatch_lease_release_locked",
+    "rk_mpp_dispatch_lease_transfer_locked",
 }
 POWER_FIELD_RE = re.compile(
     r"\b(?:rkvdec_ccu_power_lease|power_lease_(?:refs|cluster|core_count|"
@@ -772,11 +978,15 @@ class ActivationFunctionPatterns:
     reason_write: re.Pattern[str]
     selected_access: re.Pattern[str]
     selected_write: re.Pattern[str]
+    link_access: re.Pattern[str]
+    link_write: re.Pattern[str]
+    allocation: re.Pattern[str]
+    free: re.Pattern[str]
     object_write: re.Pattern[str]
 
 
 ACTIVATION_POINTER_DECL_RE = re.compile(
-    r"\b(?:const\s+)?struct\s+rk_mpp_activation\s*\*\s*"
+    r"\b(?:const\s+)?struct\s+rk_mpp_activation\s*(?<!\*)\*\s*"
     rf"{ACTIVATION_POINTER_QUALIFIERS}([A-Za-z_]\w*)"
 )
 ACTIVATION_LOCAL_DECL_RE = re.compile(
@@ -826,7 +1036,8 @@ def activation_pointer_aliases(
         if declaration:
             aliases.update(
                 re.findall(
-                    rf"\*\s*{ACTIVATION_POINTER_QUALIFIERS}([A-Za-z_]\w*)",
+                    rf"(?<!\*)\*\s*{ACTIVATION_POINTER_QUALIFIERS}"
+                    r"([A-Za-z_]\w*)",
                     declaration.group(1),
                 )
             )
@@ -841,6 +1052,7 @@ def activation_function_patterns(
     """Build activation guards for the typed aliases in one function."""
 
     aliases = activation_pointer_aliases(function, typedefs, pointer_typedefs)
+    escaped_aliases = "|".join(sorted(re.escape(alias) for alias in aliases))
     target = activation_field_target(aliases, typedefs, pointer_typedefs)
     parent_write = field_write_re(
         r"job", publishers=ACTIVATION_FIELD_PUBLISHERS, target=target
@@ -866,9 +1078,23 @@ def activation_function_patterns(
     selected_write = field_write_re(
         r"selected_hw", publishers=ACTIVATION_FIELD_PUBLISHERS, target=target
     )
+    link_access = re.compile(rf"{target}job_link\b")
+    link_node_target = rf"{target}job_link\s*\."
+    link_write = re.compile(
+        rf"(?:{field_write_re('job_link', publishers=ACTIVATION_FIELD_PUBLISHERS, target=target).pattern}|"
+        rf"{field_write_re('next|prev', publishers=ACTIVATION_FIELD_PUBLISHERS, target=link_node_target).pattern}|"
+        r"\b(?:INIT_LIST_HEAD|list_(?:add(?:_tail)?|del(?:_init)?|"
+        r"move(?:_tail)?|replace(?:_init)?|splice(?:_init)?(?:_tail)?|swap|"
+        r"rotate_to_front|cut_position|bulk_move_tail))\s*\([^;]*"
+        rf"{target}job_link\b)"
+    )
     object_write = activation_object_write_re(
         aliases, typedefs, pointer_typedefs
     )
+    allocation = re.compile(
+        rf"\bkzalloc_obj\s*\(\s*\*\s*(?:{escaped_aliases})\b"
+    )
+    free = re.compile(rf"\bkfree\s*\(\s*(?:{escaped_aliases})\b")
     write = re.compile(
         rf"(?:{parent_write.pattern}|{generation_write.pattern}|"
         rf"{deadline_write.pattern}|{slot_state_write.pattern}|"
@@ -891,6 +1117,10 @@ def activation_function_patterns(
         reason_write=reason_write,
         selected_access=re.compile(rf"{target}selected_hw\b"),
         selected_write=selected_write,
+        link_access=link_access,
+        link_write=link_write,
+        allocation=allocation,
+        free=free,
         object_write=object_write,
     )
 
@@ -1234,7 +1464,8 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                     "enum rk_mpp_activation_slot_state { "
                     "RK_MPP_ACTIVATION_UNINSTALLED, "
                     "RK_MPP_ACTIVATION_SLOTTED, "
-                    "RK_MPP_ACTIVATION_CLAIMED, };",
+                    "RK_MPP_ACTIVATION_CLAIMED, "
+                    "RK_MPP_ACTIVATION_SUPERSEDED, };",
                 ),
                 (
                     "mpp-activation-transition-reason-enum-schema",
@@ -1247,6 +1478,7 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                     "RK_MPP_TRANSITION_SESSION_CLOSE, RK_MPP_TRANSITION_REMOVE, "
                     "RK_MPP_TRANSITION_SHUTDOWN, "
                     "RK_MPP_TRANSITION_CCU_DEPENDENT_ABORT, "
+                    "RK_MPP_TRANSITION_RETRY_REPLACED, "
                     "RK_MPP_TRANSITION_COUNT, };",
                 ),
             ):
@@ -1262,6 +1494,11 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                     (category, relative, "<file-scope>", enum_text, enum_line)
                 )
             for category, pattern, description in (
+                (
+                    "mpp-activation-link-schema",
+                    re.compile(r"\bstruct\s+list_head\s+job_link\s*;"),
+                    "struct list_head job_link member",
+                ),
                 (
                     "mpp-activation-parent-schema",
                     re.compile(r"\bstruct\s+rk_mpp_job\s*\*\s*job\s*;"),
@@ -1356,6 +1593,41 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
             )
             found.append(
                 ("mpp-selected-hw-schema", relative, "<file-scope>", text, line)
+            )
+            for category, pattern, description in (
+                (
+                    "mpp-activation-list-schema",
+                    re.compile(r"\bstruct\s+list_head\s+activations\s*;"),
+                    "struct list_head activations member",
+                ),
+                (
+                    "mpp-activation-storage-schema",
+                    re.compile(
+                        r"\bstruct\s+rk_mpp_activation\s+"
+                        r"activation_storage\s*;"
+                    ),
+                    "struct rk_mpp_activation activation_storage member",
+                ),
+                (
+                    "mpp-current-activation-schema",
+                    re.compile(
+                        r"\bstruct\s+rk_mpp_activation\s*\*\s*"
+                        r"current_activation\s*;"
+                    ),
+                    "struct rk_mpp_activation *current_activation member",
+                ),
+            ):
+                line, text = unique_struct_member_pattern(
+                    source, "rk_mpp_job", pattern, description
+                )
+                found.append((category, relative, "<file-scope>", text, line))
+            forbid_struct_member_pattern(
+                source,
+                "rk_mpp_job",
+                re.compile(
+                    r"\bstruct\s+rk_mpp_activation\s+activation\b"
+                ),
+                "legacy activation member",
             )
             forbid_struct_member_pattern(
                 source,
@@ -1617,6 +1889,26 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                                 MPP_ACTIVATION_ENTRY_RE,
                             ),
                             (
+                                "mpp-current-activation-access",
+                                MPP_CURRENT_ACTIVATION_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-current-activation-write",
+                                MPP_CURRENT_ACTIVATION_WRITE_RE,
+                            ),
+                            (
+                                "mpp-activation-storage-access",
+                                MPP_ACTIVATION_STORAGE_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-activation-list-access",
+                                MPP_ACTIVATION_LIST_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-activation-list-write",
+                                MPP_ACTIVATION_LIST_WRITE_RE,
+                            ),
+                            (
                                 "mpp-activation-access",
                                 activation_patterns.access,
                             ),
@@ -1663,6 +1955,22 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                             (
                                 "mpp-activation-object-write",
                                 activation_patterns.object_write,
+                            ),
+                            (
+                                "mpp-activation-link-access",
+                                activation_patterns.link_access,
+                            ),
+                            (
+                                "mpp-activation-link-write",
+                                activation_patterns.link_write,
+                            ),
+                            (
+                                "mpp-activation-allocation",
+                                activation_patterns.allocation,
+                            ),
+                            (
+                                "mpp-activation-free",
+                                activation_patterns.free,
                             ),
                             (
                                 "mpp-selected-hw-access",
@@ -1952,6 +2260,51 @@ def ownership_violations(signals: Iterable[Signal]) -> list[Signal]:
         elif (
             signal.category == "mpp-active-activation-access"
             and signal.function not in MPP_ACTIVE_ACTIVATION_ACCESS_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-current-activation-access"
+            and signal.function not in MPP_CURRENT_ACTIVATION_ACCESS_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-current-activation-write"
+            and signal.function not in MPP_CURRENT_ACTIVATION_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-storage-access"
+            and signal.function not in MPP_ACTIVATION_STORAGE_ACCESS_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-list-access"
+            and signal.function not in MPP_ACTIVATION_LIST_ACCESS_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-list-write"
+            and signal.function not in MPP_ACTIVATION_LIST_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-link-access"
+            and signal.function not in MPP_ACTIVATION_LINK_ACCESS_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-link-write"
+            and signal.function not in MPP_ACTIVATION_LINK_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-allocation"
+            and signal.function not in MPP_ACTIVATION_ALLOCATION_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-free"
+            and signal.function not in MPP_ACTIVATION_FREE_OWNERS
         ):
             violations.append(signal)
         elif (
