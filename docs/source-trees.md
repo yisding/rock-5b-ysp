@@ -195,6 +195,8 @@ owns the public verdict.
 
 | Snapshot | Pin and base | Historical relationships |
 |----------|--------------|--------------------------|
+| 6.18 rewrite Phase 3H recovered-terminal quarantine, 2026-08-09 | `rk3588-rewrite-6.18@1784358650e3c41abbd5154cbd1737da07d968de` on `v6.18.42@856a9b51680c` | Phase 3G tip `74c1b98def888`; retires recovered terminal claims on typed proof and transfers restore refusal to a ref-owning service tombstone |
+| Mainline rewrite Phase 3H recovered-terminal quarantine, 2026-08-09 | `rk3588-rewrite-mainline@e71d368cc48374638eafbfdf1e9c6864cabbd118` on `v7.2-rc6@075b74841bd0` | Phase 3G tip `dd3a88cd5629`; byte-identical recovered-terminal/quarantine checkpoint |
 | 6.18 rewrite Phase 3G retry retirement proof, 2026-08-09 | `rk3588-rewrite-6.18@74c1b98def888` on `v6.18.42@856a9b51680c` | Phase 3F tip `3e6d682519a02`; retains typed group/core closure evidence for each hard-CCU retry predecessor |
 | Mainline rewrite Phase 3G retry retirement proof, 2026-08-09 | `rk3588-rewrite-mainline@dd3a88cd5629` on `v7.2-rc6@075b74841bd0` | Phase 3F tip `e72aaf3244fbf`; byte-identical retry-retirement checkpoint |
 | 6.18 rewrite Phase 3F fresh retry activations, 2026-08-09 | `rk3588-rewrite-6.18@3e6d682519a02` on `v6.18.42@856a9b51680c` | Phase 3E tip `969b91ce7d4b`; allocates a distinct retained activation for each committed hard-CCU retry; includes frame-bound KUnit follow-up `3e6d682519a02` after implementation `e919f19e2d26b` |
@@ -231,10 +233,15 @@ owns the public verdict.
 | Mainline rewrite, 2026-08-06 | `rk3588-rewrite-mainline@7a6d4cb075a67` on `v7.2-rc6@075b74841bd0` | prior backups `9e503f6b16df` and `5bae68d8381c` |
 | Upstream-style RGA3 comparison | `rk3588-rewrite-mainline@180ee72a9a80` | detailed in §9 |
 
-The two maintained Phase 3G retry-retirement snapshots have byte-identical
-tracked MPP/RGA rewrite sources, Kconfig, ABI ledgers, and UAPI. Their exact
-102 MPP + 152 RGA manifest, 1792-signal production ownership inventory, and
-306-signal KUnit-debt audit pass with zero new or absent signals. The older
+The two maintained Phase 3H recovered-terminal/quarantine snapshots have
+byte-identical tracked MPP/RGA rewrite sources, Kconfig, ABI ledgers, and UAPI.
+Their exact 103 MPP + 152 RGA manifest, 2068-signal production ownership
+inventory, and 306-signal KUnit-debt audit pass with zero new or absent signals;
+the MPP source SHA-256 is
+`24bad07edc62ffb4672ce2a11f8266587bef468987705d65cc16415010d82f17`.
+Strict full-series checkpatch is 0/0/0 over 1,977 lines. All eight warning-fatal
+clean-archive profiles (`normal`, `test-disabled`, `memory`, and `race` on both
+lines) and the repository-wide handoff gate pass. The older
 2026-08-08 rows preserve the recovery, pre-cluster, and pre-refactor snapshots,
 while the 2026-08-06 rows remain historical pins rather than claims about later
 branch heads.

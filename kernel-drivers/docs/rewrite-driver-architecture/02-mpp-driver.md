@@ -58,12 +58,12 @@ The principal objects are:
 
 | Object | Created by | Owns or tracks |
 |--------|------------|----------------|
-| `rk_mpp_service` | module init | hardware registry, global queue, stable reset-domain and shadow-cluster registries, DMA groups, counters, work item |
+| `rk_mpp_service` | module init | hardware registry, global queue, stable reset-domain and shadow-cluster registries, DMA groups, ref-owning quarantine tombstones, counters, work item |
 | `rk_mpp_hw` | platform probe | device, MMIO, IRQ, clocks, resets, activation-typed active/timeout slots, fault work, CCU state |
 | `rk_mpp_session` | `/dev/mpp_service` `open()` | client type, imports, active jobs, translation table, RCB and codec metadata |
 | `rk_mpp_import` | fd translation | DMA-BUF, attachment, mapped scatterlist, device-specific IOVA |
 | `rk_mpp_job` | ioctl message collection | copied requests, register image, imports, result/readback, embedded first activation, current activation pointer, retained activation list, current CCU/DCHS participation, and a temporary cluster-power-lease pointer |
-| `rk_mpp_activation` | initial job allocation or hard-CCU retry successor allocation | parent identity, retained selected hardware, immutable attempt address/generation after supersession, absolute watchdog deadline, exact session-dispatch identity, active/timeout-slot identity, and provisional slot state/reason |
+| `rk_mpp_activation` | initial job allocation or hard-CCU retry successor allocation | parent identity, retained selected hardware, immutable attempt address/generation after supersession, absolute watchdog deadline, exact session-dispatch identity, active/timeout-slot identity, ref-owning claim state/reason, typed retry/recovered-terminal closure, and restore-refusal quarantine identity/evidence |
 | `rk_mpp_reset_domain` | first matching hardware probe | immutable node identity, member lifetime, mutex, single-target reset state/epoch, responsible hardware, operation counters, one epoch for each cluster-validated hard-CCU pulse, and the epoch supplied to typed single-core recovery |
 | `rk_mpp_cluster` | first matching CCU-identity probe | stable member topology, borrowed coordinator, learned core type, reset authority, derived DMA relationship count, hard-reset participant validation, deduplicated pinned-participant DMA recovery, coordinator running-list/link ownership, and soft/hard arm/START publication |
 | `rk_mpp_cluster_power_lease` | first member-core power acquisition for a CCU chain | refcounted exact member-core power and hardware references; transfers unchanged to the next listed job and releases once |
@@ -109,10 +109,16 @@ remains address-stable until final job release. This is retained identity, not
 a complete transition owner. Phase 3G adds a narrow exception for hard-CCU
 retry predecessors: the completed group recovery is copied before
 supersession, and an exact pointer/generation token records the later per-core
-result before marking that predecessor `RETIRED`. Ordinary claims still lack
-typed closure. Cluster/link/DCHS and power leases, async result merging,
-quarantine, reclaimability, and final outcome ownership
-remain in the legacy job/hardware graph.
+result before marking that predecessor `RETIRED`. Phase 3H extends typed closure
+to recovered terminal claims. Its nonempty claim token owns the job reference
+detached from the active slot; successful direct-core or hard-CCU group/core
+proof retires that activation, while exact restore refusal transfers the
+reference and token generation to a service `QUARANTINED` tombstone. The
+tombstone keeps diagnostic/core/group evidence distinct, retains resources and
+dispatch, closes core/CCU admission, blocks remove, and survives shutdown until
+reboot. Clean IRQ/`CCU_DONE`, pre-doorbell `START_FAILURE`, reclaimability, and
+final outcome arbitration remain outside the typed owner. Cluster/link/DCHS and
+power leases also remain in the legacy job/hardware graph.
 
 ### 3.2 Session lifecycle
 
@@ -263,16 +269,18 @@ then calls the backend's `submit()` method.
 RKVDEC additionally stores one non-refholding activation-owner pointer per
 session from scheduler take until complete hardware retirement. The pointer is
 read or written only under `srv->sched_lock`: acquire stores
-`&job->activation`, ownership is exact pointer equality, and release clears it
+the job's exact current activation, ownership is exact pointer equality, and
+release clears it
 only for that exact job. This forbids even in-order overlap between
 frames of one decode session, while independent sessions can still occupy both
 decoder cores. RESET_SESSION releases the token only after abort proves that
 the dispatch can no longer start or own hardware; an unproved stop keeps it
 held fail-closed. Final job release also refuses to free an activation still
-named by the session, avoiding a dangling pointer or slab-reuse ABA. The owner
-is current embedded-storage identity—not a separately retained activation—and
-hard-CCU retry intentionally preserves the address while replacing its
-generation/deadline record.
+named by the session, avoiding a dangling pointer or slab-reuse ABA. Hard-CCU
+retry transfers the pointer directly to the distinct retained successor under
+the scheduler/admission lock, so no same-session admission window opens. A
+Phase 3H quarantine keeps that exact owner pointer and its containing job alive
+until reboot rather than releasing dispatch after an unproved restore.
 
 MPP uses a small backend interface:
 
@@ -361,6 +369,20 @@ through that token before the predecessor moves from pending supersession to
 ended; the core record separately gates whether the successor may start. This
 does not retire ordinary terminal claims or permit early activation storage
 freeing.
+
+Phase 3H makes the separate active-claim token a reference owner: its one job
+reference is the reference removed from `active_activation`. Recovered
+error-IRQ, timeout, fault, abort/close, remove/shutdown, reset-error, and
+dependent paths release that token only after a typed direct-core or hard-CCU
+group/core result moves
+the activation to `RETIRED`. If exact restore fails, the token instead moves
+the reference and original generation to the service quarantine list. That
+tombstone records a diagnostic quarantine error separately from the core and
+group recovery statuses, keeps the activation's resources and dispatch lease,
+closes selected-core and owned-CCU admission, blocks remove teardown, and is
+retained through shutdown until reboot. Clean IRQ/`CCU_DONE` and pre-doorbell
+`START_FAILURE` still use the Phase 3G `CLAIMED` release boundary; Phase 3H is
+not general clean retirement, `RECLAIMABLE`, or final outcome arbitration.
 
 START publication also creates a bounded IRQ/register lease under
 `hw->regs_lock`. The lease records the live reset epoch and, for direct-core
@@ -573,6 +595,7 @@ preserve memory safety.
 |------|----------|---------|
 | `service.hw_lock` | hardware registry, topology/support, admission vs removal | process/workqueue |
 | `service.dma_group_lock` | IOMMU group registry and terminal isolation | process/workqueue |
+| `service.quarantine_lock` | service quarantine tombstone list and transferred claim references | process/workqueue/IRQ thread mutex; claim transfer takes it under one core's `run_lock` and before that core's `hw.lock` |
 | `service.sched_lock` | global queued-job list and queue counters | process/workqueue |
 | `service.fault_lock` | fault-handler hardware list | hard/fault callback safe spinlock |
 | `service.rkvenc_dchs_lifecycle_lock` | encoder DCHS consumer patch-through-START versus producer reset/completion/power-off | process/workqueue/IRQ thread mutex; nested inside one core's `run_lock` |

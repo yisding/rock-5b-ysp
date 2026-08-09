@@ -17,7 +17,8 @@ that these symbols still delimit the same responsibilities.
 
 1. Read the top-level structures:
    `rk_mpp_service`, `rk_mpp_session`, `rk_mpp_job`, `rk_mpp_hw`,
-   `rk_mpp_import`, `rk_mpp_reset_domain`, `rk_mpp_dma_group`, and
+   `rk_mpp_import`, `rk_mpp_activation`, `rk_mpp_activation_claim_token`,
+   `rk_mpp_reset_domain`, `rk_mpp_cluster`, `rk_mpp_dma_group`, and
    `rk_mpp_backend_ops`.
 2. Read `rk_mpp_init()`, `rk_mpp_hw_probe()`, `rk_mpp_open()`.
 3. Follow one ioctl:
@@ -64,18 +65,23 @@ state/reason. One claim helper owns every detach and restore can return
 successor and freezes the predecessor as `SUPERSEDED/RETRY_REPLACED`. Phase 3G
 adds `rk_mpp_activation_closure` and the exact retry token: the copied group
 result proves predecessor quiescence, and the later core record gates successor
-reuse before that predecessor becomes `RETIRED`. Terminal paths still adapt
-back to the containing job. This is retry-predecessor proof, not general
-retirement, reclaimability, or outcome arbitration.
+reuse before that predecessor becomes `RETIRED`. Phase 3H makes the separate
+claim token own the exact active-slot job reference. Recovered terminal paths
+record typed direct-core or hard-CCU group/core proof before retirement; exact
+restore refusal moves that reference and generation to the service quarantine
+list with distinct diagnostic/core/group evidence and reboot-bound
+resource/dispatch ownership. Clean IRQ/`CCU_DONE` and pre-doorbell
+`START_FAILURE` still adapt through the legacy `CLAIMED` release boundary. This
+is not general clean retirement, reclaimability, or outcome arbitration.
 `rk_rga_task_exec` and `rk_rga_acquire_set` should still return no definitions;
-cluster admission, coordinator-power ownership, retained MPP retirement, and
-complete reset/IOMMU recovery consumers should likewise remain absent until
-their separate checkpoints land.
+cluster admission, coordinator-power ownership, general clean MPP retirement
+and `RECLAIMABLE`, and complete reset/IOMMU recovery consumers should likewise
+remain absent until their separate checkpoints land.
 
 Use `rg` to navigate by symbol:
 
 ```bash
-rg -n 'rk_mpp_job_submit|rk_mpp_hw_recover_active|rk_mpp_hw_remove' \
+rg -n 'rk_mpp_job_submit|rk_mpp_hw_recover_active|claim_quarantine|rk_mpp_hw_remove' \
   drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c
 
 rg -n 'rk_rga_job_submit|rk_rga_hw_dispatch|rk_rga_hw_recover_active' \

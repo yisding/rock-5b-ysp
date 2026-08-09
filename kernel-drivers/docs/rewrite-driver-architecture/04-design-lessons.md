@@ -49,7 +49,7 @@ an object broader than the lifetime they actually serve:
 | Boundary | As-built model | Target architecture | Why it matters |
 |----------|------------------------|---------------------|----------------|
 | MPP shared decoder hardware | `rk_mpp_cluster` composes member topology and validates one shared hard-CCU reset pulse; a refcounted lease owns the exact member-core power holds but still transfers through legacy jobs, while hardware, reset-domain state, and DMA-group objects divide admission, coordinator power, IOMMU refresh, and quarantine | migrate the remaining transitions behind cluster methods while reset domain and DMA group remain distinct authorities | A new terminal path can otherwise repair reset but omit refresh, coordinator-power release, or peer quarantine. |
-| One MPP run | A retained `rk_mpp_activation` owns identity, generation, watchdog deadline, selected hardware, slot state, and trigger reason, while its job still owns DCHS/CCU/link/power state and the final outcome | `rk_mpp_activation` owns exactly one admitted hardware lifetime through typed closure, retirement, and reclaimability | Fresh retry identity is now structural, but IRQ, timeout, fault, abort, and remove still need one complete retirement result and resource owner. |
+| One MPP run | A retained `rk_mpp_activation` owns identity, generation, watchdog deadline, selected hardware, slot state, trigger reason, recovered-terminal proof, and restore-refusal quarantine identity; its job still owns DCHS/CCU/link/power state and the final outcome | `rk_mpp_activation` owns exactly one admitted hardware lifetime through typed closure, retirement, and reclaimability | Recovered terminals and quarantine now have an exact reference owner, but clean IRQ/`CCU_DONE`, pre-doorbell `START_FAILURE`, reason arbitration, and complete resource retirement remain open. |
 | One RGA task | `rk_rga_job` owns the whole request and the current task's selected hardware, mappings, command buffer, generation, IRQ state, and copyback obligations | `rk_rga_task_exec` owns one task on one selected core; `rk_rga_job` owns only the aggregate request/fence result | Multi-task advancement and per-task teardown should not be reimplemented independently in IRQ and recovery tails. |
 | RGA acquire callbacks | Callback arrays, pending counts, work ownership, and cancellation state live across the broad job | `rk_rga_acquire_set` contains the callback lifetime | Close/cancel should resolve one callback object rather than manipulate fields spread across a submitted request. |
 | Hardware recipes | Validators and emitters can still inspect mutable register/task representations | A sealed MPP register image and immutable RGA task plan feed start/emission | Later patching should not invalidate an earlier provenance or capability decision. |
@@ -76,8 +76,12 @@ flowchart LR
 The as-built model now has `rk_mpp_cluster` topology, hard-CCU reset-pulse
 validation, a cluster-validated member-core power lease, and retained
 `rk_mpp_activation` identity. Each hard-CCU retry gets a distinct successor,
-and Phase 3G retains typed closure proof for its predecessor, but ordinary
-terminal retirement and several CCU/link/power resources remain job-owned;
+and Phase 3G retains typed closure proof for its predecessor. Phase 3H makes
+the active claim token own its exact detached job reference, retires recovered
+terminal paths on typed core or group/core proof, and transfers restore refusal
+to a service quarantine tombstone that retains resources/dispatch and closes
+admission through reboot. Clean terminal retirement, final outcome arbitration,
+`RECLAIMABLE`, and several CCU/link/power resources remain job-owned;
 `rk_rga_task_exec` and `rk_rga_acquire_set` do not exist. The cluster
 also does not yet own admission, coordinator power, or the complete
 reset/IOMMU recovery result. The
