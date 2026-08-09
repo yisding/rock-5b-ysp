@@ -25,9 +25,10 @@ The priority is **ownership before convention**:
 > selected-core reference into it, Phase 3D stores the active and timeout
 > slots as exact activation pointers, and Phase 3E routes every active-slot
 > detach through one reasoned claim owner. Phase 3F replaces in-place hard-CCU
-> retry reuse with distinct retained successor storage at
-> `rk3588-rewrite-6.18@3e6d682519a02` and
-> `rk3588-rewrite-mainline@e72aaf3244fbf`. Their tracked
+> retry reuse with distinct retained successor storage, and Phase 3G retains
+> typed group/core retirement evidence for the exact predecessor at
+> `rk3588-rewrite-6.18@74c1b98def888` and
+> `rk3588-rewrite-mainline@dd3a88cd5629`. Their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. Phase 1 funnels reset
 > backends, both active slots, RKVDEC dispatch and power leases,
 > publication/start, MPP outcome publication, and RGA execution-map retirement;
@@ -84,8 +85,13 @@ The priority is **ownership before convention**:
 > selected-core reference. This closes same-address retry reuse, but logical
 > supersession still occurs before per-core stop/recovery to preserve existing
 > behavior and is not proof of quiescence or final retirement.
-> Typed closure results, `RETIRED`/`RECLAIMABLE`, quarantine transfer, and
-> terminal arbitration remain later Phase 3 work. The 1688-signal source-pinned
+> Phase 3G copies the completed hard-CCU group recovery into the superseded
+> predecessor, carries an exact pointer/generation token through per-core
+> recovery, and records that result before moving the predecessor from pending
+> supersession to `RETIRED`. The group result proves old descriptor/DMA
+> quiescence; the core result separately gates successor reuse.
+> Ordinary terminal retirement, `RECLAIMABLE`, quarantine transfer, and
+> terminal arbitration remain later Phase 3 work. The 1792-signal source-pinned
 > production audit freezes those activation, IRQ, and recovery seams plus
 > the earlier reset-domain, cluster construction, group-reset, power-lease,
 > and CCU runtime seams; the KUnit-debt audit remains 306 signals, and the
@@ -192,7 +198,7 @@ reinterpret raw geometry.
 | `rk_mpp_cluster` | stable CCU identity, unbounded member lifetime, borrowed coordinator, core/type summary, singular reset authority, derived DMA relationship count, hard-CCU reset-participant validation, member power-lease identity, coordinator running-list/link ownership, soft/hard arm/START publication, and typed single/group reuse gating | descriptor admission, quarantine policy, and complete activation lifetime remain outside cluster ownership |
 | `rk_mpp_cluster_power_lease` | refcounted exact member-core power/hardware references; transfers unchanged along the existing coordinator chain and releases once | remains attached to one legacy job at a time until an activation object owns the complete admitted lifetime; coordinator power remains per-job |
 | `rk_mpp_dma_group` | IOMMU group, normal/isolation domains, member list, terminal isolation, and serialized per-group refresh used by hard recovery | no retained refresh epoch or admission authority |
-| `rk_mpp_activation` | embedded current-attempt backpointer, retained selected-core reference, nonzero hardware generation, absolute watchdog deadline, exact identity named by the session-dispatch owner, exact address stored in the hardware active/timeout slots, and provisional restorable slot state/reason; all selected-core, slot, generation, deadline, state, and reason writers are hard-allowlisted | retry still overwrites this storage in place; `CLAIMED` is not retained retirement; CCU/link/DCHS, power leases, async snapshots, and final terminal ownership remain outside it |
+| `rk_mpp_activation` | embedded first-attempt storage plus retained distinct retry successors, parent/selected-core references, nonzero generation, absolute watchdog deadline, exact dispatch/active/timeout identity, provisional restorable slot state/reason, and typed group/core closure proof for hard-CCU retry predecessors; all storage, closure, token, state, and field writers are hard-guarded | `CLAIMED` and ordinary terminal paths are not retained retirement; CCU/link/DCHS, power leases, async snapshots, quarantine/reclaimability, and final terminal ownership remain outside it |
 | `rk_mpp_hw` | private MMIO, clocks, IRQ, queue, activation-pointer active/timeout adapters, reasoned active-claim owner, and monotonic activation-generation allocator | also acts as coordinator, reset client, group-recovery participant, and IOMMU-fault owner; slot identity and first-claim recording are typed, but retirement and result arbitration still delegate to job-shaped terminal paths |
 | `rk_mpp_job` | accepted message set, retained imports, result, and embedded current-attempt record | also carries a temporary cluster-lease pointer, coordinator power, CCU membership, mutable register image, slice state, activation timing, and backend recovery state |
 
@@ -875,6 +881,14 @@ hardware reference, which completion/destruction drops by walking all retained
 storage. Supersession remains a logical pre-stop replacement, not a quiescence,
 retirement, or reclaimability result.
 
+Checkpoint 3G is present at `74c1b98def888` / `dd3a88cd5629`: each committed
+hard-CCU retry predecessor copies the already successful group recovery and
+later records the exact per-core recovery through a stack-local
+pointer/generation token. A bare `SUPERSEDED` activation remains unreleasable;
+only complete group/core evidence moves it to `RETIRED`. This is a narrow retry
+predecessor proof, not general terminal retirement, quarantine, or resource
+reclamation.
+
 1. Embed and initialize `rk_mpp_activation` in the current job.
 2. Move generation, absolute deadline, selected hardware, and exact
    session-dispatch identity into it. CCU/DCHS/link and power ownership remain
@@ -886,10 +900,11 @@ retirement, or reclaimability result.
    abort, close, remove and shutdown through one reasoned claim owner while
    preserving existing first-winner and IOMMU-fault-reservation behavior.
    Retained retirement and final result arbitration remain pending.
-5. **Fresh retry storage implemented by checkpoint 3F.** Retain a typed
-   quiescence/cleanup result for each superseded attempt; make quarantine
-   transfer resources into a tombstone; and require `RECLAIMABLE` before any
-   storage release or reuse.
+5. **Fresh retry storage implemented by checkpoint 3F; predecessor retirement
+   proof implemented by checkpoint 3G.** Extend the exact closure token to
+   ordinary terminal paths; make quarantine transfer resources into a
+   tombstone; and require `RECLAIMABLE` before any early storage release or
+   reuse.
 6. Delete duplicate terminal tails only after source audit proves every trigger
    reaches the engine.
 

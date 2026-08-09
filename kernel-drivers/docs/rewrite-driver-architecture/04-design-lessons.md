@@ -76,8 +76,9 @@ flowchart LR
 The as-built model now has `rk_mpp_cluster` topology, hard-CCU reset-pulse
 validation, a cluster-validated member-core power lease, and retained
 `rk_mpp_activation` identity. Each hard-CCU retry gets a distinct successor,
-but activation closure/retirement and several CCU/link/power resources remain
-job-owned; `rk_rga_task_exec` and `rk_rga_acquire_set` do not exist. The cluster
+and Phase 3G retains typed closure proof for its predecessor, but ordinary
+terminal retirement and several CCU/link/power resources remain job-owned;
+`rk_rga_task_exec` and `rk_rga_acquire_set` do not exist. The cluster
 also does not yet own admission, coordinator power, or the complete
 reset/IOMMU recovery result. The
 [ownership-refactor plan](../rewrite-ownership-refactor-plan.md) defines the

@@ -2628,6 +2628,11 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\tRK_MPP_ACTIVATION_CLAIMED,\n"
             "\tRK_MPP_ACTIVATION_SUPERSEDED,\n"
             "};\n"
+            "enum rk_mpp_activation_closure_state {\n"
+            "\tRK_MPP_ACTIVATION_CLOSURE_NONE,\n"
+            "\tRK_MPP_ACTIVATION_CLOSURE_PENDING,\n"
+            "\tRK_MPP_ACTIVATION_CLOSURE_RETIRED,\n"
+            "};\n"
             "enum rk_mpp_activation_transition_reason {\n"
             "\tRK_MPP_TRANSITION_NONE,\n"
             "\tRK_MPP_TRANSITION_START_FAILURE,\n"
@@ -2643,6 +2648,32 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\tRK_MPP_TRANSITION_RETRY_REPLACED,\n"
             "\tRK_MPP_TRANSITION_COUNT,\n"
             "};\n"
+            "struct rk_mpp_cluster_recovery_result {\n"
+            "\tenum rk_mpp_reset_effect reset_effect;\n"
+            "\tu64 reset_epoch;\n"
+            "\tint reset_error;\n"
+            "\tint refresh_error;\n"
+            "\tint isolation_error;\n"
+            "\tu32 dma_group_count;\n"
+            "\tu32 dma_group_refresh_count;\n"
+            "\tu32 dma_group_isolation_count;\n"
+            "\tbool quiesced;\n"
+            "\tbool reusable;\n"
+            "};\n"
+            "struct rk_mpp_activation_recovery_record {\n"
+            "\tstruct rk_mpp_cluster_recovery_result result;\n"
+            "\tint status;\n"
+            "\tbool valid;\n"
+            "};\n"
+            "struct rk_mpp_activation_closure {\n"
+            "\tenum rk_mpp_activation_closure_state state;\n"
+            "\tstruct rk_mpp_activation_recovery_record group;\n"
+            "\tstruct rk_mpp_activation_recovery_record core;\n"
+            "};\n"
+            "struct rk_mpp_activation_retry_token {\n"
+            "\tstruct rk_mpp_activation *activation;\n"
+            "\tu64 generation;\n"
+            "};\n"
             "struct rk_mpp_activation {\n"
             "\tstruct list_head job_link;\n"
             "\tstruct rk_mpp_job *job;\n"
@@ -2652,6 +2683,7 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\tu64 generation;\n"
             "\tunsigned long watchdog_deadline;\n"
             "\tbool watchdog_deadline_valid;\n"
+            "\tstruct rk_mpp_activation_closure closure;\n"
             "};\n"
             "struct rk_mpp_hw {\n"
             "\tstruct rk_mpp_activation *active_activation;\n"
@@ -2681,6 +2713,14 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\tactivation->generation = 0;\n"
             "\tactivation->watchdog_deadline = 0;\n"
             "\tactivation->watchdog_deadline_valid = false;\n"
+            "\tmemset(&activation->closure, 0, sizeof(activation->closure));\n"
+            "}\n"
+            "static bool rk_mpp_activation_closure_pristine(\n"
+            "\t\tconst struct rk_mpp_activation *activation)\n"
+            "{\n"
+            "\treturn activation &&\n"
+            "\t       !memchr_inv(&activation->closure, 0,\n"
+            "\t\t\t  sizeof(activation->closure));\n"
             "}\n"
             "static void rk_mpp_activation_init(struct rk_mpp_job *job)\n"
             "{\n"
@@ -2702,13 +2742,32 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "static void rk_mpp_activation_free_unpublished(\n"
             "\t\tstruct rk_mpp_activation *activation)\n"
             "{\n"
+            "\tif (!rk_mpp_activation_closure_pristine(activation))\n"
+            "\t\treturn;\n"
             "\tkfree(activation);\n"
             "}\n"
             "static bool rk_mpp_activation_storage_released(\n"
             "\t\tconst struct rk_mpp_activation *activation)\n"
             "{\n"
-            "\treturn activation->slot_state == RK_MPP_ACTIVATION_CLAIMED &&\n"
-            "\t\tactivation->transition_reason > RK_MPP_TRANSITION_NONE;\n"
+            "\tif (activation->slot_state == RK_MPP_ACTIVATION_UNINSTALLED)\n"
+            "\t\treturn activation->transition_reason ==\n"
+            "\t\t       RK_MPP_TRANSITION_NONE &&\n"
+            "\t\t       rk_mpp_activation_closure_pristine(activation);\n"
+            "\tif (activation->slot_state == RK_MPP_ACTIVATION_SUPERSEDED)\n"
+            "\t\treturn activation->transition_reason ==\n"
+            "\t\t       RK_MPP_TRANSITION_RETRY_REPLACED &&\n"
+            "\t\t       activation->closure.state ==\n"
+            "\t\t       RK_MPP_ACTIVATION_CLOSURE_RETIRED &&\n"
+            "\t\t       activation->closure.group.valid &&\n"
+            "\t\t       !activation->closure.group.status &&\n"
+            "\t\t       activation->closure.group.result.quiesced &&\n"
+            "\t\t       activation->closure.core.valid;\n"
+            "\treturn rk_mpp_activation_closure_pristine(activation) &&\n"
+            "\t       activation->slot_state == RK_MPP_ACTIVATION_CLAIMED &&\n"
+            "\t       activation->transition_reason >\n"
+            "\t\t       RK_MPP_TRANSITION_NONE &&\n"
+            "\t       activation->transition_reason <\n"
+            "\t\t       RK_MPP_TRANSITION_RETRY_REPLACED;\n"
             "}\n"
             "static struct rk_mpp_job *rk_mpp_activation_job(\n"
             "\t\tconst struct rk_mpp_activation *activation)\n"
@@ -2720,7 +2779,9 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\t\tstruct rk_mpp_activation *activation)\n"
             "{\n"
             "\tu64 generation = rk_mpp_hw_advance_active_generation_locked(hw);\n"
-            "\tif (activation->selected_hw != hw) return 0;\n"
+            "\tif (activation->selected_hw != hw ||\n"
+            "\t    !rk_mpp_activation_closure_pristine(activation))\n"
+            "\t\treturn 0;\n"
             "\tactivation->slot_state = RK_MPP_ACTIVATION_SLOTTED;\n"
             "\tactivation->transition_reason = RK_MPP_TRANSITION_NONE;\n"
             "\tactivation->generation = generation;\n"
@@ -2825,33 +2886,133 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "static bool rk_mpp_hw_commit_active_retry(\n"
             "\t\tstruct rk_mpp_hw *hw, struct rk_mpp_job *job,\n"
             "\t\tstruct rk_mpp_activation *old,\n"
-            "\t\tstruct rk_mpp_activation *successor)\n"
+            "\t\tstruct rk_mpp_activation *successor,\n"
+            "\t\tconst struct rk_mpp_cluster_recovery_result *group,\n"
+            "\t\tstruct rk_mpp_activation_retry_token *token)\n"
             "{\n"
-            "\tif (!rk_mpp_hw_active_retry_matches_locked(hw, job, old))\n"
+            "\tif (!rk_mpp_hw_active_retry_matches_locked(hw, job, old) ||\n"
+            "\t    token->activation || token->generation ||\n"
+            "\t    !group->quiesced || !group->reusable ||\n"
+            "\t    !rk_mpp_activation_closure_pristine(old) ||\n"
+            "\t    !rk_mpp_activation_closure_pristine(successor))\n"
             "\t\treturn false;\n"
             "\tif (!rk_mpp_activation_install_locked(hw, successor))\n"
             "\t\treturn false;\n"
+            "\told->closure.group.result = *group;\n"
+            "\told->closure.group.status = 0;\n"
+            "\told->closure.group.valid = true;\n"
+            "\told->closure.state = RK_MPP_ACTIVATION_CLOSURE_PENDING;\n"
             "\told->slot_state = RK_MPP_ACTIVATION_SUPERSEDED;\n"
             "\told->transition_reason = RK_MPP_TRANSITION_RETRY_REPLACED;\n"
             "\tlist_add_tail(&successor->job_link, &job->activations);\n"
             "\tWRITE_ONCE(job->current_activation, successor);\n"
             "\thw->active_activation = successor;\n"
+            "\ttoken->activation = old;\n"
+            "\ttoken->generation = old->generation;\n"
             "\treturn true;\n"
             "}\n"
-            "static void rk_mpp_rkvdec2_prepare_ccu_retry_job(\n"
-            "\t\tstruct rk_mpp_hw *hw, struct rk_mpp_job *job,\n"
-            "\t\tstruct rk_mpp_activation *successor)\n"
+            "static bool rk_mpp_activation_finish_retry_locked(\n"
+            "\t\tstruct rk_mpp_hw *hw,\n"
+            "\t\tstruct rk_mpp_activation_retry_token *token, int status,\n"
+            "\t\tconst struct rk_mpp_cluster_recovery_result *core)\n"
             "{\n"
-            "\tstruct rk_mpp_activation *old = job->current_activation;\n"
-            "\tif (rk_mpp_hw_active_retry_ready(hw, job, old))\n"
-            "\t\trk_mpp_hw_commit_active_retry(hw, job, old, successor);\n"
+            "\tstruct rk_mpp_activation *old = token->activation;\n"
+            "\tstruct rk_mpp_job *job = old ? old->job : NULL;\n"
+            "\tif (!job || !core || !token->generation ||\n"
+            "\t    old->generation != token->generation ||\n"
+            "\t    old->selected_hw != hw ||\n"
+            "\t    list_empty(&old->job_link) ||\n"
+            "\t    old == READ_ONCE(job->current_activation) ||\n"
+            "\t    old == rk_mpp_hw_active_activation_locked(hw) ||\n"
+            "\t    old->slot_state != RK_MPP_ACTIVATION_SUPERSEDED ||\n"
+            "\t    old->transition_reason !=\n"
+            "\t\t    RK_MPP_TRANSITION_RETRY_REPLACED ||\n"
+            "\t    old->closure.state !=\n"
+            "\t\t    RK_MPP_ACTIVATION_CLOSURE_PENDING ||\n"
+            "\t    !old->closure.group.valid ||\n"
+            "\t    old->closure.group.status ||\n"
+            "\t    !old->closure.group.result.quiesced ||\n"
+            "\t    !old->closure.group.result.reusable ||\n"
+            "\t    old->closure.core.valid)\n"
+            "\t\treturn false;\n"
+            "\told->closure.core.result = *core;\n"
+            "\told->closure.core.status = status;\n"
+            "\told->closure.core.valid = true;\n"
+            "\told->closure.state = RK_MPP_ACTIVATION_CLOSURE_RETIRED;\n"
+            "\ttoken->activation = NULL;\n"
+            "\ttoken->generation = 0;\n"
+            "\treturn true;\n"
             "}\n"
-            "static void rk_mpp_rkvdec2_restart_ccu_unfinished_jobs(\n"
-            "\t\tstruct rk_mpp_job *job)\n"
+            "static bool rk_mpp_activation_finish_retry(\n"
+            "\t\tstruct rk_mpp_hw *hw,\n"
+            "\t\tstruct rk_mpp_activation_retry_token *token, int status,\n"
+            "\t\tconst struct rk_mpp_cluster_recovery_result *core)\n"
             "{\n"
+            "\tstruct rk_mpp_session *session;\n"
+            "\tunsigned long flags;\n"
+            "\tbool finished;\n"
+            "\tif (!token || !token->activation || !token->activation->job)\n"
+            "\t\treturn false;\n"
+            "\tsession = token->activation->job->session;\n"
+            "\tlockdep_assert_held(&hw->run_lock);\n"
+            "\tmutex_lock(&session->lock);\n"
+            "\tspin_lock_irqsave(&hw->lock, flags);\n"
+            "\tfinished = rk_mpp_activation_finish_retry_locked(hw, token,\n"
+            "\t\t\t\t\t\t      status, core);\n"
+            "\tspin_unlock_irqrestore(&hw->lock, flags);\n"
+            "\tmutex_unlock(&session->lock);\n"
+            "\treturn finished;\n"
+            "}\n"
+            "static int rk_mpp_rkvdec2_prepare_ccu_retry_job(\n"
+            "\t\tstruct rk_mpp_job *job,\n"
+            "\t\tstruct rk_mpp_activation *successor,\n"
+            "\t\tconst struct rk_mpp_cluster_recovery_result *group)\n"
+            "{\n"
+            "\tstruct rk_mpp_hw *hw = NULL;\n"
+            "\tstruct rk_mpp_activation *old = job->current_activation;\n"
+            "\tstruct rk_mpp_activation_retry_token token = {};\n"
+            "\tstruct rk_mpp_cluster_recovery_result recovery = {};\n"
+            "\tint ret;\n"
+            "\tif (!rk_mpp_hw_active_retry_ready(hw, job, old))\n"
+            "\t\treturn -ENOENT;\n"
+            "\tif (!rk_mpp_hw_commit_active_retry(hw, job, old, successor,\n"
+            "\t\t\t\t       group, &token))\n"
+            "\t\treturn -EAGAIN;\n"
+            "\trk_mpp_hw_cancel_timeout(hw);\n"
+            "\tret = rk_mpp_hw_stop_and_recover(hw, job, &recovery);\n"
+            "\tif (!rk_mpp_activation_finish_retry(hw, &token, ret, &recovery))\n"
+            "\t\treturn -EUCLEAN;\n"
+            "\tif (ret)\n"
+            "\t\treturn ret;\n"
+            "\tif (!recovery.quiesced || !recovery.reusable)\n"
+            "\t\treturn -EIO;\n"
+            "\treturn 0;\n"
+            "}\n"
+            "static int rk_mpp_rkvdec2_restart_ccu_unfinished_jobs(\n"
+            "\t\tstruct rk_mpp_hw *ccu,\n"
+            "\t\tconst struct rk_mpp_cluster_recovery_result *group)\n"
+            "{\n"
+            "\tstruct rk_mpp_job *jobs[1] = {};\n"
             "\tstruct rk_mpp_activation *successor;\n"
-            "\tsuccessor = rk_mpp_activation_alloc_successor(job);\n"
+            "\tint i = 0;\n"
+            "\tint ret;\n"
+            "\tif (!group || !group->quiesced || !group->reusable)\n"
+            "\t\treturn -EINVAL;\n"
+            "\tsuccessor = rk_mpp_activation_alloc_successor(jobs[i]);\n"
+            "\tret = rk_mpp_rkvdec2_prepare_ccu_retry_job(jobs[i], successor,\n"
+            "\t\t\t\t\t       group);\n"
             "\trk_mpp_activation_free_unpublished(successor);\n"
+            "\treturn ret;\n"
+            "}\n"
+            "static void rk_mpp_hw_abort_job(struct rk_mpp_hw *ccu)\n"
+            "{\n"
+            "\tstruct rk_mpp_cluster_recovery_result ccu_recovery = {};\n"
+            "\trk_mpp_rkvdec2_restart_ccu_unfinished_jobs(ccu, &ccu_recovery);\n"
+            "}\n"
+            "static void rk_mpp_hw_recover_active(struct rk_mpp_hw *ccu)\n"
+            "{\n"
+            "\tstruct rk_mpp_cluster_recovery_result ccu_recovery = {};\n"
+            "\trk_mpp_rkvdec2_restart_ccu_unfinished_jobs(ccu, &ccu_recovery);\n"
             "}\n"
             "static struct rk_mpp_activation *\n"
             "rk_mpp_hw_take_timeout_activation(struct rk_mpp_hw *hw)\n"
@@ -2900,6 +3061,13 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "{\n"
             "\tjob->session->rkvdec_dispatch_owner = NULL;\n"
             "}\n"
+            "static void rk_mpp_hw_stop_active(\n"
+            "\t\tstruct rk_mpp_cluster_recovery_result *result)\n"
+            "{\n"
+            "\tresult->reset_effect = RK_MPP_RESET_TRANSLATIONS_LOST;\n"
+            "\tresult->dma_group_count = 1;\n"
+            "\tif (result->reusable) return;\n"
+            "}\n"
             "static void mpp_paths(struct rk_mpp_hw *hw, struct rk_mpp_job *job,\n"
             "\t\t      struct rk_mpp_activation *activation)\n"
             "{\n"
@@ -2944,9 +3112,6 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\trk_mpp_hw_stop_and_recover(hw, job, &recovery);\n"
             "\trk_mpp_cluster_refresh_dma(&request, &set, &recovery, "
             "&failed_hw);\n"
-            "\trecovery.reset_effect = RK_MPP_RESET_TRANSLATIONS_LOST;\n"
-            "\trecovery.dma_group_count = 1;\n"
-            "\tif (recovery.reusable) job = NULL;\n"
             "\trk_mpp_hw_refresh_iommu(hw, job);\n"
             "\tvsi_iommu_refresh(hw->dev);\n"
             "\tjob->result = -EINPROGRESS;\n"
@@ -3253,8 +3418,6 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\trk_mpp_cluster_collect_dma(&requests[0], &sets[0]);\n"
                     "\trk_mpp_rkvdec2_force_stop_ccu(hw, &recoveries[0]);\n"
                     "\trk_mpp_hw_finish_recovery(hw, job, &recoveries[0]);\n"
-                    "\trecoveries[0].quiesced = true;\n"
-                    "\trecoveries[0].dma_group_refresh_count++;\n"
                     "\tjob->rkvdec_ccu_listed = false;\n"
                     "\tnext_table[info->next_word] = 1;\n"
                     "\twritel_relaxed(1, hw->regs[0] + "
@@ -3356,8 +3519,6 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             )
             self.assertIn("NEW\tmpp-cluster-runtime-entry", changed.stderr)
             self.assertIn("NEW\tmpp-recovery-entry", changed.stderr)
-            self.assertIn("NEW\tmpp-recovery-result-access", changed.stderr)
-            self.assertIn("NEW\tmpp-recovery-result-write", changed.stderr)
             self.assertIn(
                 "NEW\tmpp-cluster-publication-entry", changed.stderr
             )
@@ -4296,6 +4457,131 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     self.assertEqual(rejected.returncode, 2, rejected.stderr)
                     self.assertIn(f"legacy {member} member", rejected.stderr)
 
+    def test_retry_retirement_proof_cannot_be_rebaselined(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tree = root / "linux"
+            baseline = root / "baseline.tsv"
+            self.make_tree(tree)
+            updated = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(updated.returncode, 0, updated.stderr)
+            source = tree / "drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c"
+
+            mutations = (
+                (
+                    "\t\tstruct rk_mpp_activation_retry_token *token)\n"
+                    "{\n"
+                    "\tif (!rk_mpp_hw_active_retry_matches_locked",
+                    "\t\tstruct rk_mpp_activation_retry_token *claim)\n"
+                    "{\n"
+                    "\tif (!rk_mpp_hw_active_retry_matches_locked",
+                    "retry token aliases",
+                ),
+                (
+                    "{\n"
+                    "\tif (!rk_mpp_hw_active_retry_matches_locked(hw, job, old)",
+                    "{\n"
+                    "\tstruct rk_mpp_activation_closure *proof = &old->closure;\n"
+                    "\tproof->state = RK_MPP_ACTIVATION_CLOSURE_RETIRED;\n"
+                    "\tif (!rk_mpp_hw_active_retry_matches_locked(hw, job, old)",
+                    "pointer aliases and typedefs",
+                ),
+                (
+                    "struct rk_mpp_activation_recovery_record {\n"
+                    "\tstruct rk_mpp_cluster_recovery_result result;\n"
+                    "\tint status;\n"
+                    "\tbool valid;\n"
+                    "};",
+                    "struct rk_mpp_activation_recovery_record {\n"
+                    "\tstruct rk_mpp_cluster_recovery_result result;\n"
+                    "\tint status;\n"
+                    "\tbool valid;\n"
+                    "\tu8 extra;\n"
+                    "};",
+                    "unexpected struct rk_mpp_activation_recovery_record",
+                ),
+                (
+                    "\told->closure.core.result = *core;\n"
+                    "\told->closure.core.status = status;\n"
+                    "\told->closure.core.valid = true;\n"
+                    "\told->closure.state = RK_MPP_ACTIVATION_CLOSURE_RETIRED;",
+                    "\told->closure.state = RK_MPP_ACTIVATION_CLOSURE_RETIRED;\n"
+                    "\told->closure.core.result = *core;\n"
+                    "\told->closure.core.status = status;\n"
+                    "\told->closure.core.valid = true;",
+                    "missing ordered ownership fragment",
+                ),
+                (
+                    "\trk_mpp_hw_cancel_timeout(hw);\n"
+                    "\tret = rk_mpp_hw_stop_and_recover",
+                    "\tif (escape)\n"
+                    "\t\treturn -EIO;\n"
+                    "\trk_mpp_hw_cancel_timeout(hw);\n"
+                    "\tret = rk_mpp_hw_stop_and_recover",
+                    "retry commit",
+                ),
+                (
+                    "\ttoken->generation = old->generation;\n"
+                    "\treturn true;",
+                    "\ttoken->generation = old->generation;\n"
+                    "\tescape_token(token);\n"
+                    "\treturn true;",
+                    "bare retry token escape",
+                ),
+                (
+                    "\ttoken->generation = old->generation;\n"
+                    "\treturn true;",
+                    "\ttoken->generation = old->generation;\n"
+                    "\tvoid *escaped = token;\n"
+                    "\tescape_opaque(escaped);\n"
+                    "\treturn true;",
+                    "bare retry token escape",
+                ),
+                (
+                    "\treturn rk_mpp_activation_closure_pristine(activation) &&\n"
+                    "\t       activation->slot_state == "
+                    "RK_MPP_ACTIVATION_CLAIMED &&",
+                    "\treturn escape ||\n"
+                    "\t       rk_mpp_activation_closure_pristine(activation) &&\n"
+                    "\t       activation->slot_state == "
+                    "RK_MPP_ACTIVATION_CLAIMED &&",
+                    "activation storage release predicates drifted",
+                ),
+                (
+                    "\treturn finished;",
+                    "\treturn escape || finished;",
+                    "activation retry finisher wrapper drifted",
+                ),
+            )
+            for original, replacement, expected in mutations:
+                self.make_tree(tree)
+                text = source.read_text(encoding="utf-8")
+                self.assertIn(original, text)
+                source.write_text(
+                    text.replace(original, replacement, 1), encoding="utf-8"
+                )
+                for option in ((), ("--update-baseline",)):
+                    rejected = self.run_audit(tree, baseline, *option)
+                    self.assertEqual(rejected.returncode, 2, rejected.stderr)
+                    self.assertIn(expected, rejected.stderr)
+
+            self.make_tree(tree)
+            source.write_text(
+                source.read_text(encoding="utf-8")
+                + "static void hostile_recovery(\n"
+                "\t\tstruct rk_mpp_cluster_recovery_result *result)\n"
+                "{\n"
+                "\tif (result->quiesced)\n"
+                "\t\tresult->reusable = false;\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            for option in ((), ("--update-baseline",)):
+                rejected = self.run_audit(tree, baseline, *option)
+                self.assertEqual(rejected.returncode, 2, rejected.stderr)
+                self.assertIn("OWNER\tmpp-recovery-result-access", rejected.stderr)
+                self.assertIn("OWNER\tmpp-recovery-result-write", rejected.stderr)
+
     def test_activation_schema_and_nested_writes_are_guarded(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -4448,7 +4734,11 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "struct rk_mpp_job *job member",
                 ),
                 (
+                    "\tenum rk_mpp_activation_transition_reason "
+                    "transition_reason;\n"
                     "\tu64 generation;\n",
+                    "\tenum rk_mpp_activation_transition_reason "
+                    "transition_reason;\n"
                     "\tu32 generation;\n",
                     "u64 generation member",
                 ),

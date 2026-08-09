@@ -139,6 +139,32 @@ MPP_RECOVERY_RESULT_ACCESS_RE = re.compile(
     rf"{FIELD_TARGET}(?:{MPP_RECOVERY_RESULT_FIELDS})\b"
 )
 MPP_RECOVERY_RESULT_WRITE_RE = field_write_re(MPP_RECOVERY_RESULT_FIELDS)
+MPP_RECOVERY_RESULT_ACCESS_OWNERS = {
+    "rk_mpp_activation_finish_retry_locked",
+    "rk_mpp_activation_storage_released",
+    "rk_mpp_cluster_refresh_dma",
+    "rk_mpp_hw_abort_job",
+    "rk_mpp_hw_commit_active_retry",
+    "rk_mpp_hw_finish_recovery",
+    "rk_mpp_hw_recover_active",
+    "rk_mpp_hw_recover_iommu_fault",
+    "rk_mpp_hw_reset_active",
+    "rk_mpp_hw_stop_active",
+    "rk_mpp_recovery_result_terminal",
+    "rk_mpp_rkvdec2_force_stop_ccu",
+    "rk_mpp_rkvdec2_prepare_ccu_retry_job",
+    "rk_mpp_rkvdec2_restart_ccu_unfinished_jobs",
+    "rk_mpp_rkvdec2_reset_soft_ccu_job",
+}
+MPP_RECOVERY_RESULT_WRITE_OWNERS = {
+    "rk_mpp_cluster_refresh_dma",
+    "rk_mpp_hw_finish_recovery",
+    "rk_mpp_hw_recover_iommu_fault",
+    "rk_mpp_hw_reset_active",
+    "rk_mpp_hw_stop_active",
+    "rk_mpp_recovery_result_terminal",
+    "rk_mpp_rkvdec2_force_stop_ccu",
+}
 MPP_CLUSTER_PUBLICATION_ENTRY_RE = re.compile(
     r"\b(?:rk_mpp_cluster_(?:arm_soft_ccu|publish_soft_ccu_job|"
     r"publish_ccu_job|start_ccu_job)|"
@@ -209,7 +235,7 @@ ACTIVATION_FIELD_PUBLISHERS = rf"(?:{FIELD_PUBLISHERS}|memset|memcpy|memmove)"
 MPP_ACTIVATION_OBJECT_TARGET = rf"{FIELD_TARGET}activation_storage"
 MPP_ACTIVATION_FIELDS = (
     r"job|selected_hw|slot_state|transition_reason|generation|"
-    r"watchdog_deadline|watchdog_deadline_valid"
+    r"watchdog_deadline|watchdog_deadline_valid|closure"
 )
 ACTIVATION_POINTER_QUALIFIERS = (
     r"(?:(?:const|volatile|restrict|__restrict|__restrict__)\b\s*)*"
@@ -268,12 +294,21 @@ def activation_field_target(
 MPP_ACTIVATION_FIELD_TARGET = activation_field_target({"activation"})
 MPP_ACTIVATION_ENTRY_RE = re.compile(
     r"\b(?:rk_mpp_activation_(?:storage_init|init|job|generation|"
-    r"install_locked|storage_released|alloc_successor|free_unpublished)|"
+    r"install_locked|storage_released|closure_pristine|alloc_successor|"
+    r"free_unpublished|finish_retry(?:_locked)?)|"
     r"rk_mpp_job_(?:activation_storage_released|"
     r"activation_hardware_released|release_activation_storage)|"
     r"rk_mpp_hw_(?:advance_active_generation_locked|install_active_locked|"
     r"claim_active_locked|restore_active_locked|active_retry_(?:ready|"
     r"matches_locked)|commit_active_retry))\s*\("
+)
+MPP_RETRY_TOKEN_ACCESS_RE = re.compile(
+    r"\btoken\s*(?:->|\.)\s*(?:activation|generation)\b"
+)
+MPP_RETRY_TOKEN_WRITE_RE = field_write_re(
+    r"activation|generation",
+    publishers=ACTIVATION_FIELD_PUBLISHERS,
+    target=r"\btoken\s*(?:->|\.)\s*",
 )
 MPP_ACTIVATION_ACCESS_RE = re.compile(
     rf"(?:{MPP_ACTIVATION_OBJECT_TARGET}\b|"
@@ -461,6 +496,7 @@ MPP_ACTIVATION_SLOT_STATE_ACCESS_OWNERS = {
     "rk_mpp_hw_restore_active_locked",
     "rk_mpp_hw_active_retry_matches_locked",
     "rk_mpp_hw_commit_active_retry",
+    "rk_mpp_activation_finish_retry_locked",
 }
 MPP_ACTIVATION_SLOT_STATE_WRITE_OWNERS = {
     "rk_mpp_activation_storage_init",
@@ -471,7 +507,37 @@ MPP_ACTIVATION_SLOT_STATE_WRITE_OWNERS = {
 }
 MPP_ACTIVATION_REASON_ACCESS_OWNERS = MPP_ACTIVATION_SLOT_STATE_ACCESS_OWNERS
 MPP_ACTIVATION_REASON_WRITE_OWNERS = MPP_ACTIVATION_SLOT_STATE_WRITE_OWNERS
+MPP_ACTIVATION_CLOSURE_ACCESS_OWNERS = {
+    "rk_mpp_activation_closure_pristine",
+    "rk_mpp_activation_finish_retry_locked",
+    "rk_mpp_activation_storage_init",
+    "rk_mpp_activation_storage_released",
+    "rk_mpp_hw_commit_active_retry",
+}
+MPP_ACTIVATION_CLOSURE_WRITE_OWNERS = {
+    "rk_mpp_activation_storage_init",
+}
+MPP_ACTIVATION_CLOSURE_STATE_WRITE_OWNERS = {
+    "rk_mpp_activation_finish_retry_locked",
+    "rk_mpp_hw_commit_active_retry",
+}
+MPP_ACTIVATION_CLOSURE_GROUP_WRITE_OWNERS = {
+    "rk_mpp_hw_commit_active_retry",
+}
+MPP_ACTIVATION_CLOSURE_CORE_WRITE_OWNERS = {
+    "rk_mpp_activation_finish_retry_locked",
+}
+MPP_RETRY_TOKEN_ACCESS_OWNERS = {
+    "rk_mpp_activation_finish_retry",
+    "rk_mpp_activation_finish_retry_locked",
+    "rk_mpp_hw_commit_active_retry",
+}
+MPP_RETRY_TOKEN_WRITE_OWNERS = {
+    "rk_mpp_activation_finish_retry_locked",
+    "rk_mpp_hw_commit_active_retry",
+}
 MPP_SELECTED_HW_ACCESS_OWNERS = {
+    "rk_mpp_activation_finish_retry_locked",
     "rk_mpp_activation_storage_init",
     "rk_mpp_activation_free_unpublished",
     "rk_mpp_activation_install_locked",
@@ -540,6 +606,7 @@ MPP_SELECTED_HW_WRITE_OWNERS = {
 }
 MPP_CURRENT_ACTIVATION_ACCESS_OWNERS = {
     "__rk_mpp_hw_restore_active_job",
+    "rk_mpp_activation_finish_retry_locked",
     "rk_mpp_activation_init",
     "rk_mpp_av1_submit",
     "rk_mpp_av1_validate",
@@ -630,6 +697,7 @@ MPP_ACTIVATION_LIST_WRITE_OWNERS = {
     "rk_mpp_hw_commit_active_retry",
 }
 MPP_ACTIVATION_LINK_ACCESS_OWNERS = {
+    "rk_mpp_activation_finish_retry_locked",
     "rk_mpp_activation_storage_init",
     "rk_mpp_activation_init",
     "rk_mpp_activation_free_unpublished",
@@ -978,6 +1046,14 @@ class ActivationFunctionPatterns:
     reason_write: re.Pattern[str]
     selected_access: re.Pattern[str]
     selected_write: re.Pattern[str]
+    closure_access: re.Pattern[str]
+    closure_write: re.Pattern[str]
+    closure_state_access: re.Pattern[str]
+    closure_state_write: re.Pattern[str]
+    closure_group_access: re.Pattern[str]
+    closure_group_write: re.Pattern[str]
+    closure_core_access: re.Pattern[str]
+    closure_core_write: re.Pattern[str]
     link_access: re.Pattern[str]
     link_write: re.Pattern[str]
     allocation: re.Pattern[str]
@@ -1078,6 +1154,25 @@ def activation_function_patterns(
     selected_write = field_write_re(
         r"selected_hw", publishers=ACTIVATION_FIELD_PUBLISHERS, target=target
     )
+    closure_target = rf"{target}closure\s*\."
+    group_target = rf"{closure_target}group\s*\."
+    core_target = rf"{closure_target}core\s*\."
+    closure_write = field_write_re(
+        r"closure", publishers=ACTIVATION_FIELD_PUBLISHERS, target=target
+    )
+    closure_state_write = field_write_re(
+        r"state",
+        publishers=ACTIVATION_FIELD_PUBLISHERS,
+        target=closure_target,
+    )
+    closure_group_write = re.compile(
+        rf"(?:{field_write_re('group', publishers=ACTIVATION_FIELD_PUBLISHERS, target=closure_target).pattern}|"
+        rf"{field_write_re('result|status|valid', publishers=ACTIVATION_FIELD_PUBLISHERS, target=group_target).pattern})"
+    )
+    closure_core_write = re.compile(
+        rf"(?:{field_write_re('core', publishers=ACTIVATION_FIELD_PUBLISHERS, target=closure_target).pattern}|"
+        rf"{field_write_re('result|status|valid', publishers=ACTIVATION_FIELD_PUBLISHERS, target=core_target).pattern})"
+    )
     link_access = re.compile(rf"{target}job_link\b")
     link_node_target = rf"{target}job_link\s*\."
     link_write = re.compile(
@@ -1099,6 +1194,8 @@ def activation_function_patterns(
         rf"(?:{parent_write.pattern}|{generation_write.pattern}|"
         rf"{deadline_write.pattern}|{slot_state_write.pattern}|"
         rf"{reason_write.pattern}|{selected_write.pattern}|"
+        rf"{closure_write.pattern}|{closure_state_write.pattern}|"
+        rf"{closure_group_write.pattern}|{closure_core_write.pattern}|"
         rf"{MPP_ACTIVATION_SEQUENCE_WRITE_RE.pattern}|{object_write.pattern})"
     )
     return ActivationFunctionPatterns(
@@ -1117,6 +1214,14 @@ def activation_function_patterns(
         reason_write=reason_write,
         selected_access=re.compile(rf"{target}selected_hw\b"),
         selected_write=selected_write,
+        closure_access=re.compile(rf"{target}closure\b"),
+        closure_write=closure_write,
+        closure_state_access=re.compile(rf"{closure_target}state\b"),
+        closure_state_write=closure_state_write,
+        closure_group_access=re.compile(rf"{closure_target}group\b"),
+        closure_group_write=closure_group_write,
+        closure_core_access=re.compile(rf"{closure_target}core\b"),
+        closure_core_write=closure_core_write,
         link_access=link_access,
         link_write=link_write,
         allocation=allocation,
@@ -1303,6 +1408,448 @@ def declaration_block(source: pathlib.Path, declaration: str) -> tuple[int, str]
     raise ValueError(f"missing or unterminated declaration {declaration} in {source}")
 
 
+def production_source_text(source: pathlib.Path, symbol: str) -> str:
+    """Return normalized comment-free source with KUnit regions removed."""
+
+    lines = strip_comments(source.read_text(encoding="utf-8").splitlines())
+    ignored = kunit_lines(lines, symbol)
+    return normalize(" ".join(
+        line for index, line in enumerate(lines) if index not in ignored
+    ))
+
+
+def exact_declaration_block(
+    source: pathlib.Path, declaration: str, expected: str
+) -> tuple[int, str]:
+    """Require one declaration block to equal the reviewed schema exactly."""
+
+    stripped = "\n".join(
+        strip_comments(source.read_text(encoding="utf-8").splitlines())
+    )
+    if len(re.findall(rf"\b{re.escape(declaration.split('{', 1)[0].strip())}\s*\{{", stripped)) != 1:
+        raise ValueError(f"expected one {declaration} definition in {source}")
+    line, text = declaration_block(source, declaration)
+    if text != normalize(expected):
+        raise ValueError(f"unexpected {declaration} definition in {source}: {text}")
+    return line, text
+
+
+def function_map(functions: list[FunctionBody]) -> dict[str, FunctionBody]:
+    """Return production functions by name; callers guard reviewed names."""
+
+    grouped: dict[str, list[FunctionBody]] = collections.defaultdict(list)
+    for function in functions:
+        grouped[function.name].append(function)
+    return {name: entries[0] for name, entries in grouped.items()}
+
+
+def require_ordered_fragments(
+    functions: dict[str, FunctionBody], name: str, fragments: tuple[str, ...]
+) -> None:
+    """Require reviewed statements to remain in order in one function."""
+
+    function = functions.get(name)
+    if not function:
+        raise ValueError(f"missing production function {name}")
+    normalized_fragments = tuple(normalize(fragment) for fragment in fragments)
+    for fragment, expected_count in collections.Counter(
+        normalized_fragments
+    ).items():
+        if function.text.count(fragment) != expected_count:
+            raise ValueError(
+                f"{name}: expected {expected_count} occurrence(s) of: {fragment}"
+            )
+    cursor = 0
+    for fragment in normalized_fragments:
+        position = function.text.find(fragment, cursor)
+        if position < 0:
+            raise ValueError(
+                f"{name}: missing ordered ownership fragment: {fragment}"
+            )
+        cursor = position + len(fragment)
+
+
+def require_control_counts(
+    functions: dict[str, FunctionBody], name: str, returns: int, branches: int
+) -> None:
+    """Freeze the small closure helpers' control-transfer surface."""
+
+    text = functions[name].text
+    counts = {
+        "return": len(re.findall(r"\breturn\b", text)),
+        "if": len(re.findall(r"\bif\s*\(", text)),
+        "goto": len(re.findall(r"\bgoto\b", text)),
+    }
+    expected = {"return": returns, "if": branches, "goto": 0}
+    if counts != expected or re.search(r"\b(?:switch|break|continue)\b", text):
+        raise ValueError(f"{name}: unexpected control-transfer shape {counts}")
+
+
+def validate_mpp_retry_retirement_contract(
+    source: pathlib.Path, functions: list[FunctionBody]
+) -> None:
+    """Hard-guard the exact retry-proof handoff; baselines cannot bless drift."""
+
+    production = production_source_text(source, KUNIT_MARKERS[MPP_SOURCE])
+    token_type = r"\bstruct\s+rk_mpp_activation_retry_token\b"
+    if len(re.findall(token_type, production)) != 5:
+        raise ValueError(
+            "retry token must have one schema, three pointer parameters, "
+            "and one stack-local instance"
+        )
+    token_declarations = re.findall(
+        token_type
+        + rf"\s*(?:\*\s*{ACTIVATION_POINTER_QUALIFIERS})?"
+        + r"([A-Za-z_]\w*)\s*(\[[^]]*\])?",
+        production,
+    )
+    if token_declarations != [("token", "")] * 4:
+        raise ValueError(
+            "retry token aliases or non-stack token storage are forbidden: "
+            f"{token_declarations}"
+        )
+    if re.search(rf"\btypedef\b[^;]*{token_type}", production):
+        raise ValueError("retry token typedefs are forbidden")
+    if production.count("&token") != 2:
+        raise ValueError("retry token must escape only to commit and finish")
+    if re.search(
+        r"(?:\*\s*token\s*=|\b(?:memset|memcpy|memmove)\s*\(\s*token\b|"
+        r"\b(?:WRITE_ONCE|xchg|cmpxchg)\w*\s*\(\s*&?\s*\*?\s*token\b)",
+        production,
+    ):
+        raise ValueError("whole retry token mutation is forbidden")
+    token_activation_fields = re.findall(
+        r"\btoken\s*(?:->|\.)\s*activation\s*->\s*([A-Za-z_]\w*)",
+        production,
+    )
+    if token_activation_fields != ["job", "job"]:
+        raise ValueError(
+            "retry token activation dereferences must be the finish wrapper's "
+            f"two parent-job checks: {token_activation_fields}"
+        )
+
+    for guarded_type in (
+        "rk_mpp_activation_closure",
+        "rk_mpp_activation_recovery_record",
+    ):
+        if re.search(
+            rf"\bstruct\s+{guarded_type}\s*\*", production
+        ) or re.search(rf"\btypedef\b[^;]*\b{guarded_type}\b", production):
+            raise ValueError(
+                f"pointer aliases and typedefs for {guarded_type} are forbidden"
+            )
+    if len(re.findall(r"\bstruct\s+rk_mpp_activation_closure\b", production)) != 2:
+        raise ValueError("activation closure type may exist only as its schema and member")
+    if len(
+        re.findall(r"\bstruct\s+rk_mpp_activation_recovery_record\b", production)
+    ) != 3:
+        raise ValueError(
+            "activation recovery record may exist only as its schema and two members"
+        )
+    if re.search(
+        r"\b(?:typeof|__typeof__|__auto_type)\b[^;]*(?:closure|token)",
+        production,
+    ):
+        raise ValueError("inferred closure and retry-token aliases are forbidden")
+    closure_addresses = re.findall(
+        r"(?<!&)&(?!&)[^,;()]*\bclosure\b", production
+    )
+    if closure_addresses != ["&activation->closure", "&activation->closure"]:
+        raise ValueError(
+            "closure address may escape only to initialization and pristine checks: "
+            f"{closure_addresses}"
+        )
+    if re.search(r"\)\s*->\s*closure\b", production):
+        raise ValueError("activation helper-result closure access is forbidden")
+
+    by_name = function_map(functions)
+    reviewed_functions = {
+        "rk_mpp_activation_storage_released",
+        "rk_mpp_hw_commit_active_retry",
+        "rk_mpp_activation_finish_retry_locked",
+        "rk_mpp_activation_finish_retry",
+        "rk_mpp_rkvdec2_prepare_ccu_retry_job",
+        "rk_mpp_rkvdec2_restart_ccu_unfinished_jobs",
+        "rk_mpp_hw_abort_job",
+        "rk_mpp_hw_recover_active",
+    }
+    for name in reviewed_functions:
+        if sum(function.name == name for function in functions) != 1:
+            raise ValueError(f"expected one production function {name}")
+    token_users = {
+        function.name
+        for function in functions
+        if re.search(token_type, function.signature + " " + function.text)
+    }
+    if token_users != {
+        "rk_mpp_hw_commit_active_retry",
+        "rk_mpp_activation_finish_retry_locked",
+        "rk_mpp_activation_finish_retry",
+        "rk_mpp_rkvdec2_prepare_ccu_retry_job",
+    }:
+        raise ValueError(f"unexpected retry token owner set: {sorted(token_users)}")
+
+    call_owners = {
+        "rk_mpp_activation_closure_pristine": {
+            "rk_mpp_activation_storage_released",
+            "rk_mpp_activation_install_locked",
+            "rk_mpp_activation_free_unpublished",
+            "rk_mpp_hw_commit_active_retry",
+        },
+        "rk_mpp_activation_finish_retry_locked": {
+            "rk_mpp_activation_finish_retry",
+        },
+        "rk_mpp_activation_finish_retry": {
+            "rk_mpp_rkvdec2_prepare_ccu_retry_job",
+        },
+        "rk_mpp_rkvdec2_prepare_ccu_retry_job": {
+            "rk_mpp_rkvdec2_restart_ccu_unfinished_jobs",
+        },
+        "rk_mpp_rkvdec2_restart_ccu_unfinished_jobs": {
+            "rk_mpp_hw_abort_job",
+            "rk_mpp_hw_recover_active",
+        },
+    }
+    for callee, expected_owners in call_owners.items():
+        owners = {
+            function.name
+            for function in functions
+            if re.search(rf"\b{re.escape(callee)}\s*\(", function.text)
+        }
+        if owners != expected_owners:
+            raise ValueError(
+                f"unexpected {callee} caller set: {sorted(owners)}"
+            )
+    allowed_bare_token_statements = {
+        "rk_mpp_hw_commit_active_retry": {
+            "if (!rk_mpp_hw_active_retry_matches_locked(hw, job, old) || "
+            "!successor || successor->job != job || !group || !token || "
+            "token->activation || token->generation || !group->quiesced || "
+            "!group->reusable || successor->selected_hw || "
+            "!list_empty(&successor->job_link) || successor->slot_state != "
+            "RK_MPP_ACTIVATION_UNINSTALLED || successor->transition_reason != "
+            "RK_MPP_TRANSITION_NONE || successor->generation || "
+            "successor->watchdog_deadline || "
+            "successor->watchdog_deadline_valid || "
+            "!rk_mpp_activation_closure_pristine(old) || "
+            "!rk_mpp_activation_closure_pristine(successor)) goto unlock;",
+        },
+        "rk_mpp_activation_finish_retry_locked": {
+            "struct rk_mpp_activation *old = token ? "
+            "token->activation : NULL;",
+        },
+        "rk_mpp_activation_finish_retry": {
+            "if (!token || !token->activation || "
+            "!token->activation->job) return false;",
+            "finished = rk_mpp_activation_finish_retry_locked(hw, token, "
+            "status, core);",
+        },
+        "rk_mpp_rkvdec2_prepare_ccu_retry_job": {
+            "struct rk_mpp_activation_retry_token token = {};",
+        },
+    }
+    for function in functions:
+        for _line, statement in function.statements:
+            if not re.search(
+                r"(?<![&.>])\btoken\b(?!\s*(?:->|\.))", statement
+            ):
+                continue
+            if statement in allowed_bare_token_statements.get(function.name, set()):
+                continue
+            raise ValueError(
+                f"{function.name}: bare retry token escape is forbidden: {statement}"
+            )
+
+    expected_storage_release_statements = (
+        "if (activation->slot_state == RK_MPP_ACTIVATION_UNINSTALLED) "
+        "return activation->transition_reason == RK_MPP_TRANSITION_NONE && "
+        "rk_mpp_activation_closure_pristine(activation);",
+        "if (activation->slot_state == RK_MPP_ACTIVATION_SUPERSEDED) "
+        "return activation->transition_reason == "
+        "RK_MPP_TRANSITION_RETRY_REPLACED && activation->closure.state == "
+        "RK_MPP_ACTIVATION_CLOSURE_RETIRED && "
+        "activation->closure.group.valid && "
+        "!activation->closure.group.status && "
+        "activation->closure.group.result.quiesced && "
+        "activation->closure.core.valid;",
+        "return rk_mpp_activation_closure_pristine(activation) && "
+        "activation->slot_state == RK_MPP_ACTIVATION_CLAIMED && "
+        "activation->transition_reason > RK_MPP_TRANSITION_NONE && "
+        "activation->transition_reason < RK_MPP_TRANSITION_RETRY_REPLACED;",
+    )
+    storage_release_statements = tuple(
+        statement
+        for _line, statement in by_name[
+            "rk_mpp_activation_storage_released"
+        ].statements
+    )
+    if storage_release_statements != expected_storage_release_statements:
+        raise ValueError("activation storage release predicates drifted")
+
+    expected_finish_retry_statements = (
+        "struct rk_mpp_session *session;",
+        "unsigned long flags;",
+        "bool finished;",
+        "if (!token || !token->activation || !token->activation->job) "
+        "return false;",
+        "session = token->activation->job->session;",
+        "lockdep_assert_held(&hw->run_lock);",
+        "mutex_lock(&session->lock);",
+        "spin_lock_irqsave(&hw->lock, flags);",
+        "finished = rk_mpp_activation_finish_retry_locked(hw, token, "
+        "status, core);",
+        "spin_unlock_irqrestore(&hw->lock, flags);",
+        "mutex_unlock(&session->lock);",
+        "return finished;",
+    )
+    finish_retry_statements = tuple(
+        statement
+        for _line, statement in by_name[
+            "rk_mpp_activation_finish_retry"
+        ].statements
+    )
+    if finish_retry_statements != expected_finish_retry_statements:
+        raise ValueError("activation retry finisher wrapper drifted")
+
+    require_control_counts(
+        by_name, "rk_mpp_activation_storage_released", returns=3, branches=2
+    )
+    require_control_counts(
+        by_name, "rk_mpp_activation_finish_retry_locked", returns=2, branches=1
+    )
+    require_control_counts(
+        by_name, "rk_mpp_activation_finish_retry", returns=2, branches=1
+    )
+    prepare_text = by_name["rk_mpp_rkvdec2_prepare_ccu_retry_job"].text
+    prepare_markers = (
+        "rk_mpp_hw_commit_active_retry(hw, job, old, successor, group, &token)",
+        "rk_mpp_hw_cancel_timeout(hw)",
+        "rk_mpp_hw_stop_and_recover(hw, job, &recovery)",
+        "rk_mpp_activation_finish_retry(hw, &token, ret, &recovery)",
+    )
+    positions = [prepare_text.find(marker) for marker in prepare_markers]
+    if any(position < 0 for position in positions) or positions != sorted(positions):
+        raise ValueError("retry prepare proof calls must remain unique and ordered")
+    pre_cancel = prepare_text[
+        positions[0] + len(prepare_markers[0]) : positions[1]
+    ]
+    if len(re.findall(r"\b(?:return|goto)\b", pre_cancel)) != 1:
+        raise ValueError("retry commit failure must flow directly to cleanup")
+    recovery_span = prepare_text[positions[1] : positions[3]]
+    if (
+        len(re.findall(r"\bif\s*\(", recovery_span)) != 1
+        or re.search(r"\b(?:return|goto)\b", recovery_span)
+    ):
+        raise ValueError("retry commit must be followed directly by stop and finish")
+
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_activation_storage_init",
+        ("memset(&activation->closure, 0, sizeof(activation->closure))",),
+    )
+    if not by_name["rk_mpp_activation_storage_init"].text.endswith(
+        "memset(&activation->closure, 0, sizeof(activation->closure));"
+    ):
+        raise ValueError("activation closure zeroing must finish storage initialization")
+    expected_pristine = normalize(
+        "return activation && !memchr_inv(&activation->closure, 0, "
+        "sizeof(activation->closure));"
+    )
+    if by_name["rk_mpp_activation_closure_pristine"].text != expected_pristine:
+        raise ValueError("activation closure pristine predicate drifted")
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_activation_storage_released",
+        (
+            "RK_MPP_ACTIVATION_UNINSTALLED",
+            "rk_mpp_activation_closure_pristine(activation)",
+            "RK_MPP_ACTIVATION_SUPERSEDED",
+            "RK_MPP_TRANSITION_RETRY_REPLACED",
+            "RK_MPP_ACTIVATION_CLOSURE_RETIRED",
+            "activation->closure.group.valid",
+            "!activation->closure.group.status",
+            "activation->closure.group.result.quiesced",
+            "activation->closure.core.valid",
+            "rk_mpp_activation_closure_pristine(activation)",
+            "RK_MPP_ACTIVATION_CLAIMED",
+            "RK_MPP_TRANSITION_RETRY_REPLACED",
+        ),
+    )
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_hw_commit_active_retry",
+        (
+            "token->activation || token->generation",
+            "!group->quiesced",
+            "!group->reusable",
+            "!rk_mpp_activation_closure_pristine(old)",
+            "!rk_mpp_activation_closure_pristine(successor)",
+            "old->closure.group.result = *group",
+            "old->closure.group.status = 0",
+            "old->closure.group.valid = true",
+            "old->closure.state = RK_MPP_ACTIVATION_CLOSURE_PENDING",
+            "old->slot_state = RK_MPP_ACTIVATION_SUPERSEDED",
+            "old->transition_reason = RK_MPP_TRANSITION_RETRY_REPLACED",
+            "list_add_tail(&successor->job_link, &job->activations)",
+            "WRITE_ONCE(job->current_activation, successor)",
+            "hw->active_activation = successor",
+            "token->activation = old",
+            "token->generation = old->generation",
+        ),
+    )
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_activation_finish_retry_locked",
+        (
+            "old->generation != token->generation",
+            "old->selected_hw != hw",
+            "list_empty(&old->job_link)",
+            "old == READ_ONCE(job->current_activation)",
+            "old == rk_mpp_hw_active_activation_locked(hw)",
+            "old->slot_state != RK_MPP_ACTIVATION_SUPERSEDED",
+            "old->transition_reason != RK_MPP_TRANSITION_RETRY_REPLACED",
+            "old->closure.state != RK_MPP_ACTIVATION_CLOSURE_PENDING",
+            "!old->closure.group.valid",
+            "old->closure.group.status",
+            "!old->closure.group.result.quiesced",
+            "!old->closure.group.result.reusable",
+            "old->closure.core.valid)",
+            "old->closure.core.result = *core",
+            "old->closure.core.status = status",
+            "old->closure.core.valid = true",
+            "old->closure.state = RK_MPP_ACTIVATION_CLOSURE_RETIRED",
+            "token->activation = NULL",
+            "token->generation = 0",
+        ),
+    )
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_rkvdec2_prepare_ccu_retry_job",
+        (
+            "rk_mpp_hw_commit_active_retry(hw, job, old, successor, group, &token)",
+            "rk_mpp_hw_cancel_timeout(hw)",
+            "ret = rk_mpp_hw_stop_and_recover(hw, job, &recovery)",
+            "rk_mpp_activation_finish_retry(hw, &token, ret, &recovery)",
+            "if (ret)",
+            "!recovery.quiesced || !recovery.reusable",
+        ),
+    )
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_rkvdec2_restart_ccu_unfinished_jobs",
+        (
+            "!group || !group->quiesced || !group->reusable",
+            "rk_mpp_rkvdec2_prepare_ccu_retry_job(jobs[i], successor, group)",
+        ),
+    )
+    for caller in ("rk_mpp_hw_abort_job", "rk_mpp_hw_recover_active"):
+        require_ordered_fragments(
+            by_name,
+            caller,
+            ("rk_mpp_rkvdec2_restart_ccu_unfinished_jobs(ccu, &ccu_recovery)",),
+        )
+
+
 def unique_struct_member_declaration(
     source: pathlib.Path, structure: str, member: str
 ) -> tuple[int, str]:
@@ -1454,6 +2001,41 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
             found.append(
                 ("mpp-activation-schema", relative, "<file-scope>", text, line)
             )
+            for category, declaration, expected in (
+                (
+                    "mpp-activation-recovery-record-schema",
+                    "struct rk_mpp_activation_recovery_record {",
+                    "struct rk_mpp_activation_recovery_record { "
+                    "struct rk_mpp_cluster_recovery_result result; "
+                    "int status; bool valid; };",
+                ),
+                (
+                    "mpp-activation-closure-schema",
+                    "struct rk_mpp_activation_closure {",
+                    "struct rk_mpp_activation_closure { "
+                    "enum rk_mpp_activation_closure_state state; "
+                    "struct rk_mpp_activation_recovery_record group; "
+                    "struct rk_mpp_activation_recovery_record core; };",
+                ),
+                (
+                    "mpp-activation-retry-token-schema",
+                    "struct rk_mpp_activation_retry_token {",
+                    "struct rk_mpp_activation_retry_token { "
+                    "struct rk_mpp_activation *activation; u64 generation; };",
+                ),
+            ):
+                schema_line, schema_text = exact_declaration_block(
+                    source, declaration, expected
+                )
+                found.append(
+                    (
+                        category,
+                        relative,
+                        "<file-scope>",
+                        schema_text,
+                        schema_line,
+                    )
+                )
             stripped_source = "\n".join(
                 strip_comments(source.read_text(encoding="utf-8").splitlines())
             )
@@ -1480,6 +2062,14 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                     "RK_MPP_TRANSITION_CCU_DEPENDENT_ABORT, "
                     "RK_MPP_TRANSITION_RETRY_REPLACED, "
                     "RK_MPP_TRANSITION_COUNT, };",
+                ),
+                (
+                    "mpp-activation-closure-state-enum-schema",
+                    "enum rk_mpp_activation_closure_state {",
+                    "enum rk_mpp_activation_closure_state { "
+                    "RK_MPP_ACTIVATION_CLOSURE_NONE, "
+                    "RK_MPP_ACTIVATION_CLOSURE_PENDING, "
+                    "RK_MPP_ACTIVATION_CLOSURE_RETIRED, };",
                 ),
             ):
                 enum_name = declaration.split("{", 1)[0].strip()
@@ -1535,11 +2125,103 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                     ),
                     "enum rk_mpp_activation_transition_reason transition_reason member",
                 ),
+                (
+                    "mpp-activation-closure-member-schema",
+                    re.compile(
+                        r"\bstruct\s+rk_mpp_activation_closure\s+closure\s*;"
+                    ),
+                    "struct rk_mpp_activation_closure closure member",
+                ),
             ):
                 line, text = required_struct_member_pattern(
                     source, "rk_mpp_activation", pattern, description
                 )
                 found.append((category, relative, "<file-scope>", text, line))
+            for structure, members in (
+                (
+                    "rk_mpp_activation_recovery_record",
+                    (
+                        (
+                            "mpp-activation-recovery-result-member-schema",
+                            re.compile(
+                                r"\bstruct\s+rk_mpp_cluster_recovery_result\s+"
+                                r"result\s*;"
+                            ),
+                            "struct rk_mpp_cluster_recovery_result result member",
+                        ),
+                        (
+                            "mpp-activation-recovery-status-schema",
+                            re.compile(r"\bint\s+status\s*;"),
+                            "int status member",
+                        ),
+                        (
+                            "mpp-activation-recovery-valid-schema",
+                            re.compile(r"\bbool\s+valid\s*;"),
+                            "bool valid member",
+                        ),
+                    ),
+                ),
+                (
+                    "rk_mpp_activation_closure",
+                    (
+                        (
+                            "mpp-activation-closure-state-schema",
+                            re.compile(
+                                r"\benum\s+rk_mpp_activation_closure_state\s+"
+                                r"state\s*;"
+                            ),
+                            "enum rk_mpp_activation_closure_state state member",
+                        ),
+                        (
+                            "mpp-activation-closure-group-schema",
+                            re.compile(
+                                r"\bstruct\s+rk_mpp_activation_recovery_record\s+"
+                                r"group\s*;"
+                            ),
+                            "struct rk_mpp_activation_recovery_record group member",
+                        ),
+                        (
+                            "mpp-activation-closure-core-schema",
+                            re.compile(
+                                r"\bstruct\s+rk_mpp_activation_recovery_record\s+"
+                                r"core\s*;"
+                            ),
+                            "struct rk_mpp_activation_recovery_record core member",
+                        ),
+                    ),
+                ),
+                (
+                    "rk_mpp_activation_retry_token",
+                    (
+                        (
+                            "mpp-activation-retry-token-pointer-schema",
+                            re.compile(
+                                r"\bstruct\s+rk_mpp_activation\s*\*\s*"
+                                r"activation\s*;"
+                            ),
+                            "struct rk_mpp_activation *activation member",
+                        ),
+                        (
+                            "mpp-activation-retry-token-generation-schema",
+                            re.compile(r"\bu64\s+generation\s*;"),
+                            "u64 generation member",
+                        ),
+                    ),
+                ),
+            ):
+                for category, pattern, description in members:
+                    member_line, member_text = required_struct_member_pattern(
+                        source, structure, pattern, description
+                    )
+                    found.append(
+                        (
+                            category,
+                            relative,
+                            "<file-scope>",
+                            member_text,
+                            member_line,
+                        )
+                    )
             for category, pattern, description in (
                 (
                     "mpp-active-activation-schema",
@@ -1693,6 +2375,8 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
             else set()
         )
         functions = parse_functions(source, KUNIT_MARKERS[relative])
+        if relative == MPP_SOURCE:
+            validate_mpp_retry_retirement_contract(source, functions)
         if relative == MPP_SOURCE and sum(
             function.name == "rk_mpp_transition_yields_to_fault"
             for function in functions
@@ -1943,6 +2627,46 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                             (
                                 "mpp-activation-transition-reason-write",
                                 activation_patterns.reason_write,
+                            ),
+                            (
+                                "mpp-activation-closure-access",
+                                activation_patterns.closure_access,
+                            ),
+                            (
+                                "mpp-activation-closure-write",
+                                activation_patterns.closure_write,
+                            ),
+                            (
+                                "mpp-activation-closure-state-access",
+                                activation_patterns.closure_state_access,
+                            ),
+                            (
+                                "mpp-activation-closure-state-write",
+                                activation_patterns.closure_state_write,
+                            ),
+                            (
+                                "mpp-activation-closure-group-access",
+                                activation_patterns.closure_group_access,
+                            ),
+                            (
+                                "mpp-activation-closure-group-write",
+                                activation_patterns.closure_group_write,
+                            ),
+                            (
+                                "mpp-activation-closure-core-access",
+                                activation_patterns.closure_core_access,
+                            ),
+                            (
+                                "mpp-activation-closure-core-write",
+                                activation_patterns.closure_core_write,
+                            ),
+                            (
+                                "mpp-retry-token-access",
+                                MPP_RETRY_TOKEN_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-retry-token-write",
+                                MPP_RETRY_TOKEN_WRITE_RE,
                             ),
                             (
                                 "mpp-active-transition-entry",
@@ -2395,6 +3119,57 @@ def ownership_violations(signals: Iterable[Signal]) -> list[Signal]:
         elif (
             signal.category == "mpp-activation-transition-reason-write"
             and signal.function not in MPP_ACTIVATION_REASON_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-recovery-result-access"
+            and signal.function not in MPP_RECOVERY_RESULT_ACCESS_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-recovery-result-write"
+            and signal.function not in MPP_RECOVERY_RESULT_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category
+            in {
+                "mpp-activation-closure-access",
+                "mpp-activation-closure-state-access",
+                "mpp-activation-closure-group-access",
+                "mpp-activation-closure-core-access",
+            }
+            and signal.function not in MPP_ACTIVATION_CLOSURE_ACCESS_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-closure-write"
+            and signal.function not in MPP_ACTIVATION_CLOSURE_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-closure-state-write"
+            and signal.function not in MPP_ACTIVATION_CLOSURE_STATE_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-closure-group-write"
+            and signal.function not in MPP_ACTIVATION_CLOSURE_GROUP_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-closure-core-write"
+            and signal.function not in MPP_ACTIVATION_CLOSURE_CORE_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-retry-token-access"
+            and signal.function not in MPP_RETRY_TOKEN_ACCESS_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-retry-token-write"
+            and signal.function not in MPP_RETRY_TOKEN_WRITE_OWNERS
         ):
             violations.append(signal)
     return violations

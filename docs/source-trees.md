@@ -195,6 +195,8 @@ owns the public verdict.
 
 | Snapshot | Pin and base | Historical relationships |
 |----------|--------------|--------------------------|
+| 6.18 rewrite Phase 3G retry retirement proof, 2026-08-09 | `rk3588-rewrite-6.18@74c1b98def888` on `v6.18.42@856a9b51680c` | Phase 3F tip `3e6d682519a02`; retains typed group/core closure evidence for each hard-CCU retry predecessor |
+| Mainline rewrite Phase 3G retry retirement proof, 2026-08-09 | `rk3588-rewrite-mainline@dd3a88cd5629` on `v7.2-rc6@075b74841bd0` | Phase 3F tip `e72aaf3244fbf`; byte-identical retry-retirement checkpoint |
 | 6.18 rewrite Phase 3F fresh retry activations, 2026-08-09 | `rk3588-rewrite-6.18@3e6d682519a02` on `v6.18.42@856a9b51680c` | Phase 3E tip `969b91ce7d4b`; allocates a distinct retained activation for each committed hard-CCU retry; includes frame-bound KUnit follow-up `3e6d682519a02` after implementation `e919f19e2d26b` |
 | Mainline rewrite Phase 3F fresh retry activations, 2026-08-09 | `rk3588-rewrite-mainline@e72aaf3244fbf` on `v7.2-rc6@075b74841bd0` | Phase 3E tip `8f67fb6fc7d9`; byte-identical fresh-attempt implementation `612b5cb2cc146` plus frame-bound follow-up |
 | 6.18 rewrite Phase 3E reasoned claim owner, 2026-08-09 | `rk3588-rewrite-6.18@969b91ce7d4b` on `v6.18.42@856a9b51680c` | Phase 3D tip `e3a24baa7ee7`; funnels every active-slot detach through one pointer/generation/reason claim and records provisional claim state |
@@ -229,9 +231,9 @@ owns the public verdict.
 | Mainline rewrite, 2026-08-06 | `rk3588-rewrite-mainline@7a6d4cb075a67` on `v7.2-rc6@075b74841bd0` | prior backups `9e503f6b16df` and `5bae68d8381c` |
 | Upstream-style RGA3 comparison | `rk3588-rewrite-mainline@180ee72a9a80` | detailed in §9 |
 
-The two maintained Phase 3F fresh-retry snapshots have byte-identical
+The two maintained Phase 3G retry-retirement snapshots have byte-identical
 tracked MPP/RGA rewrite sources, Kconfig, ABI ledgers, and UAPI. Their exact
-102 MPP + 152 RGA manifest, 1688-signal production ownership inventory, and
+102 MPP + 152 RGA manifest, 1792-signal production ownership inventory, and
 306-signal KUnit-debt audit pass with zero new or absent signals. The older
 2026-08-08 rows preserve the recovery, pre-cluster, and pre-refactor snapshots,
 while the 2026-08-06 rows remain historical pins rather than claims about later

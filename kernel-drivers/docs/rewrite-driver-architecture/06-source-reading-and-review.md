@@ -61,10 +61,12 @@ attempt list/current pointer, generation/deadline/selected-core ownership,
 activation-typed active/timeout slots, and the Phase 3E provisional slot
 state/reason. One claim helper owns every detach and restore can return
 `CLAIMED` storage to `SLOTTED`. Phase 3F gives hard-CCU retry a distinct
-successor and freezes the predecessor as `SUPERSEDED/RETRY_REPLACED`; terminal
-paths still adapt back to the containing job. This is retained attempt
-identity, not a final retirement, reclaimability, or outcome-arbitration
-engine.
+successor and freezes the predecessor as `SUPERSEDED/RETRY_REPLACED`. Phase 3G
+adds `rk_mpp_activation_closure` and the exact retry token: the copied group
+result proves predecessor quiescence, and the later core record gates successor
+reuse before that predecessor becomes `RETIRED`. Terminal paths still adapt
+back to the containing job. This is retry-predecessor proof, not general
+retirement, reclaimability, or outcome arbitration.
 `rk_rga_task_exec` and `rk_rga_acquire_set` should still return no definitions;
 cluster admission, coordinator-power ownership, retained MPP retirement, and
 complete reset/IOMMU recovery consumers should likewise remain absent until

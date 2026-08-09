@@ -106,8 +106,12 @@ restores that exact record. Phase 3F adds a job-owned activation list and
 current pointer; every committed hard-CCU retry gets a distinct successor
 while the old record freezes as `SUPERSEDED/RETRY_REPLACED`. Old storage
 remains address-stable until final job release. This is retained identity, not
-a complete transition owner: cluster/link/DCHS and power leases, typed
-quiescence/retirement, async result merging, and final outcome ownership
+a complete transition owner. Phase 3G adds a narrow exception for hard-CCU
+retry predecessors: the completed group recovery is copied before
+supersession, and an exact pointer/generation token records the later per-core
+result before marking that predecessor `RETIRED`. Ordinary claims still lack
+typed closure. Cluster/link/DCHS and power leases, async result merging,
+quarantine, reclaimability, and final outcome ownership
 remain in the legacy job/hardware graph.
 
 ### 3.2 Session lifecycle
@@ -348,6 +352,15 @@ activation owns one selected-core reference until the all-attempt completion
 or destructor walk drops them. The switch deliberately occurs at the same
 pre-stop point as Phase 3E's in-place generation advance, so superseded means
 logically replaced rather than quiesced or retired.
+
+Phase 3G retains the proof that closes that predecessor. Retry commit requires
+and copies a quiesced/reusable group result, then returns an exact
+pointer/generation token. Per-core stop/recovery always records its result
+through that token before the predecessor moves from pending supersession to
+`RETIRED`. The group record proves the old shared descriptor/DMA lifetime has
+ended; the core record separately gates whether the successor may start. This
+does not retire ordinary terminal claims or permit early activation storage
+freeing.
 
 START publication also creates a bounded IRQ/register lease under
 `hw->regs_lock`. The lease records the live reset epoch and, for direct-core

@@ -200,10 +200,11 @@ The `/dev/rga` driver — session lifetime, userptr/dma-buf imports, and the 10-
 - [`2026-07-20`](2026-07-20-rga2-unmapped-page-table-dma-sync.md) — RGA2 syncs page-table memory through an unmapped DMA address
 - [`2026-07-17`](2026-07-17-rga-session-close-uaf.md) — RGA session-close force-free ignores refcounts; a leaked test handle exposed it as a kernel Oops
 
-### Clean-room rewrite drivers (46)
+### Clean-room rewrite drivers (47)
 
 The from-scratch MPP/RGA replacement: reviews, soft-CCU wedges, and reset/lifecycle races.
 
+- [`2026-08-09`](2026-08-09-rewrite-phase-3g-mpp-retry-retirement-proof.md) — Rewrite Phase 3G retains MPP retry-predecessor retirement proof
 - [`2026-08-09`](2026-08-09-rewrite-phase-3f-mpp-fresh-retry-activation.md) — Rewrite Phase 3F retains fresh MPP hard-CCU retry activations
 - [`2026-08-09`](2026-08-09-rewrite-phase-3e-mpp-claim-owner.md) — Rewrite Phase 3E owns MPP active-slot claims by reason
 - [`2026-08-09`](2026-08-09-rewrite-phase-3d-mpp-activation-slots.md) — Rewrite Phase 3D stores MPP slots by activation identity
@@ -357,6 +358,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-08-09-rewrite-phase-3g-mpp-retry-retirement-proof.md`](2026-08-09-rewrite-phase-3g-mpp-retry-retirement-proof.md) — Rewrite Phase 3G retains MPP retry-predecessor retirement proof
 - [`2026-08-09-rewrite-phase-3f-mpp-fresh-retry-activation.md`](2026-08-09-rewrite-phase-3f-mpp-fresh-retry-activation.md) — Rewrite Phase 3F retains fresh MPP hard-CCU retry activations
 - [`2026-08-09-rewrite-phase-3e-mpp-claim-owner.md`](2026-08-09-rewrite-phase-3e-mpp-claim-owner.md) — Rewrite Phase 3E owns MPP active-slot claims by reason
 - [`2026-08-09-rewrite-phase-3d-mpp-activation-slots.md`](2026-08-09-rewrite-phase-3d-mpp-activation-slots.md) — Rewrite Phase 3D stores MPP slots by activation identity
