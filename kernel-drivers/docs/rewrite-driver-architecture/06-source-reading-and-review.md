@@ -73,6 +73,13 @@ list with distinct diagnostic/core/group evidence and reboot-bound
 resource/dispatch ownership. Clean IRQ/`CCU_DONE` and pre-doorbell
 `START_FAILURE` still adapt through the legacy `CLAIMED` release boundary. This
 is not general clean retirement, reclaimability, or outcome arbitration.
+Phase 3I replaces that fallback with immutable `NOT_PUBLISHED`, `IRQ_ACCEPTED`,
+or `CCU_DONE_ACCEPTED` observation/status before exact clean retirement. Its
+RKVDEC bus-idle tuple is advisory, recovered proof remains separate, impossible
+finishers quarantine, and AV1 untrusted-stop failure remains `SLOTTED` for
+remove/shutdown retry. It is still not resource drain, `RECLAIMABLE`, or
+outcome arbitration.
+
 `rk_rga_task_exec` and `rk_rga_acquire_set` should still return no definitions;
 cluster admission, coordinator-power ownership, general clean MPP retirement
 and `RECLAIMABLE`, and complete reset/IOMMU recovery consumers should likewise

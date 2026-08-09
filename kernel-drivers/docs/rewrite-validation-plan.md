@@ -9,7 +9,7 @@ qualification verdict and next proof belong to
 and definition of done.
 
 > **Framing.** The targeted userspace surface is code-complete and has MPP
-> **103 KUnit cases** plus RGA **152 KUnit cases** (**255 total**). Exact green
+> **104 KUnit cases** plus RGA **152 KUnit cases** (**256 total**). Exact green
 > booted KTAP is the first qualification rung, not the finish line. These tests
 > are primarily **logic/lifecycle evidence**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
@@ -21,9 +21,8 @@ and definition of done.
 > counts into this plan; follow the status row into the dated finding and
 > correlated run artifacts.
 
-> **Current source boundary (2026-08-09):** maintained Phase 3H tips
-> `1784358650e3c41abbd5154cbd1737da07d968de` /
-> `e71d368cc48374638eafbfdf1e9c6864cabbd118` retain the Phase 3A current-attempt
+> **Current source boundary (2026-08-09):** maintained Phase 3I tips
+> `395644689db8f` / `38768c5cff419` retain the Phase 3A current-attempt
 > generation/deadline and Phase 3B dispatch-owner pointer, move the retained
 > selected-core reference into the same embedded activation, and store that
 > address in both hardware active/timeout slots while preserving the prior
@@ -39,12 +38,19 @@ and definition of done.
 > proof. Exact restore refusal transfers that reference and generation to a
 > service quarantine tombstone with distinct diagnostic/core/group evidence,
 > retains resources and dispatch, closes core/CCU admission, blocks remove,
-> and survives shutdown until reboot. Clean IRQ/`CCU_DONE`, pre-doorbell
-> `START_FAILURE`, `RECLAIMABLE`, general retirement, and final outcome
-> arbitration remain open. The tips pass the 2068-signal production ownership
-> audit, unchanged 306-signal KUnit-debt audit, exact 103+152 manifest, byte
-> identity, strict checkpatch, all eight warning-fatal clean-archive profiles,
-> and the repository-wide handoff gate. Predecessor 6.18 `19634f4eebba` passes exact
+> and survives shutdown until reboot. Phase 3I records immutable
+> `NOT_PUBLISHED`, `IRQ_ACCEPTED`, or `CCU_DONE_ACCEPTED` observation/status
+> before retiring each exact clean claim; RKVDEC `BUS_IDLE` remains advisory,
+> recovered proof remains separate, and the legacy `CLAIMED` fallback is gone.
+> AV1 untrusted-stop failure deliberately retains `SLOTTED` active ownership
+> for remove/shutdown retry. `RECLAIMABLE`, activation-aware resource drain,
+> and final outcome arbitration remain open. The MPP source SHA-256 is
+> `95816d9033e76c86638e13b5ed3a0399b4a30e9d26b338579a624548fcecaada`;
+> strict checkpatch is 0/0/0 over 1,076 lines, focused KUnit-enabled MPP
+> objects compile on both lines, and all eight warning-fatal clean-archive
+> profiles pass. The exact source manifest is 104+152=256; ownership is
+> 2,180 signals/tree and KUnit fixture debt is 306/tree, both with zero drift.
+> The repository handoff gate passes; runtime execution is pending. Predecessor 6.18 `19634f4eebba` passes exact
 > 92+152 booted KUnit and 12/12 official MPP, but its librga run exposed defects
 > fixed only at later tips. No current-tip Phase 2 or Phase 3 source has booted. The source
 > contains the separate VPU981 AV1 backend, but no rewrite AV1 kernel has passed
@@ -57,7 +63,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 
 | Capability | Status in repo | This plan |
 |---|---|---|
-| Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) passes warning-fatal `normal`, `test-disabled`, `memory` (KASAN/fault-injection), and `race` (KCSAN/lockdep) profiles on both exact Phase 3H tips. | sanitizer profiles remain compile coverage only; booted KASAN/KCSAN evidence is still required |
+| Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) passes warning-fatal `normal`, `test-disabled`, `memory` (KASAN/fault-injection), and `race` (KCSAN/lockdep) on both exact Phase 3I tips, including both IOMMU providers, both rewrite objects, and the Rock 5B DTB; KUnit opt-in defaults remain off and the deliberate MPP ABI mutation fails its static assertion on both lines. | sanitizer profiles are compile coverage only; booted KASAN/KCSAN evidence is still required |
 | Non-submit ABI probe + log diff | ✅ [`kernel-drivers/tests/abi-probe.sh`](../tests/abi-probe.sh), [`kernel-drivers/tests/abi-replay.sh`](../tests/abi-replay.sh), including optional dma-heap-backed MPP translate/release, RGA dma-buf import/release, and raw RGA physical-address import observation with an opt-in rewrite reject assertion | reuse; extend to bit-exact output (below) |
 | Consumer conformance (MPP / librga / GStreamer / FFmpeg) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/conformance.md`](../tests/conformance.md), including the target × configuration catalog and opt-in GStreamer display/KMS-capture, AV1, legacy advertised-decode, sanitizer, and race cases; `run-conformance.sh --validate` also validates MPP/GStreamer case builders, FFmpeg case-list wiring, the direct `librga-smoke.cpp` source, comparators, and evidence-audit rejection paths | reuse; wire the pass/fail gate |
 | Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode, FFmpeg transcode, MPP official-test media outputs, and the maintained direct RGA smoke paths, including RKNN/RKNPU-style preprocessing plus AFBC16x16 and tile8x8 round-trips, now have `artifacts.tsv` byte-count/SHA-256 comparison paths; broad official librga sample binaries still mostly report pass/fail/timing | extend artifact capture only where official sample outputs matter for remaining gaps |
@@ -80,7 +86,7 @@ Three builds; the sanitizers do not usefully coexist.
   build *is* this: KASAN(inline) + UBSAN + `DMA_API_DEBUG(_SG)` + `DEBUG_SG` +
   `DEBUG_LIST` + lockdep (`PROVE_LOCKING`) + `DEBUG_ATOMIC_SLEEP` +
   `PAGE_OWNER`/`PAGE_POISONING`, with ramoops so an IOMMU-fault oops survives the
-  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 255 unit
+  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 256 unit
   cases run under KASAN as the very first gate. Add `FAULT_INJECTION` +
   `FAILSLAB` + `FAIL_PAGE_ALLOC` + `FAULT_INJECTION_USERCOPY` +
   `FUNCTION_ERROR_INJECTION` for §4. The device-free preflight is
@@ -663,7 +669,7 @@ booted sanitizer/fault-injection evidence.
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 255 KUnit cases green **under KASAN** (103 MPP + 152 RGA), persisted from the
+1. 256 KUnit cases green **under KASAN** (104 MPP + 152 RGA), persisted from the
    booted suites by `tests/rewrite-kunit-log-check.sh`; hardware-in-the-loop
    kselftests added (the KUnit cases themselves never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —

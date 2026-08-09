@@ -297,9 +297,10 @@ def activation_field_target(
 MPP_ACTIVATION_FIELD_TARGET = activation_field_target({"activation"})
 MPP_ACTIVATION_ENTRY_RE = re.compile(
     r"\b(?:rk_mpp_activation_(?:storage_init|init|job|generation|"
-    r"install_locked|storage_released|closure_pristine|alloc_successor|"
+    r"install_locked|storage_released|closure_pristine|"
+    r"observation_(?:pristine|matches)|alloc_successor|"
     r"free_unpublished|finish_retry(?:_locked)?|claim_(?:job|put|quarantine)|"
-    r"finish_terminal(?:_locked)?)|"
+    r"finish_(?:terminal|observed_terminal)(?:_locked)?)|"
     r"rk_mpp_job_(?:activation_storage_released|"
     r"activation_hardware_released|release_activation_storage)|"
     r"rk_mpp_hw_(?:advance_active_generation_locked|install_active_locked|"
@@ -347,6 +348,14 @@ MPP_CLOSURE_SCOPE_WRITE_RE = field_write_re(
     r"terminal_scope",
     publishers=ACTIVATION_FIELD_PUBLISHERS,
     target=MPP_CLOSURE_DIRECT_TARGET,
+)
+MPP_CLOSURE_OBSERVATION_TARGET = rf"{MPP_CLOSURE_DIRECT_TARGET}observation\s*\."
+MPP_CLOSURE_OBSERVATION_ACCESS_RE = re.compile(
+    rf"{MPP_CLOSURE_DIRECT_TARGET}observation\b"
+)
+MPP_CLOSURE_OBSERVATION_WRITE_RE = re.compile(
+    rf"(?:{field_write_re('observation', publishers=ACTIVATION_FIELD_PUBLISHERS, target=MPP_CLOSURE_DIRECT_TARGET).pattern}|"
+    rf"{field_write_re('kind|hw_status|bus_idle_status|bus_idle_checked|valid', publishers=ACTIVATION_FIELD_PUBLISHERS, target=MPP_CLOSURE_OBSERVATION_TARGET).pattern})"
 )
 MPP_QUARANTINE_LINK_ACCESS_RE = re.compile(
     rf"{FIELD_TARGET}quarantine_link\b"
@@ -552,8 +561,10 @@ MPP_ACTIVATION_SLOT_STATE_ACCESS_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_activation_claim_put",
     "rk_mpp_activation_finish_terminal_locked",
+    "rk_mpp_activation_finish_observed_terminal_locked",
     "rk_mpp_activation_storage_init",
     "rk_mpp_activation_install_locked",
+    "rk_mpp_activation_observation_matches",
     "rk_mpp_activation_storage_released",
     "rk_mpp_activation_free_unpublished",
     "rk_mpp_hw_claim_active_locked",
@@ -566,6 +577,7 @@ MPP_ACTIVATION_SLOT_STATE_ACCESS_OWNERS = {
 MPP_ACTIVATION_SLOT_STATE_WRITE_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_activation_finish_terminal_locked",
+    "rk_mpp_activation_finish_observed_terminal_locked",
     "rk_mpp_activation_storage_init",
     "rk_mpp_activation_install_locked",
     "rk_mpp_hw_claim_active_locked",
@@ -578,7 +590,10 @@ MPP_ACTIVATION_CLOSURE_ACCESS_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_activation_closure_pristine",
     "rk_mpp_activation_finish_terminal_locked",
+    "rk_mpp_activation_finish_observed_terminal_locked",
     "rk_mpp_activation_finish_retry_locked",
+    "rk_mpp_activation_observation_matches",
+    "rk_mpp_activation_observation_pristine",
     "rk_mpp_activation_storage_init",
     "rk_mpp_activation_storage_released",
     "rk_mpp_hw_commit_active_retry",
@@ -589,6 +604,7 @@ MPP_ACTIVATION_CLOSURE_WRITE_OWNERS = {
 MPP_ACTIVATION_CLOSURE_STATE_WRITE_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_activation_finish_terminal_locked",
+    "rk_mpp_activation_finish_observed_terminal_locked",
     "rk_mpp_activation_finish_retry_locked",
     "rk_mpp_hw_commit_active_retry",
 }
@@ -626,11 +642,22 @@ MPP_ACTIVATION_CLOSURE_SCOPE_ACCESS_OWNERS = (
 MPP_ACTIVATION_CLOSURE_SCOPE_WRITE_OWNERS = (
     MPP_ACTIVATION_CLOSURE_TERMINAL_WRITE_OWNERS
 )
+MPP_ACTIVATION_CLOSURE_OBSERVATION_ACCESS_OWNERS = {
+    "rk_mpp_activation_finish_observed_terminal_locked",
+    "rk_mpp_activation_observation_matches",
+    "rk_mpp_activation_observation_pristine",
+    "rk_mpp_activation_storage_released",
+}
+MPP_ACTIVATION_CLOSURE_OBSERVATION_WRITE_OWNERS = {
+    "rk_mpp_activation_finish_observed_terminal_locked",
+}
 MPP_CLAIM_TOKEN_ACCESS_OWNERS = {
     "rk_mpp_activation_claim_job",
     "rk_mpp_activation_claim_put",
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_activation_finish_terminal_locked",
+    "rk_mpp_activation_finish_observed_terminal",
+    "rk_mpp_activation_finish_observed_terminal_locked",
     "rk_mpp_hw_claim_active_locked",
     "rk_mpp_hw_restore_active_locked",
 }
@@ -669,6 +696,7 @@ MPP_QUARANTINE_COUNT_WRITE_OWNERS = {
 MPP_SELECTED_HW_ACCESS_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_activation_finish_terminal_locked",
+    "rk_mpp_activation_finish_observed_terminal_locked",
     "rk_mpp_activation_finish_retry_locked",
     "rk_mpp_activation_storage_init",
     "rk_mpp_activation_free_unpublished",
@@ -739,6 +767,7 @@ MPP_SELECTED_HW_WRITE_OWNERS = {
 }
 MPP_CURRENT_ACTIVATION_ACCESS_OWNERS = {
     "__rk_mpp_hw_restore_active_job",
+    "rk_mpp_activation_finish_observed_terminal_locked",
     "rk_mpp_activation_finish_retry_locked",
     "rk_mpp_activation_finish_terminal_locked",
     "rk_mpp_activation_init",
@@ -834,6 +863,7 @@ MPP_ACTIVATION_LIST_WRITE_OWNERS = {
 MPP_ACTIVATION_LINK_ACCESS_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_activation_finish_terminal_locked",
+    "rk_mpp_activation_finish_observed_terminal_locked",
     "rk_mpp_activation_finish_retry_locked",
     "rk_mpp_activation_storage_init",
     "rk_mpp_activation_init",
@@ -862,6 +892,7 @@ MPP_RKVDEC_CCU_WRITE_RE = field_write_re(r"rkvdec_ccu")
 MPP_RKVDEC_CCU_ACCESS_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_activation_finish_terminal_locked",
+    "rk_mpp_activation_finish_observed_terminal_locked",
     "rk_mpp_cluster_add_ccu_job",
     "rk_mpp_cluster_arm_soft_ccu",
     "rk_mpp_cluster_power_lease_acquire",
@@ -920,6 +951,7 @@ MPP_TIMEOUT_GENERATION_WRITE_RE = field_write_re(
 MPP_SLOT_LEGACY_RE = re.compile(rf"{FIELD_TARGET}(?:active_job|timeout_job)\b")
 MPP_ACTIVE_ACTIVATION_ACCESS_OWNERS = {
     "rk_mpp_activation_finish_terminal_locked",
+    "rk_mpp_activation_finish_observed_terminal_locked",
     "rk_mpp_hw_active_activation_locked",
     "rk_mpp_hw_install_active_locked",
     "rk_mpp_hw_claim_active_locked",
@@ -1198,6 +1230,8 @@ class ActivationFunctionPatterns:
     closure_group_write: re.Pattern[str]
     closure_core_access: re.Pattern[str]
     closure_core_write: re.Pattern[str]
+    closure_observation_access: re.Pattern[str]
+    closure_observation_write: re.Pattern[str]
     retry_token_access: re.Pattern[str]
     retry_token_write: re.Pattern[str]
     claim_token_access: re.Pattern[str]
@@ -1335,6 +1369,7 @@ def activation_function_patterns(
     closure_target = rf"{target}closure\s*\."
     group_target = rf"{closure_target}group\s*\."
     core_target = rf"{closure_target}core\s*\."
+    observation_target = rf"{closure_target}observation\s*\."
     closure_write = field_write_re(
         r"closure", publishers=ACTIVATION_FIELD_PUBLISHERS, target=target
     )
@@ -1350,6 +1385,10 @@ def activation_function_patterns(
     closure_core_write = re.compile(
         rf"(?:{field_write_re('core', publishers=ACTIVATION_FIELD_PUBLISHERS, target=closure_target).pattern}|"
         rf"{field_write_re('result|status|valid', publishers=ACTIVATION_FIELD_PUBLISHERS, target=core_target).pattern})"
+    )
+    closure_observation_write = re.compile(
+        rf"(?:{field_write_re('observation', publishers=ACTIVATION_FIELD_PUBLISHERS, target=closure_target).pattern}|"
+        rf"{field_write_re('kind|hw_status|bus_idle_status|bus_idle_checked|valid', publishers=ACTIVATION_FIELD_PUBLISHERS, target=observation_target).pattern})"
     )
     retry_token_access, retry_token_write = typed_token_patterns(
         function,
@@ -1384,6 +1423,7 @@ def activation_function_patterns(
         rf"{reason_write.pattern}|{selected_write.pattern}|"
         rf"{closure_write.pattern}|{closure_state_write.pattern}|"
         rf"{closure_group_write.pattern}|{closure_core_write.pattern}|"
+        rf"{closure_observation_write.pattern}|"
         rf"{MPP_ACTIVATION_SEQUENCE_WRITE_RE.pattern}|{object_write.pattern})"
     )
     return ActivationFunctionPatterns(
@@ -1410,6 +1450,10 @@ def activation_function_patterns(
         closure_group_write=closure_group_write,
         closure_core_access=re.compile(rf"{closure_target}core\b"),
         closure_core_write=closure_core_write,
+        closure_observation_access=re.compile(
+            rf"{closure_target}observation\b"
+        ),
+        closure_observation_write=closure_observation_write,
         retry_token_access=retry_token_access,
         retry_token_write=retry_token_write,
         claim_token_access=claim_token_access,
@@ -1732,6 +1776,7 @@ def validate_mpp_retry_retirement_contract(
     for guarded_type in (
         "rk_mpp_activation_closure",
         "rk_mpp_activation_recovery_record",
+        "rk_mpp_activation_observation_record",
     ):
         if re.search(
             rf"\bstruct\s+{guarded_type}\s*\*", production
@@ -1747,8 +1792,14 @@ def validate_mpp_retry_retirement_contract(
         raise ValueError(
             "activation recovery record may exist only as its schema and three members"
         )
+    if len(
+        re.findall(r"\bstruct\s+rk_mpp_activation_observation_record\b", production)
+    ) != 2:
+        raise ValueError(
+            "activation observation record may exist only as its schema and member"
+        )
     if re.search(
-        r"\b(?:typeof|__typeof__|__auto_type)\b[^;]*(?:closure|token)",
+        r"\b(?:typeof|__typeof__|__auto_type)\b[^;]*(?:closure|observation|token)",
         production,
     ):
         raise ValueError("inferred closure and retry-token aliases are forbidden")
@@ -1794,6 +1845,7 @@ def validate_mpp_retry_retirement_contract(
         "rk_mpp_activation_closure_pristine": {
             "rk_mpp_activation_claim_quarantine",
             "rk_mpp_activation_finish_terminal_locked",
+            "rk_mpp_activation_finish_observed_terminal_locked",
             "rk_mpp_activation_storage_released",
             "rk_mpp_activation_install_locked",
             "rk_mpp_activation_free_unpublished",
@@ -1873,14 +1925,24 @@ def validate_mpp_retry_retirement_contract(
         "return activation->transition_reason == "
         "RK_MPP_TRANSITION_RETRY_REPLACED && activation->closure.state == "
         "RK_MPP_ACTIVATION_CLOSURE_RETIRED && "
+        "rk_mpp_activation_observation_pristine(activation) && "
         "activation->closure.group.valid && "
         "!activation->closure.group.status && "
         "activation->closure.group.result.quiesced && "
         "activation->closure.core.valid;",
-        "if (activation->slot_state == RK_MPP_ACTIVATION_RETIRED) "
-        "return activation->transition_reason > RK_MPP_TRANSITION_NONE && "
-        "activation->transition_reason < RK_MPP_TRANSITION_RETRY_REPLACED && "
-        "activation->closure.state == RK_MPP_ACTIVATION_CLOSURE_RETIRED && "
+        "if (activation->slot_state != RK_MPP_ACTIVATION_RETIRED || "
+        "activation->transition_reason <= RK_MPP_TRANSITION_NONE || "
+        "activation->transition_reason >= RK_MPP_TRANSITION_RETRY_REPLACED || "
+        "activation->closure.state != RK_MPP_ACTIVATION_CLOSURE_RETIRED) "
+        "return false;",
+        "if (activation->closure.observation.valid) return "
+        "activation->closure.terminal_scope == "
+        "RK_MPP_ACTIVATION_RETIREMENT_NONE && "
+        "!activation->closure.group.valid && "
+        "!activation->closure.core.valid && "
+        "!activation->closure.terminal.valid && "
+        "rk_mpp_activation_observation_matches(activation);",
+        "return rk_mpp_activation_observation_pristine(activation) && "
         "((activation->closure.terminal_scope == "
         "RK_MPP_ACTIVATION_RETIREMENT_CORE && "
         "activation->closure.terminal.valid && "
@@ -1892,11 +1954,6 @@ def validate_mpp_retry_retirement_contract(
         "!activation->closure.group.status && "
         "activation->closure.group.result.quiesced && "
         "activation->closure.core.valid));",
-        "return rk_mpp_activation_closure_pristine(activation) && "
-        "activation->slot_state == RK_MPP_ACTIVATION_CLAIMED && "
-        "(activation->transition_reason == RK_MPP_TRANSITION_START_FAILURE || "
-        "activation->transition_reason == RK_MPP_TRANSITION_IRQ || "
-        "activation->transition_reason == RK_MPP_TRANSITION_CCU_DONE);",
     )
     storage_release_statements = tuple(
         statement
@@ -1933,7 +1990,7 @@ def validate_mpp_retry_retirement_contract(
         raise ValueError("activation retry finisher wrapper drifted")
 
     require_control_counts(
-        by_name, "rk_mpp_activation_storage_released", returns=4, branches=3
+        by_name, "rk_mpp_activation_storage_released", returns=5, branches=4
     )
     require_control_counts(
         by_name, "rk_mpp_activation_finish_retry_locked", returns=2, branches=1
@@ -1987,26 +2044,21 @@ def validate_mpp_retry_retirement_contract(
             "RK_MPP_ACTIVATION_SUPERSEDED",
             "RK_MPP_TRANSITION_RETRY_REPLACED",
             "RK_MPP_ACTIVATION_CLOSURE_RETIRED",
-            "activation->closure.group.valid",
+            "rk_mpp_activation_observation_pristine(activation)",
             "!activation->closure.group.status",
             "activation->closure.group.result.quiesced",
-            "activation->closure.core.valid",
             "RK_MPP_ACTIVATION_RETIRED",
             "RK_MPP_TRANSITION_RETRY_REPLACED",
             "RK_MPP_ACTIVATION_CLOSURE_RETIRED",
+            "activation->closure.observation.valid",
+            "RK_MPP_ACTIVATION_RETIREMENT_NONE",
+            "rk_mpp_activation_observation_matches(activation)",
+            "rk_mpp_activation_observation_pristine(activation)",
             "RK_MPP_ACTIVATION_RETIREMENT_CORE",
-            "activation->closure.terminal.valid",
             "activation->closure.terminal.result.quiesced",
             "RK_MPP_ACTIVATION_RETIREMENT_CCU_GROUP",
-            "activation->closure.group.valid",
             "!activation->closure.group.status",
             "activation->closure.group.result.quiesced",
-            "activation->closure.core.valid",
-            "rk_mpp_activation_closure_pristine(activation)",
-            "RK_MPP_ACTIVATION_CLAIMED",
-            "RK_MPP_TRANSITION_START_FAILURE",
-            "RK_MPP_TRANSITION_IRQ",
-            "RK_MPP_TRANSITION_CCU_DONE",
         ),
     )
     require_ordered_fragments(
@@ -2122,6 +2174,8 @@ def validate_mpp_terminal_claim_contract(
         "rk_mpp_activation_claim_put",
         "rk_mpp_activation_finish_terminal_locked",
         "rk_mpp_activation_finish_terminal",
+        "rk_mpp_activation_finish_observed_terminal_locked",
+        "rk_mpp_activation_finish_observed_terminal",
         "rk_mpp_activation_claim_quarantine",
         "rk_mpp_hw_restore_or_quarantine",
         "rk_mpp_hw_clear_active_job",
@@ -2136,7 +2190,9 @@ def validate_mpp_terminal_claim_contract(
         "rk_mpp_hw_abort_active",
         "rk_mpp_hw_abort_active_recovery_locked",
         "rk_mpp_rkvenc2_thread",
+        "rk_mpp_rkvenc2_submit",
         "rk_mpp_rkvdec2_thread",
+        "rk_mpp_rkvdec2_submit",
         "rk_mpp_av1_submit",
         "rk_mpp_av1_thread",
     }
@@ -2157,6 +2213,8 @@ def validate_mpp_terminal_claim_contract(
         "rk_mpp_activation_claim_quarantine",
         "rk_mpp_activation_finish_terminal",
         "rk_mpp_activation_finish_terminal_locked",
+        "rk_mpp_activation_finish_observed_terminal",
+        "rk_mpp_activation_finish_observed_terminal_locked",
         "rk_mpp_hw_claim_active_locked",
         "rk_mpp_hw_clear_active_job",
         "rk_mpp_hw_restore_active_locked",
@@ -2228,9 +2286,6 @@ def validate_mpp_terminal_claim_contract(
         + rf"\s*(?:\*\s*{ACTIVATION_POINTER_QUALIFIERS})?"
         + r"([A-Za-z_]\w*)"
     )
-    allowed_pointer_alias = (
-        "struct rk_mpp_activation_claim_token *claim = token ?: &local;"
-    )
     for function in functions:
         if function.name not in expected_token_users:
             continue
@@ -2256,7 +2311,7 @@ def validate_mpp_terminal_claim_contract(
                     rf"{re.escape(alias)}\b(?!\s*(?:->|\.))",
                     statement,
                 )
-                if (assignment or returned) and statement != allowed_pointer_alias:
+                if assignment or returned:
                     raise ValueError(
                         f"{function.name}: claim token pointer escape is "
                         f"forbidden: {statement}"
@@ -2264,14 +2319,15 @@ def validate_mpp_terminal_claim_contract(
 
     expected_calls: dict[str, dict[str, int]] = {
         "rk_mpp_activation_claim_put": {
-            "rk_mpp_hw_clear_active_job": 1,
             "rk_mpp_hw_abort_job": 1,
             "rk_mpp_rkvdec2_drain_ccu_done_jobs": 1,
             "rk_mpp_hw_recover_active": 1,
             "rk_mpp_hw_abort_active": 1,
             "rk_mpp_hw_abort_active_recovery_locked": 1,
             "rk_mpp_rkvenc2_thread": 1,
+            "rk_mpp_rkvenc2_submit": 2,
             "rk_mpp_rkvdec2_thread": 1,
+            "rk_mpp_rkvdec2_submit": 1,
             "rk_mpp_av1_submit": 1,
             "rk_mpp_av1_thread": 1,
         },
@@ -2291,6 +2347,31 @@ def validate_mpp_terminal_claim_contract(
         },
         "rk_mpp_activation_claim_quarantine": {
             "rk_mpp_hw_restore_or_quarantine": 1,
+            "rk_mpp_rkvdec2_drain_ccu_done_jobs": 1,
+            "rk_mpp_rkvenc2_submit": 2,
+            "rk_mpp_rkvenc2_thread": 1,
+            "rk_mpp_rkvdec2_submit": 1,
+            "rk_mpp_rkvdec2_thread": 1,
+            "rk_mpp_av1_submit": 1,
+            "rk_mpp_av1_thread": 1,
+        },
+        "rk_mpp_activation_finish_observed_terminal_locked": {
+            "rk_mpp_activation_finish_observed_terminal": 1,
+        },
+        "rk_mpp_activation_finish_observed_terminal": {
+            "rk_mpp_rkvdec2_drain_ccu_done_jobs": 1,
+            "rk_mpp_rkvenc2_submit": 2,
+            "rk_mpp_rkvenc2_thread": 1,
+            "rk_mpp_rkvdec2_submit": 1,
+            "rk_mpp_rkvdec2_thread": 1,
+            "rk_mpp_av1_submit": 1,
+            "rk_mpp_av1_thread": 1,
+        },
+        "rk_mpp_hw_clear_active_job": {
+            "rk_mpp_hw_abort_job": 1,
+            "rk_mpp_rkvenc2_submit": 2,
+            "rk_mpp_rkvdec2_submit": 1,
+            "rk_mpp_av1_submit": 1,
         },
         "rk_mpp_hw_restore_or_quarantine": {
             "rk_mpp_hw_abort_job": 3,
@@ -2379,6 +2460,21 @@ def validate_mpp_terminal_claim_contract(
             "activation->slot_state == RK_MPP_ACTIVATION_QUARANTINED;",
             "spin_unlock_irqrestore(&hw->lock, flags);",
             "return quarantined;",
+        ),
+        "rk_mpp_hw_clear_active_job": (
+            "struct rk_mpp_activation *activation;",
+            "unsigned long flags;",
+            "bool cleared = false;",
+            "if (!token) return false;",
+            "spin_lock_irqsave(&hw->lock, flags);",
+            "activation = rk_mpp_hw_claim_active_locked(hw, "
+            "job->current_activation, 0, reason, token);",
+            "if (activation) { if (irq_status) *irq_status = hw->irq_status;",
+            "rk_mpp_hw_clear_irq_record_locked(hw);",
+            "cleared = true;",
+            "} spin_unlock_irqrestore(&hw->lock, flags);",
+            "if (cleared) rk_mpp_hw_cancel_timeout(hw);",
+            "return cleared;",
         ),
     }
     for name, expected in exact_helpers.items():
@@ -2507,6 +2603,301 @@ def validate_mpp_terminal_claim_contract(
             "rk_mpp_hw_disable_irq(hw); return;",
         ),
     )
+
+
+def validate_mpp_observed_terminal_contract(
+    source: pathlib.Path, functions: list[FunctionBody]
+) -> None:
+    """Hard-guard immutable clean-terminal observation and refusal retention."""
+
+    production = production_source_text(source, KUNIT_MARKERS[MPP_SOURCE])
+    record_type = r"\bstruct\s+rk_mpp_activation_observation_record\b"
+    if (
+        re.search(rf"{record_type}\s*\*", production)
+        or re.search(rf"\btypedef\b[^;]*{record_type}", production)
+        or re.search(
+            r"\b(?:typeof|__typeof__|__auto_type)\b[^;]*"
+            r"(?:observation|closure)",
+            production,
+        )
+    ):
+        raise ValueError(
+            "observation record pointer, typedef, or inferred aliases are forbidden"
+        )
+    if len(re.findall(record_type, production)) != 2:
+        raise ValueError(
+            "activation observation record may exist only as its schema and member"
+        )
+    if re.search(
+        r"(?<!&)&(?!&)[^,;()]*\bclosure\s*\.\s*observation\b|"
+        r"\b(?:memset|memcpy|memmove)\s*\([^;]*"
+        r"\bclosure\s*\.\s*observation\b|"
+        r"\)\s*->\s*closure\s*\.\s*observation\b",
+        production,
+    ):
+        raise ValueError("observation record address, memory, or result escape is forbidden")
+
+    by_name = function_map(functions)
+    exact_helpers = {
+        "rk_mpp_activation_observation_pristine": (
+            "return activation->closure.observation.kind == "
+            "RK_MPP_ACTIVATION_OBSERVATION_NONE && "
+            "!activation->closure.observation.hw_status && "
+            "!activation->closure.observation.bus_idle_status && "
+            "!activation->closure.observation.bus_idle_checked && "
+            "!activation->closure.observation.valid;",
+        ),
+        "rk_mpp_activation_observation_matches": (
+            "struct rk_mpp_job *job = activation->job;",
+            "if (!activation->closure.observation.valid) return false;",
+            "switch (activation->closure.observation.kind) { case "
+            "RK_MPP_ACTIVATION_OBSERVATION_NOT_PUBLISHED: return "
+            "activation->transition_reason == RK_MPP_TRANSITION_START_FAILURE && "
+            "!activation->closure.observation.hw_status && "
+            "!activation->closure.observation.bus_idle_status && "
+            "!activation->closure.observation.bus_idle_checked;",
+            "case RK_MPP_ACTIVATION_OBSERVATION_IRQ_ACCEPTED: if "
+            "(activation->transition_reason != RK_MPP_TRANSITION_IRQ || "
+            "!activation->closure.observation.hw_status || !job) return false;",
+            "if (job->client_type == RK_MPP_DEVICE_RKVDEC) return "
+            "activation->closure.observation.bus_idle_checked || "
+            "activation->closure.observation.bus_idle_status == -EOPNOTSUPP;",
+            "return !activation->closure.observation.bus_idle_checked && "
+            "!activation->closure.observation.bus_idle_status;",
+            "case RK_MPP_ACTIVATION_OBSERVATION_CCU_DONE_ACCEPTED: return "
+            "activation->transition_reason == RK_MPP_TRANSITION_CCU_DONE && "
+            "activation->closure.observation.hw_status && job && "
+            "job->client_type == RK_MPP_DEVICE_RKVDEC && "
+            "(activation->closure.observation.bus_idle_checked || "
+            "activation->closure.observation.bus_idle_status == -EOPNOTSUPP);",
+            "default: return false;",
+        ),
+        "rk_mpp_activation_finish_observed_terminal_locked": (
+            "struct rk_mpp_activation *activation;",
+            "struct rk_mpp_job *job;",
+            "lockdep_assert_held(&hw->run_lock);",
+            "lockdep_assert_held(&hw->lock);",
+            "if (!token || !token->owns_job_ref || !token->activation || "
+            "observation <= RK_MPP_ACTIVATION_OBSERVATION_NONE || "
+            "observation >= RK_MPP_ACTIVATION_OBSERVATION_COUNT) return false;",
+            "activation = token->activation;",
+            "job = activation->job;",
+            "if (!job || activation != READ_ONCE(job->current_activation) || "
+            "activation->selected_hw != hw || list_empty(&activation->job_link) || "
+            "activation->generation != token->generation || "
+            "activation->transition_reason != token->reason || "
+            "activation->slot_state != RK_MPP_ACTIVATION_CLAIMED || "
+            "!rk_mpp_activation_closure_pristine(activation) || "
+            "hw->active_activation) return false;",
+            "switch (observation) { case "
+            "RK_MPP_ACTIVATION_OBSERVATION_NOT_PUBLISHED: if "
+            "(token->reason != RK_MPP_TRANSITION_START_FAILURE || ccu || "
+            "hw_status || bus_idle_checked || bus_idle_status) return false;",
+            "break;",
+            "case RK_MPP_ACTIVATION_OBSERVATION_IRQ_ACCEPTED: if "
+            "(token->reason != RK_MPP_TRANSITION_IRQ || ccu || !hw_status) "
+            "return false;",
+            "if (job->client_type == RK_MPP_DEVICE_RKVDEC) { if "
+            "(!bus_idle_checked && bus_idle_status != -EOPNOTSUPP) return false;",
+            "} else if (bus_idle_checked || bus_idle_status) { return false;",
+            "} break;",
+            "case RK_MPP_ACTIVATION_OBSERVATION_CCU_DONE_ACCEPTED: if "
+            "(token->reason != RK_MPP_TRANSITION_CCU_DONE || !hw_status || "
+            "!ccu || job->rkvdec_ccu != ccu || READ_ONCE(hw->cluster) != "
+            "READ_ONCE(ccu->cluster) || (!bus_idle_checked && "
+            "bus_idle_status != -EOPNOTSUPP)) return false;",
+            "lockdep_assert_held(&ccu->ccu_recovery_lock);",
+            "break;",
+            "default: return false;",
+            "} activation->closure.observation.kind = observation;",
+            "activation->closure.observation.hw_status = hw_status;",
+            "activation->closure.observation.bus_idle_status = bus_idle_status;",
+            "activation->closure.observation.bus_idle_checked = bus_idle_checked;",
+            "activation->closure.observation.valid = true;",
+            "activation->closure.state = RK_MPP_ACTIVATION_CLOSURE_RETIRED;",
+            "activation->slot_state = RK_MPP_ACTIVATION_RETIRED;",
+            "return true;",
+        ),
+        "rk_mpp_activation_finish_observed_terminal": (
+            "unsigned long flags;",
+            "bool finished;",
+            "lockdep_assert_held(&hw->run_lock);",
+            "spin_lock_irqsave(&hw->lock, flags);",
+            "finished = rk_mpp_activation_finish_observed_terminal_locked(hw, "
+            "ccu, token, observation, hw_status, bus_idle_checked, "
+            "bus_idle_status);",
+            "spin_unlock_irqrestore(&hw->lock, flags);",
+            "return finished;",
+        ),
+        "rk_mpp_rkvdec2_wait_bus_idle": (
+            "u32 value;",
+            "int ret;",
+            "if (checked) *checked = false;",
+            "if (atomic_read(&hw->power_count) <= 0 || "
+            "!rk_mpp_hw_reg_range_valid(hw, 0, RK_MPP_RKVDEC_DEBUG_INT_BASE, "
+            "sizeof(u32))) return -EOPNOTSUPP;",
+            "if (checked) *checked = true;",
+            "ret = readl_poll_timeout(hw->regs[0] + "
+            "RK_MPP_RKVDEC_DEBUG_INT_BASE, value, value & "
+            "RK_MPP_RKVDEC_DEBUG_BUS_IDLE, 1, RK_MPP_CCU_STOP_TIMEOUT_US);",
+            "if (ret) { atomic_inc(&hw->srv->rkvdec_bus_not_idle_count);",
+            "if (hw->dev) dev_warn_ratelimited(hw->dev, \"completing job with "
+            "bus not idle after %uus\\n\", RK_MPP_CCU_STOP_TIMEOUT_US);",
+            "} return ret;",
+        ),
+    }
+    for name, expected in exact_helpers.items():
+        if sum(function.name == name for function in functions) != 1:
+            raise ValueError(f"expected one production function {name}")
+        actual = tuple(statement for _line, statement in by_name[name].statements)
+        if actual != expected:
+            raise ValueError(f"{name}: clean-terminal observation contract drifted")
+
+    for name, expected in {
+        "rk_mpp_activation_finish_observed_terminal_locked": {
+            "return": 9,
+            "if": 8,
+            "switch": 1,
+            "break": 3,
+            "goto": 0,
+        },
+        "rk_mpp_activation_observation_matches": {
+            "return": 7,
+            "if": 3,
+            "switch": 1,
+            "break": 0,
+            "goto": 0,
+        },
+    }.items():
+        text = by_name[name].text
+        actual = {
+            word: len(re.findall(rf"\b{word}\b", text))
+            for word in ("return", "if", "switch", "break", "goto")
+        }
+        if actual != expected or re.search(r"\bcontinue\b", text):
+            raise ValueError(f"{name}: unexpected control-transfer shape {actual}")
+    expected_calls = {
+        "rk_mpp_activation_observation_pristine": {
+            "rk_mpp_activation_storage_released": 2,
+        },
+        "rk_mpp_activation_observation_matches": {
+            "rk_mpp_activation_storage_released": 1,
+        },
+        "rk_mpp_rkvdec2_wait_bus_idle": {
+            "rk_mpp_rkvdec2_drain_ccu_done_jobs": 1,
+            "rk_mpp_rkvdec2_thread": 1,
+        },
+    }
+    for callee, expected in expected_calls.items():
+        actual = {
+            function.name: count
+            for function in functions
+            if (count := len(re.findall(rf"\b{re.escape(callee)}\s*\(", function.text)))
+        }
+        if actual != expected:
+            raise ValueError(f"unexpected {callee} call map: {actual}")
+
+    clean_callers = {
+        "rk_mpp_rkvdec2_drain_ccu_done_jobs",
+        "rk_mpp_rkvenc2_submit",
+        "rk_mpp_rkvenc2_thread",
+        "rk_mpp_rkvdec2_submit",
+        "rk_mpp_rkvdec2_thread",
+        "rk_mpp_av1_submit",
+        "rk_mpp_av1_thread",
+    }
+    for name in clean_callers:
+        statements = [statement for _line, statement in by_name[name].statements]
+        observed = [
+            index
+            for index, statement in enumerate(statements)
+            if "rk_mpp_activation_finish_observed_terminal(" in statement
+        ]
+        quarantines = [
+            index
+            for index, statement in enumerate(statements)
+            if "rk_mpp_activation_claim_quarantine(" in statement
+        ]
+        if len(observed) != len(quarantines):
+            raise ValueError(f"{name}: observed-terminal refusal sink drifted")
+        for observed_index, quarantine_index in zip(observed, quarantines):
+            if quarantine_index != observed_index + 1 or not statements[
+                quarantine_index
+            ].startswith(
+                "if (WARN_ON_ONCE(!finished)) { quarantined = "
+                "rk_mpp_activation_claim_quarantine("
+            ):
+                raise ValueError(f"{name}: observation refusal must directly quarantine")
+            later_put = next(
+                (
+                    index
+                    for index in range(quarantine_index + 1, len(statements))
+                    if "rk_mpp_activation_claim_put(" in statements[index]
+                ),
+                None,
+            )
+            if later_put is not None:
+                refusal_span = " ".join(
+                    statements[quarantine_index : later_put + 1]
+                )
+                if not re.search(
+                    r"\b(?:return|goto|continue|break)\b|\}\s*else\s*\{",
+                    refusal_span,
+                ):
+                    raise ValueError(
+                        f"{name}: observation refusal can fall through to claim put"
+                    )
+
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_rkvdec2_drain_ccu_done_jobs",
+        (
+            "ccu_error = !!(completed_status & link_info->err_mask)",
+            "bus_idle_status = rk_mpp_rkvdec2_wait_bus_idle(hw, "
+            "&bus_idle_checked)",
+            "finished = ccu_error || "
+            "rk_mpp_activation_finish_observed_terminal(hw, ccu, &claim, "
+            "observation, completed_status, bus_idle_checked, bus_idle_status)",
+        ),
+    )
+    for name, error_mask in (
+        ("rk_mpp_rkvenc2_thread", "rk_mpp_rkvenc2_irq_needs_reset(irq_status)"),
+        ("rk_mpp_rkvdec2_thread", "!!(irq_status & link_info->err_mask)"),
+        ("rk_mpp_av1_thread", "!!(irq_status & RK_MPP_AV1_ERR_MASK)"),
+    ):
+        require_ordered_fragments(
+            by_name,
+            name,
+            (
+                f"finished = {error_mask} || "
+                "rk_mpp_activation_finish_observed_terminal",
+            ),
+        )
+
+    av1_statements = [statement for _line, statement in by_name["rk_mpp_av1_submit"].statements]
+    retained = next(
+        (
+            index
+            for index, statement in enumerate(av1_statements)
+            if statement.startswith("if (start_failed_untrusted && active_owned) {")
+        ),
+        None,
+    )
+    expected_retained = (
+        "if (start_failed_untrusted && active_owned) { stop_ret = "
+        "rk_mpp_hw_stop_and_recover(hw, job, &recovery);",
+        "if (stop_ret) { rk_mpp_hw_handle_reset_failure(hw, stop_ret);",
+        "mutex_unlock(&hw->run_lock);",
+        "return 0;",
+    )
+    if retained is None or tuple(av1_statements[retained : retained + 4]) != expected_retained:
+        raise ValueError("AV1 failed-stop must retain the active SLOTTED owner for retry")
+    forbidden_retirement = re.compile(
+        r"\brk_mpp_(?:hw_clear_active_job|activation_(?:finish|claim_put|"
+        r"claim_quarantine))\s*\("
+    )
+    if any(forbidden_retirement.search(statement) for statement in av1_statements[retained + 1 : retained + 4]):
+        raise ValueError("AV1 failed-stop branch may not retire or tombstone the active slot")
 
 
 def unique_struct_member_declaration(
@@ -2676,7 +3067,16 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                     "struct rk_mpp_activation_recovery_record group; "
                     "struct rk_mpp_activation_recovery_record core; "
                     "struct rk_mpp_activation_recovery_record terminal; "
-                    "enum rk_mpp_activation_retirement_scope terminal_scope; };",
+                    "enum rk_mpp_activation_retirement_scope terminal_scope; "
+                    "struct rk_mpp_activation_observation_record observation; };",
+                ),
+                (
+                    "mpp-activation-observation-record-schema",
+                    "struct rk_mpp_activation_observation_record {",
+                    "struct rk_mpp_activation_observation_record { "
+                    "enum rk_mpp_activation_terminal_observation kind; "
+                    "u32 hw_status; int bus_idle_status; "
+                    "bool bus_idle_checked; bool valid; };",
                 ),
                 (
                     "mpp-activation-retry-token-schema",
@@ -2750,6 +3150,16 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                     "RK_MPP_ACTIVATION_RETIREMENT_NONE, "
                     "RK_MPP_ACTIVATION_RETIREMENT_CORE, "
                     "RK_MPP_ACTIVATION_RETIREMENT_CCU_GROUP, };",
+                ),
+                (
+                    "mpp-activation-terminal-observation-enum-schema",
+                    "enum rk_mpp_activation_terminal_observation {",
+                    "enum rk_mpp_activation_terminal_observation { "
+                    "RK_MPP_ACTIVATION_OBSERVATION_NONE, "
+                    "RK_MPP_ACTIVATION_OBSERVATION_NOT_PUBLISHED, "
+                    "RK_MPP_ACTIVATION_OBSERVATION_IRQ_ACCEPTED, "
+                    "RK_MPP_ACTIVATION_OBSERVATION_CCU_DONE_ACCEPTED, "
+                    "RK_MPP_ACTIVATION_OBSERVATION_COUNT, };",
                 ),
             ):
                 enum_name = declaration.split("{", 1)[0].strip()
@@ -2898,6 +3308,47 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                                 r"terminal_scope\s*;"
                             ),
                             "enum rk_mpp_activation_retirement_scope terminal_scope member",
+                        ),
+                        (
+                            "mpp-activation-closure-observation-schema",
+                            re.compile(
+                                r"\bstruct\s+rk_mpp_activation_observation_record\s+"
+                                r"observation\s*;"
+                            ),
+                            "struct rk_mpp_activation_observation_record observation member",
+                        ),
+                    ),
+                ),
+                (
+                    "rk_mpp_activation_observation_record",
+                    (
+                        (
+                            "mpp-activation-observation-kind-schema",
+                            re.compile(
+                                r"\benum\s+rk_mpp_activation_terminal_observation\s+"
+                                r"kind\s*;"
+                            ),
+                            "enum rk_mpp_activation_terminal_observation kind member",
+                        ),
+                        (
+                            "mpp-activation-observation-hw-status-schema",
+                            re.compile(r"\bu32\s+hw_status\s*;"),
+                            "u32 hw_status member",
+                        ),
+                        (
+                            "mpp-activation-observation-bus-status-schema",
+                            re.compile(r"\bint\s+bus_idle_status\s*;"),
+                            "int bus_idle_status member",
+                        ),
+                        (
+                            "mpp-activation-observation-bus-checked-schema",
+                            re.compile(r"\bbool\s+bus_idle_checked\s*;"),
+                            "bool bus_idle_checked member",
+                        ),
+                        (
+                            "mpp-activation-observation-valid-schema",
+                            re.compile(r"\bbool\s+valid\s*;"),
+                            "bool valid member",
                         ),
                     ),
                 ),
@@ -3141,6 +3592,7 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
         )
         functions = parse_functions(source, KUNIT_MARKERS[relative])
         if relative == MPP_SOURCE:
+            validate_mpp_observed_terminal_contract(source, functions)
             validate_mpp_retry_retirement_contract(source, functions)
             validate_mpp_terminal_claim_contract(source, functions)
         if relative == MPP_SOURCE and sum(
@@ -3503,6 +3955,14 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                                 (
                                     "mpp-activation-closure-core-write",
                                     activation_patterns.closure_core_write,
+                                ),
+                                (
+                                    "mpp-activation-closure-observation-access",
+                                    activation_patterns.closure_observation_access,
+                                ),
+                                (
+                                    "mpp-activation-closure-observation-write",
+                                    activation_patterns.closure_observation_write,
                                 ),
                                 (
                                     "mpp-activation-object-write",
@@ -4053,6 +4513,18 @@ def ownership_violations(signals: Iterable[Signal]) -> list[Signal]:
         elif (
             signal.category == "mpp-activation-closure-scope-write"
             and signal.function not in MPP_ACTIVATION_CLOSURE_SCOPE_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-closure-observation-access"
+            and signal.function
+            not in MPP_ACTIVATION_CLOSURE_OBSERVATION_ACCESS_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-closure-observation-write"
+            and signal.function
+            not in MPP_ACTIVATION_CLOSURE_OBSERVATION_WRITE_OWNERS
         ):
             violations.append(signal)
         elif (

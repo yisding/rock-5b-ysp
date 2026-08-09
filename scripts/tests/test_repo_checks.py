@@ -2790,6 +2790,84 @@ static bool rk_mpp_activation_finish_terminal(
 	spin_unlock_irqrestore(&hw->lock, flags);
 	return finished;
 }
+static bool rk_mpp_activation_finish_observed_terminal_locked(
+		struct rk_mpp_hw *hw, struct rk_mpp_hw *ccu,
+		struct rk_mpp_activation_claim_token *token,
+		enum rk_mpp_activation_terminal_observation observation,
+		u32 hw_status, bool bus_idle_checked, int bus_idle_status)
+{
+	struct rk_mpp_activation *activation;
+	struct rk_mpp_job *job;
+	lockdep_assert_held(&hw->run_lock);
+	lockdep_assert_held(&hw->lock);
+	if (!token || !token->owns_job_ref || !token->activation ||
+	    observation <= RK_MPP_ACTIVATION_OBSERVATION_NONE ||
+	    observation >= RK_MPP_ACTIVATION_OBSERVATION_COUNT)
+		return false;
+	activation = token->activation;
+	job = activation->job;
+	if (!job || activation != READ_ONCE(job->current_activation) ||
+	    activation->selected_hw != hw || list_empty(&activation->job_link) ||
+	    activation->generation != token->generation ||
+	    activation->transition_reason != token->reason ||
+	    activation->slot_state != RK_MPP_ACTIVATION_CLAIMED ||
+	    !rk_mpp_activation_closure_pristine(activation) ||
+	    hw->active_activation)
+		return false;
+	switch (observation) {
+	case RK_MPP_ACTIVATION_OBSERVATION_NOT_PUBLISHED:
+		if (token->reason != RK_MPP_TRANSITION_START_FAILURE || ccu ||
+		    hw_status || bus_idle_checked || bus_idle_status)
+			return false;
+		break;
+	case RK_MPP_ACTIVATION_OBSERVATION_IRQ_ACCEPTED:
+		if (token->reason != RK_MPP_TRANSITION_IRQ || ccu || !hw_status)
+			return false;
+		if (job->client_type == RK_MPP_DEVICE_RKVDEC) {
+			if (!bus_idle_checked && bus_idle_status != -EOPNOTSUPP)
+				return false;
+		} else if (bus_idle_checked || bus_idle_status) {
+			return false;
+		}
+		break;
+	case RK_MPP_ACTIVATION_OBSERVATION_CCU_DONE_ACCEPTED:
+		if (token->reason != RK_MPP_TRANSITION_CCU_DONE || !hw_status ||
+		    !ccu || job->rkvdec_ccu != ccu ||
+		    READ_ONCE(hw->cluster) != READ_ONCE(ccu->cluster) ||
+		    (!bus_idle_checked && bus_idle_status != -EOPNOTSUPP))
+			return false;
+		lockdep_assert_held(&ccu->ccu_recovery_lock);
+		break;
+	default:
+		return false;
+	}
+	activation->closure.observation.kind = observation;
+	activation->closure.observation.hw_status = hw_status;
+	activation->closure.observation.bus_idle_status = bus_idle_status;
+	activation->closure.observation.bus_idle_checked = bus_idle_checked;
+	activation->closure.observation.valid = true;
+	activation->closure.state = RK_MPP_ACTIVATION_CLOSURE_RETIRED;
+	activation->slot_state = RK_MPP_ACTIVATION_RETIRED;
+	return true;
+}
+static bool rk_mpp_activation_finish_observed_terminal(
+		struct rk_mpp_hw *hw, struct rk_mpp_hw *ccu,
+		struct rk_mpp_activation_claim_token *token,
+		enum rk_mpp_activation_terminal_observation observation,
+		u32 hw_status, bool bus_idle_checked, int bus_idle_status)
+{
+	unsigned long flags;
+	bool finished;
+	lockdep_assert_held(&hw->run_lock);
+	spin_lock_irqsave(&hw->lock, flags);
+	finished = rk_mpp_activation_finish_observed_terminal_locked(hw, ccu,
+							    token, observation,
+							    hw_status,
+							    bus_idle_checked,
+							    bus_idle_status);
+	spin_unlock_irqrestore(&hw->lock, flags);
+	return finished;
+}
 static bool rk_mpp_activation_claim_quarantine(
 		struct rk_mpp_hw *hw, struct rk_mpp_hw *ccu,
 		struct rk_mpp_activation_claim_token *token,
@@ -2904,12 +2982,27 @@ rk_mpp_service_has_quarantined_activation(struct rk_mpp_service *srv)
 static bool rk_mpp_hw_clear_active_job(
 		struct rk_mpp_hw *hw, struct rk_mpp_job *job,
 		enum rk_mpp_activation_transition_reason reason,
+		u32 *irq_status,
 		struct rk_mpp_activation_claim_token *token)
 {
-	bool claimed = !!rk_mpp_hw_claim_active_locked(
-		hw, job->current_activation, 0, reason, token);
-	rk_mpp_activation_claim_put(token);
-	return claimed;
+	struct rk_mpp_activation *activation;
+	unsigned long flags;
+	bool cleared = false;
+	if (!token)
+		return false;
+	spin_lock_irqsave(&hw->lock, flags);
+	activation = rk_mpp_hw_claim_active_locked(hw, job->current_activation, 0,
+						   reason, token);
+	if (activation) {
+		if (irq_status)
+			*irq_status = hw->irq_status;
+		rk_mpp_hw_clear_irq_record_locked(hw);
+		cleared = true;
+	}
+	spin_unlock_irqrestore(&hw->lock, flags);
+	if (cleared)
+		rk_mpp_hw_cancel_timeout(hw);
+	return cleared;
 }
 static struct rk_mpp_job *rk_mpp_hw_take_active_job(
 		struct rk_mpp_hw *hw,
@@ -2962,6 +3055,30 @@ static bool rk_mpp_hw_job_is_quarantined(
 	spin_unlock_irqrestore(&hw->lock, flags);
 	return quarantined;
 }
+static int rk_mpp_rkvdec2_wait_bus_idle(struct rk_mpp_hw *hw, bool *checked)
+{
+	u32 value;
+	int ret;
+	if (checked)
+		*checked = false;
+	if (atomic_read(&hw->power_count) <= 0 ||
+	    !rk_mpp_hw_reg_range_valid(hw, 0, RK_MPP_RKVDEC_DEBUG_INT_BASE,
+				       sizeof(u32)))
+		return -EOPNOTSUPP;
+	if (checked)
+		*checked = true;
+	ret = readl_poll_timeout(hw->regs[0] + RK_MPP_RKVDEC_DEBUG_INT_BASE,
+				 value, value & RK_MPP_RKVDEC_DEBUG_BUS_IDLE, 1,
+				 RK_MPP_CCU_STOP_TIMEOUT_US);
+	if (ret) {
+		atomic_inc(&hw->srv->rkvdec_bus_not_idle_count);
+		if (hw->dev)
+			dev_warn_ratelimited(hw->dev,
+				"completing job with bus not idle after %uus\\n",
+				RK_MPP_CCU_STOP_TIMEOUT_US);
+	}
+	return ret;
+}
 static bool rk_mpp_job_activation_storage_released(
 		struct rk_mpp_job *job, struct rk_mpp_activation *activation)
 {
@@ -2988,8 +3105,11 @@ static void rk_mpp_job_release(struct rk_mpp_job *job)
 	struct rk_mpp_activation_claim_token claim = {};
 	struct rk_mpp_cluster_recovery_result recovery = {};
 	struct rk_mpp_cluster_recovery_result ccu_recovery = {};
+	struct rk_mpp_activation_claim_token clear_claim = {};
 	if (rk_mpp_hw_job_is_quarantined(hw, job))
 		return;
+	rk_mpp_hw_clear_active_job(hw, job, RK_MPP_TRANSITION_SESSION_RESET,
+				   NULL, &clear_claim);
 	rk_mpp_activation_claim_put(&claim);
 	rk_mpp_activation_finish_terminal(hw, ccu, &claim, 0, &recovery,
 					  0, &ccu_recovery);
@@ -3008,6 +3128,14 @@ static u32 rk_mpp_rkvdec2_drain_ccu_done_jobs(
 {
 	struct rk_mpp_activation_claim_token claim = {};
 	struct rk_mpp_cluster_recovery_result recovery = {};
+	enum rk_mpp_activation_terminal_observation observation =
+		RK_MPP_ACTIVATION_OBSERVATION_CCU_DONE_ACCEPTED;
+	bool bus_idle_checked = false;
+	bool ccu_error;
+	bool finished;
+	bool quarantined;
+	u32 completed_status = 1;
+	int bus_idle_status;
 	rk_mpp_activation_claim_put(&claim);
 	rk_mpp_activation_finish_terminal(hw, ccu, &claim, 0, &recovery,
 					  0, &recovery);
@@ -3015,6 +3143,16 @@ static u32 rk_mpp_rkvdec2_drain_ccu_done_jobs(
 					&recovery, 0, &recovery);
 	rk_mpp_hw_restore_or_quarantine(hw, ccu, &claim, false, 0, 0,
 					&recovery, 0, &recovery);
+	ccu_error = !!(completed_status & link_info->err_mask);
+	bus_idle_status = rk_mpp_rkvdec2_wait_bus_idle(hw, &bus_idle_checked);
+	finished = ccu_error || rk_mpp_activation_finish_observed_terminal(hw, ccu,
+		&claim, observation, completed_status,
+		bus_idle_checked, bus_idle_status);
+	if (WARN_ON_ONCE(!finished)) {
+		quarantined = rk_mpp_activation_claim_quarantine(
+			hw, ccu, &claim, -EUCLEAN, 0, NULL, 0, NULL);
+		break;
+	}
 	return 0;
 }
 static void rk_mpp_hw_recover_active(
@@ -3065,10 +3203,48 @@ static int rk_mpp_hw_abort_active_recovery_locked(
 					&recovery, 0, &recovery);
 	return 0;
 }
+static int rk_mpp_rkvenc2_submit(struct rk_mpp_job *job)
+{
+	struct rk_mpp_hw *hw = NULL;
+	struct rk_mpp_activation_claim_token claim = {};
+	bool cleared;
+	bool finished;
+	bool quarantined;
+	cleared = rk_mpp_hw_clear_active_job(hw, job,
+					     RK_MPP_TRANSITION_START_FAILURE,
+					     NULL, &claim);
+	finished = rk_mpp_activation_finish_observed_terminal(
+		hw, NULL, &claim, RK_MPP_ACTIVATION_OBSERVATION_NOT_PUBLISHED,
+		0, false, 0);
+	if (WARN_ON_ONCE(!finished)) {
+		quarantined = rk_mpp_activation_claim_quarantine(
+			hw, NULL, &claim, -EUCLEAN, 0, NULL, 0, NULL);
+		return 0;
+	}
+	WARN_ON_ONCE(!rk_mpp_activation_claim_put(&claim));
+	cleared = rk_mpp_hw_clear_active_job(hw, job,
+					     RK_MPP_TRANSITION_START_FAILURE,
+					     NULL, &claim);
+	finished = rk_mpp_activation_finish_observed_terminal(
+		hw, NULL, &claim, RK_MPP_ACTIVATION_OBSERVATION_NOT_PUBLISHED,
+		0, false, 0);
+	if (WARN_ON_ONCE(!finished)) {
+		quarantined = rk_mpp_activation_claim_quarantine(
+			hw, NULL, &claim, -EUCLEAN, 0, NULL, 0, NULL);
+		return 0;
+	}
+	WARN_ON_ONCE(!rk_mpp_activation_claim_put(&claim));
+	return cleared;
+}
 static int rk_mpp_rkvenc2_thread(struct rk_mpp_hw *hw)
 {
 	struct rk_mpp_activation_claim_token claim = {};
 	struct rk_mpp_cluster_recovery_result recovery = {};
+	enum rk_mpp_activation_terminal_observation observation =
+		RK_MPP_ACTIVATION_OBSERVATION_IRQ_ACCEPTED;
+	bool finished;
+	bool quarantined;
+	u32 irq_status = 1;
 	rk_mpp_activation_claim_put(&claim);
 	rk_mpp_activation_finish_terminal(hw, NULL, &claim, 0, &recovery,
 					  0, NULL);
@@ -3076,12 +3252,51 @@ static int rk_mpp_rkvenc2_thread(struct rk_mpp_hw *hw)
 					&recovery, 0, NULL);
 	rk_mpp_hw_restore_or_quarantine(hw, NULL, &claim, false, 0, 0,
 					&recovery, 0, NULL);
+	finished = rk_mpp_rkvenc2_irq_needs_reset(irq_status) ||
+		rk_mpp_activation_finish_observed_terminal(
+			hw, NULL, &claim, observation, irq_status, false, 0);
+	if (WARN_ON_ONCE(!finished)) {
+		quarantined = rk_mpp_activation_claim_quarantine(
+			hw, NULL, &claim, -EUCLEAN, 0, NULL, 0, NULL);
+		return 0;
+	}
 	return 0;
+}
+static int rk_mpp_rkvdec2_submit(struct rk_mpp_job *job)
+{
+	struct rk_mpp_hw *hw = NULL;
+	struct rk_mpp_hw *ccu = NULL;
+	struct rk_mpp_activation_claim_token claim = {};
+	enum rk_mpp_activation_terminal_observation observation =
+		RK_MPP_ACTIVATION_OBSERVATION_NOT_PUBLISHED;
+	bool cleared;
+	bool finished;
+	bool quarantined;
+	cleared = rk_mpp_hw_clear_active_job(hw, job,
+					     RK_MPP_TRANSITION_START_FAILURE,
+					     NULL, &claim);
+	finished = rk_mpp_activation_finish_observed_terminal(
+		hw, NULL, &claim, observation, 0, false, 0);
+	if (WARN_ON_ONCE(!finished)) {
+		quarantined = rk_mpp_activation_claim_quarantine(
+			hw, ccu, &claim, -EUCLEAN, 0, NULL, 0, NULL);
+		goto out;
+	}
+	WARN_ON_ONCE(!rk_mpp_activation_claim_put(&claim));
+out:
+	return cleared;
 }
 static int rk_mpp_rkvdec2_thread(struct rk_mpp_hw *hw)
 {
 	struct rk_mpp_activation_claim_token claim = {};
 	struct rk_mpp_cluster_recovery_result recovery = {};
+	enum rk_mpp_activation_terminal_observation observation =
+		RK_MPP_ACTIVATION_OBSERVATION_IRQ_ACCEPTED;
+	bool bus_idle_checked = false;
+	bool finished;
+	bool quarantined;
+	u32 irq_status = 1;
+	int bus_idle_status;
 	rk_mpp_activation_claim_put(&claim);
 	rk_mpp_activation_finish_terminal(hw, NULL, &claim, 0, &recovery,
 					  0, NULL);
@@ -3089,23 +3304,64 @@ static int rk_mpp_rkvdec2_thread(struct rk_mpp_hw *hw)
 					&recovery, 0, NULL);
 	rk_mpp_hw_restore_or_quarantine(hw, NULL, &claim, false, 0, 0,
 					&recovery, 0, NULL);
+	bus_idle_status = rk_mpp_rkvdec2_wait_bus_idle(hw, &bus_idle_checked);
+	finished = !!(irq_status & link_info->err_mask) ||
+		rk_mpp_activation_finish_observed_terminal(
+			hw, NULL, &claim, observation, irq_status,
+			bus_idle_checked, bus_idle_status);
+	if (WARN_ON_ONCE(!finished)) {
+		quarantined = rk_mpp_activation_claim_quarantine(
+			hw, NULL, &claim, -EUCLEAN, 0, NULL, 0, NULL);
+		return 0;
+	}
 	return 0;
 }
-static int rk_mpp_av1_submit(struct rk_mpp_hw *hw)
+static int rk_mpp_av1_submit(struct rk_mpp_job *job)
 {
+	struct rk_mpp_hw *hw = NULL;
 	struct rk_mpp_activation_claim_token claim = {};
 	struct rk_mpp_cluster_recovery_result recovery = {};
+	bool active_owned = true;
+	bool cleared;
+	bool finished;
+	bool quarantined;
+	bool start_failed_untrusted = true;
+	int stop_ret;
+	if (start_failed_untrusted && active_owned) {
+		stop_ret = rk_mpp_hw_stop_and_recover(hw, job, &recovery);
+		if (stop_ret) {
+			rk_mpp_hw_handle_reset_failure(hw, stop_ret);
+			mutex_unlock(&hw->run_lock);
+			return 0;
+		}
+	}
+	cleared = rk_mpp_hw_clear_active_job(hw, job,
+					     RK_MPP_TRANSITION_START_FAILURE,
+					     NULL, &claim);
 	rk_mpp_activation_claim_put(&claim);
 	rk_mpp_activation_finish_terminal(hw, NULL, &claim, 0, &recovery,
 					  0, NULL);
 	rk_mpp_hw_restore_or_quarantine(hw, NULL, &claim, false, 0, 0,
 					&recovery, 0, NULL);
+	finished = rk_mpp_activation_finish_observed_terminal(
+		hw, NULL, &claim, RK_MPP_ACTIVATION_OBSERVATION_NOT_PUBLISHED,
+		0, false, 0);
+	if (WARN_ON_ONCE(!finished)) {
+		quarantined = rk_mpp_activation_claim_quarantine(
+			hw, NULL, &claim, -EUCLEAN, 0, NULL, 0, NULL);
+		return 0;
+	}
 	return 0;
 }
 static int rk_mpp_av1_thread(struct rk_mpp_hw *hw)
 {
 	struct rk_mpp_activation_claim_token claim = {};
 	struct rk_mpp_cluster_recovery_result recovery = {};
+	enum rk_mpp_activation_terminal_observation observation =
+		RK_MPP_ACTIVATION_OBSERVATION_IRQ_ACCEPTED;
+	bool finished;
+	bool quarantined;
+	u32 irq_status = 1;
 	rk_mpp_activation_claim_put(&claim);
 	rk_mpp_activation_finish_terminal(hw, NULL, &claim, 0, &recovery,
 					  0, NULL);
@@ -3113,6 +3369,14 @@ static int rk_mpp_av1_thread(struct rk_mpp_hw *hw)
 					&recovery, 0, NULL);
 	rk_mpp_hw_restore_or_quarantine(hw, NULL, &claim, false, 0, 0,
 					&recovery, 0, NULL);
+	finished = !!(irq_status & RK_MPP_AV1_ERR_MASK) ||
+		rk_mpp_activation_finish_observed_terminal(
+			hw, NULL, &claim, observation, irq_status, false, 0);
+	if (WARN_ON_ONCE(!finished)) {
+		quarantined = rk_mpp_activation_claim_quarantine(
+			hw, NULL, &claim, -EUCLEAN, 0, NULL, 0, NULL);
+		return 0;
+	}
 	return 0;
 }
 static void rk_mpp_hw_remove(struct rk_mpp_hw *hw)
@@ -3157,6 +3421,13 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             "\tRK_MPP_ACTIVATION_RETIREMENT_CORE,\n"
             "\tRK_MPP_ACTIVATION_RETIREMENT_CCU_GROUP,\n"
             "};\n"
+            "enum rk_mpp_activation_terminal_observation {\n"
+            "\tRK_MPP_ACTIVATION_OBSERVATION_NONE,\n"
+            "\tRK_MPP_ACTIVATION_OBSERVATION_NOT_PUBLISHED,\n"
+            "\tRK_MPP_ACTIVATION_OBSERVATION_IRQ_ACCEPTED,\n"
+            "\tRK_MPP_ACTIVATION_OBSERVATION_CCU_DONE_ACCEPTED,\n"
+            "\tRK_MPP_ACTIVATION_OBSERVATION_COUNT,\n"
+            "};\n"
             "enum rk_mpp_activation_transition_reason {\n"
             "\tRK_MPP_TRANSITION_NONE,\n"
             "\tRK_MPP_TRANSITION_START_FAILURE,\n"
@@ -3189,12 +3460,20 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             "\tint status;\n"
             "\tbool valid;\n"
             "};\n"
+            "struct rk_mpp_activation_observation_record {\n"
+            "\tenum rk_mpp_activation_terminal_observation kind;\n"
+            "\tu32 hw_status;\n"
+            "\tint bus_idle_status;\n"
+            "\tbool bus_idle_checked;\n"
+            "\tbool valid;\n"
+            "};\n"
             "struct rk_mpp_activation_closure {\n"
             "\tenum rk_mpp_activation_closure_state state;\n"
             "\tstruct rk_mpp_activation_recovery_record group;\n"
             "\tstruct rk_mpp_activation_recovery_record core;\n"
             "\tstruct rk_mpp_activation_recovery_record terminal;\n"
             "\tenum rk_mpp_activation_retirement_scope terminal_scope;\n"
+            "\tstruct rk_mpp_activation_observation_record observation;\n"
             "};\n"
             "struct rk_mpp_activation_retry_token {\n"
             "\tstruct rk_mpp_activation *activation;\n"
@@ -3265,6 +3544,51 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             "\t       !memchr_inv(&activation->closure, 0,\n"
             "\t\t\t  sizeof(activation->closure));\n"
             "}\n"
+            "static bool rk_mpp_activation_observation_pristine(\n"
+            "\t\tconst struct rk_mpp_activation *activation)\n"
+            "{\n"
+            "\treturn activation->closure.observation.kind ==\n"
+            "\t\t       RK_MPP_ACTIVATION_OBSERVATION_NONE &&\n"
+            "\t       !activation->closure.observation.hw_status &&\n"
+            "\t       !activation->closure.observation.bus_idle_status &&\n"
+            "\t       !activation->closure.observation.bus_idle_checked &&\n"
+            "\t       !activation->closure.observation.valid;\n"
+            "}\n"
+            "static bool rk_mpp_activation_observation_matches(\n"
+            "\t\tconst struct rk_mpp_activation *activation)\n"
+            "{\n"
+            "\tstruct rk_mpp_job *job = activation->job;\n"
+            "\tif (!activation->closure.observation.valid)\n"
+            "\t\treturn false;\n"
+            "\tswitch (activation->closure.observation.kind) {\n"
+            "\tcase RK_MPP_ACTIVATION_OBSERVATION_NOT_PUBLISHED:\n"
+            "\t\treturn activation->transition_reason ==\n"
+            "\t\t       RK_MPP_TRANSITION_START_FAILURE &&\n"
+            "\t\t       !activation->closure.observation.hw_status &&\n"
+            "\t\t       !activation->closure.observation.bus_idle_status &&\n"
+            "\t\t       !activation->closure.observation.bus_idle_checked;\n"
+            "\tcase RK_MPP_ACTIVATION_OBSERVATION_IRQ_ACCEPTED:\n"
+            "\t\tif (activation->transition_reason != RK_MPP_TRANSITION_IRQ ||\n"
+            "\t\t    !activation->closure.observation.hw_status || !job)\n"
+            "\t\t\treturn false;\n"
+            "\t\tif (job->client_type == RK_MPP_DEVICE_RKVDEC)\n"
+            "\t\t\treturn activation->closure.observation.bus_idle_checked ||\n"
+            "\t\t\t       activation->closure.observation.bus_idle_status ==\n"
+            "\t\t\t\t       -EOPNOTSUPP;\n"
+            "\t\treturn !activation->closure.observation.bus_idle_checked &&\n"
+            "\t\t       !activation->closure.observation.bus_idle_status;\n"
+            "\tcase RK_MPP_ACTIVATION_OBSERVATION_CCU_DONE_ACCEPTED:\n"
+            "\t\treturn activation->transition_reason ==\n"
+            "\t\t       RK_MPP_TRANSITION_CCU_DONE &&\n"
+            "\t\t       activation->closure.observation.hw_status && job &&\n"
+            "\t\t       job->client_type == RK_MPP_DEVICE_RKVDEC &&\n"
+            "\t\t       (activation->closure.observation.bus_idle_checked ||\n"
+            "\t\t\tactivation->closure.observation.bus_idle_status ==\n"
+            "\t\t\t\t-EOPNOTSUPP);\n"
+            "\tdefault:\n"
+            "\t\treturn false;\n"
+            "\t}\n"
+            "}\n"
             "static void rk_mpp_activation_init(struct rk_mpp_job *job)\n"
             "{\n"
             "\tINIT_LIST_HEAD(&job->activations);\n"
@@ -3301,35 +3625,37 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             "\t\t       RK_MPP_TRANSITION_RETRY_REPLACED &&\n"
             "\t\t       activation->closure.state ==\n"
             "\t\t       RK_MPP_ACTIVATION_CLOSURE_RETIRED &&\n"
+            "\t\t       rk_mpp_activation_observation_pristine(activation) &&\n"
             "\t\t       activation->closure.group.valid &&\n"
             "\t\t       !activation->closure.group.status &&\n"
             "\t\t       activation->closure.group.result.quiesced &&\n"
             "\t\t       activation->closure.core.valid;\n"
-            "\tif (activation->slot_state == RK_MPP_ACTIVATION_RETIRED)\n"
-            "\t\treturn activation->transition_reason >\n"
-            "\t\t       RK_MPP_TRANSITION_NONE &&\n"
-            "\t\t       activation->transition_reason <\n"
-            "\t\t       RK_MPP_TRANSITION_RETRY_REPLACED &&\n"
-            "\t\t       activation->closure.state ==\n"
-            "\t\t       RK_MPP_ACTIVATION_CLOSURE_RETIRED &&\n"
-            "\t\t       ((activation->closure.terminal_scope ==\n"
-            "\t\t\t RK_MPP_ACTIVATION_RETIREMENT_CORE &&\n"
-            "\t\t\t activation->closure.terminal.valid &&\n"
-            "\t\t\t !activation->closure.terminal.status &&\n"
-            "\t\t\t activation->closure.terminal.result.quiesced) ||\n"
-            "\t\t\t(activation->closure.terminal_scope ==\n"
-            "\t\t\t RK_MPP_ACTIVATION_RETIREMENT_CCU_GROUP &&\n"
-            "\t\t\t activation->closure.group.valid &&\n"
-            "\t\t\t !activation->closure.group.status &&\n"
-            "\t\t\t activation->closure.group.result.quiesced &&\n"
-            "\t\t\t activation->closure.core.valid));\n"
-            "\treturn rk_mpp_activation_closure_pristine(activation) &&\n"
-            "\t       activation->slot_state == RK_MPP_ACTIVATION_CLAIMED &&\n"
-            "\t       (activation->transition_reason ==\n"
-            "\t\t\tRK_MPP_TRANSITION_START_FAILURE ||\n"
-            "\t\tactivation->transition_reason == RK_MPP_TRANSITION_IRQ ||\n"
-            "\t\tactivation->transition_reason ==\n"
-            "\t\t\tRK_MPP_TRANSITION_CCU_DONE);\n"
+            "\tif (activation->slot_state != RK_MPP_ACTIVATION_RETIRED ||\n"
+            "\t    activation->transition_reason <= RK_MPP_TRANSITION_NONE ||\n"
+            "\t    activation->transition_reason >=\n"
+            "\t\t    RK_MPP_TRANSITION_RETRY_REPLACED ||\n"
+            "\t    activation->closure.state !=\n"
+            "\t\t    RK_MPP_ACTIVATION_CLOSURE_RETIRED)\n"
+            "\t\treturn false;\n"
+            "\tif (activation->closure.observation.valid)\n"
+            "\t\treturn activation->closure.terminal_scope ==\n"
+            "\t\t       RK_MPP_ACTIVATION_RETIREMENT_NONE &&\n"
+            "\t\t       !activation->closure.group.valid &&\n"
+            "\t\t       !activation->closure.core.valid &&\n"
+            "\t\t       !activation->closure.terminal.valid &&\n"
+            "\t\t       rk_mpp_activation_observation_matches(activation);\n"
+            "\treturn rk_mpp_activation_observation_pristine(activation) &&\n"
+            "\t       ((activation->closure.terminal_scope ==\n"
+            "\t\t RK_MPP_ACTIVATION_RETIREMENT_CORE &&\n"
+            "\t\t activation->closure.terminal.valid &&\n"
+            "\t\t !activation->closure.terminal.status &&\n"
+            "\t\t activation->closure.terminal.result.quiesced) ||\n"
+            "\t\t(activation->closure.terminal_scope ==\n"
+            "\t\t RK_MPP_ACTIVATION_RETIREMENT_CCU_GROUP &&\n"
+            "\t\t activation->closure.group.valid &&\n"
+            "\t\t !activation->closure.group.status &&\n"
+            "\t\t activation->closure.group.result.quiesced &&\n"
+            "\t\t activation->closure.core.valid));\n"
             "}\n"
             "static struct rk_mpp_job *rk_mpp_activation_job(\n"
             "\t\tconst struct rk_mpp_activation *activation)\n"
@@ -5062,13 +5388,10 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
                     "bare retry token escape",
                 ),
                 (
-                    "\treturn rk_mpp_activation_closure_pristine(activation) &&\n"
-                    "\t       activation->slot_state == "
-                    "RK_MPP_ACTIVATION_CLAIMED &&",
-                    "\treturn escape ||\n"
-                    "\t       rk_mpp_activation_closure_pristine(activation) &&\n"
-                    "\t       activation->slot_state == "
-                    "RK_MPP_ACTIVATION_CLAIMED &&",
+                    "\tif (activation->closure.observation.valid)\n"
+                    "\t\treturn activation->closure.terminal_scope ==",
+                    "\tif (escape || activation->closure.observation.valid)\n"
+                    "\t\treturn activation->closure.terminal_scope ==",
                     "activation storage release predicates drifted",
                 ),
                 (
@@ -5390,6 +5713,150 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
                         )
                         if expected_error:
                             self.assertIn(expected_error, rejected.stderr)
+
+    def test_phase3i_observation_contracts_are_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tree = root / "linux"
+            baseline = root / "baseline.tsv"
+            self.make_tree(tree)
+            updated = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(updated.returncode, 0, updated.stderr)
+
+            source = tree / "drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c"
+            pristine = source.read_text(encoding="utf-8")
+            cases = (
+                (
+                    "observation schema drift",
+                    pristine.replace("\tu32 hw_status;\n", "\tu64 hw_status;\n", 1),
+                    "unexpected struct rk_mpp_activation_observation_record",
+                ),
+                (
+                    "observation pointer typedef escape",
+                    pristine
+                    + "typedef struct rk_mpp_activation_observation_record "
+                    "*hostile_observation_ptr;\n",
+                    "observation record pointer, typedef, or inferred aliases",
+                ),
+                (
+                    "observation address and whole-memory escape",
+                    pristine.replace(
+                        "\tactivation->closure.observation.kind = observation;\n",
+                        "\tmemset(&activation->closure.observation, 0,\n"
+                        "\t       sizeof(activation->closure.observation));\n"
+                        "\tactivation->closure.observation.kind = observation;\n",
+                        1,
+                    ),
+                    "observation record address, memory, or result escape",
+                ),
+                (
+                    "weakened observation range",
+                    pristine.replace(
+                        "\t    observation >= RK_MPP_ACTIVATION_OBSERVATION_COUNT)\n",
+                        "\t    false)\n",
+                        1,
+                    ),
+                    "clean-terminal observation contract drifted",
+                ),
+                (
+                    "weakened observation validity proof",
+                    pristine.replace(
+                        "\tif (!activation->closure.observation.valid)\n"
+                        "\t\treturn false;\n",
+                        "\tif (false)\n\t\treturn false;\n",
+                        1,
+                    ),
+                    "clean-terminal observation contract drifted",
+                ),
+                (
+                    "valid published before observation payload",
+                    pristine.replace(
+                        "\tactivation->closure.observation.kind = observation;\n"
+                        "\tactivation->closure.observation.hw_status = hw_status;\n"
+                        "\tactivation->closure.observation.bus_idle_status = "
+                        "bus_idle_status;\n"
+                        "\tactivation->closure.observation.bus_idle_checked = "
+                        "bus_idle_checked;\n"
+                        "\tactivation->closure.observation.valid = true;\n",
+                        "\tactivation->closure.observation.valid = true;\n"
+                        "\tactivation->closure.observation.kind = observation;\n"
+                        "\tactivation->closure.observation.hw_status = hw_status;\n"
+                        "\tactivation->closure.observation.bus_idle_status = "
+                        "bus_idle_status;\n"
+                        "\tactivation->closure.observation.bus_idle_checked = "
+                        "bus_idle_checked;\n",
+                        1,
+                    ),
+                    "clean-terminal observation contract drifted",
+                ),
+                (
+                    "observation and recovery proofs no longer exclusive",
+                    pristine.replace(
+                        "\t\t       !activation->closure.group.valid &&\n",
+                        "\t\t       true &&\n",
+                        1,
+                    ),
+                    "activation storage release predicates drifted",
+                ),
+                (
+                    "CCU clean mask weakened",
+                    pristine.replace(
+                        "\tccu_error = !!(completed_status & link_info->err_mask);\n",
+                        "\tccu_error = false;\n",
+                        1,
+                    ),
+                    "expected 1 occurrence(s) of: ccu_error",
+                ),
+                (
+                    "BUS_IDLE result no longer observed",
+                    pristine.replace(
+                        "\tbus_idle_status = rk_mpp_rkvdec2_wait_bus_idle(hw, "
+                        "&bus_idle_checked);\n",
+                        "\tbus_idle_status = 0;\n",
+                        1,
+                    ),
+                    "unexpected rk_mpp_rkvdec2_wait_bus_idle call map",
+                ),
+                (
+                    "finish refusal no longer quarantines",
+                    pristine.replace(
+                        "\tif (WARN_ON_ONCE(!finished)) {\n"
+                        "\t\tquarantined = rk_mpp_activation_claim_quarantine(\n"
+                        "\t\t\thw, ccu, &claim, -EUCLEAN, 0, NULL, 0, NULL);\n",
+                        "\tif (WARN_ON_ONCE(!finished)) {\n"
+                        "\t\tquarantined = false;\n",
+                        1,
+                    ),
+                    "observed-terminal refusal sink drifted",
+                ),
+                (
+                    "AV1 failed stop clears retained SLOTTED owner",
+                    pristine.replace(
+                        "\t\t\tmutex_unlock(&hw->run_lock);\n"
+                        "\t\t\treturn 0;\n",
+                        "\t\t\tmutex_unlock(&hw->run_lock);\n"
+                        "\t\t\trk_mpp_hw_clear_active_job(hw, job,\n"
+                        "\t\t\t\tRK_MPP_TRANSITION_START_FAILURE, NULL, "
+                        "&claim);\n"
+                        "\t\t\treturn 0;\n",
+                        1,
+                    ),
+                    "AV1 failed-stop must retain the active SLOTTED owner",
+                ),
+            )
+
+            for description, mutated, expected_error in cases:
+                with self.subTest(description=description):
+                    self.assertNotEqual(mutated, pristine, description)
+                    source.write_text(mutated, encoding="utf-8")
+                    for options in ((), ("--update-baseline",)):
+                        rejected = self.run_audit(tree, baseline, *options)
+                        self.assertEqual(
+                            rejected.returncode,
+                            2,
+                            f"{description} {options}: {rejected.stderr}",
+                        )
+                        self.assertIn(expected_error, rejected.stderr)
 
     def test_whole_category_disappearance_fails_until_rebaselined(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

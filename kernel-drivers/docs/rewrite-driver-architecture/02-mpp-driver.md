@@ -63,7 +63,7 @@ The principal objects are:
 | `rk_mpp_session` | `/dev/mpp_service` `open()` | client type, imports, active jobs, translation table, RCB and codec metadata |
 | `rk_mpp_import` | fd translation | DMA-BUF, attachment, mapped scatterlist, device-specific IOVA |
 | `rk_mpp_job` | ioctl message collection | copied requests, register image, imports, result/readback, embedded first activation, current activation pointer, retained activation list, current CCU/DCHS participation, and a temporary cluster-power-lease pointer |
-| `rk_mpp_activation` | initial job allocation or hard-CCU retry successor allocation | parent identity, retained selected hardware, immutable attempt address/generation after supersession, absolute watchdog deadline, exact session-dispatch identity, active/timeout-slot identity, ref-owning claim state/reason, typed retry/recovered-terminal closure, and restore-refusal quarantine identity/evidence |
+| `rk_mpp_activation` | initial job allocation or hard-CCU retry successor allocation | parent identity, retained selected hardware, immutable attempt address/generation after supersession, absolute watchdog deadline, exact session-dispatch identity, active/timeout-slot identity, ref-owning claim state/reason, typed retry/recovered-terminal closure, immutable clean-terminal observation/status, and restore-refusal quarantine identity/evidence |
 | `rk_mpp_reset_domain` | first matching hardware probe | immutable node identity, member lifetime, mutex, single-target reset state/epoch, responsible hardware, operation counters, one epoch for each cluster-validated hard-CCU pulse, and the epoch supplied to typed single-core recovery |
 | `rk_mpp_cluster` | first matching CCU-identity probe | stable member topology, borrowed coordinator, learned core type, reset authority, derived DMA relationship count, hard-reset participant validation, deduplicated pinned-participant DMA recovery, coordinator running-list/link ownership, and soft/hard arm/START publication |
 | `rk_mpp_cluster_power_lease` | first member-core power acquisition for a CCU chain | refcounted exact member-core power and hardware references; transfers unchanged to the next listed job and releases once |
@@ -116,9 +116,13 @@ proof retires that activation, while exact restore refusal transfers the
 reference and token generation to a service `QUARANTINED` tombstone. The
 tombstone keeps diagnostic/core/group evidence distinct, retains resources and
 dispatch, closes core/CCU admission, blocks remove, and survives shutdown until
-reboot. Clean IRQ/`CCU_DONE`, pre-doorbell `START_FAILURE`, reclaimability, and
-final outcome arbitration remain outside the typed owner. Cluster/link/DCHS and
-power leases also remain in the legacy job/hardware graph.
+reboot. Phase 3I records exact `NOT_PUBLISHED`, `IRQ_ACCEPTED`, or
+`CCU_DONE_ACCEPTED` observation/status before clean retirement. RKVDEC
+`BUS_IDLE` status remains advisory evidence, recovered proof remains separate,
+and the legacy `CLAIMED` fallback is gone. AV1 untrusted-stop failure retains
+`SLOTTED` active ownership for remove/shutdown retry. Reclaimability, resource
+drain, and final outcome arbitration remain outside the typed owner.
+Cluster/link/DCHS and power leases also remain in the legacy job/hardware graph.
 
 ### 3.2 Session lifecycle
 
@@ -383,6 +387,18 @@ closes selected-core and owned-CCU admission, blocks remove teardown, and is
 retained through shutdown until reboot. Clean IRQ/`CCU_DONE` and pre-doorbell
 `START_FAILURE` still use the Phase 3G `CLAIMED` release boundary; Phase 3H is
 not general clean retirement, `RECLAIMABLE`, or final outcome arbitration.
+
+Phase 3I removes that clean-terminal fallback. Pre-doorbell start rollback
+records `NOT_PUBLISHED`; accepted direct IRQ records `IRQ_ACCEPTED` plus its
+hardware status; accepted descriptor completion records `CCU_DONE_ACCEPTED`
+plus its descriptor status. Each exact observation is immutable before the
+claim becomes `RETIRED`, and a foreign/impossible finisher quarantines instead
+of rewriting it. The optional RKVDEC `BUS_IDLE` checked/status tuple is
+diagnostic evidence only, not a quiescence or reuse proof. Recovered retirement
+continues to require its separate typed closure. If AV1 cannot establish a
+trusted stop, its start-failure path retains `SLOTTED` active ownership for
+remove/shutdown retry rather than manufacturing terminal evidence. `RETIRED`
+still does not mean resources drained or storage `RECLAIMABLE`.
 
 START publication also creates a bounded IRQ/register lease under
 `hw->regs_lock`. The lease records the live reset epoch and, for direct-core

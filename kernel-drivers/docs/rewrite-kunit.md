@@ -2,7 +2,7 @@
 
 The rewrite drivers use KUnit as a built-in boot gate for logic and state
 transitions that can be exercised without RK3588 hardware. The YSP result is
-green only when the named **101 MPP + 152 RGA case manifest** matches without
+green only when the named **104 MPP + 152 RGA case manifest** matches without
 duplicates, omissions, failures, or skips **and** the same kernel-log interval
 is free of sanitizer reports, warnings, lockdep findings, refcount failures,
 and media/IOMMU faults. The report also binds the run to the kernel release,
@@ -39,7 +39,7 @@ Each suite is compiled in the same translation unit as its driver:
 
 | Suite | Source | Kconfig symbol | Registered cases |
 |-------|--------|----------------|-----------------:|
-| `rk_mpp_rewrite` | `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c` | `CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST` | 96 |
+| `rk_mpp_rewrite` | `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c` | `CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST` | 104 |
 | `rockchip-rga-rewrite` | `drivers/video/rockchip/rga-rewrite/rga_rewrite.c` | `CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST` | 152 |
 
 The test blocks are guarded with `IS_ENABLED()` and registered with
@@ -93,9 +93,10 @@ hardware throughput:
 |--------|-------------|---------------|
 | MPP | 1–26 | Message parsing, topology, AV1 layout/metadata/AFBC observation and admission, register and DMA bounds |
 | MPP | 27–48 | RKVDEC2 CCU modes, link descriptors/tables, ownership, RCB/cache setup |
-| MPP | 49–62 | IRQ ownership, scheduling, IOMMU faults, timeout generations, recovery |
-| MPP | 63–70 | Encoder slices, bitstream overflow, DCHS, watchdogs, RCB validation |
-| MPP | 71–92 | Sessions, batch operation, imports, polling, abort/close teardown, event ring, and request-configuration cleanup |
+| MPP | 49–66 | Activation claims and exact clean/recovered terminal observations, IRQ ownership, scheduling, IOMMU faults, timeout generations, recovery, and explicit IOVA affinity |
+| MPP | 67–78 | Polling, encoder slices, bitstream overflow, DCHS, watchdogs, and RCB validation |
+| MPP | 79–97 | Sessions, batch operation, imports, polling, abort/close teardown, event ring, and request-configuration cleanup |
+| MPP | 98–104 | Cluster topology/DMA/recovery/reset and reset-domain registry/state |
 | RGA | 1–20 | Feature validation and RGA2/RGA3 register emission |
 | RGA | 21–44 | Request parsing, ioctls, job state, and file lifetime |
 | RGA | 45–61 | Imports, fences, layouts, planes, offsets, and strides |
@@ -223,7 +224,7 @@ For each suite it requires:
 
 | Field | Required value |
 |-------|----------------|
-| Inner KTAP plan | exactly 101 MPP or 152 RGA |
+| Inner KTAP plan | exactly 104 MPP or 152 RGA |
 | Observed case results | exactly the planned count |
 | Failed cases | 0 |
 | Skipped cases | 0 |
@@ -340,16 +341,21 @@ plus a real two-thread fence/abort race. Its named ordered 90/152 manifest and
 source/config/package-bound evidence gate owned result attribution. See the
 [successor attribution and audit](../../findings/2026-07-27-rewrite-reset-import-fixture-lockdep.md).
 
-The maintained tips are now 6.18 `43fca8a3d80cf` on `v6.18.42` and mainline
-`91bac563e4a5d` on `v7.2-rc6`, with an exact 101/152 manifest. Predecessor 6.18
+The maintained tips are now 6.18 `395644689db8f` on `v6.18.42` and mainline
+`38768c5cff419` on `v7.2-rc6`, with an exact 104/152 manifest. Predecessor 6.18
 `19634f4eebba` passed its exact 92/152 manifest on KASAN boot `#2` on 2026-08-05:
 244 results (92 MPP plus 152 RGA), zero failures/skips, a clean outer interval,
 and live lockdep. That runtime-verifies the patch-equivalent request/rotation
-repair after the 2026-08-04 rebases. The nine newer MPP cases cover the
-reset-domain, cluster construction, group-reset, CCU ownership, and typed
-single-core and hard-CCU DMA recovery checkpoints added in Phase 2. Both current tips pass
-warning-fatal KUnit-enabled MPP object builds and the unchanged
-306-signal KUnit fixture-debt audit; the full clean-archive matrix belongs to
-the preceding reset-domain tips, and neither current tip has booted KUnit
-evidence. Do not carry the predecessor KTAP across that source boundary; replay the entire compound
+repair after the 2026-08-04 rebases. The 12 newer MPP cases cover the Phase 2
+reset-domain/cluster/recovery checkpoints plus Phase 3 recovered and observed
+activation retirement. Phase 3I adds
+`rk_mpp_activation_observed_terminal_kunit` for exact `NOT_PUBLISHED`,
+`IRQ_ACCEPTED`, and `CCU_DONE_ACCEPTED` observations, advisory RKVDEC bus-idle
+status, impossible-finisher quarantine, and AV1 untrusted-stop retained-slot
+behavior. Strict checkpatch is 0/0/0 over 1,076 lines; focused KUnit-enabled
+MPP objects compile on both lines; and all eight warning-fatal clean-archive
+profiles pass. The Phase 3I KUnit fixture-debt audit is exactly 306/tree with
+zero drift. The repository handoff gate passes; every runtime result is pending.
+Neither current tip has booted KUnit evidence. Do not carry the
+predecessor KTAP across that source boundary; replay the entire compound
 evidence above.
