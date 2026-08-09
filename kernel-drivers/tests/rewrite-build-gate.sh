@@ -66,6 +66,7 @@ Environment:
                     normal: KUnit-enabled provider/rewrite/DTB build (default)
                     test-disabled: same targets with both rewrite KUnit suites off
                     memory: KASAN/fault-injection provider/rewrite/DTB build
+                            with the package's 2048-byte frame-warning ceiling
                     race: KCSAN/lockdep provider/rewrite/DTB build
   REWRITE_BUILD_TMP_ROOT
                     scratch-directory parent (default: ../tmp beside this repo)
@@ -184,7 +185,7 @@ set_profile_config() {
       -e FAIL_PAGE_ALLOC \
       -e FAULT_INJECTION_USERCOPY \
       -e FUNCTION_ERROR_INJECTION \
-      --set-val FRAME_WARN 4096
+      --set-val FRAME_WARN 2048
     ;;
   race)
     "$src/scripts/config" --file "$out/.config" \

@@ -848,6 +848,10 @@ class WorkspaceDefaultTests(unittest.TestCase):
         )
         self.assertIn('stamp="${stamp} (g${YSP_SOURCE_GSHA})"', stamp)
 
+        gate = self.shell_text("kernel-drivers/tests/rewrite-build-gate.sh")
+        memory_profile = gate.split("\n  memory)", 1)[1].split("\n    ;;", 1)[0]
+        self.assertIn("--set-val FRAME_WARN 2048", memory_profile)
+
     def test_conformance_defaults_use_installed_mpp_and_librga(self) -> None:
         expected_defaults = {
             "kernel-drivers/tests/mpp-suite.sh": (

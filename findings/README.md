@@ -204,7 +204,7 @@ The `/dev/rga` driver — session lifetime, userptr/dma-buf imports, and the 10-
 
 The from-scratch MPP/RGA replacement: reviews, soft-CCU wedges, and reset/lifecycle races.
 
-- [`2026-08-08`](2026-08-08-rewrite-phase-1-focused-build-gate.md) — Rewrite Phase 1 exact tips pass focused builds and a full 6.18 package build
+- [`2026-08-08`](2026-08-08-rewrite-phase-1-focused-build-gate.md) — Rewrite Phase 1 exact tips pass the full build matrix and 6.18 packaging
 - [`2026-08-08`](2026-08-08-rewrite-rga2-dmabuf-staging-design.md) — Rewrite RGA2 DMA-BUF staging design for exporter SG entries larger than SWIOTLB
 - [`2026-08-08`](2026-08-08-rga3-cross-process-contention-harness-plan.md) — Plan: a dedicated RGA3 cross-process contention harness that provokes and honestly detects the silent vpp corruption
 - [`2026-08-07`](2026-08-07-rga3-cross-process-vpp-corruption-lead.md) — RGA3 vpp_rkrga output corruption — first seen cross-process, now reproduced solo; not root-caused
@@ -345,7 +345,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 <!-- findings-index:start -->
 - [`2026-08-08-rga3-cross-process-contention-harness-plan.md`](2026-08-08-rga3-cross-process-contention-harness-plan.md) — Plan: a dedicated RGA3 cross-process contention harness that provokes and honestly detects the silent vpp corruption
 - [`2026-08-08-rewrite-rga2-dmabuf-staging-design.md`](2026-08-08-rewrite-rga2-dmabuf-staging-design.md) — Rewrite RGA2 DMA-BUF staging design for exporter SG entries larger than SWIOTLB
-- [`2026-08-08-rewrite-phase-1-focused-build-gate.md`](2026-08-08-rewrite-phase-1-focused-build-gate.md) — Rewrite Phase 1 exact tips pass focused builds and a full 6.18 package build
+- [`2026-08-08-rewrite-phase-1-focused-build-gate.md`](2026-08-08-rewrite-phase-1-focused-build-gate.md) — Rewrite Phase 1 exact tips pass the full build matrix and 6.18 packaging
 - [`2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md`](2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md) — Forward-port 6.18.43 conformance isolates oversized RGA2 USERPTR SWIOTLB segments
 - [`2026-08-08-forward-port-rga2-dmabuf-staging.md`](2026-08-08-forward-port-rga2-dmabuf-staging.md) — Forward port stages exporter-owned high DMA-BUFs for RGA2-only work
 - [`2026-08-08-forward-port-rga-mpp-ownership-audit-fixes.md`](2026-08-08-forward-port-rga-mpp-ownership-audit-fixes.md) — Forward-port 0095–0096 close RGA/MPP ownership and fault-admission gaps

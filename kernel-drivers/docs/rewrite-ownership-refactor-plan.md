@@ -22,13 +22,16 @@ The priority is **ownership before convention**:
 > implementation description. Phase 0 now has a checked, source-pinned
 > production inventory covering the failure-prone ownership writers plus the
 > debug counter and event schema. Maintained tips are
-> `rk3588-rewrite-6.18@fd068ad6aae65` and
-> `rk3588-rewrite-mainline@a0dd1f6d68bd6`. Their pre-refactor ancestors passed
+> `rk3588-rewrite-6.18@ab69ece998642` and
+> `rk3588-rewrite-mainline@3a0da2f33e963`. Their pre-refactor ancestors passed
 > the warning-fatal clean-source `normal` and `test-disabled` object/DTB gates;
-> the immediately preceding `f80d216cfb83b`/`3a2a540553cce` tips also compiled
-> every touched MPP/RGA object. The current tips now pass warning-fatal
-> clean-archive `normal` and `test-disabled` builds of both IOMMU providers,
-> both rewrite objects, and the Rock 5B DTB; their tracked
+> the earlier `f80d216cfb83b`/`3a2a540553cce` tips also compiled every touched
+> MPP/RGA object. The current tips now pass warning-fatal clean-archive
+> `normal`, `test-disabled`, KASAN/fault-injection `memory`, and KCSAN/lockdep
+> `race` builds of both IOMMU providers, both rewrite objects, and the Rock 5B
+> DTB. All 35 KASAN frame-warning fixtures were moved to KUnit-managed heap
+> allocations, and the memory profile now enforces the package's 2,048-byte
+> frame ceiling. Their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. The current source adds a
 > per-session RKVDEC dispatch token and an RGA command-publication barrier, but
 > still has no `rk_mpp_cluster`, `rk_mpp_activation`, `rk_rga_task_exec`, or
@@ -53,12 +56,12 @@ The priority is **ownership before convention**:
 > deferred until the activation/task-execution migration can provide that
 > owner.
 > The exact 6.18 tip is now compiled and packaged as the inspected
-> `6.18.43-S7b92-D6d03-P910c-Cad24-H1c44-HK01ba-Vc222-B3ab8-R448a`
-> `rewrite-debug` artifact set. The full build has no error or failed target;
-> its 35 rewrite warnings are confined to oversized embedded KUnit fixture
-> frames under generic KASAN, with no production rewrite warning. The package
-> remains uninstalled and unbooted; reboot and hardware qualification are
-> deferred. No Phase 2 migration may start until that qualification passes.
+> `6.18.43-S7b92-D6d03-P692f-Cad24-H1c44-HK01ba-Vc222-B3ab8-R448a`
+> `rewrite-debug` artifact set. The full build has no error or failed target
+> and no rewrite or frame-size warning. Its boot image carries the valid RFC
+> timestamp suffix `(gab69ece99864)`. The package remains uninstalled and
+> unbooted; reboot and hardware qualification are deferred. No Phase 2
+> migration may start until that qualification passes.
 
 The plan was derived from `linux-6.18-rkvenc` branch
 `rk3588-rewrite-6.18@8042f13c54591` on 2026-08-01 and was rechecked for
@@ -644,11 +647,11 @@ solo RGA3 vpp and overlay-chain replays. On 2026-08-08 the operator explicitly
 deferred install and reboot qualification, so Phase 1 source-only write funnels
 and assertion-only contract checks could land provisionally after
 mirrored-source identity, strict checkpatch, and the device-free gates. The
-exact current tips pass the focused warning-fatal `normal` and `test-disabled`
+exact current tips pass the focused warning-fatal `normal`, `test-disabled`,
+KASAN/fault-injection `memory`, and KCSAN/lockdep `race`
 provider/rewrite-object/DTB builds; the 6.18 tip also produced a full inspected
-`rewrite-debug` package set. The package's only rewrite warnings are 35
-oversized KUnit fixture frames under KASAN, not production functions. Phase 2
-must not start until the deferred boot, KUnit-runtime, and hardware gates pass.
+`rewrite-debug` package set with no rewrite or frame-size warning. Phase 2 must
+not start until the deferred boot, KUnit-runtime, and hardware gates pass.
 If either corruption persists, land and qualify its narrow fix before advancing
 beyond provisional funnels.
 
