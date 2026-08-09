@@ -195,6 +195,8 @@ owns the public verdict.
 
 | Snapshot | Pin and base | Historical relationships |
 |----------|--------------|--------------------------|
+| 6.18 rewrite Phase 2 single-core recovery result, 2026-08-08 | `rk3588-rewrite-6.18@e99b3da2f3318` on `v6.18.42@856a9b51680c` | Cluster-CCU tip `805a216a1e8d1`; types reset/translation effects and gates reuse on refresh |
+| Mainline rewrite Phase 2 single-core recovery result, 2026-08-08 | `rk3588-rewrite-mainline@63bbb63bec44d` on `v7.2-rc6@075b74841bd0` | Cluster-CCU tip `4cb7913f84669`; byte-identical single-core recovery funnel |
 | 6.18 rewrite Phase 2 cluster CCU ownership, 2026-08-08 | `rk3588-rewrite-6.18@805a216a1e8d1` on `v6.18.42@856a9b51680c` | Power-lease tip `129a49a2bec96`; routes running-list/link and soft/hard arm/START mechanics through cluster methods |
 | Mainline rewrite Phase 2 cluster CCU ownership, 2026-08-08 | `rk3588-rewrite-mainline@4cb7913f84669` on `v7.2-rc6@075b74841bd0` | Power-lease tip `f03e5cd9f44d3`; byte-identical coordinator ownership funnel |
 | 6.18 rewrite Phase 2 cluster power lease, 2026-08-08 | `rk3588-rewrite-6.18@129a49a2bec96` on `v6.18.42@856a9b51680c` | Group-reset tip `e41bdb50a9ab7`; replaces the job's fixed powered-core array with one refcounted cluster lease |
@@ -212,8 +214,8 @@ owns the public verdict.
 | Upstream-style RGA3 comparison | `rk3588-rewrite-mainline@180ee72a9a80` | detailed in §9 |
 
 The two maintained Phase 2 snapshots have byte-identical tracked MPP/RGA
-rewrite sources, Kconfig, ABI ledgers, and UAPI. Their exact 99 MPP + 152 RGA
-manifest, 919-signal
+rewrite sources, Kconfig, ABI ledgers, and UAPI. Their exact 100 MPP + 152 RGA
+manifest, 992-signal
 production ownership inventory, and 306-signal KUnit-debt audit pass with zero
 new or absent signals. The older 2026-08-08 rows preserve pre-cluster and
 pre-refactor snapshots, while the 2026-08-06 rows remain historical pins rather

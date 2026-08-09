@@ -122,6 +122,20 @@ MPP_CLUSTER_RUNTIME_ENTRY_RE = re.compile(
     r"arm_soft_ccu|publish_soft_ccu_job|start_ccu_job|"
     r"collect_stop_cores)\s*\("
 )
+MPP_RECOVERY_ENTRY_RE = re.compile(
+    r"\b(?:rk_mpp_recovery_result_(?:init|terminal)|"
+    r"rk_mpp_hw_(?:reset_active|stop_active|finish_recovery|"
+    r"stop_and_recover|recover_iommu_fault)|"
+    r"rk_mpp_rkvdec2_reset_soft_ccu_job)\s*\("
+)
+MPP_RECOVERY_RESULT_FIELDS = (
+    r"reset_effect|reset_epoch|reset_error|refresh_error|isolation_error|"
+    r"quiesced|reusable"
+)
+MPP_RECOVERY_RESULT_ACCESS_RE = re.compile(
+    rf"{FIELD_TARGET}(?:{MPP_RECOVERY_RESULT_FIELDS})\b"
+)
+MPP_RECOVERY_RESULT_WRITE_RE = field_write_re(MPP_RECOVERY_RESULT_FIELDS)
 MPP_CLUSTER_PUBLICATION_ENTRY_RE = re.compile(
     r"\b(?:rk_mpp_cluster_(?:arm_soft_ccu|publish_soft_ccu_job|"
     r"publish_ccu_job|start_ccu_job)|"
@@ -221,8 +235,10 @@ MPP_OUTCOME_PUBLISH_RE = re.compile(
     r"\brk_mpp_job_publish_outcome(?:_locked)?\s*\("
 )
 MPP_TERMINAL_RE = re.compile(
-    r"\b(?:rk_mpp_job_complete|rk_mpp_hw_stop_active|"
-    r"rk_mpp_hw_recover_active|rk_mpp_hw_abort_active(?:_recovery_locked)?)\s*\("
+    r"\b(?:rk_mpp_job_complete|rk_mpp_hw_(?:stop_active|finish_recovery|"
+    r"stop_and_recover|recover_iommu_fault|recover_active|"
+    r"abort_active(?:_recovery_locked)?)|"
+    r"rk_mpp_rkvdec2_reset_soft_ccu_job)\s*\("
 )
 RGA_TASK_ADVANCE_RE = field_write_re(r"current_task")
 RGA_EXEC_MAP_OWNER_RE = re.compile(
@@ -565,6 +581,18 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                             (
                                 "mpp-cluster-runtime-entry",
                                 MPP_CLUSTER_RUNTIME_ENTRY_RE,
+                            ),
+                            (
+                                "mpp-recovery-entry",
+                                MPP_RECOVERY_ENTRY_RE,
+                            ),
+                            (
+                                "mpp-recovery-result-access",
+                                MPP_RECOVERY_RESULT_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-recovery-result-write",
+                                MPP_RECOVERY_RESULT_WRITE_RE,
                             ),
                             (
                                 "mpp-cluster-publication-entry",

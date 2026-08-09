@@ -2658,6 +2658,9 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\tatomic_read(&hw->power_count);\n"
             "\tatomic_cond_read_relaxed(&hw->power_count, true);\n"
             "\trk_mpp_hw_schedule_timeout(hw);\n"
+            "\trk_mpp_hw_stop_and_recover(hw, job, &recovery);\n"
+            "\trecovery.reset_effect = RK_MPP_RESET_TRANSLATIONS_LOST;\n"
+            "\tif (recovery.reusable) job = NULL;\n"
             "\trk_mpp_hw_refresh_iommu(hw, job);\n"
             "\tvsi_iommu_refresh(hw->dev);\n"
             "\tjob->result = -EINPROGRESS;\n"
@@ -2779,6 +2782,9 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("mpp-cluster-power-lease-entry", baseline_text)
             self.assertIn("mpp-cluster-power-lease-access", baseline_text)
             self.assertIn("mpp-cluster-runtime-entry", baseline_text)
+            self.assertIn("mpp-recovery-entry", baseline_text)
+            self.assertIn("mpp-recovery-result-access", baseline_text)
+            self.assertIn("mpp-recovery-result-write", baseline_text)
             self.assertIn("mpp-cluster-publication-entry", baseline_text)
             self.assertIn("mpp-cluster-running-list-access", baseline_text)
             self.assertIn("mpp-ccu-chain-link-write", baseline_text)
@@ -2895,6 +2901,8 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\trk_mpp_cluster_power_lease_release(jobs[0]);\n"
                     "\trk_mpp_cluster_remove_ccu_job(cluster, job, ccu);\n"
                     "\trk_mpp_cluster_arm_soft_ccu(job);\n"
+                    "\trk_mpp_hw_finish_recovery(hw, job, &recoveries[0]);\n"
+                    "\trecoveries[0].quiesced = true;\n"
                     "\tjob->rkvdec_ccu_listed = false;\n"
                     "\tnext_table[info->next_word] = 1;\n"
                     "\twritel_relaxed(1, hw->regs[0] + "
@@ -2993,6 +3001,9 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                 "NEW\tmpp-cluster-power-lease-access", changed.stderr
             )
             self.assertIn("NEW\tmpp-cluster-runtime-entry", changed.stderr)
+            self.assertIn("NEW\tmpp-recovery-entry", changed.stderr)
+            self.assertIn("NEW\tmpp-recovery-result-access", changed.stderr)
+            self.assertIn("NEW\tmpp-recovery-result-write", changed.stderr)
             self.assertIn(
                 "NEW\tmpp-cluster-publication-entry", changed.stderr
             )
