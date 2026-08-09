@@ -293,6 +293,16 @@ timer A finally runs
 
 Without a generation check, timer A could reset job B.
 
+START publication also creates a bounded IRQ/register lease under
+`hw->regs_lock`. The lease records the live reset epoch and, for direct-core
+work, the active generation. Hard IRQ may acknowledge and record status only
+while registers are powered and that lease is live; the threaded handler then
+requires the recorded epoch and generation to match before it can claim the
+active slot. Reset and the final register-power release revoke the lease first,
+so an old hard-IRQ record cannot retire a post-reset activation. Hard-CCU
+physical members use generation zero because their coordinator chain owns the
+descriptor lifetime, but remain reset-epoch bound.
+
 ### 3.8 Encoder backend
 
 The RKVENC2 backend:
@@ -312,10 +322,11 @@ The start register is written last. This is a general hardware-driver rule:
 fully construct visible state, use the required memory ordering, and only then
 ring the doorbell/start bit.
 
-Encoder slice mode is a second completion stream. The hard IRQ can push slice
-length records into a per-job `kfifo` protected by a spinlock and wake
-`POLL_HW_IRQ` waiters before final frame completion. The terminal interrupt
-wakes the IRQ thread, which reads result registers and completes the job.
+Encoder slice mode is a second completion stream. Hard IRQ acknowledges and
+records the lease-bound status, then the threaded handler pushes slice lengths
+into a per-job `kfifo` protected by a spinlock and wakes `POLL_HW_IRQ` waiters
+before final frame completion. The terminal interrupt follows the same lease
+check before the thread reads result registers and completes the job.
 
 ### 3.9 Decoder backends and CCU modes
 
@@ -395,9 +406,11 @@ cannot be proved.
 
 ### 3.10 Completion and polling
 
-The hard IRQ acknowledges hardware and records status. The threaded handler
-claims the active job, cancels its timeout, reads requested registers, handles
-error/reset requirements, powers down, and calls `rk_mpp_job_complete()`.
+The hard IRQ snapshots the live register lease, acknowledges hardware, and
+records status with that epoch/generation. The threaded handler rejects a
+missing, consumed, or stale record before it claims the active job, then
+cancels its timeout, reads requested registers, handles error/reset
+requirements, powers down, and calls `rk_mpp_job_complete()`.
 
 Completion:
 
@@ -499,9 +512,11 @@ preserve memory safety.
 | `session.lock` | session state, imports, active-job list, generations | process/workqueue |
 | `hw.ccu_recovery_lock` | shared coordinator admission/recovery | process/IRQ thread |
 | `hw.run_lock` | one core's start, completion, abort, recovery, removal | process/IRQ thread |
-| `hw.lock` | active/timeout job, generations, IRQ status | hard IRQ and process |
-| `hw.aux_lock` | AV1 AFBC mask/status/generation and START handoff | raw spinlock shared with dedicated hard IRQ |
-| `job.rkvenc_slice_lock` | slice FIFO flags/data | hard IRQ and process |
+| `reset_domain.lock` | reset state/epoch and physical reset transaction | innermost sleepable mutex; only bounded `regs_lock` lease revocation nests beneath it before a reset write |
+| `hw.lock` | active/timeout job and activation generations | hard IRQ and process |
+| `hw.regs_lock` | register power count, published reset/generation lease, and recorded IRQ lease/status | raw spinlock shared by reset, START, hard IRQ, and thread |
+| `hw.aux_lock` | AV1 AFBC mask/status/generation and START handoff | raw spinlock shared with dedicated hard IRQ; nested inside `regs_lock` when both are held |
+| `job.rkvenc_slice_lock` | slice FIFO flags/data | IRQ thread and process |
 
 Keep critical sections small. Never call a sleeping API while holding
 `hw->lock` or another spinlock.

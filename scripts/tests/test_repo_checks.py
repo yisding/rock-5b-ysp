@@ -2645,6 +2645,8 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\tcluster->node = node;\n"
             "\tINIT_LIST_HEAD(&cluster->members);\n"
             "\thw->ccu_node = node;\n"
+            "\trk_mpp_hw_publish_register_lease(hw, 1);\n"
+            "\thw->register_lease_live = true;\n"
             "\thw->active_job = job;\n"
             "\tjob->rkvdec_session_dispatch = true;\n"
             "\tjob->rkvdec_ccu_power_lease = lease;\n"
@@ -2798,6 +2800,9 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn(
                 "mpp-cluster-topology-input-access", baseline_text
             )
+            self.assertIn("mpp-register-lease-entry", baseline_text)
+            self.assertIn("mpp-register-lease-access", baseline_text)
+            self.assertIn("mpp-register-lease-write", baseline_text)
             self.assertIn("mpp-dispatch-lease-access", baseline_text)
             self.assertIn("rga-active-slot-access", baseline_text)
             self.assertIn("rga-raw-task-emitter", baseline_text)
@@ -2924,6 +2929,8 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\t\t      &clusters[0].members);\n"
                     "\thws[0]->iommu_domain = domain;\n"
                     "\tgroups[0]->isolated = true;\n"
+                    "\trk_mpp_hw_invalidate_register_lease(hws[0], 2);\n"
+                    "\thws[0]->register_lease_generation = 2;\n"
                     "\t__rk_mpp_hw_refresh_iommu(hw, srv);\n"
                     "\treset_control_bulk_reset(1, NULL);\n"
                     "\treset_control_rearm(hw->resets);\n"
@@ -3028,6 +3035,9 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn(
                 "NEW\tmpp-cluster-topology-input-access", changed.stderr
             )
+            self.assertIn("NEW\tmpp-register-lease-entry", changed.stderr)
+            self.assertIn("NEW\tmpp-register-lease-access", changed.stderr)
+            self.assertIn("NEW\tmpp-register-lease-write", changed.stderr)
             self.assertIn("NEW\trga-exec-map-owner", changed.stderr)
             self.assertIn("NEW\trga-map-release-primitive", changed.stderr)
             self.assertIn("NEW\trga-command-release", changed.stderr)

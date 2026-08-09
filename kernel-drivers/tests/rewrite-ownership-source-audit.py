@@ -187,6 +187,24 @@ MPP_CLUSTER_TOPOLOGY_INPUT_RE = re.compile(
     r"rkvdec_ccu_jobs|rkvdec_ccu_node|dma_group|dma_domain|isolated|"
     r"iommu_domain)\b"
 )
+MPP_REGISTER_LEASE_ENTRY_RE = re.compile(
+    r"\b(?:rk_mpp_cluster_publish_register_leases|"
+    r"rk_mpp_hw_(?:invalidate_register_lease(?:_locked)?|"
+    r"publish_register_lease(?:_locked)?|"
+    r"irq_register_lease_snapshot_locked|clear_irq_record_locked|"
+    r"irq_record_current_locked|record_irq_status|take_irq_status))\s*\("
+)
+MPP_REGISTER_LEASE_FIELDS = (
+    r"regs_live_count|register_lease_live|register_reset_epoch|"
+    r"register_lease_epoch|register_lease_generation|register_epoch|"
+    r"register_generation|irq_status|irq_lease_recorded|irq_reset_epoch|"
+    r"irq_generation|aux_irqs_active"
+)
+MPP_REGISTER_LEASE_ACCESS_RE = re.compile(
+    rf"(?!\bevent\s*(?:->|\.)){FIELD_TARGET}"
+    rf"(?:{MPP_REGISTER_LEASE_FIELDS})\b"
+)
+MPP_REGISTER_LEASE_WRITE_RE = field_write_re(MPP_REGISTER_LEASE_FIELDS)
 ACTIVE_SLOT_WRITE_RE = field_write_re(r"active_job|active_generation")
 ACTIVE_SLOT_ACCESS_RE = re.compile(r"\b(?:active_job|active_generation)\b")
 DISPATCH_LEASE_WRITE_RE = field_write_re(
@@ -630,6 +648,18 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                             (
                                 "mpp-cluster-topology-input-access",
                                 MPP_CLUSTER_TOPOLOGY_INPUT_RE,
+                            ),
+                            (
+                                "mpp-register-lease-entry",
+                                MPP_REGISTER_LEASE_ENTRY_RE,
+                            ),
+                            (
+                                "mpp-register-lease-access",
+                                MPP_REGISTER_LEASE_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-register-lease-write",
+                                MPP_REGISTER_LEASE_WRITE_RE,
                             ),
                             ("mpp-active-slot-access", ACTIVE_SLOT_ACCESS_RE),
                             ("mpp-active-slot-write", ACTIVE_SLOT_WRITE_RE),

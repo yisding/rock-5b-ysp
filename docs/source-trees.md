@@ -195,6 +195,8 @@ owns the public verdict.
 
 | Snapshot | Pin and base | Historical relationships |
 |----------|--------------|--------------------------|
+| 6.18 rewrite Phase 2 IRQ/register epoch lease, 2026-08-08 | `rk3588-rewrite-6.18@ab9f6e2d2023f` on `v6.18.42@856a9b51680c` | Hard-CCU DMA recovery tip `43fca8a3d80cf`; binds IRQ status to the live reset epoch and direct-core generation |
+| Mainline rewrite Phase 2 IRQ/register epoch lease, 2026-08-08 | `rk3588-rewrite-mainline@5890133da0c46` on `v7.2-rc6@075b74841bd0` | Hard-CCU DMA recovery tip `91bac563e4a5d`; byte-identical register-lease and IRQ funnel |
 | 6.18 rewrite Phase 2 hard-CCU DMA recovery, 2026-08-08 | `rk3588-rewrite-6.18@43fca8a3d80cf` on `v6.18.42@856a9b51680c` | Single-core recovery tip `e99b3da2f3318`; deduplicates participant DMA groups and gates reuse on every group refresh |
 | Mainline rewrite Phase 2 hard-CCU DMA recovery, 2026-08-08 | `rk3588-rewrite-mainline@91bac563e4a5d` on `v7.2-rc6@075b74841bd0` | Single-core recovery tip `63bbb63bec44d`; byte-identical hard-group recovery funnel |
 | 6.18 rewrite Phase 2 single-core recovery result, 2026-08-08 | `rk3588-rewrite-6.18@e99b3da2f3318` on `v6.18.42@856a9b51680c` | Cluster-CCU tip `805a216a1e8d1`; types reset/translation effects and gates reuse on refresh |
@@ -215,13 +217,13 @@ owns the public verdict.
 | Mainline rewrite, 2026-08-06 | `rk3588-rewrite-mainline@7a6d4cb075a67` on `v7.2-rc6@075b74841bd0` | prior backups `9e503f6b16df` and `5bae68d8381c` |
 | Upstream-style RGA3 comparison | `rk3588-rewrite-mainline@180ee72a9a80` | detailed in §9 |
 
-The two maintained Phase 2 snapshots have byte-identical tracked MPP/RGA
-rewrite sources, Kconfig, ABI ledgers, and UAPI. Their exact 101 MPP + 152 RGA
-manifest, 1086-signal
-production ownership inventory, and 306-signal KUnit-debt audit pass with zero
-new or absent signals. The older 2026-08-08 rows preserve pre-cluster and
-pre-refactor snapshots, while the 2026-08-06 rows remain historical pins rather
-than claims about later branch heads.
+The two maintained Phase 2 IRQ/register-lease snapshots have byte-identical
+tracked MPP/RGA rewrite sources, Kconfig, ABI ledgers, and UAPI. Their exact
+102 MPP + 152 RGA manifest, 1186-signal production ownership inventory, and
+306-signal KUnit-debt audit pass with zero new or absent signals. The older
+2026-08-08 rows preserve the recovery, pre-cluster, and pre-refactor snapshots,
+while the 2026-08-06 rows remain historical pins rather than claims about later
+branch heads.
 
 The historical Debian composite trees remain reconstructible:
 

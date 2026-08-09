@@ -18,10 +18,10 @@ The priority is **ownership before convention**:
 4. postpone broad file moves, naming cleanup, and test rationalization until
    the ownership graph has stopped changing.
 
-> **Status — 2026-08-08:** Phase 1 is source-complete, Phase 2 checkpoints
-> 1–5 are implemented, and checkpoints 6A–6B type single-core and hard-CCU
-> group recovery at `rk3588-rewrite-6.18@43fca8a3d80cf` and
-> `rk3588-rewrite-mainline@91bac563e4a5d`. Their tracked
+> **Status — 2026-08-08:** Phase 1 is source-complete and all six Phase 2
+> source items are implemented through the IRQ/register epoch lease at
+> `rk3588-rewrite-6.18@ab9f6e2d2023f` and
+> `rk3588-rewrite-mainline@5890133da0c46`. Their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. Phase 1 funnels reset
 > backends, both active slots, RKVDEC dispatch and power leases,
 > publication/start, MPP outcome publication, and RGA execution-map retirement;
@@ -41,12 +41,15 @@ The priority is **ownership before convention**:
 > reset, idle fault, and hard-CCU group reset now return typed
 > quiesced/reusable results. Group recovery deduplicates the reference-pinned
 > participants' DMA groups, refreshes each once, and refuses resend when any
-> group is not reusable. Coordinator per-job power and descriptor admission
-> remain unchanged. The 1086-signal source-pinned production audit freezes
-> those recovery seams plus
+> group is not reusable. Every START now publishes a bounded register lease;
+> hard IRQ records its reset epoch and direct-core active generation, reset or
+> final register-power loss revokes it, and the IRQ thread refuses absent or
+> stale records. Coordinator per-job power and descriptor admission remain
+> unchanged. The 1186-signal source-pinned production audit freezes those IRQ
+> and recovery seams plus
 > the earlier reset-domain, cluster construction, group-reset, power-lease,
 > and CCU runtime seams; the KUnit-debt audit remains 306 signals, and the
-> manifest is 101 MPP plus 152 RGA cases. There is still no
+> manifest is 102 MPP plus 152 RGA cases. There is still no
 > `rk_mpp_activation`, `rk_rga_task_exec`, or
 > `rk_rga_acquire_set`.
 >
@@ -752,8 +755,18 @@ set from the already reference-pinned coordinator and core participants, and
 refreshes each affected DMA group exactly once before permitting resend. Any
 topology, reset, or refresh failure keeps reuse false and falls back to the
 existing terminal-isolation cleanup. Descriptor admission is intentionally
-unchanged; the next source checkpoint is the IRQ-safe reset/register epoch
-check rather than terminal-reason or activation-lifetime migration.
+unchanged.
+
+Checkpoint 6C is present at `ab9f6e2d2023f` / `5890133da0c46`: each direct
+core START publishes the current reset epoch and activation generation as an
+IRQ-safe register lease; hard-CCU physical members publish the reset epoch
+with generation zero because the coordinator chain owns their descriptors.
+Reset and final register-power loss revoke the lease before MMIO becomes
+unsafe. Hard IRQ snapshots and records only a live lease, and the threaded
+handler rejects missing, consumed, reset-stale, or generation-stale status
+before claiming the slot. RKVENC slice FIFO and wakeup work consequently run
+after that check in the thread. This completes Phase 2 item 6 without creating
+the retained activation or terminal-reason owner reserved for Phase 3.
 
 Acceptance requires more than KUnit: repeat the reset-contention gate with both
 cores resetting; normal single- and multi-stream decode; kill/close/reset
