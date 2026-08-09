@@ -550,7 +550,7 @@ BSP-derived RGA                   rewrite RGA
 | MPP code/build lines | 18,442 at the forward-port comparison pin, including AV1, compatibility headers, and legacy-SoC helpers | 18,163 C lines at `19634f4eebba`, including the embedded KUnit block and VPU981 AV1 backend |
 | RGA code/build lines | 21,160 at the forward-port comparison pin | 26,060 C lines at `19634f4eebba`, including the embedded KUnit block |
 | ABI ledger | External project documentation and vendor headers | 648-line MPP and 633-line RGA in-tree `ABI.rst` files |
-| In-driver KUnit | None comparable | 94 MPP + 152 RGA cases |
+| In-driver KUnit | None comparable | 96 MPP + 152 RGA cases |
 | Primary verification style | Board conformance, sanitizer builds, hostile reproducers, production runs | KUnit/build profiles first, then the same board suites and differential artifacts |
 
 The modular BSP layout is easier to browse file by file. The rewrite keeps an
@@ -567,7 +567,7 @@ does not yet implement the final ownership decomposition described in the
 
 | Responsibility | As built at the maintained tips | Proposed owner |
 |----------------|----------------------------------|----------------|
-| Shared decoder CCU, reset, IOMMU, and power state | Split across service, hardware, reset-domain mutex, and DMA-group state | `rk_mpp_cluster` |
+| Shared decoder CCU, reset, IOMMU, and power state | Split across service, hardware, single-target reset-domain authority, and DMA-group state | `rk_mpp_cluster` |
 | One hardware run and its terminal claimant | Job plus per-core active slot and generation fields | `rk_mpp_activation` |
 | One RGA task's selected core, mappings, command buffer, and generation | Mutable fields on the broader `rk_rga_job` | `rk_rga_task_exec` |
 | Acquire-fence callback retirement | Job/request callbacks and drain bookkeeping | `rk_rga_acquire_set` |
@@ -600,7 +600,7 @@ for the full object model.
 | Session/job/hardware/import ownership makes asynchronous lifetime and close/remove order locally auditable. | Refcount, lock, generation, work-cancel, and quarantine state machines add substantial implementation complexity. |
 | Fail-closed ABI, address-provenance, topology, hardware-ID, and reset checks reduce silent unsafe behavior. | Strict rejection can expose compatibility gaps only when real userspace reaches them. |
 | Exact active-slot claims and generation-aware recovery directly address bug classes seen in the BSP architecture. | Clearer architecture has not prevented rewrite-specific recovery, fixture, DT-resource, and shared-IRQ defects. |
-| 246 KUnit cases and explicit ABI ledgers make assumptions executable and reviewable. | Large single-file drivers and embedded tests are a review/merge burden; KUnit cannot prove real register recipes, IRQ wiring, or DMA reset behavior. |
+| 248 KUnit cases and explicit ABI ledgers make assumptions executable and reviewable. | Large single-file drivers and embedded tests are a review/merge burden; KUnit cannot prove real register recipes, IRQ wiring, or DMA reset behavior. |
 | Lower non-test source footprint: roughly half-size MPP and 37% smaller RGA runtime slices. | No successful current-tip media-hardware, production-performance, fuzz, or soak record yet. |
 | Better long-term candidate if hardware parity is demonstrated. | Higher immediate qualification risk. |
 
@@ -665,7 +665,7 @@ evidence:
 | Rewrite mainline replay | `rk3588-rewrite-mainline@b296374b7520` on `v7.2-rc6`; tracked rewrite sources, Kconfig, ABI ledgers, and UAPI are byte-identical |
 | Rockchip BSP donor | `develop-6.1@b4ef083dc0c3` |
 | Upstream-style comparators | Linux `v7.2-rc5`-era `rockchip/rkvdec`, Verisilicon Hantro, Chips&Media Wave5, Qualcomm Venus, MediaTek vcodec, Allegro DVT, and Amphion sources in the mainline replay tree |
-| Runtime boundary | The current tips pass the warning-fatal clean-archive `normal` build and exact 306-signal source audit. Their 94 MPP + 152 RGA manifest, multicore fixes, and AV1/VSI path are not boot-verified. |
+| Runtime boundary | The current tips pass the warning-fatal clean-archive build matrix and exact 306-signal KUnit source audit. Their 96 MPP + 152 RGA manifest, reset-domain construction, multicore fixes, and AV1/VSI path are not boot-verified. |
 
 The upstream comparators are reference designs for kernel-boundary and
 maintenance quality, not feature- or performance-equivalent implementations.
@@ -1343,7 +1343,7 @@ those are review-shape issues, not functional evidence.
 | A per-core lifetime transition must not mutate an unowned sibling | Exposes maxline's all-core runtime callbacks |
 | Finishing a software scheduling slot does not prove DMA has stopped | Exposes maxline streamoff ordering and mainline timeout recovery |
 | A retained pointer is not activation identity | Motivates generation-aware late-IRQ handling |
-| Unit-test deterministic policy; prove silicon behavior on hardware | Supports a tiny arithmetic/error-unwind suite, not a 246-case transplant |
+| Unit-test deterministic policy; prove silicon behavior on hardware | Supports a tiny arithmetic/error-unwind suite, not a 248-case transplant |
 | Private register-job ABI validation | Does not transfer to V4L2 request drivers, which reuse typed controls, vb2, requests, and mem2mem ownership |
 | VEPU580 DCHS/slice-FIFO invariants | No current mainline VEPU580 encoder exists to patch |
 

@@ -18,50 +18,30 @@ The priority is **ownership before convention**:
 4. postpone broad file moves, naming cleanup, and test rationalization until
    the ownership graph has stopped changing.
 
-> **Status — 2026-08-08:** this remains mostly a target architecture, not an
-> implementation description. Phase 0 now has a checked, source-pinned
-> production inventory covering the failure-prone ownership writers plus the
-> debug counter and event schema. Maintained tips are
-> `rk3588-rewrite-6.18@ab69ece998642` and
-> `rk3588-rewrite-mainline@3a0da2f33e963`. Their pre-refactor ancestors passed
-> the warning-fatal clean-source `normal` and `test-disabled` object/DTB gates;
-> the earlier `f80d216cfb83b`/`3a2a540553cce` tips also compiled every touched
-> MPP/RGA object. The current tips now pass warning-fatal clean-archive
-> `normal`, `test-disabled`, KASAN/fault-injection `memory`, and KCSAN/lockdep
-> `race` builds of both IOMMU providers, both rewrite objects, and the Rock 5B
-> DTB. All 35 KASAN frame-warning fixtures were moved to KUnit-managed heap
-> allocations, and the memory profile now enforces the package's 2,048-byte
-> frame ceiling. Their tracked
-> rewrite/Kconfig/ABI/uAPI files are byte-identical. The current source adds a
-> per-session RKVDEC dispatch token and an RGA command-publication barrier, but
-> still has no `rk_mpp_cluster`, `rk_mpp_activation`, `rk_rga_task_exec`, or
-> `rk_rga_acquire_set`. The provisional Phase 1 source migration now stops with
-> the MPP reset,
-> MPP and RGA active-slot access/write funnels, the RKVDEC session dispatch
-> lease API, backend-specific MPP/RGA publication-and-start owners, and the
-> RKVDEC coordinator/core-chain power bookkeeping API. RGA execution mappings
-> now retire through a power-asserting owner, while completion and destruction
-> accept only an already-empty execution and warn on a missed powered teardown.
-> MPP terminal result/DONE publication also has one session-lock-aware owner.
-> Lock assertions now make the existing run-lock contracts explicit at active
-> publication, start, IOMMU refresh, and RGA backend-start funnels, while MPP
-> destruction warns if it inherits a live CCU lease. The 484-signal production
-> audit now also freezes MPP power transitions, raw PM/clock operations,
-> `power_count` writes, and both drivers' watchdog-arm entries in addition to
-> every current IRQ, fault, watchdog, activation-timing,
-> terminal/admission-state, and outcome writer plus direct RGA terminal entry.
-> Independent review found no behavior-preserving terminal transition wrapper:
-> both drivers reuse a job across generations, and neither retains a retiring
-> object through snapshot closure. Reason arbitration therefore remains
-> deferred until the activation/task-execution migration can provide that
-> owner.
-> The exact 6.18 tip is now compiled and packaged as the inspected
-> `6.18.43-S7b92-D6d03-P692f-Cad24-H1c44-HK01ba-Vc222-B3ab8-R448a`
-> `rewrite-debug` artifact set. The full build has no error or failed target
-> and no rewrite or frame-size warning. Its boot image carries the valid RFC
-> timestamp suffix `(gab69ece99864)`. The package remains uninstalled and
-> unbooted; reboot and hardware qualification are deferred. No Phase 2
-> migration may start until that qualification passes.
+> **Status — 2026-08-08:** Phase 1 is source-complete and Phase 2 checkpoint 1
+> is implemented at `rk3588-rewrite-6.18@53a7fa1acbc0` and
+> `rk3588-rewrite-mainline@ba8e11de18a8`. Their tracked
+> rewrite/Kconfig/ABI/uAPI files are byte-identical. Phase 1 funnels reset
+> backends, both active slots, RKVDEC dispatch and power leases,
+> publication/start, MPP outcome publication, and RGA execution-map retirement;
+> run-lock and final-lease assertions freeze their current contracts. Phase 2
+> now replaces the reset-domain mutex pointer with a stable service-owned
+> identity/member object and routes complete single-target power deassert and
+> recovery pulses through its state and nonzero epoch. The 564-signal
+> source-pinned production audit adds reset-domain binding, registry identity,
+> membership/lifecycle, operation, pending-operation, and state-write
+> inventories; the KUnit-debt audit remains 306
+> signals, and the manifest is 96 MPP plus 152 RGA cases. The hard-CCU group
+> pulse remains deliberately legacy until `rk_mpp_cluster` can pin and validate
+> its participant set. There is still no `rk_mpp_cluster`,
+> `rk_mpp_activation`, `rk_rga_task_exec`, or `rk_rga_acquire_set`.
+>
+> The predecessor Phase 1 source `ab69ece998642` is packaged as inspected
+> `rewrite-debug` package P692f with stamp `(gab69ece99864)`, but it remains
+> uninstalled and unbooted. On 2026-08-08 the operator explicitly authorized
+> source-only Phase 2 work without waiting for that qualification. This changes
+> sequencing only: no boot, runtime KUnit, decoder, RGA, reset-contention, or
+> recovery claim transfers to the new tips.
 
 The plan was derived from `linux-6.18-rkvenc` branch
 `rk3588-rewrite-6.18@8042f13c54591` on 2026-08-01 and was rechecked for
@@ -80,10 +60,10 @@ runtime units:
 - an RGA **task execution**, which owns the selected hardware, mappings,
   command buffer, and one trip through the active slot.
 
-Those objects address the latent-risk areas directly. MPP's reset-domain lock
-fixed the measured sibling reset/deassert wedge, but the domain still owns only
-a mutex while group power, CCU MMIO, reset results, and IOMMU refresh remain in
-different objects and paths. RGA's common recovery tail fixed one multi-task
+Those objects address the latent-risk areas directly. MPP's reset domain now
+owns stable identity, membership, single-target state and an epoch, but the
+hard-CCU group pulse, group power, CCU MMIO, reset results, and IOMMU refresh
+remain in different objects and paths. RGA's common recovery tail fixed one multi-task
 advance omission, but a job still mixes whole-request lifetime with the
 resources and state of its current hardware task.
 
@@ -151,16 +131,17 @@ reinterpret raw geometry.
 | Current object | Useful ownership already present | State that is still at the wrong altitude |
 |---|---|---|
 | `rk_mpp_service` | hardware registry, scheduler queue, diagnostics | reset-domain table, DMA groups, DCHS global state, and topology are adjacent but not composed into a cluster owner |
-| `rk_mpp_reset_domain` | one lock keyed by CCU node | no members, reset phase/epoch, operation API, or proof that all reset writers pass through it |
+| `rk_mpp_reset_domain` | stable node identity, member lifetime, mutex, single-target state/epoch, and complete power-deassert/recovery-pulse methods | the hard-CCU group pulse still uses the backend leaves directly; no cluster result, IRQ lease, or admission authority consumes the epoch |
 | `rk_mpp_dma_group` | IOMMU group, normal/isolation domains, member list, terminal isolation | no refresh epoch or explicit relation to the CCU/reset group whose recovery requires it |
 | `rk_mpp_hw` | private MMIO, clocks, IRQ, queue and active slot | also acts as coordinator, reset client, group-recovery participant, timeout owner, and IOMMU-fault owner |
 | `rk_mpp_job` | accepted message set, retained imports, selected hardware and result | also carries group power references, CCU membership, mutable register image, slice state, activation timing, and backend recovery state |
 
-The current reset-domain lock is evidence that the object boundary is right,
-not that the migration is finished. `rk_mpp_hw_power_on()` and
-`rk_mpp_hw_reset_active()` take the domain lock around direct reset-control
-calls, while coordinator stop and recovery use additional locks and paths. The
-driver can therefore state the invariant only by auditing every caller.
+The current reset-domain object proves the single-target boundary, not that the
+migration is finished. `rk_mpp_hw_power_on()` and
+`rk_mpp_hw_reset_active()` invoke complete domain operations, while hard-CCU
+coordinator stop still uses the contained reset leaves under its older lock set.
+The source audit freezes that intentional exception until cluster construction
+can migrate the whole participant set atomically.
 
 ### RGA
 
@@ -223,18 +204,16 @@ power lease replaces the job's fixed array of powered cores. The lease records
 exactly which runtime-PM references were acquired and releases them once,
 regardless of completion reason.
 
-### Expand `rk_mpp_reset_domain` from a lock into the reset authority
+### Finish expanding `rk_mpp_reset_domain` into the reset authority
 
-The existing object should own permission to invoke reset operations even when
-the physical `struct reset_control` remains stored on a member core. Add:
+The object now owns stable membership and single-target operations even while
+the physical `struct reset_control` remains stored on a member core. Finish the
+authority by adding the cluster-owned group paths that remain:
 
-- member registration and an immutable domain identity;
-- `IDLE`, `POWER_DEASSERT`, `RESETTING`, `FAILED`, and `QUARANTINED` state;
-- a monotonically increasing reset epoch;
-- the core or cluster responsible for the current operation;
-- counters for pulse, deassert, refusal, and overlap detection; and
-- methods for power-on deassert, recovery pulse, coordinator stop, and terminal
-  isolation.
+- coordinator/group stop and terminal isolation methods;
+- a cluster result that relates the reset epoch to DMA refresh/isolation;
+- quarantine publication and refusal semantics after topology validation; and
+- an IRQ-safe register-lease view tied to the completed reset epoch.
 
 After migration, no production code outside the reset-domain implementation
 may call `reset_control_assert()` or `reset_control_deassert()` for MPP. This
@@ -650,8 +629,10 @@ mirrored-source identity, strict checkpatch, and the device-free gates. The
 exact current tips pass the focused warning-fatal `normal`, `test-disabled`,
 KASAN/fault-injection `memory`, and KCSAN/lockdep `race`
 provider/rewrite-object/DTB builds; the 6.18 tip also produced a full inspected
-`rewrite-debug` package set with no rewrite or frame-size warning. Phase 2 must
-not start until the deferred boot, KUnit-runtime, and hardware gates pass.
+`rewrite-debug` package set with no rewrite or frame-size warning. On
+2026-08-08 the operator explicitly overrode the Phase 2 sequencing gate for
+source-only construction work. The deferred boot, KUnit-runtime, and hardware
+gates remain mandatory before qualification or any runtime behavior claim.
 If either corruption persists, land and qualify its narrow fix before advancing
 beyond provisional funnels.
 
@@ -679,9 +660,10 @@ beyond provisional funnels.
 
 Acceptance: source-audit allowlists show no unreviewed direct writer outside
 the current owning module/section. Qualification must then prove compiled
-behavior and hardware counters unchanged. The source-only Phase 1 boundary is
-provisional until the deferred exact-tip boot and hardware gates pass; no
-Phase 2 migration may begin before then.
+behavior and hardware counters unchanged. The source-only Phase 1 boundary
+remains provisional until the deferred exact-tip boot and hardware gates pass.
+The operator-authorized Phase 2 source work must retain that boundary explicitly
+and may not be described as runtime qualification.
 
 ### Phase 2 — make MPP reset and cluster ownership real
 
@@ -695,6 +677,14 @@ Phase 2 migration may begin before then.
    quarantine into one cluster recovery result.
 6. Make hard IRQ respect the IRQ-safe reset/register lease and leave all slow
    work to the thread.
+
+Checkpoint 1 is present at `53a7fa1acbc0` / `ba8e11de18a8`: the stable
+reset-domain registry, membership lifetime, single-target state/epoch, and
+complete power-deassert/recovery-pulse methods are implemented. It is only the
+single-target part of item 1. The existing hard-CCU multi-member pulse still
+uses the contained backend leaves and publishes no domain epoch; migrating it
+before cluster construction would permit interleaving or misstate the affected
+topology.
 
 Acceptance requires more than KUnit: repeat the reset-contention gate with both
 cores resetting; normal single- and multi-stream decode; kill/close/reset

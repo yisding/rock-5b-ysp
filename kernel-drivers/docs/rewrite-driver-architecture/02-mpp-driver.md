@@ -58,12 +58,12 @@ The principal objects are:
 
 | Object | Created by | Owns or tracks |
 |--------|------------|----------------|
-| `rk_mpp_service` | module init | hardware registry, global queue, reset-domain lock table, DMA groups, counters, work item |
+| `rk_mpp_service` | module init | hardware registry, global queue, stable reset-domain registry, DMA groups, counters, work item |
 | `rk_mpp_hw` | platform probe | device, MMIO, IRQ, clocks, resets, active job, timeout/fault work, CCU state |
 | `rk_mpp_session` | `/dev/mpp_service` `open()` | client type, imports, active jobs, translation table, RCB and codec metadata |
 | `rk_mpp_import` | fd translation | DMA-BUF, attachment, mapped scatterlist, device-specific IOVA |
 | `rk_mpp_job` | ioctl message collection | copied requests, register image, imports, selected hardware, result/readback, and current CCU/DCHS/power participation |
-| `rk_mpp_reset_domain` | first matching hardware probe | one mutex keyed by CCU node; serializes shared reset-line writers but does not yet own membership, reset state, or reset epochs |
+| `rk_mpp_reset_domain` | first matching hardware probe | immutable node identity, member lifetime, mutex, single-target reset state/epoch, responsible hardware, and operation counters; the hard-CCU group pulse is not migrated yet |
 | `rk_mpp_dma_group` | hardware probe | IOMMU group, original DMA domain, preallocated empty isolation domain |
 
 The important reference direction is:

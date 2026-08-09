@@ -2625,6 +2625,13 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "static void mpp_paths(struct rk_mpp_hw *hw, struct rk_mpp_job *job)\n"
             "{\n"
             "\treset_control_assert(hw->resets);\n"
+            "\trk_mpp_reset_domain_power_deassert(hw);\n"
+            "\trk_mpp_reset_domain_register_member(domain, hw);\n"
+            "\trk_mpp_hw_init_reset_domain(hw);\n"
+            "\thw->reset_domain = domain;\n"
+            "\tdomain->node = node;\n"
+            "\tdomain->reset_domain_state = RK_MPP_RESET_DOMAIN_IDLE;\n"
+            "\tatomic_read(&domain->reset_domain_operation_pending);\n"
             "\thw->active_job = job;\n"
             "\tjob->rkvdec_session_dispatch = true;\n"
             "\tjob->rkvdec_ccu_powered_cores[0] = hw;\n"
@@ -2744,6 +2751,12 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertEqual(updated.returncode, 0, updated.stderr)
             baseline_text = baseline.read_text(encoding="utf-8")
             self.assertIn("mpp-active-slot-access", baseline_text)
+            self.assertIn("mpp-reset-domain-operation-entry", baseline_text)
+            self.assertIn("mpp-reset-domain-member-entry", baseline_text)
+            self.assertIn("mpp-reset-domain-binding-access", baseline_text)
+            self.assertIn("mpp-reset-domain-registry-access", baseline_text)
+            self.assertIn("mpp-reset-domain-state-write", baseline_text)
+            self.assertIn("mpp-reset-domain-pending-access", baseline_text)
             self.assertIn("mpp-dispatch-lease-access", baseline_text)
             self.assertIn("rga-active-slot-access", baseline_text)
             self.assertIn("rga-raw-task-emitter", baseline_text)
@@ -2823,6 +2836,25 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\thws[0]->timeout_generation = 2;\n"
                     "\t(*job).hw_elapsed_ns += 2;\n"
                     "\trk_mpp_job_publish_outcome_locked(job, -EIO);\n"
+                    "\trk_mpp_reset_domain_recovery_pulse(hw);\n"
+                    "\trk_mpp_reset_domain_begin(\n"
+                    "\t\thw, RK_MPP_RESET_DOMAIN_RESETTING);\n"
+                    "\trk_mpp_reset_domain_finish(hw, 0);\n"
+                    "\trk_mpp_reset_domain_unregister_member(hw);\n"
+                    "\trk_mpp_reset_domain_get_locked(srv, node, &added);\n"
+                    "\trk_mpp_reset_domain_unregister_action;\n"
+                    "\trk_mpp_reset_domains_destroy(srv);\n"
+                    "\thws[0]->reset_domain = domain;\n"
+                    "\tdomain->members.next = &domain->members;\n"
+                    "\tdomains[0]->reset_domain_epoch++;\n"
+                    "\tatomic_set(\n"
+                    "\t\t&domains[0]->reset_domain_operation_pending, 0);\n"
+                    "\tatomic_inc_return(\n"
+                    "\t\t&domains[0]->reset_domain_operation_pending);\n"
+                    "\tatomic_dec(\n"
+                    "\t\t&domains[0]->reset_domain_operation_pending);\n"
+                    "\tatomic_add(1,\n"
+                    "\t\t&domains[0]->reset_domain_operation_pending);\n"
                     "\treset_control_bulk_reset(1, NULL);\n"
                     "\treset_control_rearm(hw->resets);\n"
                 ),
@@ -2883,6 +2915,20 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("NEW\tmpp-outcome-publish-entry", changed.stderr)
             self.assertIn("NEW\tmpp-activation-timing-write", changed.stderr)
             self.assertIn("NEW\tmpp-reset-control", changed.stderr)
+            self.assertIn(
+                "NEW\tmpp-reset-domain-operation-entry", changed.stderr
+            )
+            self.assertIn("NEW\tmpp-reset-domain-member-entry", changed.stderr)
+            self.assertIn(
+                "NEW\tmpp-reset-domain-binding-access", changed.stderr
+            )
+            self.assertIn(
+                "NEW\tmpp-reset-domain-registry-access", changed.stderr
+            )
+            self.assertIn("NEW\tmpp-reset-domain-state-write", changed.stderr)
+            self.assertIn(
+                "NEW\tmpp-reset-domain-pending-access", changed.stderr
+            )
             self.assertIn("NEW\trga-exec-map-owner", changed.stderr)
             self.assertIn("NEW\trga-map-release-primitive", changed.stderr)
             self.assertIn("NEW\trga-command-release", changed.stderr)
@@ -2912,6 +2958,38 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                 ("mpp-power-backend-op", "pm_runtime_force_suspend(hw->dev)"),
                 ("mpp-power-backend-op", "devm_clk_bulk_get_all(hw->dev"),
                 ("mpp-job-lifecycle-write", "try_cmpxchg(&jobs[0]->result"),
+                (
+                    "mpp-reset-domain-operation-entry",
+                    "rk_mpp_reset_domain_begin",
+                ),
+                (
+                    "mpp-reset-domain-operation-entry",
+                    "rk_mpp_reset_domain_finish",
+                ),
+                (
+                    "mpp-reset-domain-state-write",
+                    "atomic_set( &domains[0]->reset_domain_operation_pending",
+                ),
+                (
+                    "mpp-reset-domain-state-write",
+                    "atomic_inc_return( &domains[0]->reset_domain_operation_pending",
+                ),
+                (
+                    "mpp-reset-domain-state-write",
+                    "atomic_dec( &domains[0]->reset_domain_operation_pending",
+                ),
+                (
+                    "mpp-reset-domain-state-write",
+                    "atomic_add(1, &domains[0]->reset_domain_operation_pending",
+                ),
+                (
+                    "mpp-reset-domain-member-entry",
+                    "rk_mpp_reset_domain_get_locked",
+                ),
+                (
+                    "mpp-reset-domain-member-entry",
+                    "rk_mpp_reset_domain_unregister_action",
+                ),
                 (
                     "rga-watchdog-snapshot-write",
                     "xchg(&hws[0]->timeout_generation",

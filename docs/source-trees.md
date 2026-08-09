@@ -195,17 +195,20 @@ owns the public verdict.
 
 | Snapshot | Pin and base | Historical relationships |
 |----------|--------------|--------------------------|
+| 6.18 rewrite Phase 2 reset-domain construction, 2026-08-08 | `rk3588-rewrite-6.18@53a7fa1acbc00` on `v6.18.42@856a9b51680c` | Phase 1 tip `ab69ece998642`; adds stable reset-domain identity/membership and complete single-target operations |
+| Mainline rewrite Phase 2 reset-domain construction, 2026-08-08 | `rk3588-rewrite-mainline@ba8e11de18a8e` on `v7.2-rc6@075b74841bd0` | Phase 1 tip `3a0da2f33e963`; byte-identical MPP reset-domain construction |
 | 6.18 rewrite, 2026-08-08 | `rk3588-rewrite-6.18@c20fc8c1cbf76` on `v6.18.42@856a9b51680c` | prior repair tip `f371868322027`; adds per-session RKVDEC dispatch serialization and RGA command-buffer publication |
 | Mainline rewrite, 2026-08-08 | `rk3588-rewrite-mainline@09e39082007dd` on `v7.2-rc6@075b74841bd0` | mirrors the three earlier MPP repairs plus the same session-serialization and RGA-publication fixes |
 | 6.18 rewrite, 2026-08-06 | `rk3588-rewrite-6.18@67f323aebdf39` on `v6.18.42@856a9b51680c` | pre-rebase backup `33c30ec6989e`; forward-port oracle `rk3588-video-6.18@12a7da02bea83`; pre-forward-port backup `40cf22629cf63` |
 | Mainline rewrite, 2026-08-06 | `rk3588-rewrite-mainline@7a6d4cb075a67` on `v7.2-rc6@075b74841bd0` | prior backups `9e503f6b16df` and `5bae68d8381c` |
 | Upstream-style RGA3 comparison | `rk3588-rewrite-mainline@180ee72a9a80` | detailed in §9 |
 
-The two 2026-08-08 snapshots have byte-identical tracked MPP/RGA rewrite
-sources, Kconfig, ABI ledgers, and UAPI. Both pass warning-fatal clean-archive
-`normal` and `test-disabled` builds, the exact 94 MPP + 152 RGA manifest, and a
-308-signal source audit with zero new or absent signals. The 2026-08-06 rows
-remain historical pins rather than claims about later branch heads.
+The two Phase 2 snapshots have byte-identical tracked MPP/RGA rewrite sources,
+Kconfig, ABI ledgers, and UAPI. Their exact 96 MPP + 152 RGA manifest, 564-signal
+production ownership inventory, and 306-signal KUnit-debt audit pass with zero
+new or absent signals. The older 2026-08-08 rows preserve the pre-refactor
+snapshot, while the 2026-08-06 rows remain historical pins rather than claims
+about later branch heads.
 
 The historical Debian composite trees remain reconstructible:
 

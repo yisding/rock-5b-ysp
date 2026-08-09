@@ -62,6 +62,36 @@ def field_write_re(
 RESET_CALL_RE = re.compile(
     r"\breset_control_(?:(?:bulk_)?(?:assert|deassert|reset)|rearm)\s*\("
 )
+MPP_RESET_DOMAIN_OPERATION_RE = re.compile(
+    r"\brk_mpp_reset_domain_(?:begin|finish|assert|deassert|"
+    r"power_deassert|recovery_pulse)\s*\("
+)
+MPP_RESET_DOMAIN_MEMBER_RE = re.compile(
+    r"\b(?:rk_mpp_reset_domain_(?:init|get_locked|register_member|"
+    r"unregister_member|unregister_action)|rk_mpp_hw_init_reset_domain|"
+    r"rk_mpp_reset_domains_destroy)\b"
+)
+MPP_RESET_DOMAIN_BINDING_RE = re.compile(
+    r"\b(?:reset_domain|reset_domains|reset_domain_count|"
+    r"reset_domain_link)\b"
+)
+MPP_RESET_DOMAIN_REGISTRY_ACCESS_RE = re.compile(r"\bdomain->(?:node|members)\b")
+MPP_RESET_DOMAIN_STATE_DIRECT_WRITE_RE = field_write_re(
+    r"reset_domain_(?:operation_pending|state|epoch|responsible|pulse_count|"
+    r"deassert_count|refusal_count|overlap_count|member_count|"
+    r"last_core_id|last_error)",
+    publishers=rf"(?:{FIELD_PUBLISHERS}|atomic_(?!(?:read(?:_[A-Za-z0-9_]+)?|"
+    rf"cond_read_(?:relaxed|acquire))\s*\()[A-Za-z0-9_]+)",
+)
+MPP_RESET_DOMAIN_STATE_WRITE_RE = re.compile(
+    rf"(?:{MPP_RESET_DOMAIN_STATE_DIRECT_WRITE_RE.pattern}|"
+    rf"\batomic_(?!(?:read(?:_[A-Za-z0-9_]+)?|"
+    rf"cond_read_(?:relaxed|acquire))\s*\()[A-Za-z0-9_]+\s*\(\s*"
+    rf"[^,]+,\s*&?\s*{FIELD_TARGET}reset_domain_operation_pending\b)"
+)
+MPP_RESET_DOMAIN_PENDING_ACCESS_RE = re.compile(
+    r"\breset_domain_operation_pending\b"
+)
 ACTIVE_SLOT_WRITE_RE = field_write_re(r"active_job|active_generation")
 ACTIVE_SLOT_ACCESS_RE = re.compile(r"\b(?:active_job|active_generation)\b")
 DISPATCH_LEASE_WRITE_RE = field_write_re(
@@ -407,6 +437,30 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                     matches.extend(
                         (
                             ("mpp-reset-control", RESET_CALL_RE),
+                            (
+                                "mpp-reset-domain-operation-entry",
+                                MPP_RESET_DOMAIN_OPERATION_RE,
+                            ),
+                            (
+                                "mpp-reset-domain-member-entry",
+                                MPP_RESET_DOMAIN_MEMBER_RE,
+                            ),
+                            (
+                                "mpp-reset-domain-binding-access",
+                                MPP_RESET_DOMAIN_BINDING_RE,
+                            ),
+                            (
+                                "mpp-reset-domain-registry-access",
+                                MPP_RESET_DOMAIN_REGISTRY_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-reset-domain-state-write",
+                                MPP_RESET_DOMAIN_STATE_WRITE_RE,
+                            ),
+                            (
+                                "mpp-reset-domain-pending-access",
+                                MPP_RESET_DOMAIN_PENDING_ACCESS_RE,
+                            ),
                             ("mpp-active-slot-access", ACTIVE_SLOT_ACCESS_RE),
                             ("mpp-active-slot-write", ACTIVE_SLOT_WRITE_RE),
                             ("mpp-dispatch-lease-access", DISPATCH_LEASE_ACCESS_RE),

@@ -9,7 +9,7 @@ qualification verdict and next proof belong to
 and definition of done.
 
 > **Framing.** The targeted userspace surface is code-complete and has MPP
-> **94 KUnit cases** plus RGA **152 KUnit cases** (**246 total**). Exact green
+> **96 KUnit cases** plus RGA **152 KUnit cases** (**248 total**). Exact green
 > booted KTAP is the first qualification rung, not the finish line. These tests
 > are primarily **logic/lifecycle evidence**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
@@ -21,13 +21,15 @@ and definition of done.
 > counts into this plan; follow the status row into the dated finding and
 > correlated run artifacts.
 
-> **Current source boundary (2026-08-05):** maintained tips
-> `df22eeef8757` / `518f59c9f1f8` pass the warning-fatal `normal` build and
-> 306-signal audit. Predecessor 6.18 `19634f4eebba` passes exact 92+152 booted
-> KUnit and 12/12 official MPP, but its librga run exposed the RGA defects fixed
-> only at the new tips. The other focused build profiles retain older-tip
-> evidence. The source contains the separate VPU981 AV1 backend, but no rewrite
-> AV1 kernel has passed a hardware qualification rung.
+> **Current source boundary (2026-08-08):** maintained Phase 2 tips
+> `53a7fa1acbc00` / `ba8e11de18a8e` pass the warning-fatal clean-archive
+> `normal`, `test-disabled`, KASAN/fault-injection `memory`, and KCSAN/lockdep
+> `race` profiles, the 564-signal production ownership audit, and the unchanged
+> 306-signal KUnit-debt audit. Predecessor 6.18 `19634f4eebba` passes exact
+> 92+152 booted KUnit and 12/12 official MPP, but its librga run exposed defects
+> fixed only at later tips. No current-tip Phase 2 source has booted. The source
+> contains the separate VPU981 AV1 backend, but no rewrite AV1 kernel has passed
+> a hardware qualification rung.
 
 ## What already exists vs. what this plan adds
 
@@ -59,7 +61,7 @@ Three builds; the sanitizers do not usefully coexist.
   build *is* this: KASAN(inline) + UBSAN + `DMA_API_DEBUG(_SG)` + `DEBUG_SG` +
   `DEBUG_LIST` + lockdep (`PROVE_LOCKING`) + `DEBUG_ATOMIC_SLEEP` +
   `PAGE_OWNER`/`PAGE_POISONING`, with ramoops so an IOMMU-fault oops survives the
-  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 246 unit
+  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 248 unit
   cases run under KASAN as the very first gate. Add `FAULT_INJECTION` +
   `FAILSLAB` + `FAIL_PAGE_ALLOC` + `FAULT_INJECTION_USERCOPY` +
   `FUNCTION_ERROR_INJECTION` for §4. The device-free preflight is
@@ -641,7 +643,7 @@ booted sanitizer/fault-injection evidence.
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 246 KUnit cases green **under KASAN** (94 MPP + 152 RGA), persisted from the
+1. 248 KUnit cases green **under KASAN** (96 MPP + 152 RGA), persisted from the
    booted suites by `tests/rewrite-kunit-log-check.sh`; hardware-in-the-loop
    kselftests added (the KUnit cases themselves never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —
