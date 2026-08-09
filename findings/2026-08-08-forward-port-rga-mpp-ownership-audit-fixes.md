@@ -62,6 +62,24 @@ cross-subsystem locking/refcount behavior. The first reviews found additional
 reachable lifetime and ordering gaps; the repair/re-review cycle ended with
 clean verdicts from both final reviewers.
 
+## Source package evidence
+
+The exact `0001`–`0096` tip is exported as signed source package
+`linux-rockchip64-ysp_6.18.43+rk3588av1fwport20260808-0ubuntu1~rk1`.
+Dedicated-lane staging applied all 96 patches, retained stamp
+`7698e7018e3d`, matched the forward-port IOMMU implementation, and rejected
+rewrite-driver paths. A fresh `.dsc` extraction reports Linux 6.18.43, carries
+the production config, and byte-matches all 19 files changed by `0095`–`0096`
+against the maintained tip. `dscverify --nosigcheck` validates the source
+payloads, and direct GPG verification passes for the signed `.dsc`,
+`.buildinfo`, and source `.changes`.
+
+`dput` completed client-side transfer of all five source artifacts to the
+normal PPA at 17:45 PDT. The package record owns the exact artifact hashes and
+upload marker. Launchpad acceptance, build, and publication were deliberately
+left unclaimed because the API had not exposed the version immediately after
+transfer.
+
 ## Why the rewrite fix remains different
 
 The rewrite already canonicalizes direct-fd aliases by `struct dma_buf *` and
@@ -73,7 +91,8 @@ The full rewrite design and its pending proof are in the
 
 ## Verification gate
 
-Package, install, and boot exact `0001`–`0096` with a recovery kernel retained.
+Confirm Launchpad accepts, builds, and publishes exact `0001`–`0096`, then
+install and boot it with a recovery kernel retained.
 First pass the original three RGA2-only librga failures. Then force both a
 below-limit high-memory alias whose direct SWIOTLB map would have succeeded and
 an oversized high-memory DMA-BUF; require correct producer/consumer content,
@@ -88,8 +107,10 @@ KASAN/lockdep and require clean kernel logs, counters, fences, and recovery.
 
 ## Boundary
 
-This tail is source-, style-, compile-, and independent-review verified only.
-It is not packaged, installed, booted, sanitizer-tested, or runtime-verified.
+This tail is source-, style-, compile-, independent-review-, and signed-source-
+package verified. Client-side `dput` transfer is complete; Launchpad
+acceptance/build/publication is unverified. It is not installed, booted,
+sanitizer-tested, or runtime-verified.
 The installed 6.18.43 package still ends at `0092` and retains its recorded
 librga failure. CPU-inaccessible/secure exporters, raw high physical memory,
 and buffers beyond the staging limits remain deliberately unsupported on

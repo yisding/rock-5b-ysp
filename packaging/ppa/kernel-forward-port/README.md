@@ -3,7 +3,40 @@
 This directory owns the source-package path for the co-installable ROCK 5B
 forward-port kernel.
 
-**Published 2026-08-07 (candidate):** `6.18.43+rk3588av1fwport20260807-0ubuntu1~rk1`
+**Uploaded 2026-08-08 (Launchpad processing unverified):**
+`6.18.43+rk3588av1fwport20260808-0ubuntu1~rk1` — the complete
+`0001`–`0096` production forward-port tip `7698e7018e3d5`. The dedicated PPA
+lane applied all 96 patches after Armbian build input `7b923c78b50d` selected
+Linux 6.18.43, retained source stamp `7698e7018e3d`, matched the maintained
+forward-port IOMMU implementation, and contained zero `*-rewrite` paths.
+
+The generated `.dsc` passed `dscverify --nosigcheck` and extracted cleanly.
+The extracted source reports Linux 6.18.43; all 19 files changed by patches
+`0095`–`0096` are byte-identical to `7698e7018e3d5`; and the packaged config
+keeps `CONFIG_ROCKCHIP_MPP_SERVICE=y` and `CONFIG_ROCKCHIP_MULTI_RGA=y` while
+leaving the rewrite drivers, KASAN, KCSAN, `PROVE_LOCKING`, and
+`DMABUF_DEBUG` off. Direct GPG verification reports good signatures on the
+`.dsc`, `.buildinfo`, and source `.changes` from
+`0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`. Final signed-artifact SHA-256
+values are:
+
+- orig: `ec9c79ba6fdedd926c2d47916ca01a8cd0b919ceb578e4060990fdfa43b68e2e`;
+- Debian tar: `5b5227f53c4d878d8408bf33e066ee69ec80c52589fc86fb77ec20eb68e3fd5c`;
+- `.dsc`: `b041513da6405c5a753faff8914ba4ea9058fffaffacd2ca81f2296c326a00e4`;
+- `.buildinfo`: `88dfb9cd50dcb73b82292c7f46f676a8977bf0c2591a4f74dc12b6e86241f6b5`;
+- source `.changes`: `ca33abfc6d1dce4658fa69eea8f2b1927143cf464f47becc5044737a346b4173`.
+
+`dput` passed its suite, field, checksum, and GPG gates and transferred all
+five source artifacts to `ppa:yi-ding/ubuntu-rock-5b` at 17:45 PDT, writing
+`linux-rockchip64-ysp_6.18.43+rk3588av1fwport20260808-0ubuntu1~rk1_source.ppa.upload`
+(SHA-256
+`5675dc61aa1eb5f04407558b842b85fceded3dde984c6ec7d997a92a6a4d29ba`).
+Launchpad's API had not exposed this exact version when checked immediately
+after transfer. That means client-side upload is proven; archive acceptance,
+source publication, arm64 build, binary publication, install, boot, and
+hardware validation are not.
+
+**Previous Published 2026-08-07 candidate:** `6.18.43+rk3588av1fwport20260807-0ubuntu1~rk1`
 — the unchanged `0001`–`0092` production forward-port tip `7d53bc7a3adc`
 rebased by Armbian onto Linux 6.18.43. Dedicated-lane patch-only staging
 matched the production tree's IOMMU implementation and found zero
@@ -28,8 +61,9 @@ then stopped at three RGA2-only large-USERPTR librga failures. Successor source
 patch `0093` fixes driver-owned USERPTR segment sizing, while `0095` supersedes
 `0094` with all-high alias-safe DMA32 staging and RGA ownership repairs;
 `0096` closes MPP/provider ownership and disables hard-CCU selection. The
-`0093`–`0096` tail is compile/review-verified, but is not in a packaged,
-published, or booted successor; see the
+`0093`–`0096` tail is compile/review-verified and is now in the signed,
+client-uploaded `20260808` successor described above; Launchpad publication
+and boot remain unverified. See the
 [USERPTR finding](../../../findings/2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md)
 and [ownership audit finding](../../../findings/2026-08-08-forward-port-rga-mpp-ownership-audit-fixes.md).
 
@@ -228,7 +262,7 @@ The package remains conservative and recovery-friendly:
 | Binary packages | Co-installable names first: `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and `linux-headers-ysp-rockchip64`. A later drop-in package can replace `linux-image-current-rockchip64` after boot/revert testing. |
 | Architecture | `arm64` only. |
 | Kernel variant | Armbian `rockchip64-current` 6.18 worktree with the self-contained-DT RK3588 MPP/RGA/AV1/IEP2 forward port applied. The older convert-in-place combined kernel can use the same source-package shape later if needed. |
-| Upload state | Candidate `6.18.43` source and all three arm64 binaries are Published, installed, and booted; its functional qualification is partial because conformance stops at the RGA2 USERPTR failure. Source patches `0093`–`0096` are compile/review-verified only and have no package publication. The broader 6.18.42 campaign remains the fully integrated hardware baseline. |
+| Upload state | Successor `20260808` source carrying `0093`–`0096` is signed and `dput`-transferred, but Launchpad acceptance/build/publication is unverified. Previous `20260807` source and all three arm64 binaries are Published, installed, and booted; its functional qualification is partial because conformance stops at the RGA2 USERPTR failure. The broader 6.18.42 campaign remains the fully integrated hardware baseline. |
 
 ## Source Inputs
 
@@ -479,21 +513,27 @@ commands are operator-validated.
 > the forward-port tree and rejects paths or shared-file symbols that the
 > selected forward-port tree does not own before export.
 
-**State as of 2026-08-08.** The unchanged `0001`–`0092` source at
+**State as of 2026-08-08.** Exact `0001`–`0096` source
+`7698e7018e3d5` is packaged as
+`6.18.43+rk3588av1fwport20260808-0ubuntu1~rk1`, signed, checksum- and
+extraction-verified, and transferred to the normal PPA with `dput`. Launchpad
+acceptance, build, and publication have not been verified, and this successor
+has not been installed or booted. The previous unchanged `0001`–`0092` source at
 `7d53bc7a3adc` is Published on the 6.18.43 base as source publication
 `18661703`; remote arm64 build `33477272` succeeded and all three binaries are
 Published. Those packages are installed and booted as
 `6.18.43-ysp-rockchip64`; after correcting `/boot/dtb` to the matching YSP set,
 the production runner passed identity, ABI, and MPP, then stopped at three
-RGA2-only official librga failures. Source `7698e7018e3d5` / `0001`–`0096`
+RGA2-only official librga failures. The `0096` successor
 repairs driver-owned USERPTR SG sizing, all-high alias-safe DMA-BUF service,
-RGA/MPP lifetime, provider admission, and soft-CCU fallback. The tail is strict-
-checkpatch, compile, and independent-review verified, but has no package or
-runtime proof. The exact 6.18.42 campaign
+RGA/MPP lifetime, provider admission, and soft-CCU fallback. It is strict-
+checkpatch, compile, independent-review, and source-package verified, but has
+no archive-build or runtime proof. The exact 6.18.42 campaign
 remains the broader integrated evidence baseline: its functional/recovery
 verdict is green, with the decode fd-span oracle explicitly non-green.
 
-1. Package, install, and boot exact `0096`; pass the three focused RGA2 USERPTR
+1. Confirm Launchpad accepts, builds, and publishes exact `0096`, then install
+   and boot it; pass the three focused RGA2 USERPTR
    samples, force successful-bounce and oversized high DMA-BUF alias/staging
    paths, confirm hard-CCU fallback, and then run full production conformance.
 2. Build the exact current tail under KASAN/lockdep and pass the RGA

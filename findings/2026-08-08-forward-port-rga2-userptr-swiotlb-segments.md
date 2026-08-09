@@ -79,12 +79,16 @@ source at the exact commit compiled
 `drivers/video/rockchip/rga3/rga_mm.o` with the central ccache; the object
 SHA-256 is
 `b1d2fb072b6900f186999beff3c74e61ede4d48496e55a9dfd39bf62ca4d60c2`.
-No installed kernel contains this fix yet.
+The fix is included in the signed `0001`–`0096` source package
+`6.18.43+rk3588av1fwport20260808-0ubuntu1~rk1`, whose client-side `dput`
+transfer completed. No installed kernel contains this fix yet.
 
 ## Boundary
 
 The measured failure belongs to the published/installed `0001`-`0092`
-package; the `0093` repair has source, style, and focused-compile proof only.
+package; the `0093` repair has source, style, focused-compile, and signed
+source-package proof as part of `0001`–`0096`. Launchpad acceptance/build and
+all runtime proof remain unverified.
 Splitting entries removes the per-entry ceiling but does not make the total
 SWIOTLB pool unlimited. Concurrent workloads can still exhaust it and must
 continue to fail cleanly. This production boot provides no KASAN or lockdep
@@ -92,8 +96,9 @@ evidence.
 
 ## Verification gate
 
-Build, package, install, and boot the production forward port at exact commit
-`b54ba6079824b`, retaining a recovery kernel and verifying the YSP DTB link.
+Confirm the uploaded production source is accepted, built, and published at
+exact tip `7698e7018e3d5`; install and boot it while retaining a recovery
+kernel and verifying the YSP DTB link.
 First rerun the three failing official samples as required and demand three
 passes, no new `swiotlb buffer is full` or RGA2 map-failure lines, and a clean
 kernel-log interval. Then rerun the complete production conformance matrix so
