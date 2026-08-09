@@ -92,6 +92,7 @@ MPP_RESET_DOMAIN_STATE_WRITE_RE = re.compile(
 MPP_RESET_DOMAIN_PENDING_ACCESS_RE = re.compile(
     r"\breset_domain_operation_pending\b"
 )
+MPP_RESET_BACKEND_ACCESS_RE = re.compile(r"\b(?:backend_ops|backend_data)\b")
 MPP_CLUSTER_LIFECYCLE_RE = re.compile(
     r"\b(?:rk_mpp_cluster_(?:init|get_locked|register_member_locked|"
     r"unregister_member_locked)|rk_mpp_hw_init_cluster_locked|"
@@ -100,6 +101,10 @@ MPP_CLUSTER_LIFECYCLE_RE = re.compile(
 MPP_CLUSTER_TOPOLOGY_ENTRY_RE = re.compile(
     r"\brk_mpp_cluster_(?:rebuild_locked|"
     r"contains_published_view_locked|dma_group_count_locked)\s*\("
+)
+MPP_CLUSTER_RESET_ENTRY_RE = re.compile(
+    r"\b(?:rk_mpp_cluster_(?:reset_group|reset_valid_locked)|"
+    r"rk_mpp_rkvdec2_poll_reset_bus_idle)\s*\("
 )
 MPP_CLUSTER_BINDING_RE = re.compile(
     rf"(?:\b(?:cluster_link|cluster_count|clusters)\b|"
@@ -113,7 +118,9 @@ MPP_CLUSTER_REGISTRY_ACCESS_RE = re.compile(
     rf"{MPP_CLUSTER_OBJECT_TARGET}(?:node|members|coordinator|reset_domain|"
     r"member_type|member_count|core_count)\b"
 )
-MPP_CLUSTER_POINTER_WRITE_RE = field_write_re(r"cluster|cluster_link")
+MPP_CLUSTER_POINTER_WRITE_RE = field_write_re(
+    r"cluster|cluster_link", target=POINTER_FIELD_TARGET
+)
 MPP_CLUSTER_COUNT_WRITE_RE = field_write_re(r"cluster_count")
 MPP_CLUSTER_REGISTRY_WRITE_RE = field_write_re(
     r"node|coordinator|reset_domain|member_type|member_count|core_count",
@@ -500,12 +507,20 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                                 MPP_RESET_DOMAIN_PENDING_ACCESS_RE,
                             ),
                             (
+                                "mpp-reset-backend-access",
+                                MPP_RESET_BACKEND_ACCESS_RE,
+                            ),
+                            (
                                 "mpp-cluster-lifecycle-entry",
                                 MPP_CLUSTER_LIFECYCLE_RE,
                             ),
                             (
                                 "mpp-cluster-topology-entry",
                                 MPP_CLUSTER_TOPOLOGY_ENTRY_RE,
+                            ),
+                            (
+                                "mpp-cluster-reset-entry",
+                                MPP_CLUSTER_RESET_ENTRY_RE,
                             ),
                             (
                                 "mpp-cluster-binding-access",

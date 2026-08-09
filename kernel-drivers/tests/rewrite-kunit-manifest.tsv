@@ -99,8 +99,9 @@ rk_mpp_rewrite	93	rk_mpp_file_release_public_cleanup_kunit
 rk_mpp_rewrite	94	rk_mpp_debug_event_ring_kunit
 rk_mpp_rewrite	95	rk_mpp_cluster_registry_kunit
 rk_mpp_rewrite	96	rk_mpp_cluster_membership_kunit
-rk_mpp_rewrite	97	rk_mpp_reset_domain_registry_kunit
-rk_mpp_rewrite	98	rk_mpp_reset_domain_state_kunit
+rk_mpp_rewrite	97	rk_mpp_cluster_reset_group_kunit
+rk_mpp_rewrite	98	rk_mpp_reset_domain_registry_kunit
+rk_mpp_rewrite	99	rk_mpp_reset_domain_state_kunit
 rockchip-rga-rewrite	1	rk_rga2_decode_transform_kunit
 rockchip-rga-rewrite	2	rk_rga3_rotate_flags_kunit
 rockchip-rga-rewrite	3	rk_rga2_dst_corner_kunit

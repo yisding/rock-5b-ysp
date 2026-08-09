@@ -18,9 +18,9 @@ The priority is **ownership before convention**:
 4. postpone broad file moves, naming cleanup, and test rationalization until
    the ownership graph has stopped changing.
 
-> **Status — 2026-08-08:** Phase 1 is source-complete and Phase 2 checkpoints 1
-> and 2 are implemented at `rk3588-rewrite-6.18@e854cacd64c21` and
-> `rk3588-rewrite-mainline@130fb983eeaf3`. Their tracked
+> **Status — 2026-08-08:** Phase 1 is source-complete and Phase 2 checkpoints
+> 1–3 are implemented at `rk3588-rewrite-6.18@e41bdb50a9ab7` and
+> `rk3588-rewrite-mainline@1c91ffc853f7a`. Their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. Phase 1 funnels reset
 > backends, both active slots, RKVDEC dispatch and power leases,
 > publication/start, MPP outcome publication, and RGA execution-map retirement;
@@ -28,15 +28,16 @@ The priority is **ownership before convention**:
 > replaces the reset-domain mutex pointer with a stable service-owned
 > identity/member object and routes complete single-target power deassert and
 > recovery pulses through its state and nonzero epoch. A service-owned
-> `rk_mpp_cluster` now records read-only member topology, a borrowed
+> `rk_mpp_cluster` records member topology, a borrowed
 > coordinator, singular construction reset authority, and derived DMA-group
-> count without replacing any admission, power, reset, or recovery consumer.
-> The 744-signal source-pinned production audit freezes both reset-domain and
-> cluster construction seams; the KUnit-debt audit remains 306 signals, and the
-> manifest is 98 MPP plus 152 RGA cases. The hard-CCU group pulse remains
-> deliberately legacy until the cluster validates its existing reference-pinned
-> participant set. There is still no `rk_mpp_activation`, `rk_rga_task_exec`,
-> or `rk_rga_acquire_set`.
+> count. The existing hard-CCU participant pulse now validates its already
+> reference-pinned coordinator/cores through that view and records the entire
+> physical sequence as one non-interleavable reset-domain epoch; admission and
+> group power remain unchanged. The 766-signal source-pinned production audit
+> freezes the reset-domain, cluster construction, and group-reset seams; the
+> KUnit-debt audit remains 306 signals, and the manifest is 99 MPP plus 152 RGA
+> cases. There is still no `rk_mpp_activation`, `rk_rga_task_exec`, or
+> `rk_rga_acquire_set`.
 >
 > The predecessor Phase 1 source `ab69ece998642` is packaged as inspected
 > `rewrite-debug` package P692f with stamp `(gab69ece99864)`, but it remains
@@ -133,19 +134,18 @@ reinterpret raw geometry.
 | Current object | Useful ownership already present | State that is still at the wrong altitude |
 |---|---|---|
 | `rk_mpp_service` | hardware registry, scheduler queue, diagnostics, reset-domain and shadow-cluster registries | DMA groups, DCHS global state, and topology are recorded but not yet composed into admission/recovery ownership |
-| `rk_mpp_reset_domain` | stable node identity, member lifetime, mutex, single-target state/epoch, and complete power-deassert/recovery-pulse methods | the hard-CCU group pulse still uses the backend leaves directly; no cluster result, IRQ lease, or admission authority consumes the epoch |
-| `rk_mpp_cluster` | stable CCU identity, unbounded member lifetime, borrowed coordinator, core/type summary, singular construction reset authority, and derived DMA relationship count | no production admission, power, reset, recovery, quarantine, or IOMMU consumer uses this shadow view yet |
+| `rk_mpp_reset_domain` | stable node identity, member lifetime, mutex, single-target operations, and one cluster-validated epoch for each hard-CCU group pulse | no typed reset-effect result, IRQ lease, quarantine, or re-admission authority consumes the epoch |
+| `rk_mpp_cluster` | stable CCU identity, unbounded member lifetime, borrowed coordinator, core/type summary, singular reset authority, derived DMA relationship count, and hard-CCU reset-participant validation | group power, descriptor admission, IOMMU recovery, quarantine, and job/link lifetime remain outside cluster ownership |
 | `rk_mpp_dma_group` | IOMMU group, normal/isolation domains, member list, terminal isolation | no refresh epoch or explicit relation to the CCU/reset group whose recovery requires it |
 | `rk_mpp_hw` | private MMIO, clocks, IRQ, queue and active slot | also acts as coordinator, reset client, group-recovery participant, timeout owner, and IOMMU-fault owner |
 | `rk_mpp_job` | accepted message set, retained imports, selected hardware and result | also carries group power references, CCU membership, mutable register image, slice state, activation timing, and backend recovery state |
 
-The current reset-domain and cluster objects prove their construction
-boundaries, not that the migration is finished. `rk_mpp_hw_power_on()` and
-`rk_mpp_hw_reset_active()` invoke complete domain operations, while hard-CCU
-coordinator stop still uses the contained reset leaves under its older lock set.
-The source audit freezes that intentional exception until the cluster reset
-checkpoint can validate the already pinned participant set and migrate the
-whole pulse atomically.
+The current reset-domain and cluster objects prove reset transaction ownership,
+not that the whole cluster migration is finished. `rk_mpp_hw_power_on()` and
+`rk_mpp_hw_reset_active()` invoke complete single-target operations, while
+hard-CCU coordinator stop validates its existing participant snapshot and owns
+one group epoch. The job still carries the coordinator/powered-core leases, and
+no reset effect is coupled to IOMMU refresh or re-admission yet.
 
 ### RGA
 
@@ -693,12 +693,18 @@ topology.
 Checkpoint 2 is present at `e854cacd64c21` / `130fb983eeaf3`: the service now
 constructs a stable, read-only cluster membership view after reset/DMA/core
 validation and retains it through hardware drain. This completes the
-construction portion of item 2 only. Existing list walks and all admission,
-power, reset, IOMMU, abort, and recovery decisions remain unchanged. The next
-checkpoint is the hard-CCU participant pulse: validate the current
-reference-pinned coordinator/targets through their cluster and common reset
-domain, then perform one non-interleavable group transaction without discovering
-participants through the topology list.
+construction portion of item 2 only. At that checkpoint, existing list walks
+and all admission, power, reset, IOMMU, abort, and recovery decisions remained
+unchanged; it supplied the topology boundary consumed by checkpoint 3 below.
+
+Checkpoint 3 is present at `e41bdb50a9ab7` / `1c91ffc853f7a`: force-stop keeps
+the old participant selection and physical line order but performs it through
+one cluster-validated reset-domain transaction and one epoch. Topology mismatch
+refuses before any reset write; an injectable backend test proves success,
+partial failure, balance, and exact order. Failure callbacks deliberately run
+after the complete physical pulse and outside the innermost domain mutex. The
+next checkpoint is item 3's mechanical cluster power lease; descriptor
+admission and the reset/IOMMU recovery result remain separate later changes.
 
 Acceptance requires more than KUnit: repeat the reset-contention gate with both
 cores resetting; normal single- and multi-stream decode; kill/close/reset

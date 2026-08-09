@@ -195,6 +195,8 @@ owns the public verdict.
 
 | Snapshot | Pin and base | Historical relationships |
 |----------|--------------|--------------------------|
+| 6.18 rewrite Phase 2 hard-CCU reset ownership, 2026-08-08 | `rk3588-rewrite-6.18@e41bdb50a9ab7` on `v6.18.42@856a9b51680c` | Shadow-cluster tip `e854cacd64c21`; makes the retained participant pulse one cluster-validated reset epoch |
+| Mainline rewrite Phase 2 hard-CCU reset ownership, 2026-08-08 | `rk3588-rewrite-mainline@1c91ffc853f7a` on `v7.2-rc6@075b74841bd0` | Shadow-cluster tip `130fb983eeaf3`; byte-identical MPP group-reset ownership |
 | 6.18 rewrite Phase 2 shadow-cluster construction, 2026-08-08 | `rk3588-rewrite-6.18@e854cacd64c21` on `v6.18.42@856a9b51680c` | Reset-domain tip `53a7fa1acbc00`; adds read-only cluster membership/diagnostics without changing admission or recovery |
 | Mainline rewrite Phase 2 shadow-cluster construction, 2026-08-08 | `rk3588-rewrite-mainline@130fb983eeaf3` on `v7.2-rc6@075b74841bd0` | Reset-domain tip `ba8e11de18a8e`; byte-identical MPP cluster construction |
 | 6.18 rewrite Phase 2 reset-domain construction, 2026-08-08 | `rk3588-rewrite-6.18@53a7fa1acbc00` on `v6.18.42@856a9b51680c` | Phase 1 tip `ab69ece998642`; adds stable reset-domain identity/membership and complete single-target operations |
@@ -206,8 +208,8 @@ owns the public verdict.
 | Upstream-style RGA3 comparison | `rk3588-rewrite-mainline@180ee72a9a80` | detailed in §9 |
 
 The two maintained Phase 2 snapshots have byte-identical tracked MPP/RGA
-rewrite sources, Kconfig, ABI ledgers, and UAPI. Their exact 98 MPP + 152 RGA
-manifest, 744-signal
+rewrite sources, Kconfig, ABI ledgers, and UAPI. Their exact 99 MPP + 152 RGA
+manifest, 766-signal
 production ownership inventory, and 306-signal KUnit-debt audit pass with zero
 new or absent signals. The older 2026-08-08 rows preserve pre-cluster and
 pre-refactor snapshots, while the 2026-08-06 rows remain historical pins rather

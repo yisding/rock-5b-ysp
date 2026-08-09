@@ -64,7 +64,7 @@ The principal objects are:
 | `rk_mpp_import` | fd translation | DMA-BUF, attachment, mapped scatterlist, device-specific IOVA |
 | `rk_mpp_job` | ioctl message collection | copied requests, register image, imports, selected hardware, result/readback, and current CCU/DCHS/power participation |
 | `rk_mpp_reset_domain` | first matching hardware probe | immutable node identity, member lifetime, mutex, single-target reset state/epoch, responsible hardware, and operation counters; the hard-CCU group pulse is not migrated yet |
-| `rk_mpp_cluster` | first matching CCU-identity probe | stable member topology, borrowed coordinator, learned core type, construction reset authority, and derived DMA relationship count; no execution path consumes it yet |
+| `rk_mpp_cluster` | first matching CCU-identity probe | stable member topology, borrowed coordinator, learned core type, reset authority, derived DMA relationship count, and validation of the hard-CCU reset participant snapshot |
 | `rk_mpp_dma_group` | hardware probe | IOMMU group, original DMA domain, preallocated empty isolation domain |
 
 The important reference direction is:
@@ -81,9 +81,9 @@ needed by an accepted job.
 
 This is the as-built graph. The broad `rk_mpp_job` and `rk_mpp_hw` objects
 still carry state that belongs to one admitted hardware activation or to the
-whole decoder cluster. `rk_mpp_cluster` currently constructs and validates a
-shadow topology only; it does not own admission, power, reset, IOMMU recovery,
-or quarantine. The proposed `rk_mpp_activation` in the
+whole decoder cluster. `rk_mpp_cluster` currently constructs topology and owns
+validation for one hard-CCU reset-domain pulse; it does not own admission,
+group power, IOMMU recovery, or quarantine. The proposed `rk_mpp_activation` in the
 [ownership-refactor plan](../rewrite-ownership-refactor-plan.md) does not yet
 exist.
 

@@ -2632,9 +2632,11 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\tdomain->node = node;\n"
             "\tdomain->reset_domain_state = RK_MPP_RESET_DOMAIN_IDLE;\n"
             "\tatomic_read(&domain->reset_domain_operation_pending);\n"
+            "\tdomain->backend_ops->assert(domain, hw);\n"
             "\trk_mpp_cluster_register_member_locked(cluster, hw);\n"
             "\trk_mpp_hw_init_cluster_locked(hw);\n"
             "\trk_mpp_cluster_rebuild_locked(cluster);\n"
+            "\trk_mpp_cluster_reset_group(&request, &result);\n"
             "\thw->cluster = cluster;\n"
             "\tcluster->node = node;\n"
             "\tINIT_LIST_HEAD(&cluster->members);\n"
@@ -2764,8 +2766,10 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("mpp-reset-domain-registry-access", baseline_text)
             self.assertIn("mpp-reset-domain-state-write", baseline_text)
             self.assertIn("mpp-reset-domain-pending-access", baseline_text)
+            self.assertIn("mpp-reset-backend-access", baseline_text)
             self.assertIn("mpp-cluster-lifecycle-entry", baseline_text)
             self.assertIn("mpp-cluster-topology-entry", baseline_text)
+            self.assertIn("mpp-cluster-reset-entry", baseline_text)
             self.assertIn("mpp-cluster-binding-access", baseline_text)
             self.assertIn("mpp-cluster-registry-access", baseline_text)
             self.assertIn("mpp-cluster-state-write", baseline_text)
@@ -2873,7 +2877,10 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\trk_mpp_cluster_unregister_member_locked(hw);\n"
                     "\trk_mpp_cluster_get_locked(srv, node, &added);\n"
                     "\trk_mpp_cluster_dma_group_count_locked(cluster);\n"
+                    "\trk_mpp_cluster_reset_valid_locked(domain, &request);\n"
+                    "\tdomain->backend_ops->deassert(domain, hw);\n"
                     "\thws[0]->cluster = cluster;\n"
+                    "\trequest.cluster = cluster;\n"
                     "\tclusters[0].member_count++;\n"
                     "\tlist_add_tail(&hw->cluster_link,\n"
                     "\t\t      &clusters[0].members);\n"
@@ -2952,8 +2959,10 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn(
                 "NEW\tmpp-reset-domain-pending-access", changed.stderr
             )
+            self.assertIn("NEW\tmpp-reset-backend-access", changed.stderr)
             self.assertIn("NEW\tmpp-cluster-lifecycle-entry", changed.stderr)
             self.assertIn("NEW\tmpp-cluster-topology-entry", changed.stderr)
+            self.assertIn("NEW\tmpp-cluster-reset-entry", changed.stderr)
             self.assertIn("NEW\tmpp-cluster-binding-access", changed.stderr)
             self.assertIn("NEW\tmpp-cluster-registry-access", changed.stderr)
             self.assertIn("NEW\tmpp-cluster-state-write", changed.stderr)
@@ -3028,6 +3037,14 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                 (
                     "mpp-cluster-topology-entry",
                     "rk_mpp_cluster_dma_group_count_locked",
+                ),
+                (
+                    "mpp-cluster-reset-entry",
+                    "rk_mpp_cluster_reset_valid_locked",
+                ),
+                (
+                    "mpp-reset-backend-access",
+                    "backend_ops->deassert",
                 ),
                 ("mpp-cluster-state-write", "hws[0]->cluster = cluster"),
                 (
