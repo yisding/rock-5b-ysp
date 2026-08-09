@@ -9,7 +9,7 @@ qualification verdict and next proof belong to
 and definition of done.
 
 > **Framing.** The targeted userspace surface is code-complete and has MPP
-> **101 KUnit cases** plus RGA **152 KUnit cases** (**253 total**). Exact green
+> **102 KUnit cases** plus RGA **152 KUnit cases** (**254 total**). Exact green
 > booted KTAP is the first qualification rung, not the finish line. These tests
 > are primarily **logic/lifecycle evidence**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
@@ -21,15 +21,15 @@ and definition of done.
 > counts into this plan; follow the status row into the dated finding and
 > correlated run artifacts.
 
-> **Current source boundary (2026-08-08):** maintained Phase 2 tips
-> `43fca8a3d80cf` / `91bac563e4a5d` pass warning-fatal KUnit-enabled MPP object
-> builds, the 1086-signal production ownership audit, and the unchanged
-> 306-signal KUnit-debt audit. The preceding reset-domain tips
-> `53a7fa1acbc00` / `ba8e11de18a8e` pass the complete clean-archive `normal`,
-> `test-disabled`, KASAN/fault-injection `memory`, and KCSAN/lockdep `race`
-> profiles. Predecessor 6.18 `19634f4eebba` passes exact
+> **Current source boundary (2026-08-09):** maintained Phase 3A tips
+> `7548afe6a8b1b` / `af89363ffa5ed` embed the current-attempt generation and
+> absolute watchdog deadline without changing the job-pointer active slot or
+> terminal behavior. They pass the 1220-signal production ownership audit, the
+> unchanged 306-signal KUnit-debt audit, and the complete warning-fatal
+> clean-archive `normal`, `test-disabled`, KASAN/fault-injection `memory`, and
+> KCSAN/lockdep `race` build profiles. Predecessor 6.18 `19634f4eebba` passes exact
 > 92+152 booted KUnit and 12/12 official MPP, but its librga run exposed defects
-> fixed only at later tips. No current-tip Phase 2 source has booted. The source
+> fixed only at later tips. No current-tip Phase 2 or Phase 3A source has booted. The source
 > contains the separate VPU981 AV1 backend, but no rewrite AV1 kernel has passed
 > a hardware qualification rung.
 
@@ -40,7 +40,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 
 | Capability | Status in repo | This plan |
 |---|---|---|
-| Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) provides `normal`, `test-disabled`, `memory` (KASAN/fault-injection), and `race` (KCSAN/lockdep) focused object-build profiles, opt-in-default config proof, fixture-debt audit, and ABI mutation check. At the current tips only `normal` and the audit were rerun. | reuse as the pre-merge gate; run the complete profile matrix for handoff, and remember sanitizer profiles are compile coverage only |
+| Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) provides `normal`, `test-disabled`, `memory` (KASAN/fault-injection), and `race` (KCSAN/lockdep) focused object-build profiles, opt-in-default config proof, fixture-debt audit, and ABI mutation check. All four profiles pass both exact Phase 3A tips. | reuse as the pre-merge gate; run the complete profile matrix for handoff, and remember sanitizer profiles are compile coverage only |
 | Non-submit ABI probe + log diff | ✅ [`kernel-drivers/tests/abi-probe.sh`](../tests/abi-probe.sh), [`kernel-drivers/tests/abi-replay.sh`](../tests/abi-replay.sh), including optional dma-heap-backed MPP translate/release, RGA dma-buf import/release, and raw RGA physical-address import observation with an opt-in rewrite reject assertion | reuse; extend to bit-exact output (below) |
 | Consumer conformance (MPP / librga / GStreamer / FFmpeg) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/conformance.md`](../tests/conformance.md), including the target × configuration catalog and opt-in GStreamer display/KMS-capture, AV1, legacy advertised-decode, sanitizer, and race cases; `run-conformance.sh --validate` also validates MPP/GStreamer case builders, FFmpeg case-list wiring, the direct `librga-smoke.cpp` source, comparators, and evidence-audit rejection paths | reuse; wire the pass/fail gate |
 | Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode, FFmpeg transcode, MPP official-test media outputs, and the maintained direct RGA smoke paths, including RKNN/RKNPU-style preprocessing plus AFBC16x16 and tile8x8 round-trips, now have `artifacts.tsv` byte-count/SHA-256 comparison paths; broad official librga sample binaries still mostly report pass/fail/timing | extend artifact capture only where official sample outputs matter for remaining gaps |

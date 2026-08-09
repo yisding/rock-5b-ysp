@@ -92,10 +92,13 @@ participants' DMA groups and refreshes each once before resend; terminal
 isolation reports quiesced without reuse. The
 cluster-validated power lease owns member-core holds, but remains temporarily
 attached to a legacy job; the cluster does not own admission, coordinator
-per-job power, descriptor admission, or quarantine. The
-proposed `rk_mpp_activation` in the
-[ownership-refactor plan](../rewrite-ownership-refactor-plan.md) does not yet
-exist.
+per-job power, descriptor admission, or quarantine. Phase 3A now embeds
+`rk_mpp_activation` in the job as the source of truth for the current assigned
+generation and absolute watchdog deadline. It is not yet the active-slot type
+or a retained transition object: selected hardware, cluster/link/DCHS and
+power/dispatch leases, reason snapshots, and terminal ownership still reside
+in the legacy job/hardware graph, and hard-CCU retry overwrites the embedded
+record in place.
 
 ### 3.2 Session lifecycle
 
@@ -272,8 +275,10 @@ Each core has one `active_job`. Publication is protected by `hw->lock`, a
 spinlock visible to hard IRQ context. `hw->run_lock` serializes process-context
 start, completion, timeout recovery, abort, and removal.
 
-Every activation increments `active_generation`. Timeout and IOMMU-fault paths
-capture that generation and act only if all of these still match:
+`rk_mpp_hw` owns a monotonic `activation_generation_seq` allocator. Installing
+the job slot assigns the next nonzero value to the embedded activation under
+`hw->lock`; timeout and IOMMU-fault paths capture that value and act only if all
+of these still match:
 
 ```text
 same hardware
@@ -292,6 +297,14 @@ timer A finally runs
 ```
 
 Without a generation check, timer A could reset job B.
+
+The embedded activation also owns an absolute watchdog deadline plus an
+explicit validity bit. Canceling and restoring the timeout target for the same
+attempt preserves that deadline; installing a new current attempt clears it.
+The active and timeout slots still retain job pointers as compatibility
+adapters, and hard-CCU retry still replaces the embedded record rather than
+retaining a separate predecessor. Those are deliberate Phase 3A boundaries,
+not the final activation state machine.
 
 START publication also creates a bounded IRQ/register lease under
 `hw->regs_lock`. The lease records the live reset epoch and, for direct-core

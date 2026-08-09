@@ -2622,6 +2622,27 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
         mpp.write_text(
             "enum rk_mpp_debug_event_type { RK_MPP_DEBUG_DONE };\n"
             "struct rk_mpp_debug_event { u8 type; };\n"
+            "struct rk_mpp_activation {\n"
+            "\tstruct rk_mpp_job *job;\n"
+            "\tu64 generation;\n"
+            "\tunsigned long watchdog_deadline;\n"
+            "\tbool watchdog_deadline_valid;\n"
+            "};\n"
+            "static void rk_mpp_activation_install_locked(\n"
+            "\t\tstruct rk_mpp_hw *hw, struct rk_mpp_job *job,\n"
+            "\t\tu64 generation)\n"
+            "{\n"
+            "\tjob->activation.job = job;\n"
+            "\tjob->activation.generation = generation;\n"
+            "\tjob->activation.watchdog_deadline = 0;\n"
+            "\tjob->activation.watchdog_deadline_valid = false;\n"
+            "}\n"
+            "static u64 rk_mpp_hw_advance_active_generation_locked(\n"
+            "\t\tstruct rk_mpp_hw *hw)\n"
+            "{\n"
+            "\thw->activation_generation_seq++;\n"
+            "\treturn hw->activation_generation_seq;\n"
+            "}\n"
             "static void mpp_paths(struct rk_mpp_hw *hw, struct rk_mpp_job *job)\n"
             "{\n"
             "\treset_control_assert(hw->resets);\n"
@@ -2648,6 +2669,9 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\trk_mpp_hw_publish_register_lease(hw, 1);\n"
             "\thw->register_lease_live = true;\n"
             "\thw->active_job = job;\n"
+            "\trk_mpp_activation_init(job);\n"
+            "\trk_mpp_activation_install_locked(hw, job, 1);\n"
+            "\tif (job->activation.generation) job = NULL;\n"
             "\tjob->rkvdec_session_dispatch = true;\n"
             "\tjob->rkvdec_ccu_power_lease = lease;\n"
             "\tlease->power_lease_core_count = 1;\n"
@@ -2689,6 +2713,8 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\thw->iommu_fault_generation = 99;\n"
             "\thw->terminally_stopped = true;\n"
             "\thw->timeout_generation = 99;\n"
+            "\tjob->activation.generation = 99;\n"
+            "\tjob->activation.watchdog_deadline_valid = true;\n"
             "\tjob->hw_elapsed_ns += 99;\n"
             "\trk_mpp_job_publish_outcome_locked(job, -EIO);\n"
             f"{extra_kunit}"
@@ -2774,6 +2800,11 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertEqual(updated.returncode, 0, updated.stderr)
             baseline_text = baseline.read_text(encoding="utf-8")
             self.assertIn("mpp-active-slot-access", baseline_text)
+            self.assertIn("mpp-activation-schema", baseline_text)
+            self.assertIn("mpp-activation-entry", baseline_text)
+            self.assertIn("mpp-activation-access", baseline_text)
+            self.assertIn("mpp-activation-write", baseline_text)
+            self.assertNotIn("job->activation.generation = 99", baseline_text)
             self.assertIn("mpp-reset-domain-operation-entry", baseline_text)
             self.assertIn("mpp-reset-domain-member-entry", baseline_text)
             self.assertIn("mpp-reset-domain-binding-access", baseline_text)
@@ -2946,7 +2977,7 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\thw->iommu_fault_pending = false;\n"
                     "\thw->terminal_power_drained = true;\n"
                     "\tfake.online = true;\n"
-                    "\thw->timeout_deadline_generation = 88;\n"
+                    "\tjob->activation.watchdog_deadline = 88;\n"
                     "\tjob->hw_start_ns = 88;\n"
                     "\trk_mpp_job_publish_outcome(job, -ECANCELED);\n"
                 ),
@@ -3153,7 +3184,7 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertNotIn("iommu_flush_iotlb_all", changed.stderr)
             self.assertNotIn("fake.result", changed.stderr)
             self.assertNotIn("irq_status = 88", changed.stderr)
-            self.assertNotIn("timeout_deadline_generation = 88", changed.stderr)
+            self.assertNotIn("activation.watchdog_deadline = 88", changed.stderr)
             self.assertNotIn("hw_start_ns = 88", changed.stderr)
             self.assertNotIn("job, -ECANCELED", changed.stderr)
             self.assertNotIn("iommu_fault_generation = 99", changed.stderr)
@@ -3170,6 +3201,85 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             wrong_head = self.run_audit(tree, baseline)
             self.assertEqual(wrong_head.returncode, 1)
             self.assertIn("source HEAD unknown is not pinned", wrong_head.stderr)
+
+    def test_activation_schema_and_nested_writes_are_guarded(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tree = root / "linux"
+            baseline = root / "baseline.tsv"
+            self.make_tree(tree)
+            updated = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(updated.returncode, 0, updated.stderr)
+
+            source = tree / "drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c"
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "\thw->activation_generation_seq++;\n",
+                    "\thw->activation_generation_seq++;\n"
+                    "\thw->activation_generation_seq ^= 1;\n",
+                ),
+                encoding="utf-8",
+            )
+            owner_delta = self.run_audit(tree, baseline)
+            self.assertEqual(owner_delta.returncode, 1)
+            self.assertIn("NEW\tmpp-activation-write", owner_delta.stderr)
+            self.assertIn("NEW\tmpp-active-slot-write", owner_delta.stderr)
+            self.assertIn("activation_generation_seq ^= 1", owner_delta.stderr)
+
+            self.make_tree(
+                tree,
+                extra_mpp=(
+                    "\tjobs[0]->activation.watchdog_deadline = 1;\n"
+                    "\txchg(&jobs[0]->activation.generation, 2);\n"
+                    "\tWRITE_ONCE((*job).activation."
+                    "watchdog_deadline_valid, true);\n"
+                    "\thws[0]->activation_generation_seq++;\n"
+                    "\tmemset(&job->activation, 0, "
+                    "sizeof(job->activation));\n"
+                    "\tjob->activation = replacement_activation;\n"
+                ),
+            )
+            rejected = self.run_audit(tree, baseline)
+            self.assertEqual(rejected.returncode, 2)
+            self.assertIn("OWNER\tmpp-activation-write", rejected.stderr)
+            self.assertIn("watchdog_deadline = 1", rejected.stderr)
+            self.assertIn("xchg(&jobs[0]->activation.generation", rejected.stderr)
+            self.assertIn("watchdog_deadline_valid", rejected.stderr)
+            self.assertIn("activation_generation_seq++", rejected.stderr)
+            self.assertIn("memset(&job->activation", rejected.stderr)
+            self.assertIn("job->activation = replacement_activation", rejected.stderr)
+
+            rebased = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(rebased.returncode, 2)
+            self.assertIn("written outside their owners", rebased.stderr)
+
+            self.make_tree(tree)
+            source.write_text(
+                source.read_text(encoding="utf-8")
+                + "static void rk_mpp_hw_schedule_timeout("
+                "struct rk_mpp_job *job)\n"
+                "{\n"
+                "\tjob->activation.generation = 3;\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            wrong_owner = self.run_audit(tree, baseline)
+            self.assertEqual(wrong_owner.returncode, 2)
+            self.assertIn("OWNER\tmpp-activation-write", wrong_owner.stderr)
+            self.assertIn("rk_mpp_hw_schedule_timeout", wrong_owner.stderr)
+            self.assertIn("activation.generation = 3", wrong_owner.stderr)
+
+            self.make_tree(tree)
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "bool watchdog_deadline_valid;",
+                    "u8 watchdog_deadline_valid;",
+                ),
+                encoding="utf-8",
+            )
+            schema_changed = self.run_audit(tree, baseline)
+            self.assertEqual(schema_changed.returncode, 1)
+            self.assertIn("NEW\tmpp-activation-schema", schema_changed.stderr)
 
     def test_whole_category_disappearance_fails_until_rebaselined(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

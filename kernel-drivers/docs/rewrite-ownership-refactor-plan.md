@@ -18,10 +18,10 @@ The priority is **ownership before convention**:
 4. postpone broad file moves, naming cleanup, and test rationalization until
    the ownership graph has stopped changing.
 
-> **Status — 2026-08-08:** Phase 1 is source-complete and all six Phase 2
-> source items are implemented through the IRQ/register epoch lease at
-> `rk3588-rewrite-6.18@ab9f6e2d2023f` and
-> `rk3588-rewrite-mainline@5890133da0c46`. Their tracked
+> **Status — 2026-08-09:** Phase 1 is source-complete, all six Phase 2
+> source items are implemented, and Phase 3A has embedded the first MPP
+> current-attempt record at `rk3588-rewrite-6.18@7548afe6a8b1b` and
+> `rk3588-rewrite-mainline@af89363ffa5ed`. Their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. Phase 1 funnels reset
 > backends, both active slots, RKVDEC dispatch and power leases,
 > publication/start, MPP outcome publication, and RGA execution-map retirement;
@@ -45,13 +45,18 @@ The priority is **ownership before convention**:
 > hard IRQ records its reset epoch and direct-core active generation, reset or
 > final register-power loss revokes it, and the IRQ thread refuses absent or
 > stale records. Coordinator per-job power and descriptor admission remain
-> unchanged. The 1186-signal source-pinned production audit freezes those IRQ
+> unchanged. Phase 3A moves the active generation and absolute watchdog
+> deadline out of `rk_mpp_hw` into an embedded `rk_mpp_activation`, while the
+> hardware slot and timeout target intentionally remain job-pointer adapters.
+> Hard-CCU retry still overwrites that embedded current-attempt record in place;
+> retained attempts, fresh retry objects, state transitions, and terminal
+> arbitration remain later Phase 3 work. The 1220-signal source-pinned
+> production audit freezes those activation, IRQ,
 > and recovery seams plus
 > the earlier reset-domain, cluster construction, group-reset, power-lease,
 > and CCU runtime seams; the KUnit-debt audit remains 306 signals, and the
-> manifest is 102 MPP plus 152 RGA cases. There is still no
-> `rk_mpp_activation`, `rk_rga_task_exec`, or
-> `rk_rga_acquire_set`.
+> manifest is 102 MPP plus 152 RGA cases. There is still no retained MPP
+> attempt/transition engine, `rk_rga_task_exec`, or `rk_rga_acquire_set`.
 >
 > The predecessor Phase 1 source `ab69ece998642` is packaged as inspected
 > `rewrite-debug` package P692f with stamp `(gab69ece99864)`, but it remains
@@ -153,8 +158,9 @@ reinterpret raw geometry.
 | `rk_mpp_cluster` | stable CCU identity, unbounded member lifetime, borrowed coordinator, core/type summary, singular reset authority, derived DMA relationship count, hard-CCU reset-participant validation, member power-lease identity, coordinator running-list/link ownership, soft/hard arm/START publication, and typed single/group reuse gating | descriptor admission, quarantine policy, and complete activation lifetime remain outside cluster ownership |
 | `rk_mpp_cluster_power_lease` | refcounted exact member-core power/hardware references; transfers unchanged along the existing coordinator chain and releases once | remains attached to one legacy job at a time until an activation object owns the complete admitted lifetime; coordinator power remains per-job |
 | `rk_mpp_dma_group` | IOMMU group, normal/isolation domains, member list, terminal isolation, and serialized per-group refresh used by hard recovery | no retained refresh epoch or admission authority |
-| `rk_mpp_hw` | private MMIO, clocks, IRQ, queue and active slot | also acts as coordinator, reset client, group-recovery participant, timeout owner, and IOMMU-fault owner |
-| `rk_mpp_job` | accepted message set, retained imports, selected hardware and result | also carries a temporary cluster-lease pointer, coordinator power, CCU membership, mutable register image, slice state, activation timing, and backend recovery state |
+| `rk_mpp_activation` | embedded current-attempt backpointer, nonzero hardware generation, and absolute watchdog deadline; all raw writes are field-owner allowlisted | retry still overwrites this storage in place; selected hardware, CCU/link/DCHS, power/dispatch leases, async snapshots, state, and terminal ownership remain outside it |
+| `rk_mpp_hw` | private MMIO, clocks, IRQ, queue, job-pointer active/timeout adapters, and monotonic activation-generation allocator | also acts as coordinator, reset client, group-recovery participant, and IOMMU-fault owner; the slot is not yet activation-typed |
+| `rk_mpp_job` | accepted message set, retained imports, selected hardware, result, and embedded current-attempt record | also carries a temporary cluster-lease pointer, coordinator power, CCU membership, mutable register image, slice state, activation timing, and backend recovery state |
 
 The current reset-domain and cluster objects prove reset transaction ownership,
 not that the whole cluster migration is finished. `rk_mpp_hw_power_on()` and
@@ -775,6 +781,16 @@ clean ramoops/dmesg. `iommu_refresh_count` must agree with the reset effects the
 new owner reports, including the paths that previously reset without refresh.
 
 ### Phase 3 — migrate MPP active lifetime and retirement
+
+Checkpoint 3A is present at `7548afe6a8b1b` / `af89363ffa5ed`: the job now
+embeds `rk_mpp_activation`, and the hardware allocator assigns its current
+nonzero generation under `hw->lock`. The same object owns the absolute
+watchdog deadline and explicit validity bit, so cancel/re-arm cannot extend an
+attempt and `rk_mpp_hw` no longer carries a deadline mirror. The active and
+timeout slots remain retained job pointers, and hard-CCU retry deliberately
+replaces the embedded record in place to preserve pre-engine behavior. This is
+a representation/ownership destination, not yet an authoritative lifecycle
+state, retained attempt, or terminal transition engine.
 
 1. Embed and initialize `rk_mpp_activation` in the current job.
 2. Move generation, absolute deadline, selected hardware, CCU/DCHS/link and

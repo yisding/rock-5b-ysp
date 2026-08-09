@@ -205,8 +205,65 @@ MPP_REGISTER_LEASE_ACCESS_RE = re.compile(
     rf"(?:{MPP_REGISTER_LEASE_FIELDS})\b"
 )
 MPP_REGISTER_LEASE_WRITE_RE = field_write_re(MPP_REGISTER_LEASE_FIELDS)
-ACTIVE_SLOT_WRITE_RE = field_write_re(r"active_job|active_generation")
-ACTIVE_SLOT_ACCESS_RE = re.compile(r"\b(?:active_job|active_generation)\b")
+MPP_ACTIVATION_OBJECT_TARGET = rf"{FIELD_TARGET}activation"
+MPP_ACTIVATION_FIELD_TARGET = rf"{MPP_ACTIVATION_OBJECT_TARGET}\s*\."
+MPP_ACTIVATION_ENTRY_RE = re.compile(
+    r"\b(?:rk_mpp_activation_(?:init|generation|install_locked)|"
+    r"rk_mpp_hw_(?:advance_active_generation_locked|install_active_locked|"
+    r"prepare_active_retry))\s*\("
+)
+MPP_ACTIVATION_ACCESS_RE = re.compile(
+    rf"(?:{MPP_ACTIVATION_OBJECT_TARGET}\b|"
+    rf"{FIELD_TARGET}activation_generation_seq\b)"
+)
+MPP_ACTIVATION_PARENT_WRITE_RE = field_write_re(
+    r"job", target=MPP_ACTIVATION_FIELD_TARGET
+)
+MPP_ACTIVATION_GENERATION_WRITE_RE = field_write_re(
+    r"generation", target=MPP_ACTIVATION_FIELD_TARGET
+)
+MPP_ACTIVATION_DEADLINE_WRITE_RE = field_write_re(
+    r"watchdog_deadline|watchdog_deadline_valid",
+    target=MPP_ACTIVATION_FIELD_TARGET,
+)
+MPP_ACTIVATION_SEQUENCE_WRITE_RE = field_write_re(r"activation_generation_seq")
+MPP_ACTIVATION_OBJECT_WRITE_RE = re.compile(
+    rf"(?:{field_write_re(r'activation').pattern}|"
+    rf"\b(?:memset|memcpy|memmove)\s*\(\s*&?\s*"
+    rf"{MPP_ACTIVATION_OBJECT_TARGET}\b)"
+)
+MPP_ACTIVATION_WRITE_RE = re.compile(
+    rf"(?:{MPP_ACTIVATION_PARENT_WRITE_RE.pattern}|"
+    rf"{MPP_ACTIVATION_GENERATION_WRITE_RE.pattern}|"
+    rf"{MPP_ACTIVATION_DEADLINE_WRITE_RE.pattern}|"
+    rf"{MPP_ACTIVATION_SEQUENCE_WRITE_RE.pattern}|"
+    rf"{MPP_ACTIVATION_OBJECT_WRITE_RE.pattern})"
+)
+MPP_ACTIVATION_WRITE_OWNER_RULES = (
+    (MPP_ACTIVATION_OBJECT_WRITE_RE, set()),
+    (
+        MPP_ACTIVATION_PARENT_WRITE_RE,
+        {"rk_mpp_activation_init", "rk_mpp_activation_install_locked"},
+    ),
+    (
+        MPP_ACTIVATION_GENERATION_WRITE_RE,
+        {"rk_mpp_activation_install_locked"},
+    ),
+    (
+        MPP_ACTIVATION_DEADLINE_WRITE_RE,
+        {"rk_mpp_activation_install_locked", "rk_mpp_hw_schedule_timeout"},
+    ),
+    (
+        MPP_ACTIVATION_SEQUENCE_WRITE_RE,
+        {"rk_mpp_hw_advance_active_generation_locked"},
+    ),
+)
+ACTIVE_SLOT_WRITE_RE = field_write_re(
+    r"active_job|active_generation|activation_generation_seq"
+)
+ACTIVE_SLOT_ACCESS_RE = re.compile(
+    r"\b(?:active_job|active_generation|activation_generation_seq)\b"
+)
 DISPATCH_LEASE_WRITE_RE = field_write_re(
     r"rkvdec_session_dispatch|rkvdec_dispatch_active"
 )
@@ -249,9 +306,9 @@ MPP_TERMINAL_STATE_WRITE_RE = field_write_re(
     r"canceled|online|recovery_failed|terminally_stopped|"
     r"terminal_power_drained"
 )
-MPP_WATCHDOG_SNAPSHOT_WRITE_RE = field_write_re(
-    r"timeout_job|timeout_generation|timeout_deadline_generation|"
-    r"timeout_deadline"
+MPP_WATCHDOG_SNAPSHOT_WRITE_RE = re.compile(
+    rf"(?:{field_write_re(r'timeout_job|timeout_generation|timeout_deadline_generation|timeout_deadline').pattern}|"
+    rf"{field_write_re(r'watchdog_deadline|watchdog_deadline_valid', target=MPP_ACTIVATION_FIELD_TARGET).pattern})"
 )
 MPP_ACTIVATION_TIMING_WRITE_RE = field_write_re(r"hw_start_ns|hw_elapsed_ns")
 MPP_OUTCOME_PUBLISH_RE = re.compile(
@@ -544,6 +601,11 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
             found.append(
                 ("debug-event-schema", relative, "<file-scope>", text, line)
             )
+        if relative == MPP_SOURCE:
+            line, text = declaration_block(source, "struct rk_mpp_activation {")
+            found.append(
+                ("mpp-activation-schema", relative, "<file-scope>", text, line)
+            )
         functions = parse_functions(source, KUNIT_MARKERS[relative])
         for function in functions:
             command_writer = False
@@ -663,6 +725,18 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                             ),
                             ("mpp-active-slot-access", ACTIVE_SLOT_ACCESS_RE),
                             ("mpp-active-slot-write", ACTIVE_SLOT_WRITE_RE),
+                            (
+                                "mpp-activation-entry",
+                                MPP_ACTIVATION_ENTRY_RE,
+                            ),
+                            (
+                                "mpp-activation-access",
+                                MPP_ACTIVATION_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-activation-write",
+                                MPP_ACTIVATION_WRITE_RE,
+                            ),
                             ("mpp-dispatch-lease-access", DISPATCH_LEASE_ACCESS_RE),
                             ("mpp-dispatch-lease-write", DISPATCH_LEASE_WRITE_RE),
                             ("mpp-power-field", POWER_FIELD_RE),
@@ -900,6 +974,18 @@ def category_counts(signals: Iterable[Signal]) -> str:
     return ", ".join(f"{category}={counts[category]}" for category in sorted(counts))
 
 
+def ownership_violations(signals: Iterable[Signal]) -> list[Signal]:
+    return [
+        signal
+        for signal in signals
+        if signal.category == "mpp-activation-write"
+        and any(
+            pattern.search(signal.text) and signal.function not in owners
+            for pattern, owners in MPP_ACTIVATION_WRITE_OWNER_RULES
+        )
+    ]
+
+
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
     if args.emit_baseline and args.update_baseline:
@@ -907,6 +993,19 @@ def main(argv: list[str]) -> int:
         return 2
     try:
         trees = [(tree.resolve(), audit_tree(tree.resolve())) for tree in args.kernel_tree]
+        violations = [
+            (tree, signal)
+            for tree, signals in trees
+            for signal in ownership_violations(signals)
+        ]
+        if violations:
+            for tree, signal in violations:
+                print(
+                    f"OWNER\t{signal.category}\t{tree / signal.source}:"
+                    f"{signal.line}\t{signal.function}\t{signal.text}",
+                    file=sys.stderr,
+                )
+            raise ValueError("activation fields written outside their owners")
         output = (
             "\n".join(
                 baseline_lines((tree for tree, _signals in trees), trees[0][1])
