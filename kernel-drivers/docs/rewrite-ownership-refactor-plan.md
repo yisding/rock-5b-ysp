@@ -20,9 +20,10 @@ The priority is **ownership before convention**:
 
 > **Status — 2026-08-09:** Phase 1 is source-complete, all six Phase 2
 > source items are implemented, Phase 3A embedded the first MPP
-> current-attempt record, and Phase 3B binds the per-session RKVDEC dispatch
-> lease to that exact embedded address at `rk3588-rewrite-6.18@7b9a4fe4e3eb`
-> and `rk3588-rewrite-mainline@8439e3abc142`. Their tracked
+> current-attempt record, Phase 3B binds the per-session RKVDEC dispatch
+> lease to that exact embedded address, and Phase 3C moves the retained
+> selected-core reference into it at `rk3588-rewrite-6.18@a72abb9809fc`
+> and `rk3588-rewrite-mainline@2ea836184b5f`. Their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. Phase 1 funnels reset
 > backends, both active slots, RKVDEC dispatch and power leases,
 > publication/start, MPP outcome publication, and RGA execution-map retirement;
@@ -55,10 +56,12 @@ The priority is **ownership before convention**:
 > and final job release fails closed rather than freeing storage still named by
 > the session. The pointer is current-storage identity, not a retained attempt:
 > hard-CCU retry still rewrites the same embedded record in place.
-> retained attempts, fresh retry objects, state transitions, and terminal
-> arbitration remain later Phase 3 work. The 1221-signal source-pinned
-> production audit freezes those activation, IRQ,
-> and recovery seams plus
+> Phase 3C removes the duplicate `rk_mpp_job::hw` storage: selection and
+> drop remain the only ref-changing writers, install asserts the selected
+> core matches the active hardware, and retry preserves that exact pointer.
+> Retained attempts, fresh retry objects, state transitions, and terminal
+> arbitration remain later Phase 3 work. The 1406-signal source-pinned
+> production audit freezes those activation, IRQ, and recovery seams plus
 > the earlier reset-domain, cluster construction, group-reset, power-lease,
 > and CCU runtime seams; the KUnit-debt audit remains 306 signals, and the
 > manifest is 102 MPP plus 152 RGA cases. There is still no retained MPP
@@ -164,9 +167,9 @@ reinterpret raw geometry.
 | `rk_mpp_cluster` | stable CCU identity, unbounded member lifetime, borrowed coordinator, core/type summary, singular reset authority, derived DMA relationship count, hard-CCU reset-participant validation, member power-lease identity, coordinator running-list/link ownership, soft/hard arm/START publication, and typed single/group reuse gating | descriptor admission, quarantine policy, and complete activation lifetime remain outside cluster ownership |
 | `rk_mpp_cluster_power_lease` | refcounted exact member-core power/hardware references; transfers unchanged along the existing coordinator chain and releases once | remains attached to one legacy job at a time until an activation object owns the complete admitted lifetime; coordinator power remains per-job |
 | `rk_mpp_dma_group` | IOMMU group, normal/isolation domains, member list, terminal isolation, and serialized per-group refresh used by hard recovery | no retained refresh epoch or admission authority |
-| `rk_mpp_activation` | embedded current-attempt backpointer, nonzero hardware generation, absolute watchdog deadline, and exact identity named by the session-dispatch owner; all raw writes and dispatch-owner accesses are hard-allowlisted | retry still overwrites this storage in place; selected hardware, CCU/link/DCHS, power leases, async snapshots, state, and terminal ownership remain outside it |
+| `rk_mpp_activation` | embedded current-attempt backpointer, retained selected-core reference, nonzero hardware generation, absolute watchdog deadline, and exact identity named by the session-dispatch owner; all selected-core writes and dispatch-owner accesses are hard-allowlisted | retry still overwrites this storage in place; CCU/link/DCHS, power leases, async snapshots, state, and terminal ownership remain outside it |
 | `rk_mpp_hw` | private MMIO, clocks, IRQ, queue, job-pointer active/timeout adapters, and monotonic activation-generation allocator | also acts as coordinator, reset client, group-recovery participant, and IOMMU-fault owner; the slot is not yet activation-typed |
-| `rk_mpp_job` | accepted message set, retained imports, selected hardware, result, and embedded current-attempt record | also carries a temporary cluster-lease pointer, coordinator power, CCU membership, mutable register image, slice state, activation timing, and backend recovery state |
+| `rk_mpp_job` | accepted message set, retained imports, result, and embedded current-attempt record | also carries a temporary cluster-lease pointer, coordinator power, CCU membership, mutable register image, slice state, activation timing, and backend recovery state |
 
 The current reset-domain and cluster objects prove reset transaction ownership,
 not that the whole cluster migration is finished. `rk_mpp_hw_power_on()` and
@@ -806,10 +809,19 @@ release refuses to free still-owned storage. The pointer carries no reference
 and is never dereferenced. It deliberately survives in-place hard-CCU retry,
 so it does not yet provide immutable generation retention or terminal state.
 
+Checkpoint 3C is present at `a72abb9809fc` / `2ea836184b5f`: the retained
+selected-core pointer moved from `rk_mpp_job` into `rk_mpp_activation` without
+changing selection, refcount, queue, completion, abort, or destructor order.
+`rk_mpp_job_select_hw()` and `rk_mpp_job_drop_hw()` remain the only
+ref-changing writers; final destruction retains the same fallback put after
+CCU/link teardown. In-place retry preserves the pointer. The still job-owned
+`rkvdec_ccu` schema and its complete reader/writer surface are hard-frozen for
+the later coherent CCU/link/power migration.
+
 1. Embed and initialize `rk_mpp_activation` in the current job.
-2. Move generation and absolute deadline into it, then replace the split
-   session-dispatch token with exact activation identity. Selected hardware,
-   CCU/DCHS/link, and power ownership remain later coherent migrations.
+2. Move generation, absolute deadline, selected hardware, and exact
+   session-dispatch identity into it. CCU/DCHS/link and power ownership remain
+   later coherent migrations.
 3. Change the hardware slot from job to activation in one reviewable commit,
    keeping adapter helpers for old callers.
 4. Route IRQ, timeout, fault, abort, close, remove and shutdown to one transition

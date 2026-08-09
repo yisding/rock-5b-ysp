@@ -2624,6 +2624,7 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "struct rk_mpp_debug_event { u8 type; };\n"
             "struct rk_mpp_activation {\n"
             "\tstruct rk_mpp_job *job;\n"
+            "\tstruct rk_mpp_hw *selected_hw;\n"
             "\tu64 generation;\n"
             "\tunsigned long watchdog_deadline;\n"
             "\tbool watchdog_deadline_valid;\n"
@@ -2631,14 +2632,39 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "struct rk_mpp_session {\n"
             "\tstruct rk_mpp_activation *rkvdec_dispatch_owner;\n"
             "};\n"
+            "struct rk_mpp_job {\n"
+            "\tstruct rk_mpp_session *session;\n"
+            "\tstruct rk_mpp_activation activation;\n"
+            "\tstruct rk_mpp_hw *rkvdec_ccu;\n"
+            "};\n"
+            "static void rk_mpp_activation_init(struct rk_mpp_job *job)\n"
+            "{\n"
+            "\tjob->activation.job = job;\n"
+            "\tjob->activation.selected_hw = NULL;\n"
+            "}\n"
             "static void rk_mpp_activation_install_locked(\n"
             "\t\tstruct rk_mpp_hw *hw, struct rk_mpp_job *job,\n"
             "\t\tu64 generation)\n"
             "{\n"
+            "\tif (job->activation.selected_hw != hw) return;\n"
             "\tjob->activation.job = job;\n"
             "\tjob->activation.generation = generation;\n"
             "\tjob->activation.watchdog_deadline = 0;\n"
             "\tjob->activation.watchdog_deadline_valid = false;\n"
+            "}\n"
+            "static int rk_mpp_job_select_hw(struct rk_mpp_job *job)\n"
+            "{\n"
+            "\tjob->activation.selected_hw = hw;\n"
+            "\treturn 0;\n"
+            "}\n"
+            "static void rk_mpp_job_drop_hw(struct rk_mpp_job *job)\n"
+            "{\n"
+            "\txchg(&job->activation.selected_hw, NULL);\n"
+            "}\n"
+            "static void rk_mpp_rkvdec2_release_link_table(\n"
+            "\t\tstruct rk_mpp_job *job)\n"
+            "{\n"
+            "\tjob->rkvdec_ccu = NULL;\n"
             "}\n"
             "static u64 rk_mpp_hw_advance_active_generation_locked(\n"
             "\t\tstruct rk_mpp_hw *hw)\n"
@@ -2840,6 +2866,12 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("mpp-activation-entry", baseline_text)
             self.assertIn("mpp-activation-access", baseline_text)
             self.assertIn("mpp-activation-write", baseline_text)
+            self.assertIn("mpp-selected-hw-schema", baseline_text)
+            self.assertIn("mpp-selected-hw-access", baseline_text)
+            self.assertIn("mpp-selected-hw-write", baseline_text)
+            self.assertIn("mpp-rkvdec-ccu-schema", baseline_text)
+            self.assertIn("mpp-rkvdec-ccu-access", baseline_text)
+            self.assertIn("mpp-rkvdec-ccu-write", baseline_text)
             self.assertIn("mpp-dispatch-owner-schema", baseline_text)
             self.assertIn("mpp-dispatch-lease-access", baseline_text)
             self.assertIn("mpp-dispatch-lease-write", baseline_text)
@@ -3377,6 +3409,120 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                 self.assertEqual(rejected.returncode, 1, rejected.stderr)
                 self.assertIn("ownership signals differ", rejected.stderr)
             self.assertEqual(baseline.read_text(encoding="utf-8"), original)
+
+    def test_selected_hw_and_ccu_surfaces_are_hard_guarded(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tree = root / "linux"
+            baseline = root / "baseline.tsv"
+            self.make_tree(tree)
+            updated = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(updated.returncode, 0, updated.stderr)
+
+            self.make_tree(
+                tree,
+                extra_mpp=(
+                    "\tif (job->activation.selected_hw) job = NULL;\n"
+                    "\tjob->activation.selected_hw = hw;\n"
+                    "\tWRITE_ONCE(job->activation.selected_hw, hw);\n"
+                    "\txchg(&job->activation.selected_hw, hw);\n"
+                    "\tcmpxchg(&job->activation.selected_hw, old, hw);\n"
+                    "\tif (job->rkvdec_ccu) job = NULL;\n"
+                    "\tjob->rkvdec_ccu = hw;\n"
+                    "\tWRITE_ONCE(job->rkvdec_ccu, hw);\n"
+                ),
+            )
+            rejected = self.run_audit(tree, baseline)
+            self.assertEqual(rejected.returncode, 2)
+            self.assertIn("OWNER\tmpp-selected-hw-access", rejected.stderr)
+            self.assertIn("OWNER\tmpp-selected-hw-write", rejected.stderr)
+            self.assertIn("OWNER\tmpp-rkvdec-ccu-access", rejected.stderr)
+            self.assertIn("OWNER\tmpp-rkvdec-ccu-write", rejected.stderr)
+            self.assertIn("WRITE_ONCE(job->activation.selected_hw", rejected.stderr)
+            self.assertIn("cmpxchg(&job->activation.selected_hw", rejected.stderr)
+
+            rebased = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(rebased.returncode, 2)
+            self.assertIn("used outside its allowed owners", rebased.stderr)
+
+            self.make_tree(tree)
+            source = tree / "drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c"
+            source.write_text(
+                source.read_text(encoding="utf-8")
+                + "static void rk_mpp_job_get_hw(struct rk_mpp_job *job)\n"
+                "{\n"
+                "\tjob->activation.selected_hw = hw;\n"
+                "}\n"
+                "static void rk_mpp_cluster_add_ccu_job("
+                "struct rk_mpp_job *job)\n"
+                "{\n"
+                "\tjob->rkvdec_ccu = hw;\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            read_owner_writes = self.run_audit(tree, baseline)
+            self.assertEqual(read_owner_writes.returncode, 2)
+            self.assertIn("OWNER\tmpp-selected-hw-write", read_owner_writes.stderr)
+            self.assertIn("OWNER\tmpp-rkvdec-ccu-write", read_owner_writes.stderr)
+
+            self.make_tree(
+                tree,
+                extra_kunit=(
+                    "\tjob->activation.selected_hw = hw;\n"
+                    "\tjob->rkvdec_ccu = hw;\n"
+                ),
+            )
+            kunit_only = self.run_audit(tree, baseline)
+            self.assertEqual(kunit_only.returncode, 0, kunit_only.stderr)
+
+            self.make_tree(tree)
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "\tstruct rk_mpp_hw *rkvdec_ccu;\n",
+                    "\tstruct rk_mpp_hw *hw;\n"
+                    "\tstruct rk_mpp_hw *rkvdec_ccu;\n",
+                ),
+                encoding="utf-8",
+            )
+            legacy_schema = self.run_audit(tree, baseline)
+            self.assertEqual(legacy_schema.returncode, 2)
+            self.assertIn("forbidden legacy", legacy_schema.stderr)
+
+            self.make_tree(tree)
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "\tstruct rk_mpp_hw *selected_hw;\n",
+                    "\tvoid *selected_hw;\n",
+                ),
+                encoding="utf-8",
+            )
+            selected_type_drift = self.run_audit(tree, baseline)
+            self.assertEqual(selected_type_drift.returncode, 2)
+            self.assertIn("selected_hw member", selected_type_drift.stderr)
+
+            self.make_tree(tree)
+            source.write_text(
+                source.read_text(encoding="utf-8")
+                + "struct rk_mpp_duplicate {\n"
+                "\tstruct rk_mpp_hw *selected_hw;\n"
+                "};\n",
+                encoding="utf-8",
+            )
+            selected_duplicate = self.run_audit(tree, baseline)
+            self.assertEqual(selected_duplicate.returncode, 2)
+            self.assertIn("found 1 there and 2 overall", selected_duplicate.stderr)
+
+            self.make_tree(tree)
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "\tstruct rk_mpp_hw *rkvdec_ccu;\n",
+                    "\tvoid *rkvdec_ccu;\n",
+                ),
+                encoding="utf-8",
+            )
+            ccu_type_drift = self.run_audit(tree, baseline)
+            self.assertEqual(ccu_type_drift.returncode, 2)
+            self.assertIn("rkvdec_ccu member", ccu_type_drift.stderr)
 
     def test_activation_schema_and_nested_writes_are_guarded(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

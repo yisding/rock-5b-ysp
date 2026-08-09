@@ -226,16 +226,25 @@ MPP_ACTIVATION_DEADLINE_WRITE_RE = field_write_re(
     r"watchdog_deadline|watchdog_deadline_valid",
     target=MPP_ACTIVATION_FIELD_TARGET,
 )
+MPP_SELECTED_HW_ACCESS_RE = re.compile(
+    rf"{MPP_ACTIVATION_FIELD_TARGET}selected_hw\b"
+)
+MPP_SELECTED_HW_WRITE_RE = field_write_re(
+    r"selected_hw", target=MPP_ACTIVATION_FIELD_TARGET
+)
 MPP_ACTIVATION_SEQUENCE_WRITE_RE = field_write_re(r"activation_generation_seq")
 MPP_ACTIVATION_OBJECT_WRITE_RE = re.compile(
-    rf"(?:{field_write_re(r'activation').pattern}|"
-    rf"\b(?:memset|memcpy|memmove)\s*\(\s*&?\s*"
-    rf"{MPP_ACTIVATION_OBJECT_TARGET}\b)"
+    rf"(?:(?:\+\+|--)\s*{MPP_ACTIVATION_OBJECT_TARGET}\b(?!\s*\.)|"
+    rf"{MPP_ACTIVATION_OBJECT_TARGET}\b(?!\s*\.)\s*"
+    rf"(?:\+\+|--|{FIELD_ASSIGNMENT})|"
+    rf"\b(?:{FIELD_PUBLISHERS}|memset|memcpy|memmove)\s*\(\s*&?\s*"
+    rf"{MPP_ACTIVATION_OBJECT_TARGET}\b(?!\s*\.))"
 )
 MPP_ACTIVATION_WRITE_RE = re.compile(
     rf"(?:{MPP_ACTIVATION_PARENT_WRITE_RE.pattern}|"
     rf"{MPP_ACTIVATION_GENERATION_WRITE_RE.pattern}|"
     rf"{MPP_ACTIVATION_DEADLINE_WRITE_RE.pattern}|"
+    rf"{MPP_SELECTED_HW_WRITE_RE.pattern}|"
     rf"{MPP_ACTIVATION_SEQUENCE_WRITE_RE.pattern}|"
     rf"{MPP_ACTIVATION_OBJECT_WRITE_RE.pattern})"
 )
@@ -254,10 +263,107 @@ MPP_ACTIVATION_WRITE_OWNER_RULES = (
         {"rk_mpp_activation_install_locked", "rk_mpp_hw_schedule_timeout"},
     ),
     (
+        MPP_SELECTED_HW_WRITE_RE,
+        {"rk_mpp_activation_init", "rk_mpp_job_select_hw", "rk_mpp_job_drop_hw"},
+    ),
+    (
         MPP_ACTIVATION_SEQUENCE_WRITE_RE,
         {"rk_mpp_hw_advance_active_generation_locked"},
     ),
 )
+MPP_SELECTED_HW_ACCESS_OWNERS = {
+    "rk_mpp_activation_init",
+    "rk_mpp_activation_install_locked",
+    "rk_mpp_av1_submit",
+    "rk_mpp_av1_validate",
+    "rk_mpp_cluster_arm_soft_ccu",
+    "rk_mpp_cluster_collect_stop_cores",
+    "rk_mpp_cluster_power_lease_acquire",
+    "rk_mpp_cluster_publish_ccu_job",
+    "rk_mpp_cluster_publish_soft_ccu_job",
+    "rk_mpp_cluster_relink_ccu_tables_locked",
+    "rk_mpp_cluster_relink_unfinished_locked",
+    "rk_mpp_cluster_remove_ccu_job",
+    "rk_mpp_cluster_start_ccu_job",
+    "rk_mpp_cluster_validate_job",
+    "rk_mpp_count_dispatched_core",
+    "rk_mpp_count_scheduled_core",
+    "rk_mpp_count_started_core",
+    "rk_mpp_debug_record_job",
+    "rk_mpp_debug_state_show",
+    "rk_mpp_hw_abort_queued_matching",
+    "rk_mpp_job_apply_rcb_info",
+    "rk_mpp_job_apply_reg_offsets",
+    "rk_mpp_job_drop_hw",
+    "rk_mpp_job_get_hw",
+    "rk_mpp_job_hold_explicit_iova",
+    "rk_mpp_job_hw_available_locked",
+    "rk_mpp_job_note_hw_done",
+    "rk_mpp_job_queue_current_locked",
+    "rk_mpp_job_read_regs",
+    "rk_mpp_job_reject_reg",
+    "rk_mpp_job_release",
+    "rk_mpp_job_rkvdec_rcb_enabled",
+    "rk_mpp_job_select_hw",
+    "rk_mpp_job_submit",
+    "rk_mpp_job_translate_reg",
+    "rk_mpp_job_unqueue_locked",
+    "rk_mpp_job_validate_write_regs",
+    "rk_mpp_job_write_regs",
+    "rk_mpp_rkvdec2_acquire_soft_ccu",
+    "rk_mpp_rkvdec2_prepare_ccu_descriptor",
+    "rk_mpp_rkvdec2_prepare_ccu_regs",
+    "rk_mpp_rkvdec2_publish_and_start_core",
+    "rk_mpp_rkvdec2_read_perf_sel",
+    "rk_mpp_rkvdec2_release_link_table",
+    "rk_mpp_rkvdec2_reserve_link_table",
+    "rk_mpp_rkvdec2_reset_soft_ccu_job",
+    "rk_mpp_rkvdec2_stage_link_table",
+    "rk_mpp_rkvdec2_submit",
+    "rk_mpp_rkvdec2_validate",
+    "rk_mpp_rkvenc2_dchs_lifecycle_lock",
+    "rk_mpp_rkvenc2_dchs_patch",
+    "rk_mpp_rkvenc2_publish_and_start",
+    "rk_mpp_rkvenc2_submit",
+    "rk_mpp_rkvenc2_validate",
+    "rk_mpp_scheduler_take_job",
+    "rk_mpp_scheduler_work",
+}
+MPP_SELECTED_HW_WRITE_OWNERS = {
+    "rk_mpp_activation_init",
+    "rk_mpp_job_select_hw",
+    "rk_mpp_job_drop_hw",
+}
+MPP_RKVDEC_CCU_ACCESS_RE = re.compile(rf"{FIELD_TARGET}rkvdec_ccu\b")
+MPP_RKVDEC_CCU_WRITE_RE = field_write_re(r"rkvdec_ccu")
+MPP_RKVDEC_CCU_ACCESS_OWNERS = {
+    "rk_mpp_cluster_add_ccu_job",
+    "rk_mpp_cluster_arm_soft_ccu",
+    "rk_mpp_cluster_power_lease_acquire",
+    "rk_mpp_cluster_publish_ccu_job",
+    "rk_mpp_cluster_publish_soft_ccu_job",
+    "rk_mpp_cluster_start_ccu_job",
+    "rk_mpp_cluster_validate_job",
+    "rk_mpp_hw_abort_job",
+    "rk_mpp_hw_get_active_ccu_if",
+    "rk_mpp_hw_recover_active",
+    "rk_mpp_rkvdec2_acquire_soft_ccu",
+    "rk_mpp_rkvdec2_fill_ccu_descriptor",
+    "rk_mpp_rkvdec2_prepare_ccu_descriptor",
+    "rk_mpp_rkvdec2_prepare_ccu_retry_job",
+    "rk_mpp_rkvdec2_publish_and_start_core",
+    "rk_mpp_rkvdec2_release_link_table",
+    "rk_mpp_rkvdec2_reserve_link_table",
+    "rk_mpp_rkvdec2_reset_soft_ccu_job",
+    "rk_mpp_rkvdec2_restart_ccu_job",
+    "rk_mpp_rkvdec2_submit",
+}
+MPP_RKVDEC_CCU_WRITE_OWNERS = {
+    "rk_mpp_rkvdec2_release_link_table",
+    "rk_mpp_rkvdec2_reserve_link_table",
+    "rk_mpp_rkvdec2_acquire_soft_ccu",
+    "rk_mpp_rkvdec2_submit",
+}
 ACTIVE_SLOT_WRITE_RE = field_write_re(
     r"active_job|active_generation|activation_generation_seq"
 )
@@ -644,6 +750,80 @@ def unique_struct_member_declaration(
     return in_structure[0]
 
 
+def struct_member_pattern_matches(
+    source: pathlib.Path, structure: str, pattern: re.Pattern[str]
+) -> tuple[list[tuple[int, str]], int]:
+    """Return matches inside one exact struct plus the source-wide count."""
+
+    lines = strip_comments(source.read_text(encoding="utf-8").splitlines())
+    structure_starts = [
+        index
+        for index, line in enumerate(lines)
+        if re.search(rf"\bstruct\s+{re.escape(structure)}\s*\{{", line)
+    ]
+    if len(structure_starts) != 1:
+        raise ValueError(
+            f"expected one struct {structure} definition in {source}, "
+            f"found {len(structure_starts)}"
+        )
+
+    start = structure_starts[0]
+    depth = 0
+    end: int | None = None
+    for index in range(start, len(lines)):
+        depth += brace_delta(lines[index])
+        if depth == 0 and ";" in lines[index]:
+            end = index
+            break
+    if end is None:
+        raise ValueError(f"unterminated struct {structure} definition in {source}")
+
+    in_structure = [
+        (index + 1, normalize(lines[index]))
+        for index in range(start, end + 1)
+        if pattern.search(lines[index])
+    ]
+    all_occurrences = sum(bool(pattern.search(line)) for line in lines)
+    return in_structure, all_occurrences
+
+
+def unique_struct_member_pattern(
+    source: pathlib.Path,
+    structure: str,
+    pattern: re.Pattern[str],
+    description: str,
+) -> tuple[int, str]:
+    """Return one regex-matched member scoped to one exact struct."""
+
+    matches, all_occurrences = struct_member_pattern_matches(
+        source, structure, pattern
+    )
+    if len(matches) != 1 or all_occurrences != 1:
+        raise ValueError(
+            f"expected one {description} in struct {structure} in {source}, "
+            f"found {len(matches)} there and {all_occurrences} overall"
+        )
+    return matches[0]
+
+
+def forbid_struct_member_pattern(
+    source: pathlib.Path,
+    structure: str,
+    pattern: re.Pattern[str],
+    description: str,
+) -> None:
+    """Fail if a removed ownership member returns to the named struct."""
+
+    matches, _all_occurrences = struct_member_pattern_matches(
+        source, structure, pattern
+    )
+    if matches:
+        raise ValueError(
+            f"forbidden {description} in struct {structure} in {source}: "
+            f"found {len(matches)}"
+        )
+
+
 def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int]]:
     found: list[tuple[str, str, str, str, int]] = []
     for relative in SOURCES:
@@ -659,6 +839,30 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
             line, text = declaration_block(source, "struct rk_mpp_activation {")
             found.append(
                 ("mpp-activation-schema", relative, "<file-scope>", text, line)
+            )
+            line, text = unique_struct_member_pattern(
+                source,
+                "rk_mpp_activation",
+                re.compile(r"\bstruct\s+rk_mpp_hw\s*\*\s*selected_hw\s*;"),
+                "struct rk_mpp_hw *selected_hw member",
+            )
+            found.append(
+                ("mpp-selected-hw-schema", relative, "<file-scope>", text, line)
+            )
+            forbid_struct_member_pattern(
+                source,
+                "rk_mpp_job",
+                re.compile(r"\bstruct\s+rk_mpp_hw\s*\*\s*hw\s*;"),
+                "legacy struct rk_mpp_hw *hw member",
+            )
+            line, text = unique_struct_member_pattern(
+                source,
+                "rk_mpp_job",
+                re.compile(r"\bstruct\s+rk_mpp_hw\s*\*\s*rkvdec_ccu\s*;"),
+                "struct rk_mpp_hw *rkvdec_ccu member",
+            )
+            found.append(
+                ("mpp-rkvdec-ccu-schema", relative, "<file-scope>", text, line)
             )
             line, text = unique_struct_member_declaration(
                 source,
@@ -812,6 +1016,22 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                             (
                                 "mpp-activation-write",
                                 MPP_ACTIVATION_WRITE_RE,
+                            ),
+                            (
+                                "mpp-selected-hw-access",
+                                MPP_SELECTED_HW_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-selected-hw-write",
+                                MPP_SELECTED_HW_WRITE_RE,
+                            ),
+                            (
+                                "mpp-rkvdec-ccu-access",
+                                MPP_RKVDEC_CCU_ACCESS_RE,
+                            ),
+                            (
+                                "mpp-rkvdec-ccu-write",
+                                MPP_RKVDEC_CCU_WRITE_RE,
                             ),
                             ("mpp-dispatch-lease-access", DISPATCH_OWNER_ACCESS_RE),
                             ("mpp-dispatch-lease-write", DISPATCH_OWNER_WRITE_RE),
@@ -1063,6 +1283,26 @@ def ownership_violations(signals: Iterable[Signal]) -> list[Signal]:
         elif (
             signal.category == "mpp-dispatch-lease-write"
             and signal.function not in DISPATCH_OWNER_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-selected-hw-access"
+            and signal.function not in MPP_SELECTED_HW_ACCESS_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-selected-hw-write"
+            and signal.function not in MPP_SELECTED_HW_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-rkvdec-ccu-access"
+            and signal.function not in MPP_RKVDEC_CCU_ACCESS_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-rkvdec-ccu-write"
+            and signal.function not in MPP_RKVDEC_CCU_WRITE_OWNERS
         ):
             violations.append(signal)
         elif signal.category == "mpp-activation-write" and any(

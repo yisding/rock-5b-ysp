@@ -1487,8 +1487,9 @@ Poll-lifecycle coverage additionally requires a slice-FIFO overflow to report
 able to drain retained slice words and reach normal completion. A non-split
 `POLL_HW_IRQ` must take the full-frame path, and an empty session must return
 `-EIO`, before either path validates or touches a slice-only flexible buffer.
-Teardown-lifetime coverage additionally requires completion's `job->hw`
-detach and abort's hardware pin to share the session lock. An abort racing
+Teardown-lifetime coverage additionally requires completion's
+`job->activation.selected_hw` detach and abort's hardware pin to share the
+session lock. An abort racing
 completion/removal must either acquire its own hardware reference or observe a
 detached `NULL`; it must never use an unpinned devm hardware pointer while
 platform removal waits for the final reference.

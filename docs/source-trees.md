@@ -195,6 +195,8 @@ owns the public verdict.
 
 | Snapshot | Pin and base | Historical relationships |
 |----------|--------------|--------------------------|
+| 6.18 rewrite Phase 3C selected-hardware owner, 2026-08-09 | `rk3588-rewrite-6.18@a72abb9809fc` on `v6.18.42@856a9b51680c` | Phase 3B tip `7b9a4fe4e3eb`; moves the retained selected-core reference into the embedded activation |
+| Mainline rewrite Phase 3C selected-hardware owner, 2026-08-09 | `rk3588-rewrite-mainline@2ea836184b5f` on `v7.2-rc6@075b74841bd0` | Phase 3B tip `8439e3abc142`; byte-identical selected-hardware ownership checkpoint |
 | 6.18 rewrite Phase 3B dispatch owner, 2026-08-09 | `rk3588-rewrite-6.18@7b9a4fe4e3eb` on `v6.18.42@856a9b51680c` | Phase 3A tip `7548afe6a8b1b`; replaces the split session/job dispatch booleans with one exact activation-owner pointer |
 | Mainline rewrite Phase 3B dispatch owner, 2026-08-09 | `rk3588-rewrite-mainline@8439e3abc142` on `v7.2-rc6@075b74841bd0` | Phase 3A tip `af89363ffa5ed`; byte-identical dispatch-ownership checkpoint |
 | 6.18 rewrite Phase 3A activation identity, 2026-08-09 | `rk3588-rewrite-6.18@7548afe6a8b1b` on `v6.18.42@856a9b51680c` | Phase 2 tip `ab9f6e2d2023f`; embeds the current-attempt generation and absolute watchdog deadline without changing the job-pointer slot |
@@ -221,9 +223,9 @@ owns the public verdict.
 | Mainline rewrite, 2026-08-06 | `rk3588-rewrite-mainline@7a6d4cb075a67` on `v7.2-rc6@075b74841bd0` | prior backups `9e503f6b16df` and `5bae68d8381c` |
 | Upstream-style RGA3 comparison | `rk3588-rewrite-mainline@180ee72a9a80` | detailed in §9 |
 
-The two maintained Phase 3B dispatch-owner snapshots have byte-identical
+The two maintained Phase 3C selected-hardware snapshots have byte-identical
 tracked MPP/RGA rewrite sources, Kconfig, ABI ledgers, and UAPI. Their exact
-102 MPP + 152 RGA manifest, 1221-signal production ownership inventory, and
+102 MPP + 152 RGA manifest, 1406-signal production ownership inventory, and
 306-signal KUnit-debt audit pass with zero new or absent signals. The older
 2026-08-08 rows preserve the recovery, pre-cluster, and pre-refactor snapshots,
 while the 2026-08-06 rows remain historical pins rather than claims about later

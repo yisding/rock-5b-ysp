@@ -62,7 +62,8 @@ The principal objects are:
 | `rk_mpp_hw` | platform probe | device, MMIO, IRQ, clocks, resets, active job, timeout/fault work, CCU state |
 | `rk_mpp_session` | `/dev/mpp_service` `open()` | client type, imports, active jobs, translation table, RCB and codec metadata |
 | `rk_mpp_import` | fd translation | DMA-BUF, attachment, mapped scatterlist, device-specific IOVA |
-| `rk_mpp_job` | ioctl message collection | copied requests, register image, imports, selected hardware, result/readback, current CCU/DCHS participation, and a temporary cluster-power-lease pointer |
+| `rk_mpp_job` | ioctl message collection | copied requests, register image, imports, result/readback, embedded activation, current CCU/DCHS participation, and a temporary cluster-power-lease pointer |
+| `rk_mpp_activation` | job allocation | parent identity, retained selected hardware, current nonzero generation, absolute watchdog deadline, and exact session-dispatch identity |
 | `rk_mpp_reset_domain` | first matching hardware probe | immutable node identity, member lifetime, mutex, single-target reset state/epoch, responsible hardware, operation counters, one epoch for each cluster-validated hard-CCU pulse, and the epoch supplied to typed single-core recovery |
 | `rk_mpp_cluster` | first matching CCU-identity probe | stable member topology, borrowed coordinator, learned core type, reset authority, derived DMA relationship count, hard-reset participant validation, deduplicated pinned-participant DMA recovery, coordinator running-list/link ownership, and soft/hard arm/START publication |
 | `rk_mpp_cluster_power_lease` | first member-core power acquisition for a CCU chain | refcounted exact member-core power and hardware references; transfers unchanged to the next listed job and releases once |
@@ -73,7 +74,7 @@ The important reference direction is:
 
 ```text
 job -> session
-job -> selected hardware
+job -> embedded activation -> selected hardware
 job -> every import used by its register image
 job -> decoder CCU/link descriptor when required
 ```
@@ -96,10 +97,12 @@ per-job power, descriptor admission, or quarantine. Phase 3A embeds
 `rk_mpp_activation` in the job as the source of truth for the current assigned
 generation and absolute watchdog deadline. Phase 3B makes the session's
 RKVDEC dispatch owner point at that exact embedded address instead of tracking
-two booleans. It is still not the active-slot type or a retained transition
-object: selected hardware, cluster/link/DCHS and power leases, reason
-snapshots, and terminal ownership remain in the legacy job/hardware graph, and
-hard-CCU retry overwrites the embedded record in place.
+two booleans. Phase 3C moves the retained selected-core reference into the
+same activation without changing its select/drop/refcount order. It is still
+not the active-slot type or a retained transition object: cluster/link/DCHS
+and power leases, reason snapshots, and terminal ownership remain in the
+legacy job/hardware graph, and hard-CCU retry overwrites the embedded record in
+place.
 
 ### 3.2 Session lifecycle
 
