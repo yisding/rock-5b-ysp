@@ -241,7 +241,7 @@ that grouped root.
 | Patched Armbian kernel worktree | `KERNEL_PPA_REPO=$WORKSPACE_ROOT/build/kernel/rock5b-kernel-build/armbian-build-ppa/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64__ppa-forward-port` |
 | Production kernel config | `KERNEL_PPA_CONFIG=$ROOT/packaging/ppa/kernel-forward-port/debian/config/arm64-rockchip64.config` |
 | Source package name | `KERNEL_PPA_SOURCE=linux-rockchip64-ysp` |
-| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.43+rk3588av1fwport20260807` |
+| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.43+rk3588av1fwport20260808` |
 
 The exporter copies the patched worktree contents, including Armbian patch
 changes and untracked patch-added files, while excluding `.git`, `.config`,

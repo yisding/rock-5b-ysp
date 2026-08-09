@@ -1,3 +1,23 @@
+linux-rockchip64-ysp (6.18.43+rk3588av1fwport20260808-0ubuntu1~rk1) resolute; urgency=high
+
+  * Extend the maintained forward-port series from 0001-0092 to 0001-0096 at
+    tip 7698e7018e3d5:
+    - cap RGA2 USERPTR SG entries at the DMA backend mapping limit;
+    - give high-address RGA2 DMA-BUF aliases one bounded job-shared DMA32
+      staging object;
+    - serialize RGA request, import, fence, MPI, PM, and shutdown ownership;
+    - serialize MPP session, result, DMA-cache, and provider-fault ownership.
+  * Force RKVDEC2 hard-CCU requests to the supported soft worker before core
+    probe selects worker, IRQ, and fault hooks.
+  * Preserve the production config and co-installable image, DTB, and headers
+    package slots; KASAN, lockdep, and DMABUF_DEBUG remain off.
+  * Source validation: strict checkpatch and independent final reviews pass;
+    production-config RGA/MPP/IOMMU W=1 WERROR=1 builds and an async-disabled
+    RGA W=1 WERROR=1 build pass. This exact package has not been installed,
+    booted, or hardware-validated.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Sat, 08 Aug 2026 17:23:53 -0700
+
 linux-rockchip64-ysp (6.18.43+rk3588av1fwport20260807-0ubuntu1~rk1) resolute; urgency=medium
 
   * Rebase the unchanged 0001-0092 production forward-port series at
