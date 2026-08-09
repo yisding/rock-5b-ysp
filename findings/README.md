@@ -200,10 +200,11 @@ The `/dev/rga` driver — session lifetime, userptr/dma-buf imports, and the 10-
 - [`2026-07-20`](2026-07-20-rga2-unmapped-page-table-dma-sync.md) — RGA2 syncs page-table memory through an unmapped DMA address
 - [`2026-07-17`](2026-07-17-rga-session-close-uaf.md) — RGA session-close force-free ignores refcounts; a leaked test handle exposed it as a kernel Oops
 
-### Clean-room rewrite drivers (38)
+### Clean-room rewrite drivers (39)
 
 The from-scratch MPP/RGA replacement: reviews, soft-CCU wedges, and reset/lifecycle races.
 
+- [`2026-08-08`](2026-08-08-rewrite-phase-2-hard-ccu-dma-recovery.md) — Rewrite Phase 2 types hard-CCU DMA-group recovery
 - [`2026-08-08`](2026-08-08-rewrite-phase-2-single-core-recovery-result.md) — Rewrite Phase 2 types single-core reset and DMA recovery
 - [`2026-08-08`](2026-08-08-rewrite-phase-2-cluster-ccu-ownership.md) — Rewrite Phase 2 makes the cluster the CCU list and publication owner
 - [`2026-08-08`](2026-08-08-rewrite-phase-2-reset-domain-construction.md) — Rewrite Phase 2 constructs stable reset domains without claiming group recovery
@@ -354,6 +355,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-08-08-rewrite-phase-2-single-core-recovery-result.md`](2026-08-08-rewrite-phase-2-single-core-recovery-result.md) — Rewrite Phase 2 types single-core reset and DMA recovery
 - [`2026-08-08-rewrite-phase-2-reset-domain-construction.md`](2026-08-08-rewrite-phase-2-reset-domain-construction.md) — Rewrite Phase 2 constructs stable reset domains without claiming group recovery
 - [`2026-08-08-rewrite-phase-2-hard-ccu-reset-ownership.md`](2026-08-08-rewrite-phase-2-hard-ccu-reset-ownership.md) — Rewrite Phase 2 makes the hard-CCU pulse one cluster-validated reset epoch
+- [`2026-08-08-rewrite-phase-2-hard-ccu-dma-recovery.md`](2026-08-08-rewrite-phase-2-hard-ccu-dma-recovery.md) — Rewrite Phase 2 types hard-CCU DMA-group recovery
 - [`2026-08-08-rewrite-phase-2-cluster-power-lease.md`](2026-08-08-rewrite-phase-2-cluster-power-lease.md) — Rewrite Phase 2 replaces the hard-CCU powered-core array with a cluster lease
 - [`2026-08-08-rewrite-phase-2-cluster-construction.md`](2026-08-08-rewrite-phase-2-cluster-construction.md) — Rewrite Phase 2 constructs a shadow CCU cluster without changing admission
 - [`2026-08-08-rewrite-phase-2-cluster-ccu-ownership.md`](2026-08-08-rewrite-phase-2-cluster-ccu-ownership.md) — Rewrite Phase 2 makes the cluster the CCU list and publication owner

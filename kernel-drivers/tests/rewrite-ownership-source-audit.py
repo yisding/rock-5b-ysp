@@ -124,12 +124,15 @@ MPP_CLUSTER_RUNTIME_ENTRY_RE = re.compile(
 )
 MPP_RECOVERY_ENTRY_RE = re.compile(
     r"\b(?:rk_mpp_recovery_result_(?:init|terminal)|"
+    r"rk_mpp_cluster_(?:dma_set_add|collect_dma|refresh_dma|"
+    r"isolated_dma_count|reset_usable)|"
     r"rk_mpp_hw_(?:reset_active|stop_active|finish_recovery|"
     r"stop_and_recover|recover_iommu_fault)|"
-    r"rk_mpp_rkvdec2_reset_soft_ccu_job)\s*\("
+    r"rk_mpp_rkvdec2_(?:reset_soft_ccu_job|force_stop_ccu))\s*\("
 )
 MPP_RECOVERY_RESULT_FIELDS = (
     r"reset_effect|reset_epoch|reset_error|refresh_error|isolation_error|"
+    r"dma_group_count|dma_group_refresh_count|dma_group_isolation_count|"
     r"quiesced|reusable"
 )
 MPP_RECOVERY_RESULT_ACCESS_RE = re.compile(
@@ -181,7 +184,8 @@ MPP_CLUSTER_STATE_WRITE_RE = re.compile(
 )
 MPP_CLUSTER_TOPOLOGY_INPUT_RE = re.compile(
     rf"{FIELD_TARGET}(?:hw_list|ccu_node|core_mask|rkvdec_ccu_mode|"
-    r"rkvdec_ccu_jobs|rkvdec_ccu_node|dma_group|iommu_domain)\b"
+    r"rkvdec_ccu_jobs|rkvdec_ccu_node|dma_group|dma_domain|isolated|"
+    r"iommu_domain)\b"
 )
 ACTIVE_SLOT_WRITE_RE = field_write_re(r"active_job|active_generation")
 ACTIVE_SLOT_ACCESS_RE = re.compile(r"\b(?:active_job|active_generation)\b")
@@ -208,7 +212,8 @@ MPP_POWER_COUNT_WRITE_RE = re.compile(
 MPP_WATCHDOG_ARM_RE = re.compile(r"\brk_mpp_hw_schedule_timeout\s*\(")
 RGA_WATCHDOG_ARM_RE = re.compile(r"\brk_rga_hw_schedule_timeout\s*\(")
 MPP_IOMMU_RE = re.compile(
-    r"\b(?:rk_mpp_hw_refresh_iommu|rk_mpp_dma_group_isolate)\s*\("
+    r"\b(?:__rk_mpp_hw_refresh_iommu|rk_mpp_hw_refresh_iommu|"
+    r"rk_mpp_cluster_refresh_dma|rk_mpp_dma_group_isolate)\s*\("
 )
 MPP_IOMMU_BACKEND_RE = re.compile(
     r"\b(?:vsi_iommu_refresh|iommu_flush_iotlb_all|iommu_attach_group)\s*\("
@@ -238,7 +243,7 @@ MPP_TERMINAL_RE = re.compile(
     r"\b(?:rk_mpp_job_complete|rk_mpp_hw_(?:stop_active|finish_recovery|"
     r"stop_and_recover|recover_iommu_fault|recover_active|"
     r"abort_active(?:_recovery_locked)?)|"
-    r"rk_mpp_rkvdec2_reset_soft_ccu_job)\s*\("
+    r"rk_mpp_rkvdec2_(?:reset_soft_ccu_job|force_stop_ccu))\s*\("
 )
 RGA_TASK_ADVANCE_RE = field_write_re(r"current_task")
 RGA_EXEC_MAP_OWNER_RE = re.compile(

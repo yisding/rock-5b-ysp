@@ -2659,7 +2659,10 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\tatomic_cond_read_relaxed(&hw->power_count, true);\n"
             "\trk_mpp_hw_schedule_timeout(hw);\n"
             "\trk_mpp_hw_stop_and_recover(hw, job, &recovery);\n"
+            "\trk_mpp_cluster_refresh_dma(&request, &set, &recovery, "
+            "&failed_hw);\n"
             "\trecovery.reset_effect = RK_MPP_RESET_TRANSLATIONS_LOST;\n"
+            "\trecovery.dma_group_count = 1;\n"
             "\tif (recovery.reusable) job = NULL;\n"
             "\trk_mpp_hw_refresh_iommu(hw, job);\n"
             "\tvsi_iommu_refresh(hw->dev);\n"
@@ -2815,6 +2818,7 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertNotIn("atomic_cond_read_relaxed", baseline_text)
             self.assertIn("mpp-watchdog-arm-entry", baseline_text)
             self.assertIn("rga-watchdog-arm-entry", baseline_text)
+            self.assertIn("mpp-iommu-transition", baseline_text)
             self.assertIn("mpp-irq-ack-write", baseline_text)
             self.assertIn("mpp-irq-snapshot-write", baseline_text)
             self.assertIn("mpp-fault-snapshot-write", baseline_text)
@@ -2901,8 +2905,11 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\trk_mpp_cluster_power_lease_release(jobs[0]);\n"
                     "\trk_mpp_cluster_remove_ccu_job(cluster, job, ccu);\n"
                     "\trk_mpp_cluster_arm_soft_ccu(job);\n"
+                    "\trk_mpp_cluster_collect_dma(&requests[0], &sets[0]);\n"
+                    "\trk_mpp_rkvdec2_force_stop_ccu(hw, &recoveries[0]);\n"
                     "\trk_mpp_hw_finish_recovery(hw, job, &recoveries[0]);\n"
                     "\trecoveries[0].quiesced = true;\n"
+                    "\trecoveries[0].dma_group_refresh_count++;\n"
                     "\tjob->rkvdec_ccu_listed = false;\n"
                     "\tnext_table[info->next_word] = 1;\n"
                     "\twritel_relaxed(1, hw->regs[0] + "
@@ -2916,6 +2923,8 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                     "\tlist_add_tail(&hw->cluster_link,\n"
                     "\t\t      &clusters[0].members);\n"
                     "\thws[0]->iommu_domain = domain;\n"
+                    "\tgroups[0]->isolated = true;\n"
+                    "\t__rk_mpp_hw_refresh_iommu(hw, srv);\n"
                     "\treset_control_bulk_reset(1, NULL);\n"
                     "\treset_control_rearm(hw->resets);\n"
                 ),
@@ -2967,6 +2976,7 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             self.assertIn("NEW\tmpp-power-backend-op", changed.stderr)
             self.assertIn("NEW\tmpp-power-count-write", changed.stderr)
             self.assertIn("NEW\tmpp-watchdog-arm-entry", changed.stderr)
+            self.assertIn("NEW\tmpp-iommu-transition", changed.stderr)
             self.assertIn("NEW\tmpp-iommu-backend-op", changed.stderr)
             self.assertIn("NEW\tmpp-job-lifecycle-write", changed.stderr)
             self.assertIn("NEW\tmpp-irq-snapshot-write", changed.stderr)

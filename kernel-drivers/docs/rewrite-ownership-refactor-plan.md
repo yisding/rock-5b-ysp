@@ -19,9 +19,9 @@ The priority is **ownership before convention**:
    the ownership graph has stopped changing.
 
 > **Status — 2026-08-08:** Phase 1 is source-complete, Phase 2 checkpoints
-> 1–5 are implemented, and checkpoint 6A types single-core recovery at
-> `rk3588-rewrite-6.18@e99b3da2f3318` and
-> `rk3588-rewrite-mainline@63bbb63bec44d`. Their tracked
+> 1–5 are implemented, and checkpoints 6A–6B type single-core and hard-CCU
+> group recovery at `rk3588-rewrite-6.18@43fca8a3d80cf` and
+> `rk3588-rewrite-mainline@91bac563e4a5d`. Their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. Phase 1 funnels reset
 > backends, both active slots, RKVDEC dispatch and power leases,
 > publication/start, MPP outcome publication, and RGA execution-map retirement;
@@ -37,14 +37,16 @@ The priority is **ownership before convention**:
 > cluster power lease replaces the job's fixed powered-core array and follows
 > the existing coordinator chain without cycling member power. Cluster methods
 > now own the running list, link relinks, completion/resend snapshots, and
-> soft/hard CCU arm and publication mechanics; coordinator per-job power,
-> descriptor admission, and hard-CCU group recovery policy remain unchanged.
-> Single-core reset, soft-CCU reset, and idle-fault paths now return one typed
-> quiesced/reusable result and refresh translations before reuse. The
-> 992-signal source-pinned production audit freezes those recovery seams plus
+> soft/hard CCU arm and publication mechanics. Single-core reset, soft-CCU
+> reset, idle fault, and hard-CCU group reset now return typed
+> quiesced/reusable results. Group recovery deduplicates the reference-pinned
+> participants' DMA groups, refreshes each once, and refuses resend when any
+> group is not reusable. Coordinator per-job power and descriptor admission
+> remain unchanged. The 1086-signal source-pinned production audit freezes
+> those recovery seams plus
 > the earlier reset-domain, cluster construction, group-reset, power-lease,
 > and CCU runtime seams; the KUnit-debt audit remains 306 signals, and the
-> manifest is 100 MPP plus 152 RGA cases. There is still no
+> manifest is 101 MPP plus 152 RGA cases. There is still no
 > `rk_mpp_activation`, `rk_rga_task_exec`, or
 > `rk_rga_acquire_set`.
 >
@@ -144,10 +146,10 @@ reinterpret raw geometry.
 | Current object | Useful ownership already present | State that is still at the wrong altitude |
 |---|---|---|
 | `rk_mpp_service` | hardware registry, scheduler queue, diagnostics, reset-domain and shadow-cluster registries | DMA groups, DCHS global state, and topology are recorded but not yet composed into admission/recovery ownership |
-| `rk_mpp_reset_domain` | stable node identity, member lifetime, mutex, single-target operations, one cluster-validated epoch for each hard-CCU group pulse, and a typed single-core effect/epoch result | hard-CCU group reset does not yet relate its epoch to every affected DMA group; IRQ lease and quarantine authority remain absent |
-| `rk_mpp_cluster` | stable CCU identity, unbounded member lifetime, borrowed coordinator, core/type summary, singular reset authority, derived DMA relationship count, hard-CCU reset-participant validation, member power-lease identity, coordinator running-list/link ownership, soft/hard arm/START publication, and typed single-core reuse gating | descriptor admission, multi-member DMA recovery/quarantine, and complete activation lifetime remain outside cluster ownership |
+| `rk_mpp_reset_domain` | stable node identity, member lifetime, mutex, single-target operations, one cluster-validated epoch for each hard-CCU group pulse, and typed single/group effect/epoch results | IRQ lease and quarantine authority remain absent |
+| `rk_mpp_cluster` | stable CCU identity, unbounded member lifetime, borrowed coordinator, core/type summary, singular reset authority, derived DMA relationship count, hard-CCU reset-participant validation, member power-lease identity, coordinator running-list/link ownership, soft/hard arm/START publication, and typed single/group reuse gating | descriptor admission, quarantine policy, and complete activation lifetime remain outside cluster ownership |
 | `rk_mpp_cluster_power_lease` | refcounted exact member-core power/hardware references; transfers unchanged along the existing coordinator chain and releases once | remains attached to one legacy job at a time until an activation object owns the complete admitted lifetime; coordinator power remains per-job |
-| `rk_mpp_dma_group` | IOMMU group, normal/isolation domains, member list, terminal isolation | no refresh epoch or explicit relation to the CCU/reset group whose recovery requires it |
+| `rk_mpp_dma_group` | IOMMU group, normal/isolation domains, member list, terminal isolation, and serialized per-group refresh used by hard recovery | no retained refresh epoch or admission authority |
 | `rk_mpp_hw` | private MMIO, clocks, IRQ, queue and active slot | also acts as coordinator, reset client, group-recovery participant, timeout owner, and IOMMU-fault owner |
 | `rk_mpp_job` | accepted message set, retained imports, selected hardware and result | also carries a temporary cluster-lease pointer, coordinator power, CCU membership, mutable register image, slice state, activation timing, and backend recovery state |
 
@@ -157,9 +159,11 @@ not that the whole cluster migration is finished. `rk_mpp_hw_power_on()` and
 hard-CCU coordinator stop validates its existing participant snapshot and owns
 one group epoch. The fixed powered-core array is gone, but the new cluster
 lease still transfers through legacy jobs and coordinator power remains
-per-job. Single-core reset effects are now coupled to IOMMU refresh and expose
-separate retirement/reuse decisions. The hard-CCU group pulse still lacks the
-equivalent multi-member DMA result.
+per-job. Single-core and hard-CCU group reset effects are coupled to IOMMU
+refresh and expose separate retirement/reuse decisions; the group path
+deduplicates the already reference-pinned participants' DMA groups before it
+permits resend. Descriptor admission, a retained refresh epoch, and quarantine
+authority remain outside this typed result.
 
 ### RGA
 
@@ -741,6 +745,15 @@ reuse; refresh failure closes admission and attempts terminal isolation; and
 soft CCU reconnect MMIO occurs only for a reusable result. Hard-CCU group reset
 is intentionally left for checkpoint 6B because its one epoch affects a
 reference-pinned set of cores and possibly several DMA-group views.
+
+Checkpoint 6B is present at `43fca8a3d80cf` / `91bac563e4a5d`: hard-CCU
+group reset returns the same typed recovery contract, constructs a deduplicated
+set from the already reference-pinned coordinator and core participants, and
+refreshes each affected DMA group exactly once before permitting resend. Any
+topology, reset, or refresh failure keeps reuse false and falls back to the
+existing terminal-isolation cleanup. Descriptor admission is intentionally
+unchanged; the next source checkpoint is the IRQ-safe reset/register epoch
+check rather than terminal-reason or activation-lifetime migration.
 
 Acceptance requires more than KUnit: repeat the reset-contention gate with both
 cores resetting; normal single- and multi-stream decode; kill/close/reset
