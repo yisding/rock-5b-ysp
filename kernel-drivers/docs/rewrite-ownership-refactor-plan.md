@@ -22,9 +22,11 @@ The priority is **ownership before convention**:
 > source items are implemented, Phase 3A embedded the first MPP
 > current-attempt record, Phase 3B binds the per-session RKVDEC dispatch
 > lease to that exact embedded address, Phase 3C moves the retained
-> selected-core reference into it, and Phase 3D stores the active and timeout
-> slots as exact activation pointers at `rk3588-rewrite-6.18@e3a24baa7ee7`
-> and `rk3588-rewrite-mainline@738f910e645b`. Their tracked
+> selected-core reference into it, Phase 3D stores the active and timeout
+> slots as exact activation pointers, and Phase 3E routes every active-slot
+> detach through one reasoned claim owner at
+> `rk3588-rewrite-6.18@969b91ce7d4b` and
+> `rk3588-rewrite-mainline@8f67fb6fc7d9`. Their tracked
 > rewrite/Kconfig/ABI/uAPI files are byte-identical. Phase 1 funnels reset
 > backends, both active slots, RKVDEC dispatch and power leases,
 > publication/start, MPP outcome publication, and RGA execution-map retirement;
@@ -66,8 +68,15 @@ The priority is **ownership before convention**:
 > that reference and restore transfers it back. The saved timeout generation
 > remains mandatory because hard-CCU retry rewrites the same embedded
 > activation address in place.
-> Retained attempts, fresh retry objects, state transitions, and terminal
-> arbitration remain later Phase 3 work. The 1451-signal source-pinned
+> Phase 3E adds provisional `UNINSTALLED` / `SLOTTED` / `CLAIMED` metadata
+> and one reasoned claim helper as the only active-slot detach. Exact identity
+> and generation checks precede mutation, a pending IOMMU fault keeps its
+> existing priority over IRQ, timeout, and CCU-done claims, and reset/stop
+> failure restores the same slot, reference, generation, and deadline to
+> `SLOTTED`. This records today's first-claim behavior without ranking final
+> errors or changing the session-abort outcome path.
+> Retained attempts, fresh retry objects, final retirement states, and terminal
+> arbitration remain later Phase 3 work. The 1535-signal source-pinned
 > production audit freezes those activation, IRQ, and recovery seams plus
 > the earlier reset-domain, cluster construction, group-reset, power-lease,
 > and CCU runtime seams; the KUnit-debt audit remains 306 signals, and the
@@ -174,8 +183,8 @@ reinterpret raw geometry.
 | `rk_mpp_cluster` | stable CCU identity, unbounded member lifetime, borrowed coordinator, core/type summary, singular reset authority, derived DMA relationship count, hard-CCU reset-participant validation, member power-lease identity, coordinator running-list/link ownership, soft/hard arm/START publication, and typed single/group reuse gating | descriptor admission, quarantine policy, and complete activation lifetime remain outside cluster ownership |
 | `rk_mpp_cluster_power_lease` | refcounted exact member-core power/hardware references; transfers unchanged along the existing coordinator chain and releases once | remains attached to one legacy job at a time until an activation object owns the complete admitted lifetime; coordinator power remains per-job |
 | `rk_mpp_dma_group` | IOMMU group, normal/isolation domains, member list, terminal isolation, and serialized per-group refresh used by hard recovery | no retained refresh epoch or admission authority |
-| `rk_mpp_activation` | embedded current-attempt backpointer, retained selected-core reference, nonzero hardware generation, absolute watchdog deadline, exact identity named by the session-dispatch owner, and exact address stored in the hardware active/timeout slots; all selected-core, slot, generation, and deadline writers are hard-allowlisted | retry still overwrites this storage in place; CCU/link/DCHS, power leases, async snapshots, state, and terminal ownership remain outside it |
-| `rk_mpp_hw` | private MMIO, clocks, IRQ, queue, activation-pointer active/timeout adapters, and monotonic activation-generation allocator | also acts as coordinator, reset client, group-recovery participant, and IOMMU-fault owner; slot identity is typed, but retirement still delegates to job-shaped terminal paths |
+| `rk_mpp_activation` | embedded current-attempt backpointer, retained selected-core reference, nonzero hardware generation, absolute watchdog deadline, exact identity named by the session-dispatch owner, exact address stored in the hardware active/timeout slots, and provisional restorable slot state/reason; all selected-core, slot, generation, deadline, state, and reason writers are hard-allowlisted | retry still overwrites this storage in place; `CLAIMED` is not retained retirement; CCU/link/DCHS, power leases, async snapshots, and final terminal ownership remain outside it |
+| `rk_mpp_hw` | private MMIO, clocks, IRQ, queue, activation-pointer active/timeout adapters, reasoned active-claim owner, and monotonic activation-generation allocator | also acts as coordinator, reset client, group-recovery participant, and IOMMU-fault owner; slot identity and first-claim recording are typed, but retirement and result arbitration still delegate to job-shaped terminal paths |
 | `rk_mpp_job` | accepted message set, retained imports, result, and embedded current-attempt record | also carries a temporary cluster-lease pointer, coordinator power, CCU membership, mutable register image, slice state, activation timing, and backend recovery state |
 
 The current reset-domain and cluster objects prove reset transaction ownership,
@@ -834,6 +843,17 @@ generation remains separate because in-place retry keeps the same activation
 address while changing its generation and deadline. Existing terminal callers
 remain job-shaped adapters, so this is not retained retirement or arbitration.
 
+Checkpoint 3E is present at `969b91ce7d4b` / `8f67fb6fc7d9`: one
+`rk_mpp_hw_claim_active_locked()` helper is the only production active-slot
+detach. It validates exact activation identity and optional generation before
+recording a trigger reason and moving `SLOTTED` to `CLAIMED`; a pending IOMMU
+fault preserves its existing priority over IRQ, timeout, and CCU-done claims.
+Restore moves the same activation back to `SLOTTED` without changing its
+reference, generation, or deadline. Retry remains an in-place `SLOTTED`
+generation replacement. The claim reason records the current winner; it does
+not rank final errno values, delay session-abort publication, retain an old
+attempt, or make `CLAIMED` equivalent to `RETIRED`.
+
 1. Embed and initialize `rk_mpp_activation` in the current job.
 2. Move generation, absolute deadline, selected hardware, and exact
    session-dispatch identity into it. CCU/DCHS/link and power ownership remain
@@ -841,8 +861,10 @@ remain job-shaped adapters, so this is not retained retirement or arbitration.
 3. **Implemented by checkpoint 3D.** Change the hardware active and timeout
    slots from job to activation together, keeping adapter helpers for old
    callers and preserving both independent containing-job references.
-4. Route IRQ, timeout, fault, abort, close, remove and shutdown to one transition
-   engine.
+4. **Prerequisite implemented by checkpoint 3E.** Route IRQ, timeout, fault,
+   abort, close, remove and shutdown through one reasoned claim owner while
+   preserving existing first-winner and IOMMU-fault-reservation behavior.
+   Retained retirement and final result arbitration remain pending.
 5. Make retry allocate a new attempt/generation; make quarantine transfer
    resources into a tombstone; and require `RECLAIMABLE` before embedded reuse.
 6. Delete duplicate terminal tails only after source audit proves every trigger

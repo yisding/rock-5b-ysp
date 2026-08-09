@@ -2622,9 +2622,30 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
         mpp.write_text(
             "enum rk_mpp_debug_event_type { RK_MPP_DEBUG_DONE };\n"
             "struct rk_mpp_debug_event { u8 type; };\n"
+            "enum rk_mpp_activation_slot_state {\n"
+            "\tRK_MPP_ACTIVATION_UNINSTALLED,\n"
+            "\tRK_MPP_ACTIVATION_SLOTTED,\n"
+            "\tRK_MPP_ACTIVATION_CLAIMED,\n"
+            "};\n"
+            "enum rk_mpp_activation_transition_reason {\n"
+            "\tRK_MPP_TRANSITION_NONE,\n"
+            "\tRK_MPP_TRANSITION_START_FAILURE,\n"
+            "\tRK_MPP_TRANSITION_IRQ,\n"
+            "\tRK_MPP_TRANSITION_CCU_DONE,\n"
+            "\tRK_MPP_TRANSITION_TIMEOUT,\n"
+            "\tRK_MPP_TRANSITION_IOMMU_FAULT,\n"
+            "\tRK_MPP_TRANSITION_SESSION_RESET,\n"
+            "\tRK_MPP_TRANSITION_SESSION_CLOSE,\n"
+            "\tRK_MPP_TRANSITION_REMOVE,\n"
+            "\tRK_MPP_TRANSITION_SHUTDOWN,\n"
+            "\tRK_MPP_TRANSITION_CCU_DEPENDENT_ABORT,\n"
+            "\tRK_MPP_TRANSITION_COUNT,\n"
+            "};\n"
             "struct rk_mpp_activation {\n"
             "\tstruct rk_mpp_job *job;\n"
             "\tstruct rk_mpp_hw *selected_hw;\n"
+            "\tenum rk_mpp_activation_slot_state slot_state;\n"
+            "\tenum rk_mpp_activation_transition_reason transition_reason;\n"
             "\tu64 generation;\n"
             "\tunsigned long watchdog_deadline;\n"
             "\tbool watchdog_deadline_valid;\n"
@@ -2647,21 +2668,35 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "{\n"
             "\tjob->activation.job = job;\n"
             "\tjob->activation.selected_hw = NULL;\n"
+            "\tjob->activation.slot_state = RK_MPP_ACTIVATION_UNINSTALLED;\n"
+            "\tjob->activation.transition_reason = RK_MPP_TRANSITION_NONE;\n"
+            "\tjob->activation.generation = 0;\n"
+            "\tjob->activation.watchdog_deadline = 0;\n"
+            "\tjob->activation.watchdog_deadline_valid = false;\n"
+            "}\n"
+            "static bool rk_mpp_activation_storage_released(\n"
+            "\t\tconst struct rk_mpp_activation *activation)\n"
+            "{\n"
+            "\treturn activation->slot_state == RK_MPP_ACTIVATION_CLAIMED &&\n"
+            "\t\tactivation->transition_reason > RK_MPP_TRANSITION_NONE;\n"
             "}\n"
             "static struct rk_mpp_job *rk_mpp_activation_job(\n"
             "\t\tconst struct rk_mpp_activation *activation)\n"
             "{\n"
             "\treturn activation ? activation->job : NULL;\n"
             "}\n"
-            "static void rk_mpp_activation_install_locked(\n"
-            "\t\tstruct rk_mpp_hw *hw, struct rk_mpp_job *job,\n"
-            "\t\tu64 generation)\n"
+            "static u64 rk_mpp_activation_install_locked(\n"
+            "\t\tstruct rk_mpp_hw *hw, struct rk_mpp_job *job)\n"
             "{\n"
-            "\tif (job->activation.selected_hw != hw) return;\n"
+            "\tu64 generation = rk_mpp_hw_advance_active_generation_locked(hw);\n"
+            "\tif (job->activation.selected_hw != hw) return 0;\n"
             "\tjob->activation.job = job;\n"
+            "\tjob->activation.slot_state = RK_MPP_ACTIVATION_SLOTTED;\n"
+            "\tjob->activation.transition_reason = RK_MPP_TRANSITION_NONE;\n"
             "\tjob->activation.generation = generation;\n"
             "\tjob->activation.watchdog_deadline = 0;\n"
             "\tjob->activation.watchdog_deadline_valid = false;\n"
+            "\treturn generation;\n"
             "}\n"
             "static int rk_mpp_job_select_hw(struct rk_mpp_job *job)\n"
             "{\n"
@@ -2691,13 +2726,18 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "static u64 rk_mpp_hw_install_active_locked(\n"
             "\t\tstruct rk_mpp_hw *hw, struct rk_mpp_job *job)\n"
             "{\n"
+            "\tu64 generation = rk_mpp_activation_install_locked(hw, job);\n"
             "\thw->active_activation = &job->activation;\n"
-            "\treturn 1;\n"
+            "\treturn generation;\n"
             "}\n"
-            "static struct rk_mpp_activation *rk_mpp_hw_take_active_locked(\n"
-            "\t\tstruct rk_mpp_hw *hw)\n"
+            "static struct rk_mpp_activation *rk_mpp_hw_claim_active_locked(\n"
+            "\t\tstruct rk_mpp_hw *hw, struct rk_mpp_activation *match,\n"
+            "\t\tu64 generation,\n"
+            "\t\tenum rk_mpp_activation_transition_reason reason)\n"
             "{\n"
             "\tstruct rk_mpp_activation *activation = hw->active_activation;\n"
+            "\tactivation->slot_state = RK_MPP_ACTIVATION_CLAIMED;\n"
+            "\tactivation->transition_reason = reason;\n"
             "\thw->active_activation = NULL;\n"
             "\treturn activation;\n"
             "}\n"
@@ -2705,8 +2745,46 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\t\tstruct rk_mpp_hw *hw, struct rk_mpp_activation *activation)\n"
             "{\n"
             "\tif (hw->active_activation) return false;\n"
+            "\tactivation->slot_state = RK_MPP_ACTIVATION_SLOTTED;\n"
+            "\tactivation->transition_reason = RK_MPP_TRANSITION_NONE;\n"
             "\thw->active_activation = activation;\n"
             "\treturn true;\n"
+            "}\n"
+            "static bool rk_mpp_transition_yields_to_fault(\n"
+            "\t\tenum rk_mpp_activation_transition_reason reason)\n"
+            "{\n"
+            "\treturn reason == RK_MPP_TRANSITION_IRQ ||\n"
+            "\t       reason == RK_MPP_TRANSITION_CCU_DONE ||\n"
+            "\t       reason == RK_MPP_TRANSITION_TIMEOUT;\n"
+            "}\n"
+            "static void rk_mpp_batch_get_job(struct rk_mpp_job *job)\n"
+            "{\n"
+            "\trk_mpp_activation_init(job);\n"
+            "}\n"
+            "static void rk_mpp_hw_begin_active_job(\n"
+            "\t\tstruct rk_mpp_hw *hw, struct rk_mpp_job *job)\n"
+            "{\n"
+            "\trk_mpp_hw_install_active_locked(hw, job);\n"
+            "}\n"
+            "static void __rk_mpp_hw_restore_active_job(\n"
+            "\t\tstruct rk_mpp_hw *hw, struct rk_mpp_job *job)\n"
+            "{\n"
+            "\trk_mpp_hw_restore_active_locked(hw, &job->activation);\n"
+            "}\n"
+            "static void rk_mpp_hw_take_irq_job(struct rk_mpp_hw *hw)\n"
+            "{\n"
+            "\trk_mpp_hw_claim_active_locked(hw, NULL, 0,\n"
+            "\t\t\t\t      RK_MPP_TRANSITION_IRQ);\n"
+            "}\n"
+            "static bool rk_mpp_hw_prepare_active_retry(\n"
+            "\t\tstruct rk_mpp_hw *hw, struct rk_mpp_job *job)\n"
+            "{\n"
+            "\treturn !!rk_mpp_activation_install_locked(hw, job);\n"
+            "}\n"
+            "static void rk_mpp_rkvdec2_prepare_ccu_retry_job(\n"
+            "\t\tstruct rk_mpp_hw *hw, struct rk_mpp_job *job)\n"
+            "{\n"
+            "\trk_mpp_hw_prepare_active_retry(hw, job);\n"
             "}\n"
             "static struct rk_mpp_activation *\n"
             "rk_mpp_hw_take_timeout_activation(struct rk_mpp_hw *hw)\n"
@@ -2777,9 +2855,6 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             "\thw->ccu_node = node;\n"
             "\trk_mpp_hw_publish_register_lease(hw, 1);\n"
             "\thw->register_lease_live = true;\n"
-            "\trk_mpp_activation_init(job);\n"
-            "\trk_mpp_hw_install_active_locked(hw, job);\n"
-            "\trk_mpp_activation_install_locked(hw, job, 1);\n"
             "\trk_mpp_activation_job(&job->activation);\n"
             "\tif (job->activation.generation) job = NULL;\n"
             "\trk_mpp_dispatch_lease_acquire_locked(job);\n"
@@ -2920,6 +2995,10 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                 "mpp-activation-generation-schema",
                 "mpp-activation-deadline-schema",
                 "mpp-activation-deadline-valid-schema",
+                "mpp-activation-slot-state-enum-schema",
+                "mpp-activation-transition-reason-enum-schema",
+                "mpp-activation-slot-state-schema",
+                "mpp-activation-transition-reason-schema",
                 "mpp-active-activation-schema",
                 "mpp-active-activation-access",
                 "mpp-active-activation-write",
@@ -2935,6 +3014,12 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
                 "mpp-activation-parent-write",
                 "mpp-activation-generation-write",
                 "mpp-activation-deadline-write",
+                "mpp-activation-slot-state-access",
+                "mpp-activation-slot-state-write",
+                "mpp-activation-transition-reason-access",
+                "mpp-activation-transition-reason-write",
+                "mpp-active-transition-entry",
+                "mpp-activation-fault-priority-schema",
             ):
                 self.assertIn(category, baseline_text)
             self.assertIn("mpp-activation-schema", baseline_text)
@@ -3725,6 +3810,113 @@ class RewriteOwnershipSourceAuditTests(unittest.TestCase):
             ccu_type_drift = self.run_audit(tree, baseline)
             self.assertEqual(ccu_type_drift.returncode, 2)
             self.assertIn("rkvdec_ccu member", ccu_type_drift.stderr)
+
+    def test_activation_claim_state_and_reason_are_hard_guarded(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tree = root / "linux"
+            baseline = root / "baseline.tsv"
+            self.make_tree(tree)
+            updated = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(updated.returncode, 0, updated.stderr)
+
+            self.make_tree(
+                tree,
+                extra_mpp=(
+                    "\tjob->activation.slot_state = "
+                    "RK_MPP_ACTIVATION_CLAIMED;\n"
+                    "\tWRITE_ONCE(job->activation.transition_reason, "
+                    "RK_MPP_TRANSITION_IRQ);\n"
+                    "\tmemset(&job->activation.slot_state, 0, "
+                    "sizeof(job->activation.slot_state));\n"
+                    "\trk_mpp_hw_claim_active_locked(hw, &job->activation, "
+                    "1, RK_MPP_TRANSITION_IRQ);\n"
+                    "\trk_mpp_hw_take_active_locked(hw);\n"
+                ),
+            )
+            rejected = self.run_audit(tree, baseline)
+            self.assertEqual(rejected.returncode, 2)
+            for category in (
+                "mpp-activation-slot-state-access",
+                "mpp-activation-slot-state-write",
+                "mpp-activation-transition-reason-access",
+                "mpp-activation-transition-reason-write",
+                "mpp-active-transition-entry",
+                "mpp-slot-legacy-helper",
+            ):
+                self.assertIn(f"OWNER\t{category}", rejected.stderr)
+            rebased = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(rebased.returncode, 2)
+
+            source = tree / "drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c"
+            self.make_tree(tree)
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "rk_mpp_hw_claim_active_locked(hw, NULL, 0,\n"
+                    "\t\t\t\t      RK_MPP_TRANSITION_IRQ);",
+                    "rk_mpp_hw_claim_active_locked(hw, NULL, 0,\n"
+                    "\t\t\t\t      RK_MPP_TRANSITION_TIMEOUT);",
+                ),
+                encoding="utf-8",
+            )
+            wrong_reason = self.run_audit(tree, baseline)
+            self.assertEqual(wrong_reason.returncode, 2)
+            self.assertIn("OWNER\tmpp-active-transition-entry", wrong_reason.stderr)
+            wrong_reason_rebased = self.run_audit(
+                tree, baseline, "--update-baseline"
+            )
+            self.assertEqual(wrong_reason_rebased.returncode, 2)
+
+            self.make_tree(tree)
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "\tenum rk_mpp_activation_slot_state slot_state;\n",
+                    "\tu8 slot_state;\n",
+                ),
+                encoding="utf-8",
+            )
+            member_drift = self.run_audit(tree, baseline)
+            self.assertEqual(member_drift.returncode, 2)
+            self.assertIn("slot_state member", member_drift.stderr)
+
+            self.make_tree(tree)
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "\tRK_MPP_ACTIVATION_SLOTTED,\n"
+                    "\tRK_MPP_ACTIVATION_CLAIMED,\n",
+                    "\tRK_MPP_ACTIVATION_CLAIMED,\n"
+                    "\tRK_MPP_ACTIVATION_SLOTTED,\n",
+                ),
+                encoding="utf-8",
+            )
+            enum_drift = self.run_audit(tree, baseline)
+            self.assertEqual(enum_drift.returncode, 2)
+            self.assertIn("unexpected enum rk_mpp_activation_slot_state", enum_drift.stderr)
+
+            self.make_tree(tree)
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "reason == RK_MPP_TRANSITION_CCU_DONE ||\n"
+                    "\t       reason == RK_MPP_TRANSITION_TIMEOUT",
+                    "reason == RK_MPP_TRANSITION_TIMEOUT",
+                ),
+                encoding="utf-8",
+            )
+            priority_drift = self.run_audit(tree, baseline)
+            self.assertEqual(priority_drift.returncode, 2)
+            self.assertIn("fault-priority reasons must be exactly", priority_drift.stderr)
+
+            self.make_tree(
+                tree,
+                extra_kunit=(
+                    "\tjob->activation.slot_state = "
+                    "RK_MPP_ACTIVATION_CLAIMED;\n"
+                    "\tjob->activation.transition_reason = "
+                    "RK_MPP_TRANSITION_IRQ;\n"
+                ),
+            )
+            kunit_only = self.run_audit(tree, baseline)
+            self.assertEqual(kunit_only.returncode, 0, kunit_only.stderr)
 
     def test_activation_alias_spellings_cannot_be_rebaselined(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

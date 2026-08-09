@@ -200,10 +200,11 @@ The `/dev/rga` driver — session lifetime, userptr/dma-buf imports, and the 10-
 - [`2026-07-20`](2026-07-20-rga2-unmapped-page-table-dma-sync.md) — RGA2 syncs page-table memory through an unmapped DMA address
 - [`2026-07-17`](2026-07-17-rga-session-close-uaf.md) — RGA session-close force-free ignores refcounts; a leaked test handle exposed it as a kernel Oops
 
-### Clean-room rewrite drivers (44)
+### Clean-room rewrite drivers (45)
 
 The from-scratch MPP/RGA replacement: reviews, soft-CCU wedges, and reset/lifecycle races.
 
+- [`2026-08-09`](2026-08-09-rewrite-phase-3e-mpp-claim-owner.md) — Rewrite Phase 3E owns MPP active-slot claims by reason
 - [`2026-08-09`](2026-08-09-rewrite-phase-3d-mpp-activation-slots.md) — Rewrite Phase 3D stores MPP slots by activation identity
 - [`2026-08-09`](2026-08-09-rewrite-phase-3a-mpp-activation-identity.md) — Rewrite Phase 3A embeds MPP current-attempt identity
 - [`2026-08-09`](2026-08-09-rewrite-phase-3b-mpp-dispatch-owner.md) — Rewrite Phase 3B binds RKVDEC dispatch to exact activation storage
@@ -355,6 +356,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-08-09-rewrite-phase-3e-mpp-claim-owner.md`](2026-08-09-rewrite-phase-3e-mpp-claim-owner.md) — Rewrite Phase 3E owns MPP active-slot claims by reason
 - [`2026-08-09-rewrite-phase-3d-mpp-activation-slots.md`](2026-08-09-rewrite-phase-3d-mpp-activation-slots.md) — Rewrite Phase 3D stores MPP slots by activation identity
 - [`2026-08-09-rewrite-phase-3c-mpp-selected-hardware.md`](2026-08-09-rewrite-phase-3c-mpp-selected-hardware.md) — Rewrite Phase 3C: activation-owned selected hardware
 - [`2026-08-09-rewrite-phase-3b-mpp-dispatch-owner.md`](2026-08-09-rewrite-phase-3b-mpp-dispatch-owner.md) — Rewrite Phase 3B binds RKVDEC dispatch to exact activation storage

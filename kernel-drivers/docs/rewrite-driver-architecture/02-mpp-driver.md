@@ -63,7 +63,7 @@ The principal objects are:
 | `rk_mpp_session` | `/dev/mpp_service` `open()` | client type, imports, active jobs, translation table, RCB and codec metadata |
 | `rk_mpp_import` | fd translation | DMA-BUF, attachment, mapped scatterlist, device-specific IOVA |
 | `rk_mpp_job` | ioctl message collection | copied requests, register image, imports, result/readback, embedded activation, current CCU/DCHS participation, and a temporary cluster-power-lease pointer |
-| `rk_mpp_activation` | job allocation | parent identity, retained selected hardware, current nonzero generation, absolute watchdog deadline, exact session-dispatch identity, and the identity stored in active/timeout slots |
+| `rk_mpp_activation` | job allocation | parent identity, retained selected hardware, current nonzero generation, absolute watchdog deadline, exact session-dispatch identity, active/timeout-slot identity, and provisional restorable slot state/reason |
 | `rk_mpp_reset_domain` | first matching hardware probe | immutable node identity, member lifetime, mutex, single-target reset state/epoch, responsible hardware, operation counters, one epoch for each cluster-validated hard-CCU pulse, and the epoch supplied to typed single-core recovery |
 | `rk_mpp_cluster` | first matching CCU-identity probe | stable member topology, borrowed coordinator, learned core type, reset authority, derived DMA relationship count, hard-reset participant validation, deduplicated pinned-participant DMA recovery, coordinator running-list/link ownership, and soft/hard arm/START publication |
 | `rk_mpp_cluster_power_lease` | first member-core power acquisition for a CCU chain | refcounted exact member-core power and hardware references; transfers unchanged to the next listed job and releases once |
@@ -100,10 +100,14 @@ RKVDEC dispatch owner point at that exact embedded address instead of tracking
 two booleans. Phase 3C moves the retained selected-core reference into the
 same activation without changing its select/drop/refcount order. Phase 3D
 makes that address the active- and timeout-slot type while preserving one
-independent containing-job reference for each non-NULL slot. It is still not a
-retained transition object: cluster/link/DCHS and power leases, reason
-snapshots, and terminal ownership remain in the legacy job/hardware graph, and
-hard-CCU retry overwrites the embedded record in place.
+independent containing-job reference for each non-NULL slot. Phase 3E funnels
+every active-slot detach through one reasoned claim owner. The activation is
+`SLOTTED` while installed and `CLAIMED` after a successful exact
+identity/generation claim; reset or stop failure restores the same record to
+`SLOTTED`. It is still not a retained transition object: cluster/link/DCHS and
+power leases, async snapshots, and final outcome ownership remain in the
+legacy job/hardware graph, and hard-CCU retry overwrites the embedded record in
+place.
 
 ### 3.2 Session lifecycle
 
@@ -321,8 +325,18 @@ callers still recover `activation->job` through compatibility adapters.
 Hard-CCU retry still replaces the embedded record rather than retaining a
 separate predecessor. The saved timeout generation therefore remains required:
 the activation address alone cannot distinguish the stale timeout from its
-in-place replacement. These are deliberate Phase 3D boundaries, not the final
-activation state machine.
+in-place replacement.
+
+Phase 3E adds one reasoned claim owner for every active-slot detach. All match,
+generation, and fault-priority predicates run before it changes `SLOTTED` to
+`CLAIMED`; failed claims leave state and reason untouched. A pending IOMMU
+fault keeps the existing priority over IRQ, timeout, and CCU-done claims, while
+session/device teardown retains its existing first-winner behavior. Restore
+returns the same activation to `SLOTTED` with no generation, deadline, or
+reference change. `CLAIMED` is therefore a restorable ownership record, not
+`RETIRED`, and the early session-abort result publication remains outside this
+owner. These are deliberate Phase 3E boundaries, not the final activation
+retirement or outcome-arbitration engine.
 
 START publication also creates a bounded IRQ/register lease under
 `hw->regs_lock`. The lease records the live reset epoch and, for direct-core

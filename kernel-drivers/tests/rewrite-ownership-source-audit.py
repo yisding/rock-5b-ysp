@@ -208,7 +208,8 @@ MPP_REGISTER_LEASE_WRITE_RE = field_write_re(MPP_REGISTER_LEASE_FIELDS)
 ACTIVATION_FIELD_PUBLISHERS = rf"(?:{FIELD_PUBLISHERS}|memset|memcpy|memmove)"
 MPP_ACTIVATION_OBJECT_TARGET = rf"{FIELD_TARGET}activation"
 MPP_ACTIVATION_FIELDS = (
-    r"job|selected_hw|generation|watchdog_deadline|watchdog_deadline_valid"
+    r"job|selected_hw|slot_state|transition_reason|generation|"
+    r"watchdog_deadline|watchdog_deadline_valid"
 )
 ACTIVATION_POINTER_QUALIFIERS = (
     r"(?:(?:const|volatile|restrict|__restrict|__restrict__)\b\s*)*"
@@ -263,9 +264,10 @@ def activation_field_target(
 
 MPP_ACTIVATION_FIELD_TARGET = activation_field_target({"activation"})
 MPP_ACTIVATION_ENTRY_RE = re.compile(
-    r"\b(?:rk_mpp_activation_(?:init|job|generation|install_locked)|"
+    r"\b(?:rk_mpp_activation_(?:init|job|generation|install_locked|"
+    r"storage_released)|"
     r"rk_mpp_hw_(?:advance_active_generation_locked|install_active_locked|"
-    r"prepare_active_retry))\s*\("
+    r"claim_active_locked|restore_active_locked|prepare_active_retry))\s*\("
 )
 MPP_ACTIVATION_ACCESS_RE = re.compile(
     rf"(?:{MPP_ACTIVATION_OBJECT_TARGET}\b|"
@@ -284,6 +286,16 @@ MPP_ACTIVATION_GENERATION_WRITE_RE = field_write_re(
 )
 MPP_ACTIVATION_DEADLINE_WRITE_RE = field_write_re(
     r"watchdog_deadline|watchdog_deadline_valid",
+    publishers=ACTIVATION_FIELD_PUBLISHERS,
+    target=MPP_ACTIVATION_FIELD_TARGET,
+)
+MPP_ACTIVATION_SLOT_STATE_WRITE_RE = field_write_re(
+    r"slot_state",
+    publishers=ACTIVATION_FIELD_PUBLISHERS,
+    target=MPP_ACTIVATION_FIELD_TARGET,
+)
+MPP_ACTIVATION_REASON_WRITE_RE = field_write_re(
+    r"transition_reason",
     publishers=ACTIVATION_FIELD_PUBLISHERS,
     target=MPP_ACTIVATION_FIELD_TARGET,
 )
@@ -369,6 +381,8 @@ MPP_ACTIVATION_WRITE_RE = re.compile(
     rf"(?:{MPP_ACTIVATION_PARENT_WRITE_RE.pattern}|"
     rf"{MPP_ACTIVATION_GENERATION_WRITE_RE.pattern}|"
     rf"{MPP_ACTIVATION_DEADLINE_WRITE_RE.pattern}|"
+    rf"{MPP_ACTIVATION_SLOT_STATE_WRITE_RE.pattern}|"
+    rf"{MPP_ACTIVATION_REASON_WRITE_RE.pattern}|"
     rf"{MPP_SELECTED_HW_WRITE_RE.pattern}|"
     rf"{MPP_ACTIVATION_SEQUENCE_WRITE_RE.pattern}|"
     rf"{MPP_ACTIVATION_OBJECT_WRITE_RE.pattern})"
@@ -377,11 +391,30 @@ MPP_ACTIVATION_PARENT_WRITE_OWNERS = {
     "rk_mpp_activation_init",
     "rk_mpp_activation_install_locked",
 }
-MPP_ACTIVATION_GENERATION_WRITE_OWNERS = {"rk_mpp_activation_install_locked"}
+MPP_ACTIVATION_GENERATION_WRITE_OWNERS = {
+    "rk_mpp_activation_init",
+    "rk_mpp_activation_install_locked",
+}
 MPP_ACTIVATION_DEADLINE_WRITE_OWNERS = {
+    "rk_mpp_activation_init",
     "rk_mpp_activation_install_locked",
     "rk_mpp_hw_schedule_timeout",
 }
+MPP_ACTIVATION_SLOT_STATE_ACCESS_OWNERS = {
+    "rk_mpp_activation_init",
+    "rk_mpp_activation_install_locked",
+    "rk_mpp_activation_storage_released",
+    "rk_mpp_hw_claim_active_locked",
+    "rk_mpp_hw_restore_active_locked",
+}
+MPP_ACTIVATION_SLOT_STATE_WRITE_OWNERS = {
+    "rk_mpp_activation_init",
+    "rk_mpp_activation_install_locked",
+    "rk_mpp_hw_claim_active_locked",
+    "rk_mpp_hw_restore_active_locked",
+}
+MPP_ACTIVATION_REASON_ACCESS_OWNERS = MPP_ACTIVATION_SLOT_STATE_ACCESS_OWNERS
+MPP_ACTIVATION_REASON_WRITE_OWNERS = MPP_ACTIVATION_SLOT_STATE_WRITE_OWNERS
 MPP_SELECTED_HW_ACCESS_OWNERS = {
     "rk_mpp_activation_init",
     "rk_mpp_activation_install_locked",
@@ -506,15 +539,55 @@ MPP_SLOT_LEGACY_RE = re.compile(rf"{FIELD_TARGET}(?:active_job|timeout_job)\b")
 MPP_ACTIVE_ACTIVATION_ACCESS_OWNERS = {
     "rk_mpp_hw_active_activation_locked",
     "rk_mpp_hw_install_active_locked",
-    "rk_mpp_hw_take_active_locked",
+    "rk_mpp_hw_claim_active_locked",
     "rk_mpp_hw_restore_active_locked",
     "rk_mpp_activation_install_locked",
 }
 MPP_ACTIVE_ACTIVATION_WRITE_OWNERS = {
     "rk_mpp_hw_install_active_locked",
-    "rk_mpp_hw_take_active_locked",
+    "rk_mpp_hw_claim_active_locked",
     "rk_mpp_hw_restore_active_locked",
 }
+
+MPP_ACTIVE_TRANSITION_ENTRY_RE = re.compile(
+    r"\b(?P<callee>rk_mpp_activation_(?:init|install_locked|"
+    r"storage_released)|rk_mpp_hw_(?:advance_active_generation_locked|"
+    r"install_active_locked|claim_active_locked|restore_active_locked|"
+    r"prepare_active_retry))\s*\("
+)
+MPP_ACTIVE_TRANSITION_ENTRY_OWNERS = {
+    "rk_mpp_activation_init": {"rk_mpp_batch_get_job"},
+    "rk_mpp_activation_install_locked": {
+        "rk_mpp_hw_install_active_locked",
+        "rk_mpp_hw_prepare_active_retry",
+    },
+    "rk_mpp_activation_storage_released": {"rk_mpp_job_release"},
+    "rk_mpp_hw_advance_active_generation_locked": {
+        "rk_mpp_activation_install_locked"
+    },
+    "rk_mpp_hw_install_active_locked": {"rk_mpp_hw_begin_active_job"},
+    "rk_mpp_hw_claim_active_locked": {
+        "rk_mpp_hw_clear_active_job",
+        "rk_mpp_hw_take_active_job",
+        "rk_mpp_hw_take_irq_job",
+        "rk_mpp_hw_take_active_if",
+        "rk_mpp_hw_take_active_if_generation",
+        "rk_mpp_hw_take_iommu_fault_job",
+    },
+    "rk_mpp_hw_restore_active_locked": {"__rk_mpp_hw_restore_active_job"},
+    "rk_mpp_hw_prepare_active_retry": {
+        "rk_mpp_rkvdec2_prepare_ccu_retry_job"
+    },
+}
+MPP_CLAIM_REASON_BY_OWNER = {
+    "rk_mpp_hw_clear_active_job": "reason",
+    "rk_mpp_hw_take_active_job": "reason",
+    "rk_mpp_hw_take_irq_job": "RK_MPP_TRANSITION_IRQ",
+    "rk_mpp_hw_take_active_if": "RK_MPP_TRANSITION_CCU_DONE",
+    "rk_mpp_hw_take_active_if_generation": "RK_MPP_TRANSITION_TIMEOUT",
+    "rk_mpp_hw_take_iommu_fault_job": "RK_MPP_TRANSITION_IOMMU_FAULT",
+}
+MPP_SLOT_LEGACY_HELPER_RE = re.compile(r"\brk_mpp_hw_take_active_locked\s*\(")
 MPP_TIMEOUT_ACTIVATION_OWNERS = {
     "rk_mpp_hw_take_timeout_activation",
     "rk_mpp_hw_schedule_timeout",
@@ -693,6 +766,10 @@ class ActivationFunctionPatterns:
     parent_write: re.Pattern[str]
     generation_write: re.Pattern[str]
     deadline_write: re.Pattern[str]
+    slot_state_access: re.Pattern[str]
+    slot_state_write: re.Pattern[str]
+    reason_access: re.Pattern[str]
+    reason_write: re.Pattern[str]
     selected_access: re.Pattern[str]
     selected_write: re.Pattern[str]
     object_write: re.Pattern[str]
@@ -776,6 +853,16 @@ def activation_function_patterns(
         publishers=ACTIVATION_FIELD_PUBLISHERS,
         target=target,
     )
+    slot_state_access = re.compile(rf"{target}slot_state\b")
+    slot_state_write = field_write_re(
+        r"slot_state", publishers=ACTIVATION_FIELD_PUBLISHERS, target=target
+    )
+    reason_access = re.compile(rf"{target}transition_reason\b")
+    reason_write = field_write_re(
+        r"transition_reason",
+        publishers=ACTIVATION_FIELD_PUBLISHERS,
+        target=target,
+    )
     selected_write = field_write_re(
         r"selected_hw", publishers=ACTIVATION_FIELD_PUBLISHERS, target=target
     )
@@ -784,7 +871,8 @@ def activation_function_patterns(
     )
     write = re.compile(
         rf"(?:{parent_write.pattern}|{generation_write.pattern}|"
-        rf"{deadline_write.pattern}|{selected_write.pattern}|"
+        rf"{deadline_write.pattern}|{slot_state_write.pattern}|"
+        rf"{reason_write.pattern}|{selected_write.pattern}|"
         rf"{MPP_ACTIVATION_SEQUENCE_WRITE_RE.pattern}|{object_write.pattern})"
     )
     return ActivationFunctionPatterns(
@@ -797,6 +885,10 @@ def activation_function_patterns(
         parent_write=parent_write,
         generation_write=generation_write,
         deadline_write=deadline_write,
+        slot_state_access=slot_state_access,
+        slot_state_write=slot_state_write,
+        reason_access=reason_access,
+        reason_write=reason_write,
         selected_access=re.compile(rf"{target}selected_hw\b"),
         selected_write=selected_write,
         object_write=object_write,
@@ -1132,6 +1224,43 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
             found.append(
                 ("mpp-activation-schema", relative, "<file-scope>", text, line)
             )
+            stripped_source = "\n".join(
+                strip_comments(source.read_text(encoding="utf-8").splitlines())
+            )
+            for category, declaration, expected in (
+                (
+                    "mpp-activation-slot-state-enum-schema",
+                    "enum rk_mpp_activation_slot_state {",
+                    "enum rk_mpp_activation_slot_state { "
+                    "RK_MPP_ACTIVATION_UNINSTALLED, "
+                    "RK_MPP_ACTIVATION_SLOTTED, "
+                    "RK_MPP_ACTIVATION_CLAIMED, };",
+                ),
+                (
+                    "mpp-activation-transition-reason-enum-schema",
+                    "enum rk_mpp_activation_transition_reason {",
+                    "enum rk_mpp_activation_transition_reason { "
+                    "RK_MPP_TRANSITION_NONE, RK_MPP_TRANSITION_START_FAILURE, "
+                    "RK_MPP_TRANSITION_IRQ, RK_MPP_TRANSITION_CCU_DONE, "
+                    "RK_MPP_TRANSITION_TIMEOUT, RK_MPP_TRANSITION_IOMMU_FAULT, "
+                    "RK_MPP_TRANSITION_SESSION_RESET, "
+                    "RK_MPP_TRANSITION_SESSION_CLOSE, RK_MPP_TRANSITION_REMOVE, "
+                    "RK_MPP_TRANSITION_SHUTDOWN, "
+                    "RK_MPP_TRANSITION_CCU_DEPENDENT_ABORT, "
+                    "RK_MPP_TRANSITION_COUNT, };",
+                ),
+            ):
+                enum_name = declaration.split("{", 1)[0].strip()
+                if len(re.findall(rf"\b{re.escape(enum_name)}\s*\{{", stripped_source)) != 1:
+                    raise ValueError(f"expected one {enum_name} definition in {source}")
+                enum_line, enum_text = declaration_block(source, declaration)
+                if enum_text != normalize(expected):
+                    raise ValueError(
+                        f"unexpected {enum_name} definition in {source}: {enum_text}"
+                    )
+                found.append(
+                    (category, relative, "<file-scope>", enum_text, enum_line)
+                )
             for category, pattern, description in (
                 (
                     "mpp-activation-parent-schema",
@@ -1152,6 +1281,22 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                     "mpp-activation-deadline-valid-schema",
                     re.compile(r"\bbool\s+watchdog_deadline_valid\s*;"),
                     "bool watchdog_deadline_valid member",
+                ),
+                (
+                    "mpp-activation-slot-state-schema",
+                    re.compile(
+                        r"\benum\s+rk_mpp_activation_slot_state\s+"
+                        r"slot_state\s*;"
+                    ),
+                    "enum rk_mpp_activation_slot_state slot_state member",
+                ),
+                (
+                    "mpp-activation-transition-reason-schema",
+                    re.compile(
+                        r"\benum\s+rk_mpp_activation_transition_reason\s+"
+                        r"transition_reason\s*;"
+                    ),
+                    "enum rk_mpp_activation_transition_reason transition_reason member",
                 ),
             ):
                 line, text = required_struct_member_pattern(
@@ -1276,6 +1421,13 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
             else set()
         )
         functions = parse_functions(source, KUNIT_MARKERS[relative])
+        if relative == MPP_SOURCE and sum(
+            function.name == "rk_mpp_transition_yields_to_fault"
+            for function in functions
+        ) != 1:
+            raise ValueError(
+                "expected one rk_mpp_transition_yields_to_fault production function"
+            )
         for function in functions:
             command_writer = False
             activation_patterns = (
@@ -1287,6 +1439,32 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                 if relative == MPP_SOURCE
                 else None
             )
+            if (
+                relative == MPP_SOURCE
+                and function.name == "rk_mpp_transition_yields_to_fault"
+            ):
+                reasons = re.findall(
+                    r"RK_MPP_TRANSITION_[A-Z_]+", function.text
+                )
+                expected = [
+                    "RK_MPP_TRANSITION_IRQ",
+                    "RK_MPP_TRANSITION_CCU_DONE",
+                    "RK_MPP_TRANSITION_TIMEOUT",
+                ]
+                if reasons != expected:
+                    raise ValueError(
+                        "fault-priority reasons must be exactly IRQ, "
+                        "CCU_DONE, TIMEOUT"
+                    )
+                found.append(
+                    (
+                        "mpp-activation-fault-priority-schema",
+                        relative,
+                        function.name,
+                        function.text,
+                        function.first_line,
+                    )
+                )
             for line, statement in function.statements:
                 matches: list[tuple[str, re.Pattern[str]]] = []
                 if relative == MPP_SOURCE:
@@ -1457,6 +1635,30 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                             (
                                 "mpp-activation-deadline-write",
                                 activation_patterns.deadline_write,
+                            ),
+                            (
+                                "mpp-activation-slot-state-access",
+                                activation_patterns.slot_state_access,
+                            ),
+                            (
+                                "mpp-activation-slot-state-write",
+                                activation_patterns.slot_state_write,
+                            ),
+                            (
+                                "mpp-activation-transition-reason-access",
+                                activation_patterns.reason_access,
+                            ),
+                            (
+                                "mpp-activation-transition-reason-write",
+                                activation_patterns.reason_write,
+                            ),
+                            (
+                                "mpp-active-transition-entry",
+                                MPP_ACTIVE_TRANSITION_ENTRY_RE,
+                            ),
+                            (
+                                "mpp-slot-legacy-helper",
+                                MPP_SLOT_LEGACY_HELPER_RE,
                             ),
                             (
                                 "mpp-activation-object-write",
@@ -1724,8 +1926,29 @@ def category_counts(signals: Iterable[Signal]) -> str:
 def ownership_violations(signals: Iterable[Signal]) -> list[Signal]:
     violations: list[Signal] = []
     for signal in signals:
-        if signal.category in {"mpp-dispatch-legacy", "mpp-slot-legacy"}:
+        if signal.category in {
+            "mpp-dispatch-legacy",
+            "mpp-slot-legacy",
+            "mpp-slot-legacy-helper",
+        }:
             violations.append(signal)
+        elif signal.category == "mpp-active-transition-entry":
+            match = MPP_ACTIVE_TRANSITION_ENTRY_RE.search(signal.text)
+            if not match:
+                violations.append(signal)
+                continue
+            callee = match.group("callee")
+            if signal.function not in MPP_ACTIVE_TRANSITION_ENTRY_OWNERS[callee]:
+                violations.append(signal)
+                continue
+            if callee == "rk_mpp_hw_claim_active_locked":
+                expected = MPP_CLAIM_REASON_BY_OWNER[signal.function]
+                reasons = re.findall(r"RK_MPP_TRANSITION_[A-Z_]+", signal.text)
+                if expected == "reason":
+                    if reasons or not re.search(r"\breason\b", signal.text):
+                        violations.append(signal)
+                elif reasons != [expected]:
+                    violations.append(signal)
         elif (
             signal.category == "mpp-active-activation-access"
             and signal.function not in MPP_ACTIVE_ACTIVATION_ACCESS_OWNERS
@@ -1799,6 +2022,26 @@ def ownership_violations(signals: Iterable[Signal]) -> list[Signal]:
         elif (
             signal.category == "mpp-activation-deadline-write"
             and signal.function not in MPP_ACTIVATION_DEADLINE_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-slot-state-access"
+            and signal.function not in MPP_ACTIVATION_SLOT_STATE_ACCESS_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-slot-state-write"
+            and signal.function not in MPP_ACTIVATION_SLOT_STATE_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-transition-reason-access"
+            and signal.function not in MPP_ACTIVATION_REASON_ACCESS_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-transition-reason-write"
+            and signal.function not in MPP_ACTIVATION_REASON_WRITE_OWNERS
         ):
             violations.append(signal)
     return violations
