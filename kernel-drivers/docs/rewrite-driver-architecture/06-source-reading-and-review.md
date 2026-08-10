@@ -90,10 +90,19 @@ publication transfers the predecessor pair to quarantine. Current, dispatch,
 and list pointers remain borrowed; backend resources, base-bias release,
 resource drain, and `RECLAIMABLE` remain outside this checkpoint.
 
+The Phase 3 completion checkpoint adds `rk_mpp_activation_resources`, terminal
+reason/result masks, `rk_mpp_activation_try_reclaim()`, and the central
+`rk_mpp_activation_complete_claim()` path. Follow those symbols to see coherent
+hard-CCU resource handoff, stable-priority outcome arbitration, drain before
+the sole successful `DONE` publication, exact selected-core/dispatch release,
+and early reclaim of dynamically allocated retired predecessors. Backend start
+paths independently pin and revalidate the selected hardware before touching
+its operations; quarantine remains a resource-retaining terminal owner.
+
 `rk_rga_task_exec` and `rk_rga_acquire_set` should still return no definitions;
-cluster admission, coordinator-power ownership, activation-aware resource drain
-and `RECLAIMABLE`, and complete reset/IOMMU recovery consumers should likewise
-remain absent until their separate checkpoints land.
+cluster admission, coordinator-power ownership, and further consolidation of
+reset/IOMMU recovery consumers remain later MPP work. Activation-aware resource
+drain and `RECLAIMABLE` should now resolve to the completed Phase 3 engine.
 
 Use `rg` to navigate by symbol:
 

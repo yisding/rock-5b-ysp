@@ -237,9 +237,10 @@ MPP_REGISTER_LEASE_WRITE_RE = field_write_re(MPP_REGISTER_LEASE_FIELDS)
 ACTIVATION_FIELD_PUBLISHERS = rf"(?:{FIELD_PUBLISHERS}|memset|memcpy|memmove)"
 MPP_ACTIVATION_OBJECT_TARGET = rf"{FIELD_TARGET}activation_storage"
 MPP_ACTIVATION_FIELDS = (
-    r"job|selected_hw|slot_state|transition_reason|generation|"
+    r"job|selected_hw|slot_state|resource_state|transition_reason|reason_mask|"
+    r"reason_result_mask|reason_result|final_result|outcome_finalized|generation|"
     r"watchdog_deadline|watchdog_deadline_valid|closure|quarantine_link|"
-    r"quarantine_ref_count|quarantine_generation"
+    r"quarantine_ref_count|quarantine_generation|resources"
 )
 ACTIVATION_POINTER_QUALIFIERS = (
     r"(?:(?:const|volatile|restrict|__restrict|__restrict__)\b\s*)*"
@@ -565,6 +566,8 @@ MPP_ACTIVATION_DEADLINE_WRITE_OWNERS = {
 MPP_ACTIVATION_SLOT_STATE_ACCESS_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_activation_claim_put",
+    "rk_mpp_activation_selectable_locked",
+    "rk_mpp_activation_selected_hw_releasable_locked",
     "rk_mpp_activation_finish_terminal_locked",
     "rk_mpp_activation_finish_observed_terminal_locked",
     "rk_mpp_activation_storage_init",
@@ -581,6 +584,7 @@ MPP_ACTIVATION_SLOT_STATE_ACCESS_OWNERS = {
     "rk_mpp_activation_finish_retry_locked",
     "rk_mpp_activation_retry_quarantine",
     "rk_mpp_hw_install_active_locked",
+    "rk_mpp_activation_try_reclaim",
 }
 MPP_ACTIVATION_SLOT_STATE_WRITE_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
@@ -593,8 +597,11 @@ MPP_ACTIVATION_SLOT_STATE_WRITE_OWNERS = {
     "rk_mpp_hw_commit_active_retry",
     "rk_mpp_activation_retry_quarantine",
     "rk_mpp_hw_install_active_locked",
+    "rk_mpp_activation_try_reclaim",
 }
-MPP_ACTIVATION_REASON_ACCESS_OWNERS = MPP_ACTIVATION_SLOT_STATE_ACCESS_OWNERS
+MPP_ACTIVATION_REASON_ACCESS_OWNERS = MPP_ACTIVATION_SLOT_STATE_ACCESS_OWNERS | {
+    "rk_mpp_activation_finalize_result",
+}
 MPP_ACTIVATION_REASON_WRITE_OWNERS = MPP_ACTIVATION_SLOT_STATE_WRITE_OWNERS
 MPP_ACTIVATION_REFCOUNT_ACCESS_OWNERS = {
     "rk_mpp_activation_storage_init",
@@ -602,6 +609,7 @@ MPP_ACTIVATION_REFCOUNT_ACCESS_OWNERS = {
     "rk_mpp_activation_ref_clone",
     "rk_mpp_activation_ref_put",
     "rk_mpp_activation_refs_released",
+    "rk_mpp_activation_try_reclaim",
     "rk_mpp_activation_free_unpublished",
     "rk_mpp_job_release_activation_storage",
 }
@@ -612,6 +620,7 @@ MPP_ACTIVATION_REFCOUNT_WRITE_OWNERS = {
     "rk_mpp_activation_ref_put",
     "rk_mpp_activation_free_unpublished",
     "rk_mpp_job_release_activation_storage",
+    "rk_mpp_activation_try_reclaim",
 }
 MPP_ACTIVATION_CLOSURE_ACCESS_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
@@ -687,6 +696,7 @@ MPP_ACTIVATION_CLOSURE_OBSERVATION_WRITE_OWNERS = {
     "rk_mpp_activation_finish_observed_terminal_locked",
 }
 MPP_CLAIM_TOKEN_ACCESS_OWNERS = {
+    "rk_mpp_activation_complete_claim",
     "rk_mpp_activation_claim_job",
     "rk_mpp_activation_claim_put",
     "rk_mpp_activation_claim_quarantine",
@@ -741,6 +751,10 @@ MPP_SELECTED_HW_ACCESS_OWNERS = {
     "rk_mpp_activation_storage_init",
     "rk_mpp_activation_free_unpublished",
     "rk_mpp_activation_install_locked",
+    "rk_mpp_activation_selected_hw_releasable_locked",
+    "rk_mpp_activation_storage_released",
+    "rk_mpp_activation_take_selected_hw_locked",
+    "rk_mpp_activation_try_reclaim",
     "rk_mpp_av1_submit",
     "rk_mpp_av1_validate",
     "rk_mpp_cluster_arm_soft_ccu",
@@ -770,6 +784,7 @@ MPP_SELECTED_HW_ACCESS_OWNERS = {
     "rk_mpp_job_hold_explicit_iova",
     "rk_mpp_job_hw_available_locked",
     "rk_mpp_job_note_hw_done",
+    "rk_mpp_job_note_terminal_reason_locked",
     "rk_mpp_job_queue_current_locked",
     "rk_mpp_job_read_regs",
     "rk_mpp_job_reject_reg",
@@ -801,16 +816,22 @@ MPP_SELECTED_HW_ACCESS_OWNERS = {
 }
 MPP_SELECTED_HW_WRITE_OWNERS = {
     "rk_mpp_activation_storage_init",
+    "rk_mpp_activation_take_selected_hw_locked",
     "rk_mpp_hw_commit_active_retry",
     "rk_mpp_job_select_hw",
     "rk_mpp_job_drop_hw",
 }
 MPP_CURRENT_ACTIVATION_ACCESS_OWNERS = {
     "__rk_mpp_hw_restore_active_job",
+    "rk_mpp_activation_drain_resources",
+    "rk_mpp_activation_finalize_result",
     "rk_mpp_activation_finish_observed_terminal_locked",
     "rk_mpp_activation_finish_retry_locked",
     "rk_mpp_activation_finish_terminal_locked",
     "rk_mpp_activation_init",
+    "rk_mpp_activation_selectable_locked",
+    "rk_mpp_activation_selected_hw_releasable_locked",
+    "rk_mpp_activation_try_reclaim",
     "rk_mpp_av1_submit",
     "rk_mpp_av1_validate",
     "rk_mpp_cluster_arm_soft_ccu",
@@ -846,6 +867,8 @@ MPP_CURRENT_ACTIVATION_ACCESS_OWNERS = {
     "rk_mpp_job_hold_explicit_iova",
     "rk_mpp_job_hw_available_locked",
     "rk_mpp_job_note_hw_done",
+    "rk_mpp_job_note_terminal_reason_locked",
+    "rk_mpp_job_complete",
     "rk_mpp_job_queue_current_locked",
     "rk_mpp_job_read_regs",
     "rk_mpp_job_reject_reg",
@@ -857,6 +880,7 @@ MPP_CURRENT_ACTIVATION_ACCESS_OWNERS = {
     "rk_mpp_job_unqueue_locked",
     "rk_mpp_job_validate_write_regs",
     "rk_mpp_job_write_regs",
+    "rk_mpp_job_resources",
     "rk_mpp_rkvdec2_acquire_soft_ccu",
     "rk_mpp_rkvdec2_prepare_ccu_descriptor",
     "rk_mpp_rkvdec2_prepare_ccu_regs",
@@ -876,6 +900,7 @@ MPP_CURRENT_ACTIVATION_ACCESS_OWNERS = {
     "rk_mpp_rkvenc2_validate",
     "rk_mpp_scheduler_take_job",
     "rk_mpp_scheduler_work",
+    "rk_mpp_execute_jobs",
 }
 MPP_CURRENT_ACTIVATION_WRITE_OWNERS = {
     "rk_mpp_activation_init",
@@ -884,6 +909,7 @@ MPP_CURRENT_ACTIVATION_WRITE_OWNERS = {
 }
 MPP_ACTIVATION_STORAGE_ACCESS_OWNERS = {
     "rk_mpp_activation_init",
+    "rk_mpp_activation_try_reclaim",
     "rk_mpp_job_release_activation_storage",
 }
 MPP_ACTIVATION_LIST_ACCESS_OWNERS = {
@@ -907,6 +933,9 @@ MPP_ACTIVATION_LINK_ACCESS_OWNERS = {
     "rk_mpp_activation_finish_retry_locked",
     "rk_mpp_activation_storage_init",
     "rk_mpp_activation_init",
+    "rk_mpp_activation_selectable_locked",
+    "rk_mpp_activation_selected_hw_releasable_locked",
+    "rk_mpp_activation_try_reclaim",
     "rk_mpp_activation_free_unpublished",
     "rk_mpp_dispatch_lease_released",
     "rk_mpp_hw_restore_active_locked",
@@ -919,6 +948,7 @@ MPP_ACTIVATION_LINK_WRITE_OWNERS = {
     "rk_mpp_activation_init",
     "rk_mpp_job_release_activation_storage",
     "rk_mpp_hw_commit_active_retry",
+    "rk_mpp_activation_try_reclaim",
 }
 MPP_ACTIVATION_ALLOCATION_OWNERS = {
     "rk_mpp_activation_alloc_successor",
@@ -926,6 +956,7 @@ MPP_ACTIVATION_ALLOCATION_OWNERS = {
 MPP_ACTIVATION_FREE_OWNERS = {
     "rk_mpp_activation_free_unpublished",
     "rk_mpp_job_release_activation_storage",
+    "rk_mpp_activation_try_reclaim",
 }
 MPP_RKVDEC_CCU_ACCESS_RE = re.compile(rf"{FIELD_TARGET}rkvdec_ccu\b")
 MPP_RKVDEC_CCU_WRITE_RE = field_write_re(r"rkvdec_ccu")
@@ -1096,6 +1127,7 @@ DISPATCH_OWNER_ACCESS_OWNERS = {
     "rk_mpp_dispatch_lease_release_locked",
     "rk_mpp_dispatch_lease_transfer_locked",
     "rk_mpp_hw_active_retry_matches_locked",
+    "rk_mpp_activation_try_reclaim",
 }
 DISPATCH_OWNER_WRITE_OWNERS = {
     "rk_mpp_dispatch_lease_acquire_locked",
@@ -1985,6 +2017,7 @@ def validate_mpp_activation_ref_contract(
             "if (WARN_ON_ONCE(!refcount_dec_not_one(&activation->refs))) "
             "return false;",
             "memset(ref, 0, sizeof(*ref));",
+            "rk_mpp_activation_try_reclaim(activation);",
             "rk_mpp_job_put(job);",
             "return true;",
         ),
@@ -1992,8 +2025,28 @@ def validate_mpp_activation_ref_contract(
             "return activation && refcount_read(&activation->refs) == 1;",
         ),
         "rk_mpp_activation_storage_released": (
+            "if (activation && activation->slot_state == "
+            "RK_MPP_ACTIVATION_RECLAIMABLE) return "
+            "rk_mpp_activation_refs_released(activation) && "
+            "!activation->selected_hw && (activation->resource_state == "
+            "RK_MPP_ACTIVATION_RESOURCES_PRISTINE || "
+            "activation->resource_state == "
+            "RK_MPP_ACTIVATION_RESOURCES_HANDED_OFF || "
+            "activation->resource_state == "
+            "RK_MPP_ACTIVATION_RESOURCES_DRAINED) && "
+            "!memchr_inv(&activation->resources, 0, "
+            "sizeof(activation->resources));",
             "return rk_mpp_activation_refs_released(activation) && "
-            "rk_mpp_activation_retirement_released(activation);",
+            "!activation->selected_hw && "
+            "rk_mpp_activation_retirement_released(activation) && "
+            "(activation->resource_state == "
+            "RK_MPP_ACTIVATION_RESOURCES_PRISTINE || "
+            "activation->resource_state == "
+            "RK_MPP_ACTIVATION_RESOURCES_HANDED_OFF || "
+            "activation->resource_state == "
+            "RK_MPP_ACTIVATION_RESOURCES_DRAINED) && "
+            "!memchr_inv(&activation->resources, 0, "
+            "sizeof(activation->resources));",
         ),
         "rk_mpp_hw_take_timeout_ref": (
             "unsigned long flags;",
@@ -2021,7 +2074,7 @@ def validate_mpp_activation_ref_contract(
         },
         "rk_mpp_activation_ref_clone": {"rk_mpp_hw_schedule_timeout": 1},
         "rk_mpp_activation_ref_move": {
-            "rk_mpp_hw_claim_active_locked": 1,
+            "rk_mpp_hw_claim_active_locked": 2,
             "rk_mpp_hw_restore_active_locked": 1,
             "rk_mpp_hw_take_timeout_ref": 1,
             "rk_mpp_hw_commit_active_retry": 3,
@@ -2037,7 +2090,7 @@ def validate_mpp_activation_ref_contract(
             "rk_mpp_hw_timeout_work": 1,
         },
         "rk_mpp_activation_refs_released": {
-            "rk_mpp_activation_storage_released": 1,
+            "rk_mpp_activation_storage_released": 2,
             "rk_mpp_activation_free_unpublished": 1,
             "rk_mpp_job_release_activation_storage": 1,
         },
@@ -2179,7 +2232,8 @@ def validate_mpp_retry_retirement_contract(
         "rk_mpp_activation_finish_retry",
         (
             "rk_mpp_activation_ref_valid(&token->ref)",
-            "session = token->ref.activation->job->session",
+            "activation = token->ref.activation",
+            "session = activation->job->session",
             "rk_mpp_activation_finish_retry_locked(hw, token, status, core)",
             "rk_mpp_activation_ref_put(&token->ref)",
             "rk_mpp_activation_retry_quarantine(hw, token, status, core)",
@@ -2291,7 +2345,7 @@ def validate_mpp_retry_retirement_contract(
             "return false;",
             "activation = token->ref.activation;",
             "job = activation->job;",
-            "ccu = job->rkvdec_ccu;",
+            "ccu = rk_mpp_job_resources(job)->rkvdec_ccu;",
             "if (ccu) lockdep_assert_held(&ccu->ccu_recovery_lock);",
             "generation = token->ref.generation;",
             "mutex_lock(&srv->quarantine_lock);",
@@ -2303,6 +2357,8 @@ def validate_mpp_retry_retirement_contract(
             "} activation->closure.state = "
             "RK_MPP_ACTIVATION_CLOSURE_QUARANTINED;",
             "activation->slot_state = RK_MPP_ACTIVATION_QUARANTINED;",
+            "activation->resource_state = "
+            "RK_MPP_ACTIVATION_RESOURCES_QUARANTINED;",
             "activation->transition_reason = "
             "RK_MPP_TRANSITION_RETRY_REPLACED;",
             "activation->quarantine_generation = generation;",
@@ -2319,20 +2375,26 @@ def validate_mpp_retry_retirement_contract(
             "return true;",
         ),
         "rk_mpp_activation_finish_retry": (
+            "struct rk_mpp_activation *activation;",
             "struct rk_mpp_session *session;",
+            "struct rk_mpp_hw *selected_hw = NULL;",
             "unsigned long flags;",
             "bool finished;",
             "if (!token || !rk_mpp_activation_ref_valid(&token->ref)) "
             "return false;",
-            "session = token->ref.activation->job->session;",
+            "activation = token->ref.activation;",
+            "session = activation->job->session;",
             "lockdep_assert_held(&hw->run_lock);",
             "mutex_lock(&session->lock);",
             "spin_lock_irqsave(&hw->lock, flags);",
             "finished = rk_mpp_activation_finish_retry_locked(hw, token, "
             "status, core);",
             "spin_unlock_irqrestore(&hw->lock, flags);",
+            "if (finished) finished = "
+            "rk_mpp_activation_take_selected_hw_locked("
+            "activation, hw, &selected_hw);",
             "mutex_unlock(&session->lock);",
-            "if (finished) { "
+            "if (finished) { rk_mpp_hw_put(selected_hw);",
             "WARN_ON_ONCE(!rk_mpp_activation_ref_put(&token->ref));",
             "return true;",
             "} WARN_ON_ONCE(!rk_mpp_activation_retry_quarantine(hw, token, "
@@ -2345,7 +2407,21 @@ def validate_mpp_retry_retirement_contract(
             statement for _line, statement in by_name[name].statements
         )
         if statements != expected:
-            raise ValueError(f"{name}: exact retry ownership contract drifted")
+            mismatch = next(
+                (
+                    (index, actual, wanted)
+                    for index, (actual, wanted) in enumerate(
+                        zip(statements, expected, strict=False)
+                    )
+                    if actual != wanted
+                ),
+                (min(len(statements), len(expected)), "<missing>", "<missing>"),
+            )
+            raise ValueError(
+                f"{name}: exact retry ownership contract drifted at "
+                f"statement {mismatch[0]}: {mismatch[1]!r} != {mismatch[2]!r}; "
+                f"lengths {len(statements)} != {len(expected)}"
+            )
 
     prepare = by_name["rk_mpp_rkvdec2_prepare_ccu_retry_job"].text
     prepare_markers = (
@@ -2818,6 +2894,7 @@ def validate_mpp_terminal_claim_contract(
         "rk_mpp_hw_restore_active_locked",
         "rk_mpp_activation_claim_job",
         "rk_mpp_activation_claim_put",
+        "rk_mpp_activation_complete_claim",
         "rk_mpp_activation_finish_terminal_locked",
         "rk_mpp_activation_finish_terminal",
         "rk_mpp_activation_finish_observed_terminal_locked",
@@ -2919,6 +2996,7 @@ def validate_mpp_terminal_claim_contract(
     allowed_claim_consumers = {
         "rk_mpp_activation_claim_job",
         "rk_mpp_activation_claim_put",
+        "rk_mpp_activation_complete_claim",
         "rk_mpp_activation_claim_quarantine",
         "rk_mpp_activation_finish_terminal",
         "rk_mpp_activation_finish_terminal_locked",
@@ -2993,17 +3071,10 @@ def validate_mpp_terminal_claim_contract(
     )
     expected_calls = {
         "rk_mpp_activation_claim_put": {
-            "rk_mpp_hw_abort_job": 1,
-            "rk_mpp_rkvdec2_drain_ccu_done_jobs": 1,
-            "rk_mpp_hw_recover_active": 1,
-            "rk_mpp_hw_abort_active": 1,
-            "rk_mpp_hw_abort_active_recovery_locked": 1,
-            "rk_mpp_rkvenc2_thread": 1,
+            "rk_mpp_activation_complete_claim": 1,
             "rk_mpp_rkvenc2_submit": 2,
-            "rk_mpp_rkvdec2_thread": 1,
             "rk_mpp_rkvdec2_submit": 1,
             "rk_mpp_av1_submit": 1,
-            "rk_mpp_av1_thread": 1,
         },
         "rk_mpp_service_has_quarantined_activation": {
             "rk_mpp_hw_remove": 1,
@@ -3198,17 +3269,10 @@ def validate_mpp_terminal_claim_contract(
 
     expected_calls: dict[str, dict[str, int]] = {
         "rk_mpp_activation_claim_put": {
-            "rk_mpp_hw_abort_job": 1,
-            "rk_mpp_rkvdec2_drain_ccu_done_jobs": 1,
-            "rk_mpp_hw_recover_active": 1,
-            "rk_mpp_hw_abort_active": 1,
-            "rk_mpp_hw_abort_active_recovery_locked": 1,
-            "rk_mpp_rkvenc2_thread": 1,
+            "rk_mpp_activation_complete_claim": 1,
             "rk_mpp_rkvenc2_submit": 2,
-            "rk_mpp_rkvdec2_thread": 1,
             "rk_mpp_rkvdec2_submit": 1,
             "rk_mpp_av1_submit": 1,
-            "rk_mpp_av1_thread": 1,
         },
         "rk_mpp_activation_finish_terminal_locked": {
             "rk_mpp_activation_finish_terminal": 1,
@@ -3390,7 +3454,7 @@ def validate_mpp_terminal_claim_contract(
             "activation->slot_state != RK_MPP_ACTIVATION_CLAIMED",
             "hw->active_activation",
             "group_status || !group->quiesced",
-            "job->rkvdec_ccu != ccu",
+            "rk_mpp_job_resources(job)->rkvdec_ccu != ccu",
             "lockdep_assert_held(&ccu->ccu_recovery_lock)",
             "activation->closure.group.result = *group",
             "activation->closure.group.status = group_status",
@@ -3482,6 +3546,281 @@ def validate_mpp_terminal_claim_contract(
             "rk_mpp_hw_disable_irq(hw); return;",
         ),
     )
+
+
+def validate_mpp_phase3_completion_contract(
+    source: pathlib.Path, functions: list[FunctionBody]
+) -> None:
+    """Hard-guard Phase 3 resource drain, arbitration, and reclamation."""
+
+    del source
+    by_name = function_map(functions)
+
+    expected_field_users = {
+        "resource_state": {
+            "rk_mpp_activation_claim_quarantine",
+            "rk_mpp_activation_drain_resources",
+            "rk_mpp_activation_install_locked",
+            "rk_mpp_activation_resources_released",
+            "rk_mpp_activation_retry_quarantine",
+            "rk_mpp_activation_storage_init",
+            "rk_mpp_activation_storage_released",
+            "rk_mpp_hw_commit_active_retry",
+            "rk_mpp_hw_install_active_locked",
+        },
+        "reason_mask": {
+            "rk_mpp_activation_arbitrate",
+            "rk_mpp_activation_note_reason",
+            "rk_mpp_activation_storage_init",
+        },
+        "reason_result_mask": {
+            "rk_mpp_activation_arbitrate",
+            "rk_mpp_activation_note_reason",
+            "rk_mpp_activation_storage_init",
+        },
+        "reason_result": {
+            "rk_mpp_activation_arbitrate",
+            "rk_mpp_activation_note_reason",
+            "rk_mpp_activation_storage_init",
+        },
+        "final_result": {
+            "rk_mpp_activation_finalize_result",
+            "rk_mpp_activation_storage_init",
+        },
+        "outcome_finalized": {
+            "rk_mpp_activation_finalize_result",
+            "rk_mpp_activation_note_reason",
+            "rk_mpp_activation_storage_init",
+        },
+    }
+    for field, expected in expected_field_users.items():
+        actual = {
+            function.name
+            for function in functions
+            if re.search(rf"->\s*{re.escape(field)}\b", function.text)
+        }
+        if actual != expected:
+            raise ValueError(
+                f"unexpected Phase 3 {field} owner set: {sorted(actual)}"
+            )
+
+    exact_helpers = {
+        "rk_mpp_transition_priority": (
+            "switch (reason) { case RK_MPP_TRANSITION_IOMMU_FAULT: "
+            "return 900;",
+            "case RK_MPP_TRANSITION_TIMEOUT: return 800;",
+            "case RK_MPP_TRANSITION_IRQ: case RK_MPP_TRANSITION_CCU_DONE: "
+            "return result ? 700 : 100;",
+            "case RK_MPP_TRANSITION_CCU_DEPENDENT_ABORT: return 650;",
+            "case RK_MPP_TRANSITION_REMOVE: return 600;",
+            "case RK_MPP_TRANSITION_SHUTDOWN: return 590;",
+            "case RK_MPP_TRANSITION_SESSION_CLOSE: return 500;",
+            "case RK_MPP_TRANSITION_SESSION_RESET: return 490;",
+            "case RK_MPP_TRANSITION_START_FAILURE: return 400;",
+            "default: return 0;",
+        ),
+        "rk_mpp_activation_note_reason": (
+            "u32 bit;",
+            "if (!activation || activation->outcome_finalized || "
+            "!rk_mpp_transition_reason_valid(reason)) return false;",
+            "bit = BIT(reason);",
+            "activation->reason_mask |= bit;",
+            "if (result_valid) { if (activation->reason_result_mask & bit) "
+            "{ int previous = activation->reason_result[reason];",
+            "if (!previous || (result && result < previous)) "
+            "activation->reason_result[reason] = result;",
+            "} else { activation->reason_result[reason] = result;",
+            "} activation->reason_result_mask |= bit;",
+            "} return true;",
+        ),
+        "rk_mpp_activation_arbitrate": (
+            "enum rk_mpp_activation_transition_reason winner = "
+            "RK_MPP_TRANSITION_NONE;",
+            "unsigned int winner_priority = 0;",
+            "unsigned int priority;",
+            "int reason;",
+            "if (!activation || !final_result) return false;",
+            "for (reason = RK_MPP_TRANSITION_START_FAILURE;",
+            "reason < RK_MPP_TRANSITION_COUNT;",
+            "reason++) { u32 bit = BIT(reason);",
+            "if (!(activation->reason_mask & bit) || "
+            "!(activation->reason_result_mask & bit) || reason == "
+            "RK_MPP_TRANSITION_RETRY_REPLACED) continue;",
+            "priority = rk_mpp_transition_priority(reason, "
+            "activation->reason_result[reason]);",
+            "if (priority > winner_priority || (priority == "
+            "winner_priority && reason > winner)) { winner = reason;",
+            "winner_priority = priority;",
+            "} } if (winner == RK_MPP_TRANSITION_NONE) return false;",
+            "*final_result = activation->reason_result[winner];",
+            "return true;",
+        ),
+        "rk_mpp_activation_drain_resources": (
+            "struct rk_mpp_job *job = activation ? activation->job : NULL;",
+            "if (!job || activation != READ_ONCE(job->current_activation)) "
+            "return false;",
+            "if (activation->resource_state != "
+            "RK_MPP_ACTIVATION_RESOURCES_PRISTINE && "
+            "activation->resource_state != RK_MPP_ACTIVATION_RESOURCES_OWNED) "
+            "return false;",
+            "rk_mpp_rkvenc2_dchs_release(job);",
+            "rk_mpp_rkvdec2_release_link_table(job);",
+            "if (WARN_ON_ONCE(rk_mpp_rkvdec2_job_has_live_leases(job)) || "
+            "WARN_ON_ONCE(rk_mpp_job_resources(job)->rkvenc_dchs_active)) "
+            "return false;",
+            "memset(&activation->resources, 0, "
+            "sizeof(activation->resources));",
+            "activation->resource_state = RK_MPP_ACTIVATION_RESOURCES_DRAINED;",
+            "return true;",
+        ),
+        "rk_mpp_activation_complete_claim": (
+            "if (!job || job != rk_mpp_activation_claim_job(token) || "
+            "!rk_mpp_activation_retirement_released(token->ref.activation)) "
+            "return false;",
+            "if (!rk_mpp_job_complete(job, result)) return false;",
+            "return rk_mpp_activation_claim_put(token);",
+        ),
+    }
+    for name, expected in exact_helpers.items():
+        statements = tuple(statement for _line, statement in by_name[name].statements)
+        if statements != expected:
+            raise ValueError(f"{name}: Phase 3 completion contract drifted")
+
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_activation_try_reclaim",
+        (
+            "mutex_lock(&session->lock)",
+            "mutex_lock(&session->srv->sched_lock)",
+            "refcount_read(&activation->refs) != 1",
+            "activation->selected_hw",
+            "session->rkvdec_dispatch_owner == activation",
+            "rk_mpp_activation_retirement_released(activation)",
+            "rk_mpp_activation_resources_released(activation)",
+            "activation->slot_state = RK_MPP_ACTIVATION_RECLAIMABLE",
+            "activation == READ_ONCE(job->current_activation)",
+            "list_del_init(&activation->job_link)",
+            "refcount_dec_and_test(&activation->refs)",
+            "kfree(activation)",
+        ),
+    )
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_activation_finalize_result",
+        (
+            "if (activation->outcome_finalized) goto unlock",
+            "rk_mpp_job_note_terminal_reason_locked(job, reason, result)",
+            "rk_mpp_activation_arbitrate(activation, &result)",
+            "activation->final_result = result",
+            "activation->outcome_finalized = true",
+            "*final_result = result",
+        ),
+    )
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_job_complete",
+        (
+            "rk_mpp_activation_finalize_result(job, result, &final_result)",
+            "rk_mpp_activation_drain_resources(activation)",
+            "rk_mpp_activation_release_selected_hw(activation)",
+            "rk_mpp_scheduler_release_session(job)",
+            "rk_mpp_job_publish_outcome(job, final_result)",
+            "rk_mpp_activation_try_reclaim(activation)",
+        ),
+    )
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_hw_commit_active_retry",
+        (
+            "struct rk_mpp_hw *ccu = rk_mpp_job_resources(job)->rkvdec_ccu",
+            "WARN_ON_ONCE(!ccu || ccu == hw)",
+            "spin_lock_irqsave(&ccu->lock, ccu_flags)",
+            "spin_lock_nested(&hw->lock, SINGLE_DEPTH_NESTING)",
+            "successor->resources = old->resources",
+            "memset(&old->resources, 0, sizeof(old->resources))",
+            "old->resource_state = RK_MPP_ACTIVATION_RESOURCES_HANDED_OFF",
+            "successor->resource_state = RK_MPP_ACTIVATION_RESOURCES_OWNED",
+            "WRITE_ONCE(job->current_activation, successor)",
+            "spin_unlock(&hw->lock)",
+            "spin_unlock_irqrestore(&ccu->lock, ccu_flags)",
+        ),
+    )
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_scheduler_work",
+        (
+            "struct rk_mpp_hw *hw = rk_mpp_job_get_hw(job)",
+            "const struct rk_mpp_backend_ops *ops = hw ? hw->match->ops : NULL",
+            "ret = ops->submit(job)",
+            "rk_mpp_job_complete(job, ret)",
+            "rk_mpp_hw_put(hw)",
+        ),
+    )
+    backend_hw_put_counts = {
+        "rk_mpp_rkvenc2_submit": 3,
+        "rk_mpp_rkvdec2_submit": 4,
+        "rk_mpp_av1_submit": 7,
+    }
+    for backend, expected_puts in backend_hw_put_counts.items():
+        require_ordered_fragments(
+            by_name,
+            backend,
+            (
+                "rk_mpp_job_get_hw(job)",
+                "mutex_lock(&hw->run_lock)",
+                "READ_ONCE(job->current_activation->selected_hw) != hw",
+            ),
+        )
+        actual_puts = by_name[backend].text.count("rk_mpp_hw_put(hw)")
+        if actual_puts != expected_puts:
+            raise ValueError(
+                f"{backend}: expected {expected_puts} hardware pin releases, "
+                f"found {actual_puts}"
+            )
+
+    expected_calls = {
+        "rk_mpp_job_complete": {
+            "rk_mpp_hw_abort_queued_matching": 1,
+            "rk_mpp_scheduler_work": 1,
+            "rk_mpp_activation_complete_claim": 1,
+            "rk_mpp_hw_abort_job": 2,
+        },
+        "rk_mpp_activation_complete_claim": {
+            "rk_mpp_hw_abort_job": 1,
+            "rk_mpp_rkvdec2_drain_ccu_done_jobs": 1,
+            "rk_mpp_hw_recover_active": 1,
+            "rk_mpp_hw_abort_active": 1,
+            "rk_mpp_hw_abort_active_recovery_locked": 1,
+            "rk_mpp_rkvenc2_thread": 1,
+            "rk_mpp_rkvdec2_thread": 1,
+            "rk_mpp_av1_thread": 1,
+        },
+        "rk_mpp_activation_drain_resources": {"rk_mpp_job_complete": 1},
+        "rk_mpp_activation_finalize_result": {"rk_mpp_job_complete": 1},
+        "rk_mpp_job_publish_outcome": {"rk_mpp_job_complete": 1},
+        "rk_mpp_job_publish_outcome_locked": {
+            "rk_mpp_job_publish_outcome": 1,
+        },
+    }
+    for callee, expected in expected_calls.items():
+        actual = {
+            function.name: count
+            for function in functions
+            if (count := len(re.findall(rf"\b{re.escape(callee)}\s*\(", function.text)))
+        }
+        if actual != expected:
+            raise ValueError(f"unexpected {callee} call map: {actual}")
+
+    done_writers = [
+        (function.name, statement)
+        for function in functions
+        for _line, statement in function.statements
+        if re.search(r"->state\s*=\s*RK_MPP_JOB_DONE\b", statement)
+    ]
+    if done_writers != [
+        ("rk_mpp_job_publish_outcome_locked", "job->state = RK_MPP_JOB_DONE;")
+    ]:
+        raise ValueError(f"unexpected MPP DONE publishers: {done_writers}")
 
 
 def validate_mpp_observed_terminal_contract(
@@ -3582,7 +3921,8 @@ def validate_mpp_observed_terminal_contract(
             "} break;",
             "case RK_MPP_ACTIVATION_OBSERVATION_CCU_DONE_ACCEPTED: if "
             "(token->reason != RK_MPP_TRANSITION_CCU_DONE || !hw_status || "
-            "!ccu || job->rkvdec_ccu != ccu || READ_ONCE(hw->cluster) != "
+            "!ccu || rk_mpp_job_resources(job)->rkvdec_ccu != ccu || "
+            "READ_ONCE(hw->cluster) != "
             "READ_ONCE(ccu->cluster) || (!bus_idle_checked && "
             "bus_idle_status != -EOPNOTSUPP)) return false;",
             "lockdep_assert_held(&ccu->ccu_recovery_lock);",
@@ -3767,15 +4107,16 @@ def validate_mpp_observed_terminal_contract(
         "rk_mpp_hw_stop_and_recover(hw, job, &recovery);",
         "if (stop_ret) { rk_mpp_hw_handle_reset_failure(hw, stop_ret);",
         "mutex_unlock(&hw->run_lock);",
+        "rk_mpp_hw_put(hw);",
         "return 0;",
     )
-    if retained is None or tuple(av1_statements[retained : retained + 4]) != expected_retained:
+    if retained is None or tuple(av1_statements[retained : retained + 5]) != expected_retained:
         raise ValueError("AV1 failed-stop must retain the active SLOTTED owner for retry")
     forbidden_retirement = re.compile(
         r"\brk_mpp_(?:hw_clear_active_job|activation_(?:finish|claim_put|"
         r"claim_quarantine))\s*\("
     )
-    if any(forbidden_retirement.search(statement) for statement in av1_statements[retained + 1 : retained + 4]):
+    if any(forbidden_retirement.search(statement) for statement in av1_statements[retained + 1 : retained + 5]):
         raise ValueError("AV1 failed-stop branch may not retire or tombstone the active slot")
 
 
@@ -3914,7 +4255,9 @@ def forbid_struct_member_pattern(
         )
 
 
-def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int]]:
+def raw_signals(
+    kernel_tree: pathlib.Path, *, validate_phase3_completion: bool = True
+) -> list[tuple[str, str, str, str, int]]:
     found: list[tuple[str, str, str, str, int]] = []
     for relative in SOURCES:
         source = kernel_tree / relative
@@ -4003,7 +4346,18 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                     "RK_MPP_ACTIVATION_CLAIMED, "
                     "RK_MPP_ACTIVATION_SUPERSEDED, "
                     "RK_MPP_ACTIVATION_RETIRED, "
+                    "RK_MPP_ACTIVATION_RECLAIMABLE, "
                     "RK_MPP_ACTIVATION_QUARANTINED, };",
+                ),
+                (
+                    "mpp-activation-resource-state-enum-schema",
+                    "enum rk_mpp_activation_resource_state {",
+                    "enum rk_mpp_activation_resource_state { "
+                    "RK_MPP_ACTIVATION_RESOURCES_PRISTINE, "
+                    "RK_MPP_ACTIVATION_RESOURCES_OWNED, "
+                    "RK_MPP_ACTIVATION_RESOURCES_HANDED_OFF, "
+                    "RK_MPP_ACTIVATION_RESOURCES_DRAINED, "
+                    "RK_MPP_ACTIVATION_RESOURCES_QUARANTINED, };",
                 ),
                 (
                     "mpp-activation-transition-reason-enum-schema",
@@ -4113,6 +4467,14 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                     "enum rk_mpp_activation_slot_state slot_state member",
                 ),
                 (
+                    "mpp-activation-resource-state-schema",
+                    re.compile(
+                        r"\benum\s+rk_mpp_activation_resource_state\s+"
+                        r"resource_state\s*;"
+                    ),
+                    "enum rk_mpp_activation_resource_state resource_state member",
+                ),
+                (
                     "mpp-activation-transition-reason-schema",
                     re.compile(
                         r"\benum\s+rk_mpp_activation_transition_reason\s+"
@@ -4126,6 +4488,13 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                         r"\bstruct\s+rk_mpp_activation_closure\s+closure\s*;"
                     ),
                     "struct rk_mpp_activation_closure closure member",
+                ),
+                (
+                    "mpp-activation-resources-member-schema",
+                    re.compile(
+                        r"\bstruct\s+rk_mpp_activation_resources\s+resources\s*;"
+                    ),
+                    "struct rk_mpp_activation_resources resources member",
                 ),
             ):
                 line, text = required_struct_member_pattern(
@@ -4429,15 +4798,68 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                 re.compile(r"\bstruct\s+rk_mpp_hw\s*\*\s*hw\s*;"),
                 "legacy struct rk_mpp_hw *hw member",
             )
-            line, text = unique_struct_member_pattern(
+            forbid_struct_member_pattern(
                 source,
                 "rk_mpp_job",
                 re.compile(r"\bstruct\s+rk_mpp_hw\s*\*\s*rkvdec_ccu\s*;"),
-                "struct rk_mpp_hw *rkvdec_ccu member",
+                "job-shaped struct rk_mpp_hw *rkvdec_ccu member",
+            )
+            line, text = unique_struct_member_pattern(
+                source,
+                "rk_mpp_activation_resources",
+                re.compile(r"\bstruct\s+rk_mpp_hw\s*\*\s*rkvdec_ccu\s*;"),
+                "activation-owned struct rk_mpp_hw *rkvdec_ccu member",
             )
             found.append(
                 ("mpp-rkvdec-ccu-schema", relative, "<file-scope>", text, line)
             )
+            for member in (
+                "u32 rkvdec_stream_addr;",
+                "void *rkvdec_link_vaddr;",
+                "dma_addr_t rkvdec_link_iova;",
+                "u32 rkvdec_link_index;",
+                "u32 rkvdec_ccu_core_work;",
+                "u32 rkvdec_ccu_cfg_addr;",
+                "u32 rkvdec_ccu_link_mode;",
+                "u32 rkvdec_ccu_ctrl;",
+                "u32 rkvdec_ccu_work;",
+                "u32 rkvdec_ccu_cfg_done;",
+                "u32 rkvenc_dchs_core_id;",
+                "struct rk_mpp_cluster_power_lease *rkvdec_ccu_power_lease;",
+                "bool rkvdec_link_active;",
+                "bool rkvdec_ccu_listed;",
+                "bool rkvdec_ccu_desc_valid;",
+                "bool rkvdec_ccu_powered;",
+                "bool rkvdec_ccu_started;",
+                "bool rkvenc_dchs_active;",
+                "u64 hw_start_ns;",
+                "u64 hw_elapsed_ns;",
+            ):
+                field = member.rstrip(";").split()[-1].lstrip("*")
+                forbid_struct_member_pattern(
+                    source,
+                    "rk_mpp_job",
+                    re.compile(rf"\b{re.escape(field)}\s*;"),
+                    f"job-shaped {field} member",
+                )
+                member_pattern = re.compile(
+                    r"\b" + re.escape(member).replace(r"\ ", r"\s*")
+                )
+                line, text = required_struct_member_pattern(
+                    source,
+                    "rk_mpp_activation_resources",
+                    member_pattern,
+                    f"activation-owned {field} member",
+                )
+                found.append(
+                    (
+                        "mpp-activation-resource-schema",
+                        relative,
+                        "<file-scope>",
+                        text,
+                        line,
+                    )
+                )
             line, text = unique_struct_member_declaration(
                 source,
                 "rk_mpp_session",
@@ -4491,6 +4913,8 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
             validate_mpp_observed_terminal_contract(source, functions)
             validate_mpp_retry_retirement_contract(source, functions)
             validate_mpp_terminal_claim_contract(source, functions)
+            if validate_phase3_completion:
+                validate_mpp_phase3_completion_contract(source, functions)
         if relative == MPP_SOURCE and sum(
             function.name == "rk_mpp_transition_yields_to_fault"
             for function in functions
@@ -5077,12 +5501,16 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
     return found
 
 
-def audit_tree(kernel_tree: pathlib.Path) -> list[Signal]:
+def audit_tree(
+    kernel_tree: pathlib.Path, *, validate_phase3_completion: bool = True
+) -> list[Signal]:
     occurrences: collections.Counter[tuple[str, str, str, str]] = (
         collections.Counter()
     )
     signals: list[Signal] = []
-    for category, source, function, text, line in raw_signals(kernel_tree):
+    for category, source, function, text, line in raw_signals(
+        kernel_tree, validate_phase3_completion=validate_phase3_completion
+    ):
         identity = (category, source, function, text)
         occurrences[identity] += 1
         signals.append(
@@ -5174,6 +5602,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--baseline", type=pathlib.Path, default=default_baseline)
     parser.add_argument("--emit-baseline", action="store_true")
     parser.add_argument("--update-baseline", action="store_true")
+    parser.add_argument(
+        "--legacy-test-fixture",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
     return parser.parse_args(argv)
 
 
@@ -5508,6 +5941,14 @@ def main(argv: list[str]) -> int:
         return 2
     try:
         resolved = [tree.resolve() for tree in args.kernel_tree]
+        if args.legacy_test_fixture:
+            fixture_marker = "rewrite-ownership-audit legacy test fixture"
+            for tree in resolved:
+                fixture_source = tree / MPP_SOURCE
+                if fixture_marker not in fixture_source.read_text(encoding="utf-8"):
+                    raise ValueError(
+                        "--legacy-test-fixture requires the synthetic fixture marker"
+                    )
         if len(resolved) > 1:
             for source in SOURCES:
                 reference = (resolved[0] / source).read_bytes()
@@ -5526,7 +5967,10 @@ def main(argv: list[str]) -> int:
             if trees:
                 signals = trees[0][1]
             else:
-                signals = audit_tree(tree)
+                signals = audit_tree(
+                    tree,
+                    validate_phase3_completion=not args.legacy_test_fixture,
+                )
             trees.append((tree, signals))
         violations = [
             (tree, signal)

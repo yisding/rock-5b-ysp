@@ -2686,6 +2686,7 @@ static bool rk_mpp_activation_ref_put(struct rk_mpp_activation_ref *ref)
 	if (WARN_ON_ONCE(!refcount_dec_not_one(&activation->refs)))
 		return false;
 	memset(ref, 0, sizeof(*ref));
+	rk_mpp_activation_try_reclaim(activation);
 	rk_mpp_job_put(job);
 	return true;
 }
@@ -2731,6 +2732,14 @@ static struct rk_mpp_activation *rk_mpp_hw_claim_active_locked(
 		return NULL;
 	activation->slot_state = RK_MPP_ACTIVATION_CLAIMED;
 	activation->transition_reason = reason;
+	if (WARN_ON_ONCE(!rk_mpp_activation_note_reason(activation, reason,
+						false, 0))) {
+		activation->slot_state = RK_MPP_ACTIVATION_SLOTTED;
+		activation->transition_reason = RK_MPP_TRANSITION_NONE;
+		WARN_ON_ONCE(!rk_mpp_activation_ref_move(&hw->active_ref,
+							 &token->ref));
+		return NULL;
+	}
 	token->reason = reason;
 	return activation;
 }
@@ -2797,6 +2806,17 @@ rk_mpp_activation_claim_put(struct rk_mpp_activation_claim_token *token)
 	token->reason = RK_MPP_TRANSITION_NONE;
 	return true;
 }
+static bool rk_mpp_activation_complete_claim(
+		struct rk_mpp_job *job,
+		struct rk_mpp_activation_claim_token *token, int result)
+{
+	if (!job || job != rk_mpp_activation_claim_job(token) ||
+	    !rk_mpp_activation_retirement_released(token->ref.activation))
+		return false;
+	if (!rk_mpp_job_complete(job, result))
+		return false;
+	return rk_mpp_activation_claim_put(token);
+}
 static bool rk_mpp_activation_finish_terminal_locked(
 		struct rk_mpp_hw *hw, struct rk_mpp_hw *ccu,
 		struct rk_mpp_activation_claim_token *token, int core_status,
@@ -2823,7 +2843,8 @@ static bool rk_mpp_activation_finish_terminal_locked(
 		return false;
 	if (group_scope) {
 		if (!ccu || group_status || !group->quiesced ||
-		    job->rkvdec_ccu != ccu || READ_ONCE(hw->cluster) !=
+		    rk_mpp_job_resources(job)->rkvdec_ccu != ccu ||
+		    READ_ONCE(hw->cluster) !=
 						 READ_ONCE(ccu->cluster))
 			return false;
 		lockdep_assert_held(&ccu->ccu_recovery_lock);
@@ -2907,7 +2928,7 @@ static bool rk_mpp_activation_finish_observed_terminal_locked(
 		break;
 	case RK_MPP_ACTIVATION_OBSERVATION_CCU_DONE_ACCEPTED:
 		if (token->reason != RK_MPP_TRANSITION_CCU_DONE || !hw_status ||
-		    !ccu || job->rkvdec_ccu != ccu ||
+		    !ccu || rk_mpp_job_resources(job)->rkvdec_ccu != ccu ||
 		    READ_ONCE(hw->cluster) != READ_ONCE(ccu->cluster) ||
 		    (!bus_idle_checked && bus_idle_status != -EOPNOTSUPP))
 			return false;
@@ -2967,7 +2988,7 @@ static bool rk_mpp_activation_claim_quarantine(
 	job = activation->job;
 	if (!job || list_empty(&activation->job_link))
 		return false;
-	owned_ccu = job->rkvdec_ccu;
+	owned_ccu = rk_mpp_job_resources(job)->rkvdec_ccu;
 	group_scope = ccu && ccu == owned_ccu &&
 		READ_ONCE(hw->cluster) == READ_ONCE(ccu->cluster);
 	if (group_scope)
@@ -3194,7 +3215,7 @@ static void rk_mpp_job_release(struct rk_mpp_job *job)
 		return;
 	rk_mpp_hw_clear_active_job(hw, job, RK_MPP_TRANSITION_SESSION_RESET,
 				   NULL, &clear_claim);
-	rk_mpp_activation_claim_put(&claim);
+	rk_mpp_activation_complete_claim(job, &claim, 0);
 	rk_mpp_activation_finish_terminal(hw, ccu, &claim, 0, &recovery,
 					  0, &ccu_recovery);
 	rk_mpp_activation_finish_terminal(hw, NULL, &claim, 0, &recovery,
@@ -3220,7 +3241,7 @@ static u32 rk_mpp_rkvdec2_drain_ccu_done_jobs(
 	bool quarantined;
 	u32 completed_status = 1;
 	int bus_idle_status;
-	rk_mpp_activation_claim_put(&claim);
+	rk_mpp_activation_complete_claim(job, &claim, 0);
 	rk_mpp_activation_finish_terminal(hw, ccu, &claim, 0, &recovery,
 					  0, &recovery);
 	rk_mpp_hw_restore_or_quarantine(hw, ccu, &claim, false, 0, 0,
@@ -3246,7 +3267,7 @@ static void rk_mpp_hw_recover_active(
 	struct rk_mpp_activation_claim_token claim = {};
 	struct rk_mpp_cluster_recovery_result recovery = {};
 	struct rk_mpp_cluster_recovery_result ccu_recovery = {};
-	rk_mpp_activation_claim_put(&claim);
+	rk_mpp_activation_complete_claim(job, &claim, 0);
 	rk_mpp_activation_finish_terminal(hw, ccu, &claim, 0, &recovery,
 					  0, &ccu_recovery);
 	rk_mpp_activation_finish_terminal(hw, NULL, &claim, 0, &recovery,
@@ -3265,7 +3286,7 @@ static int rk_mpp_hw_abort_active(struct rk_mpp_hw *hw)
 {
 	struct rk_mpp_activation_claim_token claim = {};
 	struct rk_mpp_cluster_recovery_result recovery = {};
-	rk_mpp_activation_claim_put(&claim);
+	rk_mpp_activation_complete_claim(job, &claim, 0);
 	rk_mpp_activation_finish_terminal(hw, NULL, &claim, 0, &recovery,
 					  0, NULL);
 	rk_mpp_hw_restore_or_quarantine(hw, NULL, &claim, false, 0, 0,
@@ -3279,7 +3300,7 @@ static int rk_mpp_hw_abort_active_recovery_locked(
 {
 	struct rk_mpp_activation_claim_token claim = {};
 	struct rk_mpp_cluster_recovery_result recovery = {};
-	rk_mpp_activation_claim_put(&claim);
+	rk_mpp_activation_complete_claim(job, &claim, 0);
 	rk_mpp_activation_finish_terminal(hw, ccu, &claim, 0, &recovery,
 					  0, &recovery);
 	rk_mpp_hw_restore_or_quarantine(hw, ccu, &claim, false, 0, 0,
@@ -3330,7 +3351,7 @@ static int rk_mpp_rkvenc2_thread(struct rk_mpp_hw *hw)
 	bool finished;
 	bool quarantined;
 	u32 irq_status = 1;
-	rk_mpp_activation_claim_put(&claim);
+	rk_mpp_activation_complete_claim(job, &claim, 0);
 	rk_mpp_activation_finish_terminal(hw, NULL, &claim, 0, &recovery,
 					  0, NULL);
 	rk_mpp_hw_restore_or_quarantine(hw, NULL, &claim, false, 0, 0,
@@ -3382,7 +3403,7 @@ static int rk_mpp_rkvdec2_thread(struct rk_mpp_hw *hw)
 	bool quarantined;
 	u32 irq_status = 1;
 	int bus_idle_status;
-	rk_mpp_activation_claim_put(&claim);
+	rk_mpp_activation_complete_claim(job, &claim, 0);
 	rk_mpp_activation_finish_terminal(hw, NULL, &claim, 0, &recovery,
 					  0, NULL);
 	rk_mpp_hw_restore_or_quarantine(hw, NULL, &claim, false, 0, 0,
@@ -3417,6 +3438,7 @@ static int rk_mpp_av1_submit(struct rk_mpp_job *job)
 		if (stop_ret) {
 			rk_mpp_hw_handle_reset_failure(hw, stop_ret);
 			mutex_unlock(&hw->run_lock);
+			rk_mpp_hw_put(hw);
 			return 0;
 		}
 	}
@@ -3447,7 +3469,7 @@ static int rk_mpp_av1_thread(struct rk_mpp_hw *hw)
 	bool finished;
 	bool quarantined;
 	u32 irq_status = 1;
-	rk_mpp_activation_claim_put(&claim);
+	rk_mpp_activation_complete_claim(job, &claim, 0);
 	rk_mpp_activation_finish_terminal(hw, NULL, &claim, 0, &recovery,
 					  0, NULL);
 	rk_mpp_hw_restore_or_quarantine(hw, NULL, &claim, false, 0, 0,
@@ -3485,6 +3507,7 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
 }
 """
         mpp.write_text(
+            "/* rewrite-ownership-audit legacy test fixture */\n"
             "enum rk_mpp_debug_event_type { RK_MPP_DEBUG_DONE };\n"
             "struct rk_mpp_debug_event { u8 type; };\n"
             "enum rk_mpp_activation_slot_state {\n"
@@ -3493,7 +3516,15 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             "\tRK_MPP_ACTIVATION_CLAIMED,\n"
             "\tRK_MPP_ACTIVATION_SUPERSEDED,\n"
             "\tRK_MPP_ACTIVATION_RETIRED,\n"
+            "\tRK_MPP_ACTIVATION_RECLAIMABLE,\n"
             "\tRK_MPP_ACTIVATION_QUARANTINED,\n"
+            "};\n"
+            "enum rk_mpp_activation_resource_state {\n"
+            "\tRK_MPP_ACTIVATION_RESOURCES_PRISTINE,\n"
+            "\tRK_MPP_ACTIVATION_RESOURCES_OWNED,\n"
+            "\tRK_MPP_ACTIVATION_RESOURCES_HANDED_OFF,\n"
+            "\tRK_MPP_ACTIVATION_RESOURCES_DRAINED,\n"
+            "\tRK_MPP_ACTIVATION_RESOURCES_QUARANTINED,\n"
             "};\n"
             "enum rk_mpp_activation_closure_state {\n"
             "\tRK_MPP_ACTIVATION_CLOSURE_NONE,\n"
@@ -3571,6 +3602,29 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             "\tstruct rk_mpp_activation_ref ref;\n"
             "\tenum rk_mpp_activation_transition_reason reason;\n"
             "};\n"
+            "struct rk_mpp_activation_resources {\n"
+            "\tstruct rk_mpp_hw *rkvdec_ccu;\n"
+            "\tu32 rkvdec_stream_addr;\n"
+            "\tvoid *rkvdec_link_vaddr;\n"
+            "\tdma_addr_t rkvdec_link_iova;\n"
+            "\tu32 rkvdec_link_index;\n"
+            "\tu32 rkvdec_ccu_core_work;\n"
+            "\tu32 rkvdec_ccu_cfg_addr;\n"
+            "\tu32 rkvdec_ccu_link_mode;\n"
+            "\tu32 rkvdec_ccu_ctrl;\n"
+            "\tu32 rkvdec_ccu_work;\n"
+            "\tu32 rkvdec_ccu_cfg_done;\n"
+            "\tu32 rkvenc_dchs_core_id;\n"
+            "\tstruct rk_mpp_cluster_power_lease *rkvdec_ccu_power_lease;\n"
+            "\tbool rkvdec_link_active;\n"
+            "\tbool rkvdec_ccu_listed;\n"
+            "\tbool rkvdec_ccu_desc_valid;\n"
+            "\tbool rkvdec_ccu_powered;\n"
+            "\tbool rkvdec_ccu_started;\n"
+            "\tbool rkvenc_dchs_active;\n"
+            "\tu64 hw_start_ns;\n"
+            "\tu64 hw_elapsed_ns;\n"
+            "};\n"
             "struct rk_mpp_activation {\n"
             "\trefcount_t refs;\n"
             "\tstruct list_head job_link;\n"
@@ -3580,11 +3634,13 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             "\tstruct rk_mpp_job *job;\n"
             "\tstruct rk_mpp_hw *selected_hw;\n"
             "\tenum rk_mpp_activation_slot_state slot_state;\n"
+            "\tenum rk_mpp_activation_resource_state resource_state;\n"
             "\tenum rk_mpp_activation_transition_reason transition_reason;\n"
             "\tu64 generation;\n"
             "\tunsigned long watchdog_deadline;\n"
             "\tbool watchdog_deadline_valid;\n"
             "\tstruct rk_mpp_activation_closure closure;\n"
+            "\tstruct rk_mpp_activation_resources resources;\n"
             "};\n"
             "struct rk_mpp_hw {\n"
             "\tstruct rk_mpp_activation_ref active_ref;\n"
@@ -3604,7 +3660,6 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             "\tstruct rk_mpp_session *session;\n"
             "\tstruct rk_mpp_activation activation_storage;\n"
             "\tstruct rk_mpp_activation *current_activation;\n"
-            "\tstruct rk_mpp_hw *rkvdec_ccu;\n"
             "};\n"
             "static void rk_mpp_activation_storage_init(\n"
             "\t\tstruct rk_mpp_activation *activation,\n"
@@ -3758,8 +3813,29 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             "static bool rk_mpp_activation_storage_released(\n"
             "\t\tconst struct rk_mpp_activation *activation)\n"
             "{\n"
+            "\tif (activation && activation->slot_state ==\n"
+            "\t\t\t  RK_MPP_ACTIVATION_RECLAIMABLE)\n"
+            "\t\treturn rk_mpp_activation_refs_released(activation) &&\n"
+            "\t\t       !activation->selected_hw &&\n"
+            "\t\t       (activation->resource_state ==\n"
+            "\t\t\t\tRK_MPP_ACTIVATION_RESOURCES_PRISTINE ||\n"
+            "\t\t\tactivation->resource_state ==\n"
+            "\t\t\t\tRK_MPP_ACTIVATION_RESOURCES_HANDED_OFF ||\n"
+            "\t\t\tactivation->resource_state ==\n"
+            "\t\t\t\tRK_MPP_ACTIVATION_RESOURCES_DRAINED) &&\n"
+            "\t\t       !memchr_inv(&activation->resources, 0,\n"
+            "\t\t\t\t    sizeof(activation->resources));\n"
             "\treturn rk_mpp_activation_refs_released(activation) &&\n"
-            "\t       rk_mpp_activation_retirement_released(activation);\n"
+            "\t       !activation->selected_hw &&\n"
+            "\t       rk_mpp_activation_retirement_released(activation) &&\n"
+            "\t       (activation->resource_state ==\n"
+            "\t\t\tRK_MPP_ACTIVATION_RESOURCES_PRISTINE ||\n"
+            "\t\tactivation->resource_state ==\n"
+            "\t\t\tRK_MPP_ACTIVATION_RESOURCES_HANDED_OFF ||\n"
+            "\t\tactivation->resource_state ==\n"
+            "\t\t\tRK_MPP_ACTIVATION_RESOURCES_DRAINED) &&\n"
+            "\t       !memchr_inv(&activation->resources, 0,\n"
+            "\t\t\t    sizeof(activation->resources));\n"
             "}\n"
             "static struct rk_mpp_job *rk_mpp_activation_job(\n"
             "\t\tconst struct rk_mpp_activation *activation)\n"
@@ -3795,7 +3871,7 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             "static void rk_mpp_rkvdec2_release_link_table(\n"
             "\t\tstruct rk_mpp_job *job)\n"
             "{\n"
-            "\tjob->rkvdec_ccu = NULL;\n"
+            "\trk_mpp_job_resources(job)->rkvdec_ccu = NULL;\n"
             "}\n"
             "static u64 rk_mpp_hw_advance_active_generation_locked(\n"
             "\t\tstruct rk_mpp_hw *hw)\n"
@@ -3934,7 +4010,7 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             "\t\treturn false;\n"
             "\tactivation = token->ref.activation;\n"
             "\tjob = activation->job;\n"
-            "\tccu = job->rkvdec_ccu;\n"
+            "\tccu = rk_mpp_job_resources(job)->rkvdec_ccu;\n"
             "\tif (ccu)\n"
             "\t\tlockdep_assert_held(&ccu->ccu_recovery_lock);\n"
             "\tgeneration = token->ref.generation;\n"
@@ -3947,6 +4023,8 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             "\t}\n"
             "\tactivation->closure.state = RK_MPP_ACTIVATION_CLOSURE_QUARANTINED;\n"
             "\tactivation->slot_state = RK_MPP_ACTIVATION_QUARANTINED;\n"
+            "\tactivation->resource_state =\n"
+            "\t\tRK_MPP_ACTIVATION_RESOURCES_QUARANTINED;\n"
             "\tactivation->transition_reason = RK_MPP_TRANSITION_RETRY_REPLACED;\n"
             "\tactivation->quarantine_generation = generation;\n"
             "\tif (list_empty(&activation->quarantine_link)) {\n"
@@ -3968,20 +4046,27 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             "\t\tstruct rk_mpp_activation_retry_token *token, int status,\n"
             "\t\tconst struct rk_mpp_cluster_recovery_result *core)\n"
             "{\n"
+            "\tstruct rk_mpp_activation *activation;\n"
             "\tstruct rk_mpp_session *session;\n"
+            "\tstruct rk_mpp_hw *selected_hw = NULL;\n"
             "\tunsigned long flags;\n"
             "\tbool finished;\n"
             "\tif (!token || !rk_mpp_activation_ref_valid(&token->ref))\n"
             "\t\treturn false;\n"
-            "\tsession = token->ref.activation->job->session;\n"
+            "\tactivation = token->ref.activation;\n"
+            "\tsession = activation->job->session;\n"
             "\tlockdep_assert_held(&hw->run_lock);\n"
             "\tmutex_lock(&session->lock);\n"
             "\tspin_lock_irqsave(&hw->lock, flags);\n"
             "\tfinished = rk_mpp_activation_finish_retry_locked(hw, token,\n"
             "\t\t\t\t\t\t      status, core);\n"
             "\tspin_unlock_irqrestore(&hw->lock, flags);\n"
+            "\tif (finished)\n"
+            "\t\tfinished = rk_mpp_activation_take_selected_hw_locked(activation,\n"
+            "\t\t\t\t\t\t\t     hw, &selected_hw);\n"
             "\tmutex_unlock(&session->lock);\n"
             "\tif (finished) {\n"
+            "\t\trk_mpp_hw_put(selected_hw);\n"
             "\t\tWARN_ON_ONCE(!rk_mpp_activation_ref_put(&token->ref));\n"
             "\t\treturn true;\n"
             "\t}\n"
@@ -4148,11 +4233,11 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             "\tif (activation->generation) job = NULL;\n"
             "\trk_mpp_dispatch_lease_acquire_locked(job);\n"
             "\trk_mpp_dispatch_lease_release_locked(job);\n"
-            "\tjob->rkvdec_ccu_power_lease = lease;\n"
+            "\trk_mpp_job_resources(job)->rkvdec_ccu_power_lease = lease;\n"
             "\tlease->power_lease_core_count = 1;\n"
             "\tlease->power_lease_cores[0] = hw;\n"
             "\trk_mpp_cluster_power_lease_acquire(job, 1);\n"
-            "\tjob->rkvdec_ccu_powered = true;\n"
+            "\trk_mpp_job_resources(job)->rkvdec_ccu_powered = true;\n"
             "\trk_mpp_hw_power_on(hw);\n"
             "\tpm_runtime_resume_and_get(hw->dev);\n"
             "\tatomic_inc(&hw->power_count);\n"
@@ -4184,11 +4269,11 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             "\thw->irq_status = 1;\n"
             "\thw->iommu_fault_pending = true;\n"
             "\thw->recovery_failed = true;\n"
-            "\tjob->hw_start_ns = 1;\n"
+            "\trk_mpp_job_resources(job)->hw_start_ns = 1;\n"
             "\trk_mpp_job_publish_outcome(job, 0);\n"
             "\trk_mpp_job_complete(job, 0);\n"
             "\twritel(1, hw->regs[0] + RK_MPP_RKVENC_START_BASE);\n"
-            "\twritel(job->rkvdec_ccu_cfg_done, "
+            "\twritel(rk_mpp_job_resources(job)->rkvdec_ccu_cfg_done, "
             "hw->regs[0] + RK_MPP_RKVDEC_CCU_CFG_DONE_BASE);\n"
             "\twritel(0, hw->regs[0] + RK_MPP_AV1_IRQ_BASE);\n"
             f"{extra_mpp}"
@@ -4202,7 +4287,7 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             "\thw->timeout_generation = 99;\n"
             "\tjob->current_activation->generation = 99;\n"
             "\tjob->current_activation->watchdog_deadline_valid = true;\n"
-            "\tjob->hw_elapsed_ns += 99;\n"
+            "\trk_mpp_job_resources(job)->hw_elapsed_ns += 99;\n"
             "\trk_mpp_job_publish_outcome_locked(job, -EIO);\n"
             f"{extra_kunit}"
             "}\n"
@@ -4275,12 +4360,34 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
                 str(self.audit),
                 "--baseline",
                 str(baseline),
+                "--legacy-test-fixture",
                 *options,
                 *(str(tree) for tree in trees),
             ],
             capture_output=True,
             text=True,
         )
+
+    def test_legacy_fixture_bypass_requires_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tree = root / "linux"
+            baseline = root / "baseline.tsv"
+            self.make_tree(tree)
+            source = tree / "drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c"
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "/* rewrite-ownership-audit legacy test fixture */\n", "", 1
+                ),
+                encoding="utf-8",
+            )
+
+            rejected = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(rejected.returncode, 2)
+            self.assertIn(
+                "--legacy-test-fixture requires the synthetic fixture marker",
+                rejected.stderr,
+            )
 
     def test_inventory_is_source_bound_and_catches_new_reset_writer(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -4344,8 +4451,10 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             self.assertIn("mpp-selected-hw-access", baseline_text)
             self.assertIn("mpp-selected-hw-write", baseline_text)
             self.assertIn("mpp-rkvdec-ccu-schema", baseline_text)
-            self.assertIn("mpp-rkvdec-ccu-access", baseline_text)
-            self.assertIn("mpp-rkvdec-ccu-write", baseline_text)
+            self.assertIn("mpp-activation-resource-state-enum-schema", baseline_text)
+            self.assertIn("mpp-activation-resource-state-schema", baseline_text)
+            self.assertIn("mpp-activation-resources-member-schema", baseline_text)
+            self.assertIn("mpp-activation-resource-schema", baseline_text)
             self.assertIn("mpp-dispatch-owner-schema", baseline_text)
             self.assertIn("mpp-dispatch-lease-access", baseline_text)
             self.assertIn("mpp-dispatch-lease-write", baseline_text)
@@ -4408,7 +4517,6 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             self.assertIn("mpp-terminal-state-write", baseline_text)
             self.assertIn("mpp-watchdog-snapshot-write", baseline_text)
             self.assertIn("mpp-outcome-publish-entry", baseline_text)
-            self.assertIn("mpp-activation-timing-write", baseline_text)
             self.assertIn("rga-irq-snapshot-write", baseline_text)
             self.assertIn("rga-fault-snapshot-write", baseline_text)
             self.assertIn("rga-terminal-state-write", baseline_text)
@@ -5006,15 +5114,18 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             self.make_tree(tree)
             source.write_text(
                 source.read_text(encoding="utf-8").replace(
-                    "\tstruct rk_mpp_hw *rkvdec_ccu;\n",
-                    "\tstruct rk_mpp_hw *hw;\n"
-                    "\tstruct rk_mpp_hw *rkvdec_ccu;\n",
+                    "\tstruct rk_mpp_session *session;\n",
+                    "\tstruct rk_mpp_session *session;\n"
+                    "\tstruct rk_mpp_hw *hw;\n",
+                    1,
                 ),
                 encoding="utf-8",
             )
             legacy_schema = self.run_audit(tree, baseline)
             self.assertEqual(legacy_schema.returncode, 2)
-            self.assertIn("forbidden legacy", legacy_schema.stderr)
+            self.assertIn(
+                "legacy struct rk_mpp_hw *hw member", legacy_schema.stderr
+            )
 
             self.make_tree(tree)
             source.write_text(
@@ -5602,9 +5713,10 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
                 ),
                 (
                     "storage release ignores outstanding owners",
-                    "\treturn rk_mpp_activation_refs_released(activation) &&\n"
-                    "\t       rk_mpp_activation_retirement_released(activation);",
-                    "\treturn rk_mpp_activation_retirement_released(activation);",
+                    "\t\treturn rk_mpp_activation_refs_released(activation) &&\n"
+                    "\t\t       !activation->selected_hw &&\n",
+                    "\t\treturn true &&\n"
+                    "\t\t       !activation->selected_hw &&\n",
                     "exact activation reference contract drifted",
                 ),
             )
@@ -6025,11 +6137,13 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
                     "AV1 failed stop clears retained SLOTTED owner",
                     pristine.replace(
                         "\t\t\tmutex_unlock(&hw->run_lock);\n"
+                        "\t\t\trk_mpp_hw_put(hw);\n"
                         "\t\t\treturn 0;\n",
                         "\t\t\tmutex_unlock(&hw->run_lock);\n"
                         "\t\t\trk_mpp_hw_clear_active_job(hw, job,\n"
                         "\t\t\t\tRK_MPP_TRANSITION_START_FAILURE, NULL, "
                         "&claim);\n"
+                        "\t\t\trk_mpp_hw_put(hw);\n"
                         "\t\t\treturn 0;\n",
                         1,
                     ),

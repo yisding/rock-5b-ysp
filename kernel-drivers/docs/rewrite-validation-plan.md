@@ -9,7 +9,7 @@ qualification verdict and next proof belong to
 and definition of done.
 
 > **Framing.** The targeted userspace surface is code-complete and has MPP
-> **105 KUnit cases** plus RGA **152 KUnit cases** (**257 total**). Exact green
+> **108 KUnit cases** plus RGA **152 KUnit cases** (**260 total**). Exact green
 > booted KTAP is the first qualification rung, not the finish line. These tests
 > are primarily **logic/lifecycle evidence**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
@@ -21,7 +21,22 @@ and definition of done.
 > counts into this plan; follow the status row into the dated finding and
 > correlated run artifacts.
 
-> **Current source boundary (2026-08-09):** maintained Phase 3J tips
+> **Current source boundary (2026-08-09):** Phase 3 is source-complete at
+> `rk3588-rewrite-6.18@77b60c9250ccccd8aa77c4b4426b7921e870a03d` and
+> `rk3588-rewrite-mainline@0a645ea1df04225661e9611174abe3ca1451b07f`.
+> The activation now owns all attempt-bounded CCU/link/DCHS/power/timing
+> resources, hard-CCU retry transfers that record coherently, terminal reasons
+> use order-independent priority arbitration, and one completion owner drains
+> resources and releases exact dispatch/core ownership before publishing
+> `DONE`. Fully drained, unreferenced retired predecessors become
+> `RECLAIMABLE`; quarantine deliberately retains resources. The exact source
+> manifest is 108 MPP plus 152 RGA cases, ownership passes at 2,314 signals/tree,
+> and fixture debt passes at 306/tree. All eight warning-fatal profiles and the
+> dedicated test-disabled ABI-mutation gate pass on both kernel lines. Runtime
+> execution at these tips remains
+> pending and is not implied by source or compile evidence.
+>
+> **Historical Phase 3J boundary:** maintained Phase 3J tips
 > `7481df21ca2b1481a3c4b4d222e3ebed28692544` /
 > `4a632e00c4cd729cb7aa473686bed3ccd2bb271c` retain the Phase 3A current-attempt
 > generation/deadline and Phase 3B dispatch-owner pointer, move the retained
@@ -78,7 +93,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 
 | Capability | Status in repo | This plan |
 |---|---|---|
-| Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) passes warning-fatal `normal`, `test-disabled`, `memory` (KASAN/fault-injection), and `race` (KCSAN/lockdep) on both exact Phase 3J heads, including both IOMMU providers, both rewrite objects, and the Rock 5B DTB. The memory profile exposed the amended KUnit-only stack-shape fix before this final replay. The dedicated policy/ABI gate also passes on both heads: both KUnit options resolve disabled and the deliberate MPP ABI mutation fails at compile time. | sanitizer profiles are compile coverage only; booted KASAN/KCSAN evidence is still required |
+| Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) passes warning-fatal `normal`, `test-disabled`, `memory` (KASAN/fault-injection), and `race` (KCSAN/lockdep) on both exact Phase 3 heads, including both IOMMU providers, both rewrite objects, and the Rock 5B DTB. The dedicated policy/ABI gate also passes on both heads: both KUnit options resolve disabled and the deliberate MPP ABI mutation fails at compile time. | sanitizer profiles are compile coverage only; booted KASAN/KCSAN evidence is still required |
 | Non-submit ABI probe + log diff | ✅ [`kernel-drivers/tests/abi-probe.sh`](../tests/abi-probe.sh), [`kernel-drivers/tests/abi-replay.sh`](../tests/abi-replay.sh), including optional dma-heap-backed MPP translate/release, RGA dma-buf import/release, and raw RGA physical-address import observation with an opt-in rewrite reject assertion | reuse; extend to bit-exact output (below) |
 | Consumer conformance (MPP / librga / GStreamer / FFmpeg) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/conformance.md`](../tests/conformance.md), including the target × configuration catalog and opt-in GStreamer display/KMS-capture, AV1, legacy advertised-decode, sanitizer, and race cases; `run-conformance.sh --validate` also validates MPP/GStreamer case builders, FFmpeg case-list wiring, the direct `librga-smoke.cpp` source, comparators, and evidence-audit rejection paths | reuse; wire the pass/fail gate |
 | Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode, FFmpeg transcode, MPP official-test media outputs, and the maintained direct RGA smoke paths, including RKNN/RKNPU-style preprocessing plus AFBC16x16 and tile8x8 round-trips, now have `artifacts.tsv` byte-count/SHA-256 comparison paths; broad official librga sample binaries still mostly report pass/fail/timing | extend artifact capture only where official sample outputs matter for remaining gaps |
@@ -101,7 +116,7 @@ Three builds; the sanitizers do not usefully coexist.
   build *is* this: KASAN(inline) + UBSAN + `DMA_API_DEBUG(_SG)` + `DEBUG_SG` +
   `DEBUG_LIST` + lockdep (`PROVE_LOCKING`) + `DEBUG_ATOMIC_SLEEP` +
   `PAGE_OWNER`/`PAGE_POISONING`, with ramoops so an IOMMU-fault oops survives the
-  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 257 unit
+  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 260 unit
   cases run under KASAN as the very first gate. Add `FAULT_INJECTION` +
   `FAILSLAB` + `FAIL_PAGE_ALLOC` + `FAULT_INJECTION_USERCOPY` +
   `FUNCTION_ERROR_INJECTION` for §4. The device-free preflight is
@@ -684,7 +699,7 @@ booted sanitizer/fault-injection evidence.
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 257 KUnit cases green **under KASAN** (105 MPP + 152 RGA), persisted from the
+1. 260 KUnit cases green **under KASAN** (108 MPP + 152 RGA), persisted from the
    booted suites by `tests/rewrite-kunit-log-check.sh`; hardware-in-the-loop
    kselftests added (the KUnit cases themselves never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —

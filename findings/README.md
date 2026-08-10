@@ -200,10 +200,11 @@ The `/dev/rga` driver — session lifetime, userptr/dma-buf imports, and the 10-
 - [`2026-07-20`](2026-07-20-rga2-unmapped-page-table-dma-sync.md) — RGA2 syncs page-table memory through an unmapped DMA address
 - [`2026-07-17`](2026-07-17-rga-session-close-uaf.md) — RGA session-close force-free ignores refcounts; a leaked test handle exposed it as a kernel Oops
 
-### Clean-room rewrite drivers (50)
+### Clean-room rewrite drivers (51)
 
 The from-scratch MPP/RGA replacement: reviews, soft-CCU wedges, and reset/lifecycle races.
 
+- [`2026-08-09`](2026-08-09-rewrite-phase-3-complete-mpp-activation-retirement.md) — Rewrite Phase 3 completes MPP activation retirement
 - [`2026-08-09`](2026-08-09-rewrite-phase-3j-mpp-typed-activation-references.md) — Rewrite Phase 3J types external MPP activation references
 - [`2026-08-09`](2026-08-09-rewrite-phase-3i-mpp-clean-terminal-observations.md) — Rewrite Phase 3I retains exact clean MPP terminal observations
 - [`2026-08-09`](2026-08-09-rewrite-phase-3h-mpp-recovered-terminal-quarantine.md) — Rewrite Phase 3H retains recovered MPP terminal claims and quarantine ownership
@@ -371,6 +372,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-08-09-rewrite-phase-3c-mpp-selected-hardware.md`](2026-08-09-rewrite-phase-3c-mpp-selected-hardware.md) — Rewrite Phase 3C: activation-owned selected hardware
 - [`2026-08-09-rewrite-phase-3b-mpp-dispatch-owner.md`](2026-08-09-rewrite-phase-3b-mpp-dispatch-owner.md) — Rewrite Phase 3B binds RKVDEC dispatch to exact activation storage
 - [`2026-08-09-rewrite-phase-3a-mpp-activation-identity.md`](2026-08-09-rewrite-phase-3a-mpp-activation-identity.md) — Rewrite Phase 3A embeds MPP current-attempt identity
+- [`2026-08-09-rewrite-phase-3-complete-mpp-activation-retirement.md`](2026-08-09-rewrite-phase-3-complete-mpp-activation-retirement.md) — Rewrite Phase 3 completes MPP activation retirement
 - [`2026-08-08-rga3-cross-process-contention-harness-plan.md`](2026-08-08-rga3-cross-process-contention-harness-plan.md) — Plan: a dedicated RGA3 cross-process contention harness that provokes and honestly detects the silent vpp corruption
 - [`2026-08-08-rewrite-rga2-dmabuf-staging-design.md`](2026-08-08-rewrite-rga2-dmabuf-staging-design.md) — Rewrite RGA2 DMA-BUF staging design for exporter SG entries larger than SWIOTLB
 - [`2026-08-08-rewrite-phase-2-single-core-recovery-result.md`](2026-08-08-rewrite-phase-2-single-core-recovery-result.md) — Rewrite Phase 2 types single-core reset and DMA recovery

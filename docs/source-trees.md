@@ -195,6 +195,8 @@ owns the public verdict.
 
 | Snapshot | Pin and base | Historical relationships |
 |----------|--------------|--------------------------|
+| 6.18 rewrite Phase 3 complete, 2026-08-09 | `rk3588-rewrite-6.18@77b60c9250ccccd8aa77c4b4426b7921e870a03d` on `v6.18.42@856a9b51680c` | Phase 3J tip `7481df21ca2b`; completes activation-owned resources, outcome arbitration, central completion, exact release, and reclaim |
+| Mainline rewrite Phase 3 complete, 2026-08-09 | `rk3588-rewrite-mainline@0a645ea1df04225661e9611174abe3ca1451b07f` on `v7.2-rc6@075b74841bd0` | Phase 3J tip `4a632e00c4cd`; byte-identical Phase 3 completion checkpoint |
 | 6.18 rewrite Phase 3J typed activation references, 2026-08-09 | `rk3588-rewrite-6.18@7481df21ca2b1481a3c4b4d222e3ebed28692544` on `v6.18.42@856a9b51680c` | Phase 3I tip `395644689db8f`; pairs each external activation identity/reference with its containing-job reference while retaining the base-biased storage; includes the KUnit-only stack-shape correction |
 | Mainline rewrite Phase 3J typed activation references, 2026-08-09 | `rk3588-rewrite-mainline@4a632e00c4cd729cb7aa473686bed3ccd2bb271c` on `v7.2-rc6@075b74841bd0` | Phase 3I tip `38768c5cff419`; byte-identical typed-reference and KUnit stack-shape checkpoint |
 | 6.18 rewrite Phase 3I clean terminal observations, 2026-08-09 | `rk3588-rewrite-6.18@395644689db8f1b3c34027da4d5471515d9d1b71` on `v6.18.42@856a9b51680c` | Phase 3H tip `1784358650e3c`; retires exact pre-publication, accepted IRQ, and accepted CCU-done claims while keeping recovered proof and quarantine separate |
@@ -237,17 +239,16 @@ owns the public verdict.
 | Mainline rewrite, 2026-08-06 | `rk3588-rewrite-mainline@7a6d4cb075a67` on `v7.2-rc6@075b74841bd0` | prior backups `9e503f6b16df` and `5bae68d8381c` |
 | Upstream-style RGA3 comparison | `rk3588-rewrite-mainline@180ee72a9a80` | detailed in §9 |
 
-The two maintained Phase 3J typed-reference snapshots have byte-identical
+The two maintained Phase 3 completion snapshots have byte-identical
 tracked MPP/RGA rewrite sources, Kconfig, ABI ledgers, and UAPI. Their MPP
 source SHA-256 is
-`815ccaf6daa20a88592f1b9ba4860a29aeb35e2a26cae7554ade714420e29ee4`;
-strict full-series checkpatch is 0 errors, 0 warnings, and 0 checks over 1,976
-lines per tree. The final-source 6.18 KUnit-enabled MPP object is 6,559,584
-bytes at SHA-256 `8bd96a7ccb3fa60cfa23203055a0404b3f26d4dbd3e93a0b28224748cb7e337d`;
-the test-disabled object is 2,287,288 bytes at SHA-256
-`4c7d90ba06743683c5b291e9b8d0dbfc910673cbf4c2a371f251de9c0ce98286`.
-The exact source manifest is 105 MPP + 152 RGA = 257 cases. Ownership passes at
-2,251 signals/tree and KUnit fixture debt passes at 306/tree. All eight
+`33a0374b2009cb70a688cd02bfbc501b93fedb68a90d52db4ec654f82dc94f4e`;
+strict full-series checkpatch is 0 errors, 0 warnings, and 0 checks over 3,253
+lines per tree. The focused final-source 6.18 KUnit-enabled MPP object is
+6,886,200 bytes at SHA-256
+`c88e58387dd0bd5eb109f441b31346f46cf32f206449639ba7dc6837aed70023`.
+The exact source manifest is 108 MPP + 152 RGA = 260 cases. Ownership passes at
+2,314 signals/tree and KUnit fixture debt passes at 306/tree. All eight
 warning-fatal final-head profiles pass across both kernel lines (`normal`,
 `test-disabled`, `memory`, and `race`), including both IOMMU providers, both
 rewrite objects, and the Rock 5B DTB. The dedicated test-disabled policy/ABI

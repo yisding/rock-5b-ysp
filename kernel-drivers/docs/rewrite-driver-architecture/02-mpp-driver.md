@@ -62,8 +62,8 @@ The principal objects are:
 | `rk_mpp_hw` | platform probe | device, MMIO, IRQ, clocks, resets, activation-typed active/timeout slots, fault work, CCU state |
 | `rk_mpp_session` | `/dev/mpp_service` `open()` | client type, imports, active jobs, translation table, RCB and codec metadata |
 | `rk_mpp_import` | fd translation | DMA-BUF, attachment, mapped scatterlist, device-specific IOVA |
-| `rk_mpp_job` | ioctl message collection | copied requests, register image, imports, result/readback, embedded first activation, current activation pointer, retained activation list, current CCU/DCHS participation, and a temporary cluster-power-lease pointer |
-| `rk_mpp_activation` | initial job allocation or hard-CCU retry successor allocation | parent identity, retained selected hardware, immutable attempt address/generation after supersession, absolute watchdog deadline, exact session-dispatch identity, active/timeout-slot identity, ref-owning claim state/reason, typed retry/recovered-terminal closure, immutable clean-terminal observation/status, and restore-refusal quarantine identity/evidence |
+| `rk_mpp_job` | ioctl message collection | copied requests, register image, imports, result/readback, embedded first activation, current activation pointer, retained activation list, and the stable logical CCU list node |
+| `rk_mpp_activation` | initial job allocation or hard-CCU retry successor allocation | parent identity, retained selected hardware, immutable attempt address/generation, deadline, dispatch/slot/claim references, typed closure and quarantine evidence, order-independent terminal arbitration, attempt-bounded CCU/link/DCHS/power/timing resources, coherent retry handoff, terminal drain, and reclaimability |
 | `rk_mpp_reset_domain` | first matching hardware probe | immutable node identity, member lifetime, mutex, single-target reset state/epoch, responsible hardware, operation counters, one epoch for each cluster-validated hard-CCU pulse, and the epoch supplied to typed single-core recovery |
 | `rk_mpp_cluster` | first matching CCU-identity probe | stable member topology, borrowed coordinator, learned core type, reset authority, derived DMA relationship count, hard-reset participant validation, deduplicated pinned-participant DMA recovery, coordinator running-list/link ownership, and soft/hard arm/START publication |
 | `rk_mpp_cluster_power_lease` | first member-core power acquisition for a CCU chain | refcounted exact member-core power and hardware references; transfers unchanged to the next listed job and releases once |
@@ -82,17 +82,17 @@ job -> decoder CCU/link descriptor when required
 Consequently, closing a file or removing a handle cannot free memory still
 needed by an accepted job.
 
-This is the as-built graph. The broad `rk_mpp_job` and `rk_mpp_hw` objects
-still carry state that belongs to one admitted hardware activation or to the
-whole decoder cluster. `rk_mpp_cluster` currently constructs topology, owns
+This is the as-built graph. Phase 3 has moved attempt-bounded state out of the
+broad `rk_mpp_job`; remaining `rk_mpp_hw`/cluster debt concerns admission and
+shared-hardware policy rather than activation retirement. `rk_mpp_cluster` constructs topology, owns
 validation for one hard-CCU reset-domain pulse, and funnels coordinator
 running-list/link and soft/hard publication mechanics. Single-core reset and
 idle-fault paths now refresh translations through one typed result before
 reporting reusable. Hard-CCU group reset deduplicates the reference-pinned
 participants' DMA groups and refreshes each once before resend; terminal
 isolation reports quiesced without reuse. The
-cluster-validated power lease owns member-core holds, but remains temporarily
-attached to a legacy job; the cluster does not own admission, coordinator
+cluster-validated power lease owns member-core holds through the exact
+activation resource record; the cluster does not own admission, coordinator
 per-job power, descriptor admission, or quarantine. Phase 3A embeds the first
 `rk_mpp_activation` in the job as the source of truth for its assigned
 generation and absolute watchdog deadline. Phase 3B makes the session's
@@ -120,14 +120,18 @@ reboot. Phase 3I records exact `NOT_PUBLISHED`, `IRQ_ACCEPTED`, or
 `CCU_DONE_ACCEPTED` observation/status before clean retirement. RKVDEC
 `BUS_IDLE` status remains advisory evidence, recovered proof remains separate,
 and the legacy `CLAIMED` fallback is gone. AV1 untrusted-stop failure retains
-`SLOTTED` active ownership for remove/shutdown retry. Reclaimability, resource
-drain, and final outcome arbitration remain outside the typed owner. Phase 3J
-adds a base activation bias and replaces external job-pointer adapters with
+`SLOTTED` active ownership for remove/shutdown retry. Phase 3J adds a base
+activation bias and replaces external job-pointer adapters with
 typed `{activation, generation}` references paired with containing-job
 references for active, timeout, claim, retry, and quarantine ownership.
-Dispatch/current/list identities remain borrowed, and backend resources remain
-job-shaped.
-Cluster/link/DCHS and power leases also remain in the legacy job/hardware graph.
+Dispatch/current/list identities remain borrowed. The Phase 3 completion
+checkpoint then moves CCU/link/DCHS/power/timing leases into an activation-owned
+resource record, transfers that entire record during hard-CCU retry under the
+coordinator/core locks, and accumulates terminal reasons for stable-priority
+arbitration. One completion owner drains exact resources and releases
+selected-core/dispatch ownership before publishing `DONE`; retired drained
+predecessors become `RECLAIMABLE` once external references are gone, while
+quarantine retains its resources through reboot.
 
 ### 3.2 Session lifecycle
 
@@ -413,9 +417,11 @@ base bias belongs to retained job storage and carries no job reference. Retry
 preflight refusal leaves the predecessor active and puts the unpublished
 successor pair; after successful A→B publication, finish refusal transfers the
 predecessor retry pair into quarantine. The job current pointer, session
-dispatch owner, and activation list remain borrowed. No base bias may be
-released early, because backend resource-drain proof and `RECLAIMABLE` do not
-yet exist.
+dispatch owner, and activation list remain borrowed. The Phase 3 completion
+checkpoint releases a predecessor's list/base bias only after typed external
+owners, selected hardware, dispatch identity, retirement, and resource-drain or
+handoff state prove it reclaimable. Embedded storage remains part of the job;
+allocated retry storage is freed immediately at that boundary.
 
 START publication also creates a bounded IRQ/register lease under
 `hw->regs_lock`. The lease records the live reset epoch and, for direct-core

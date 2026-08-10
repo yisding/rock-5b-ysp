@@ -2,7 +2,7 @@
 
 The rewrite drivers use KUnit as a built-in boot gate for logic and state
 transitions that can be exercised without RK3588 hardware. The YSP result is
-green only when the named **105 MPP + 152 RGA case manifest** matches without
+green only when the named **108 MPP + 152 RGA case manifest** matches without
 duplicates, omissions, failures, or skips **and** the same kernel-log interval
 is free of sanitizer reports, warnings, lockdep findings, refcount failures,
 and media/IOMMU faults. The report also binds the run to the kernel release,
@@ -224,7 +224,7 @@ For each suite it requires:
 
 | Field | Required value |
 |-------|----------------|
-| Inner KTAP plan | exactly 105 MPP or 152 RGA |
+| Inner KTAP plan | exactly 108 MPP or 152 RGA |
 | Observed case results | exactly the planned count |
 | Failed cases | 0 |
 | Skipped cases | 0 |
@@ -342,9 +342,9 @@ source/config/package-bound evidence gate owned result attribution. See the
 [successor attribution and audit](../../findings/2026-07-27-rewrite-reset-import-fixture-lockdep.md).
 
 The maintained tips are now 6.18
-`7481df21ca2b1481a3c4b4d222e3ebed28692544` on `v6.18.42` and mainline
-`4a632e00c4cd729cb7aa473686bed3ccd2bb271c` on `v7.2-rc6`, with an exact
-105/152 manifest. Predecessor 6.18
+`77b60c9250ccccd8aa77c4b4426b7921e870a03d` on `v6.18.42` and mainline
+`0a645ea1df04225661e9611174abe3ca1451b07f` on `v7.2-rc6`, with an exact
+108/152 manifest. Predecessor 6.18
 `19634f4eebba` passed its exact 92/152 manifest on KASAN boot `#2` on 2026-08-05:
 244 results (92 MPP plus 152 RGA), zero failures/skips, a clean outer interval,
 and live lockdep. That runtime-verifies the patch-equivalent request/rotation
@@ -354,15 +354,18 @@ activation retirement. Phase 3I added
 `rk_mpp_activation_observed_terminal_kunit` for exact `NOT_PUBLISHED`,
 `IRQ_ACCEPTED`, and `CCU_DONE_ACCEPTED` observations, advisory RKVDEC bus-idle
 status, impossible-finisher quarantine, and AV1 untrusted-stop retained-slot
-behavior. Phase 3J adds `rk_mpp_activation_ref_ownership_kunit` for base and
+behavior. Phase 3J added `rk_mpp_activation_ref_ownership_kunit` for base and
 external activation/job pair balance plus clone/move behavior; the retry case
 also covers transfer of a published predecessor pair into quarantine when the
-typed retry finisher refuses it. Strict checkpatch is 0/0/0 over 1,976
-lines/tree. The final-source 6.18 KUnit-enabled MPP object is 6,559,584 bytes at
-SHA-256 `8bd96a7ccb3fa60cfa23203055a0404b3f26d4dbd3e93a0b28224748cb7e337d`;
-the test-disabled object is 2,287,288 bytes at SHA-256
-`4c7d90ba06743683c5b291e9b8d0dbfc910673cbf4c2a371f251de9c0ce98286`.
-The Phase 3J ownership audit passes at 2,251 signals/tree and fixture-debt
+typed retry finisher refuses it. Phase 3 completion adds
+`rk_mpp_activation_reason_arbitration_kunit`,
+`rk_mpp_activation_reclaimable_kunit`, and
+`rk_mpp_activation_selected_hw_release_kunit`; the retry fixture also proves
+full resource handoff and early predecessor reclaim. Strict checkpatch is
+0/0/0 over 3,253 lines/tree. The focused final-source 6.18 KUnit-enabled MPP
+object is 6,886,200 bytes at SHA-256
+`c88e58387dd0bd5eb109f441b31346f46cf32f206449639ba7dc6837aed70023`.
+The Phase 3 ownership audit passes at 2,314 signals/tree and fixture debt
 passes at 306/tree. All eight warning-fatal final-head profiles pass across both
 kernel lines, including both IOMMU providers, both rewrite objects, and the
 Rock 5B DTB. The dedicated test-disabled policy/ABI gate passes on both heads:
