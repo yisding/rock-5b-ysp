@@ -17,7 +17,7 @@ the maintained 2026-08-04 tips:
 | 6.18 rewrite | `rk3588-rewrite-6.18@19634f4eebba` on `v6.18.42` |
 | Mainline rewrite cross-check | `rk3588-rewrite-mainline@b296374b7520` on `v7.2-rc6`; the tracked rewrite sources, Kconfig, ABI ledgers, and UAPI are byte-identical to the 6.18 versions |
 
-The [current implementation comparison](./rewrite-drivers.md#current-comparison-2026-08-08)
+The [current implementation comparison](./rewrite-drivers.md#current-comparison-2026-08-09)
 owns moving status, scope, exact source counts, and the production decision.
 The [forward-port driver guide](./how-the-drivers-work.md) and
 [rewrite architecture guide](./rewrite-driver-architecture/README.md) remain

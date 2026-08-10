@@ -144,6 +144,7 @@ MPP_RECOVERY_RESULT_ACCESS_OWNERS = {
     "rk_mpp_activation_finish_terminal_locked",
     "rk_mpp_activation_finish_retry_locked",
     "rk_mpp_activation_storage_released",
+    "rk_mpp_activation_retirement_released",
     "rk_mpp_cluster_refresh_dma",
     "rk_mpp_hw_abort_job",
     "rk_mpp_hw_commit_active_retry",
@@ -309,10 +310,10 @@ MPP_ACTIVATION_ENTRY_RE = re.compile(
     r"commit_active_retry)|rk_mpp_service_has_quarantined_activation)\s*\("
 )
 MPP_RETRY_TOKEN_ACCESS_RE = re.compile(
-    r"\btoken\s*(?:->|\.)\s*(?:activation|generation)\b"
+    r"\btoken\s*(?:->|\.)\s*ref\b"
 )
 MPP_RETRY_TOKEN_WRITE_RE = field_write_re(
-    r"activation|generation",
+    r"ref",
     publishers=ACTIVATION_FIELD_PUBLISHERS,
     target=r"\btoken\s*(?:->|\.)\s*",
 )
@@ -551,11 +552,15 @@ MPP_ACTIVATION_PARENT_WRITE_OWNERS = {
 MPP_ACTIVATION_GENERATION_WRITE_OWNERS = {
     "rk_mpp_activation_storage_init",
     "rk_mpp_activation_install_locked",
+    "rk_mpp_hw_install_active_locked",
+    "rk_mpp_hw_commit_active_retry",
 }
 MPP_ACTIVATION_DEADLINE_WRITE_OWNERS = {
     "rk_mpp_activation_storage_init",
     "rk_mpp_activation_install_locked",
     "rk_mpp_hw_schedule_timeout",
+    "rk_mpp_hw_install_active_locked",
+    "rk_mpp_hw_commit_active_retry",
 }
 MPP_ACTIVATION_SLOT_STATE_ACCESS_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
@@ -566,6 +571,7 @@ MPP_ACTIVATION_SLOT_STATE_ACCESS_OWNERS = {
     "rk_mpp_activation_install_locked",
     "rk_mpp_activation_observation_matches",
     "rk_mpp_activation_storage_released",
+    "rk_mpp_activation_retirement_released",
     "rk_mpp_activation_free_unpublished",
     "rk_mpp_hw_claim_active_locked",
     "rk_mpp_hw_restore_active_locked",
@@ -573,6 +579,8 @@ MPP_ACTIVATION_SLOT_STATE_ACCESS_OWNERS = {
     "rk_mpp_hw_commit_active_retry",
     "rk_mpp_hw_job_is_quarantined",
     "rk_mpp_activation_finish_retry_locked",
+    "rk_mpp_activation_retry_quarantine",
+    "rk_mpp_hw_install_active_locked",
 }
 MPP_ACTIVATION_SLOT_STATE_WRITE_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
@@ -583,9 +591,28 @@ MPP_ACTIVATION_SLOT_STATE_WRITE_OWNERS = {
     "rk_mpp_hw_claim_active_locked",
     "rk_mpp_hw_restore_active_locked",
     "rk_mpp_hw_commit_active_retry",
+    "rk_mpp_activation_retry_quarantine",
+    "rk_mpp_hw_install_active_locked",
 }
 MPP_ACTIVATION_REASON_ACCESS_OWNERS = MPP_ACTIVATION_SLOT_STATE_ACCESS_OWNERS
 MPP_ACTIVATION_REASON_WRITE_OWNERS = MPP_ACTIVATION_SLOT_STATE_WRITE_OWNERS
+MPP_ACTIVATION_REFCOUNT_ACCESS_OWNERS = {
+    "rk_mpp_activation_storage_init",
+    "rk_mpp_activation_ref_get",
+    "rk_mpp_activation_ref_clone",
+    "rk_mpp_activation_ref_put",
+    "rk_mpp_activation_refs_released",
+    "rk_mpp_activation_free_unpublished",
+    "rk_mpp_job_release_activation_storage",
+}
+MPP_ACTIVATION_REFCOUNT_WRITE_OWNERS = {
+    "rk_mpp_activation_storage_init",
+    "rk_mpp_activation_ref_get",
+    "rk_mpp_activation_ref_clone",
+    "rk_mpp_activation_ref_put",
+    "rk_mpp_activation_free_unpublished",
+    "rk_mpp_job_release_activation_storage",
+}
 MPP_ACTIVATION_CLOSURE_ACCESS_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_activation_closure_pristine",
@@ -596,6 +623,8 @@ MPP_ACTIVATION_CLOSURE_ACCESS_OWNERS = {
     "rk_mpp_activation_observation_pristine",
     "rk_mpp_activation_storage_init",
     "rk_mpp_activation_storage_released",
+    "rk_mpp_activation_retirement_released",
+    "rk_mpp_activation_retry_quarantine",
     "rk_mpp_hw_commit_active_retry",
 }
 MPP_ACTIVATION_CLOSURE_WRITE_OWNERS = {
@@ -607,6 +636,7 @@ MPP_ACTIVATION_CLOSURE_STATE_WRITE_OWNERS = {
     "rk_mpp_activation_finish_observed_terminal_locked",
     "rk_mpp_activation_finish_retry_locked",
     "rk_mpp_hw_commit_active_retry",
+    "rk_mpp_activation_retry_quarantine",
 }
 MPP_ACTIVATION_CLOSURE_GROUP_WRITE_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
@@ -617,20 +647,24 @@ MPP_ACTIVATION_CLOSURE_CORE_WRITE_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_activation_finish_terminal_locked",
     "rk_mpp_activation_finish_retry_locked",
+    "rk_mpp_activation_retry_quarantine",
 }
 MPP_RETRY_TOKEN_ACCESS_OWNERS = {
     "rk_mpp_activation_finish_retry",
     "rk_mpp_activation_finish_retry_locked",
     "rk_mpp_hw_commit_active_retry",
+    "rk_mpp_activation_retry_quarantine",
 }
 MPP_RETRY_TOKEN_WRITE_OWNERS = {
     "rk_mpp_activation_finish_retry_locked",
     "rk_mpp_hw_commit_active_retry",
+    "rk_mpp_activation_retry_quarantine",
 }
 MPP_ACTIVATION_CLOSURE_TERMINAL_ACCESS_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_activation_finish_terminal_locked",
     "rk_mpp_activation_storage_released",
+    "rk_mpp_activation_retirement_released",
 }
 MPP_ACTIVATION_CLOSURE_TERMINAL_WRITE_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
@@ -647,6 +681,7 @@ MPP_ACTIVATION_CLOSURE_OBSERVATION_ACCESS_OWNERS = {
     "rk_mpp_activation_observation_matches",
     "rk_mpp_activation_observation_pristine",
     "rk_mpp_activation_storage_released",
+    "rk_mpp_activation_retirement_released",
 }
 MPP_ACTIVATION_CLOSURE_OBSERVATION_WRITE_OWNERS = {
     "rk_mpp_activation_finish_observed_terminal_locked",
@@ -670,6 +705,7 @@ MPP_CLAIM_TOKEN_WRITE_OWNERS = {
 MPP_ACTIVATION_QUARANTINE_ACCESS_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_activation_storage_init",
+    "rk_mpp_activation_retry_quarantine",
 }
 MPP_ACTIVATION_QUARANTINE_WRITE_OWNERS = (
     MPP_ACTIVATION_QUARANTINE_ACCESS_OWNERS
@@ -678,20 +714,24 @@ MPP_QUARANTINE_LOCK_ACCESS_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_service_has_quarantined_activation",
     "rk_mpp_service_state_init",
+    "rk_mpp_activation_retry_quarantine",
 }
 MPP_QUARANTINE_LIST_ACCESS_OWNERS = MPP_QUARANTINE_LOCK_ACCESS_OWNERS
 MPP_QUARANTINE_LIST_WRITE_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_service_state_init",
+    "rk_mpp_activation_retry_quarantine",
 }
 MPP_QUARANTINE_COUNT_ACCESS_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_runtime_register",
     "rk_mpp_service_state_init",
+    "rk_mpp_activation_retry_quarantine",
 }
 MPP_QUARANTINE_COUNT_WRITE_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_service_state_init",
+    "rk_mpp_activation_retry_quarantine",
 }
 MPP_SELECTED_HW_ACCESS_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
@@ -893,6 +933,7 @@ MPP_RKVDEC_CCU_ACCESS_OWNERS = {
     "rk_mpp_activation_claim_quarantine",
     "rk_mpp_activation_finish_terminal_locked",
     "rk_mpp_activation_finish_observed_terminal_locked",
+    "rk_mpp_activation_retry_quarantine",
     "rk_mpp_cluster_add_ccu_job",
     "rk_mpp_cluster_arm_soft_ccu",
     "rk_mpp_cluster_power_lease_acquire",
@@ -927,38 +968,35 @@ RGA_ACTIVE_SLOT_WRITE_RE = field_write_re(
 RGA_ACTIVE_SLOT_ACCESS_RE = re.compile(
     r"\b(?:active_job|active_generation|activation_generation_seq)\b"
 )
-MPP_ACTIVE_ACTIVATION_ACCESS_RE = re.compile(
-    rf"{FIELD_TARGET}active_activation\b"
-)
+MPP_ACTIVE_ACTIVATION_ACCESS_RE = re.compile(rf"{FIELD_TARGET}active_ref\b")
 MPP_ACTIVE_ACTIVATION_WRITE_RE = field_write_re(
-    r"active_activation", publishers=ACTIVATION_FIELD_PUBLISHERS
+    r"active_ref", publishers=ACTIVATION_FIELD_PUBLISHERS
 )
-MPP_TIMEOUT_ACTIVATION_ACCESS_RE = re.compile(
-    rf"{FIELD_TARGET}timeout_activation\b"
-)
+MPP_TIMEOUT_ACTIVATION_ACCESS_RE = re.compile(rf"{FIELD_TARGET}timeout_ref\b")
 MPP_TIMEOUT_ACTIVATION_WRITE_RE = field_write_re(
-    r"timeout_activation", publishers=ACTIVATION_FIELD_PUBLISHERS
+    r"timeout_ref", publishers=ACTIVATION_FIELD_PUBLISHERS
 )
 MPP_ACTIVATION_SEQUENCE_ACCESS_RE = re.compile(
     rf"{FIELD_TARGET}activation_generation_seq\b"
 )
-MPP_TIMEOUT_GENERATION_ACCESS_RE = re.compile(
-    rf"{FIELD_TARGET}timeout_generation\b"
+MPP_TIMEOUT_GENERATION_ACCESS_RE = re.compile(r"(?!)")
+MPP_TIMEOUT_GENERATION_WRITE_RE = re.compile(r"(?!)")
+MPP_SLOT_LEGACY_RE = re.compile(
+    rf"{FIELD_TARGET}(?:active_job|timeout_job|active_activation|"
+    r"timeout_activation|timeout_generation|owns_job_ref)\b"
 )
-MPP_TIMEOUT_GENERATION_WRITE_RE = field_write_re(
-    r"timeout_generation", publishers=ACTIVATION_FIELD_PUBLISHERS
-)
-MPP_SLOT_LEGACY_RE = re.compile(rf"{FIELD_TARGET}(?:active_job|timeout_job)\b")
 MPP_ACTIVE_ACTIVATION_ACCESS_OWNERS = {
     "rk_mpp_activation_finish_terminal_locked",
     "rk_mpp_activation_finish_observed_terminal_locked",
     "rk_mpp_hw_active_activation_locked",
+    "rk_mpp_hw_active_generation_locked",
     "rk_mpp_hw_install_active_locked",
     "rk_mpp_hw_claim_active_locked",
     "rk_mpp_hw_restore_active_locked",
     "rk_mpp_activation_install_locked",
     "rk_mpp_hw_active_retry_matches_locked",
     "rk_mpp_hw_commit_active_retry",
+    "rk_mpp_hw_schedule_timeout",
 }
 MPP_ACTIVE_ACTIVATION_WRITE_OWNERS = {
     "rk_mpp_hw_install_active_locked",
@@ -1036,16 +1074,13 @@ MPP_CLAIM_REASON_BY_OWNER = {
 }
 MPP_SLOT_LEGACY_HELPER_RE = re.compile(r"\brk_mpp_hw_take_active_locked\s*\(")
 MPP_TIMEOUT_ACTIVATION_OWNERS = {
-    "rk_mpp_hw_take_timeout_activation",
+    "rk_mpp_hw_take_timeout_ref",
     "rk_mpp_hw_schedule_timeout",
 }
 MPP_ACTIVATION_SEQUENCE_OWNERS = {
     "rk_mpp_hw_advance_active_generation_locked",
 }
-MPP_TIMEOUT_GENERATION_OWNERS = {
-    "rk_mpp_hw_take_timeout_activation",
-    "rk_mpp_hw_schedule_timeout",
-}
+MPP_TIMEOUT_GENERATION_OWNERS: set[str] = set()
 DISPATCH_OWNER_ACCESS_RE = re.compile(
     rf"{FIELD_TARGET}rkvdec_dispatch_owner\b"
 )
@@ -1393,12 +1428,12 @@ def activation_function_patterns(
     retry_token_access, retry_token_write = typed_token_patterns(
         function,
         "rk_mpp_activation_retry_token",
-        r"activation|generation",
+        r"ref",
     )
     claim_token_access, claim_token_write = typed_token_patterns(
         function,
         "rk_mpp_activation_claim_token",
-        r"activation|generation|reason|owns_job_ref",
+        r"ref|reason",
     )
     link_access = re.compile(rf"{target}job_link\b")
     link_node_target = rf"{target}job_link\s*\."
@@ -1721,10 +1756,632 @@ def require_control_counts(
         raise ValueError(f"{name}: unexpected control-transfer shape {counts}")
 
 
+def direct_identifier_consumers(statement: str, identifier: str) -> set[str]:
+    """Return calls that receive one identifier as a direct argument."""
+
+    pairs: list[tuple[int, int]] = []
+    stack: list[int] = []
+    for index, character in enumerate(statement):
+        if character == "(":
+            stack.append(index)
+        elif character == ")" and stack:
+            pairs.append((stack.pop(), index))
+    consumers: set[str] = set()
+    for start, end in pairs:
+        callee_match = re.search(r"([A-Za-z_]\w*)\s*$", statement[:start])
+        if not callee_match or callee_match.group(1) in {
+            "if", "for", "sizeof", "switch", "while",
+        }:
+            continue
+        cursor = start + 1
+        depth = 0
+        while cursor < end:
+            character = statement[cursor]
+            if character == "(":
+                depth += 1
+            elif character == ")":
+                depth -= 1
+            elif not depth and statement.startswith(identifier, cursor):
+                before = statement[cursor - 1] if cursor else ""
+                after_index = cursor + len(identifier)
+                after = statement[after_index] if after_index < len(statement) else ""
+                suffix = statement[after_index:].lstrip()
+                if not (before.isalnum() or before in "_.>") and not (
+                    after.isalnum() or after == "_"
+                ) and not suffix.startswith(("->", ".")):
+                    consumers.add(callee_match.group(1))
+                    break
+            cursor += 1
+    return consumers
+
+
+def direct_address_consumers(statement: str, expression: str) -> set[str]:
+    """Return innermost calls that receive the address of one expression."""
+
+    pairs: list[tuple[int, int]] = []
+    stack: list[int] = []
+    for index, character in enumerate(statement):
+        if character == "(":
+            stack.append(index)
+        elif character == ")" and stack:
+            pairs.append((stack.pop(), index))
+    consumers: set[str] = set()
+    pattern = re.compile(rf"&\s*{re.escape(expression)}\b")
+    for match in pattern.finditer(statement):
+        enclosing = [
+            pair
+            for pair in pairs
+            if pair[0] < match.start() and match.end() <= pair[1]
+        ]
+        if not enclosing:
+            continue
+        start, _end = max(enclosing, key=lambda pair: pair[0])
+        callee_match = re.search(r"([A-Za-z_]\w*)\s*$", statement[:start])
+        if callee_match and callee_match.group(1) not in {
+            "if", "for", "sizeof", "switch", "while",
+        }:
+            consumers.add(callee_match.group(1))
+    return consumers
+
+
+def validate_mpp_activation_ref_contract(
+    source: pathlib.Path, functions: list[FunctionBody]
+) -> None:
+    """Hard-guard Phase-3J's paired activation/job reference ownership."""
+
+    production = production_source_text(source, KUNIT_MARKERS[MPP_SOURCE])
+    ref_type = r"\bstruct\s+rk_mpp_activation_ref\b"
+    if re.search(rf"\btypedef\b[^;]*{ref_type}", production) or re.search(
+        r"\b(?:typeof|__typeof__|__auto_type)\b[^;]*(?:active_ref|"
+        r"timeout_ref|activation_ref|retry_token|claim_token)",
+        production,
+    ):
+        raise ValueError("activation reference typedef or inferred alias is forbidden")
+    legacy = re.search(
+        r"\b(?:active_activation|timeout_activation|timeout_generation|"
+        r"owns_job_ref)\b",
+        production,
+    )
+    if legacy:
+        raise ValueError(f"legacy split activation ownership field returned: {legacy.group(0)}")
+
+    by_name = function_map(functions)
+    ref_users = {
+        function.name
+        for function in functions
+        if re.search(ref_type, function.signature + " " + function.text)
+    }
+    expected_ref_users = {
+        "rk_mpp_activation_ref_empty",
+        "rk_mpp_activation_ref_valid",
+        "rk_mpp_activation_ref_get",
+        "rk_mpp_activation_ref_clone",
+        "rk_mpp_activation_ref_move",
+        "rk_mpp_activation_ref_put",
+        "rk_mpp_hw_cancel_timeout",
+        "rk_mpp_hw_cancel_timeout_sync",
+        "rk_mpp_hw_commit_active_retry",
+        "rk_mpp_hw_recover_active",
+        "rk_mpp_hw_schedule_timeout",
+        "rk_mpp_hw_take_active_if_generation",
+        "rk_mpp_hw_take_timeout_ref",
+        "rk_mpp_hw_timeout_work",
+    }
+    if ref_users != expected_ref_users:
+        raise ValueError(f"unexpected activation reference owner set: {sorted(ref_users)}")
+
+    allowed_address_consumers = {
+        "rk_mpp_activation_ref_empty",
+        "rk_mpp_activation_ref_valid",
+        "rk_mpp_activation_ref_get",
+        "rk_mpp_activation_ref_clone",
+        "rk_mpp_activation_ref_move",
+        "rk_mpp_activation_ref_put",
+        "rk_mpp_hw_recover_active",
+        "rk_mpp_hw_take_active_if_generation",
+        "rk_mpp_hw_take_timeout_ref",
+    }
+    for function in functions:
+        expressions = set(
+            re.findall(
+                r"\b(?:hw|token)->(?:active_ref|timeout_ref|ref)\b",
+                function.text,
+            )
+        )
+        expressions.update(
+            re.findall(
+                r"\bstruct\s+rk_mpp_activation_ref\s+([A-Za-z_]\w*)",
+                function.text,
+            )
+        )
+        for _line, statement in function.statements:
+            for expression in expressions:
+                consumers = direct_address_consumers(statement, expression)
+                if (
+                    function.name
+                    in {
+                        "rk_mpp_activation_claim_quarantine",
+                        "rk_mpp_activation_retry_quarantine",
+                    }
+                    and expression == "token->ref"
+                    and statement
+                    == "memset(&token->ref, 0, sizeof(token->ref));"
+                ):
+                    consumers.discard("memset")
+                unreviewed = consumers - allowed_address_consumers
+                if unreviewed:
+                    raise ValueError(
+                        f"{function.name}: activation reference address escapes "
+                        f"to {sorted(unreviewed)}: {statement}"
+                    )
+                escaped = re.search(
+                    rf"(?<![=!<>])=\s*(?:\([^;]*?\)\s*)?&\s*"
+                    rf"{re.escape(expression)}\b|\breturn\s+"
+                    rf"(?:\([^;]*?\)\s*)?&\s*{re.escape(expression)}\b",
+                    statement,
+                )
+                if escaped:
+                    raise ValueError(
+                        f"{function.name}: activation reference address escape "
+                        f"is forbidden: {statement}"
+                    )
+            if re.search(
+                r"\b(?:hw->active_ref|hw->timeout_ref|token->ref)\s*"
+                r"(?<![=!<>])=(?!=)",
+                statement,
+            ):
+                raise ValueError(
+                    f"{function.name}: whole activation reference write is "
+                    f"forbidden: {statement}"
+                )
+
+    exact_helpers = {
+        "rk_mpp_activation_ref_empty": (
+            "return ref && !ref->activation && !ref->generation;",
+        ),
+        "rk_mpp_activation_ref_valid": (
+            "return ref && ref->activation && ref->generation && "
+            "ref->activation->job;",
+        ),
+        "rk_mpp_activation_ref_get": (
+            "struct rk_mpp_job *job;",
+            "if (!rk_mpp_activation_ref_empty(ref) || !activation || "
+            "!activation->generation) return false;",
+            "job = activation->job;",
+            "if (!job || !refcount_inc_not_zero(&activation->refs)) return false;",
+            "rk_mpp_job_get(job);",
+            "ref->activation = activation;",
+            "ref->generation = activation->generation;",
+            "return true;",
+        ),
+        "rk_mpp_activation_ref_clone": (
+            "struct rk_mpp_activation *activation;",
+            "struct rk_mpp_job *job;",
+            "if (!rk_mpp_activation_ref_empty(dst) || "
+            "!rk_mpp_activation_ref_valid(src)) return false;",
+            "activation = src->activation;",
+            "job = activation->job;",
+            "if (src->generation != activation->generation || "
+            "!refcount_inc_not_zero(&activation->refs)) return false;",
+            "rk_mpp_job_get(job);",
+            "*dst = *src;",
+            "return true;",
+        ),
+        "rk_mpp_activation_ref_move": (
+            "if (!rk_mpp_activation_ref_empty(dst) || "
+            "!rk_mpp_activation_ref_valid(src)) return false;",
+            "*dst = *src;",
+            "memset(src, 0, sizeof(*src));",
+            "return true;",
+        ),
+        "rk_mpp_activation_ref_put": (
+            "struct rk_mpp_activation *activation;",
+            "struct rk_mpp_job *job;",
+            "if (!rk_mpp_activation_ref_valid(ref)) return false;",
+            "activation = ref->activation;",
+            "job = activation->job;",
+            "WARN_ON_ONCE(ref->generation != activation->generation);",
+            "if (refcount_read(&activation->refs) <= 1) return false;",
+            "if (WARN_ON_ONCE(!refcount_dec_not_one(&activation->refs))) "
+            "return false;",
+            "memset(ref, 0, sizeof(*ref));",
+            "rk_mpp_job_put(job);",
+            "return true;",
+        ),
+        "rk_mpp_activation_refs_released": (
+            "return activation && refcount_read(&activation->refs) == 1;",
+        ),
+        "rk_mpp_activation_storage_released": (
+            "return rk_mpp_activation_refs_released(activation) && "
+            "rk_mpp_activation_retirement_released(activation);",
+        ),
+        "rk_mpp_hw_take_timeout_ref": (
+            "unsigned long flags;",
+            "bool taken;",
+            "if (!rk_mpp_activation_ref_empty(ref)) return false;",
+            "spin_lock_irqsave(&hw->lock, flags);",
+            "taken = rk_mpp_activation_ref_empty(&hw->timeout_ref) ? false : "
+            "rk_mpp_activation_ref_move(ref, &hw->timeout_ref);",
+            "spin_unlock_irqrestore(&hw->lock, flags);",
+            "return taken;",
+        ),
+    }
+    for name, expected in exact_helpers.items():
+        function = by_name.get(name)
+        statements = tuple(
+            statement for _line, statement in function.statements
+        ) if function else ()
+        if statements != expected:
+            raise ValueError(f"{name}: exact activation reference contract drifted")
+
+    expected_calls = {
+        "rk_mpp_activation_ref_get": {
+            "rk_mpp_hw_install_active_locked": 1,
+            "rk_mpp_hw_commit_active_retry": 1,
+        },
+        "rk_mpp_activation_ref_clone": {"rk_mpp_hw_schedule_timeout": 1},
+        "rk_mpp_activation_ref_move": {
+            "rk_mpp_hw_claim_active_locked": 1,
+            "rk_mpp_hw_restore_active_locked": 1,
+            "rk_mpp_hw_take_timeout_ref": 1,
+            "rk_mpp_hw_commit_active_retry": 3,
+            "rk_mpp_hw_schedule_timeout": 2,
+        },
+        "rk_mpp_activation_ref_put": {
+            "rk_mpp_activation_claim_put": 1,
+            "rk_mpp_hw_cancel_timeout": 1,
+            "rk_mpp_hw_cancel_timeout_sync": 1,
+            "rk_mpp_hw_commit_active_retry": 1,
+            "rk_mpp_activation_finish_retry": 1,
+            "rk_mpp_hw_schedule_timeout": 2,
+            "rk_mpp_hw_timeout_work": 1,
+        },
+        "rk_mpp_activation_refs_released": {
+            "rk_mpp_activation_storage_released": 1,
+            "rk_mpp_activation_free_unpublished": 1,
+            "rk_mpp_job_release_activation_storage": 1,
+        },
+        "rk_mpp_hw_take_timeout_ref": {
+            "rk_mpp_hw_cancel_timeout": 1,
+            "rk_mpp_hw_cancel_timeout_sync": 1,
+            "rk_mpp_hw_timeout_work": 1,
+        },
+    }
+    for callee, expected in expected_calls.items():
+        actual = {
+            function.name: count
+            for function in functions
+            if (count := len(re.findall(rf"\b{re.escape(callee)}\s*\(", function.text)))
+        }
+        if actual != expected:
+            raise ValueError(f"unexpected {callee} call map: {actual}")
+
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_hw_install_active_locked",
+        (
+            "rk_mpp_activation_ref_empty(&hw->active_ref)",
+            "rk_mpp_activation_install_locked(hw, activation)",
+            "rk_mpp_activation_ref_get(&hw->active_ref, activation)",
+            "activation->slot_state = RK_MPP_ACTIVATION_UNINSTALLED",
+            "activation->generation = 0",
+        ),
+    )
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_hw_claim_active_locked",
+        (
+            "rk_mpp_activation_ref_empty(&token->ref)",
+            "activation = hw->active_ref.activation",
+            "hw->active_ref.generation != activation->generation",
+            "rk_mpp_activation_ref_move(&token->ref, &hw->active_ref)",
+            "activation->slot_state = RK_MPP_ACTIVATION_CLAIMED",
+            "token->reason = reason",
+        ),
+    )
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_hw_restore_active_locked",
+        (
+            "rk_mpp_activation_ref_valid(&token->ref)",
+            "activation = token->ref.activation",
+            "rk_mpp_activation_ref_empty(&hw->active_ref)",
+            "activation->generation != token->ref.generation",
+            "rk_mpp_activation_ref_move(&hw->active_ref, &token->ref)",
+            "token->reason = RK_MPP_TRANSITION_NONE",
+        ),
+    )
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_hw_schedule_timeout",
+        (
+            "hw->active_ref.activation != hw->timeout_ref.activation",
+            "hw->active_ref.generation != hw->timeout_ref.generation",
+            "rk_mpp_activation_ref_clone(&replacement, &hw->active_ref)",
+            "rk_mpp_activation_ref_move(&old, &hw->timeout_ref)",
+            "rk_mpp_activation_ref_move(&hw->timeout_ref, &replacement)",
+            "rk_mpp_activation_ref_put(&replacement)",
+            "rk_mpp_activation_ref_put(&old)",
+        ),
+    )
+
+
 def validate_mpp_retry_retirement_contract(
     source: pathlib.Path, functions: list[FunctionBody]
 ) -> None:
     """Hard-guard the exact retry-proof handoff; baselines cannot bless drift."""
+
+    validate_mpp_activation_ref_contract(source, functions)
+    production = production_source_text(source, KUNIT_MARKERS[MPP_SOURCE])
+    by_name = function_map(functions)
+    token_type = r"\bstruct\s+rk_mpp_activation_retry_token\b"
+    token_users = {
+        function.name
+        for function in functions
+        if re.search(token_type, function.signature + " " + function.text)
+    }
+    expected_token_users = {
+        "rk_mpp_hw_commit_active_retry",
+        "rk_mpp_activation_finish_retry_locked",
+        "rk_mpp_activation_retry_quarantine",
+        "rk_mpp_activation_finish_retry",
+        "rk_mpp_rkvdec2_prepare_ccu_retry_job",
+    }
+    if token_users != expected_token_users:
+        raise ValueError(f"unexpected retry token owner set: {sorted(token_users)}")
+    if re.search(rf"\btypedef\b[^;]*{token_type}", production) or re.search(
+        r"\b(?:typeof|__typeof__|__auto_type)\b[^;]*(?:retry|token)", production
+    ):
+        raise ValueError("retry token typedef or inferred alias is forbidden")
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_hw_commit_active_retry",
+        (
+            "struct rk_mpp_activation_ref successor_ref = {}",
+            "rk_mpp_activation_ref_empty(&token->ref)",
+            "rk_mpp_activation_ref_get(&successor_ref, successor)",
+            "rk_mpp_activation_ref_move(&token->ref, &hw->active_ref)",
+            "rk_mpp_activation_ref_move(&hw->active_ref, &successor_ref)",
+            "old->closure.group.result = *group",
+            "old->slot_state = RK_MPP_ACTIVATION_SUPERSEDED",
+            "WRITE_ONCE(job->current_activation, successor)",
+            "successor->generation = 0",
+            "rk_mpp_activation_ref_put(&successor_ref)",
+        ),
+    )
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_activation_finish_retry_locked",
+        (
+            "token ? token->ref.activation : NULL",
+            "rk_mpp_activation_ref_valid(&token->ref)",
+            "old->generation != token->ref.generation",
+            "old->closure.state = RK_MPP_ACTIVATION_CLOSURE_RETIRED",
+        ),
+    )
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_activation_retry_quarantine",
+        (
+            "rk_mpp_activation_ref_valid(&token->ref)",
+            "activation = token->ref.activation",
+            "generation = token->ref.generation",
+            "RK_MPP_ACTIVATION_CLOSURE_QUARANTINED",
+            "RK_MPP_ACTIVATION_QUARANTINED",
+            "activation->quarantine_generation = generation",
+            "activation->quarantine_ref_count++",
+            "memset(&token->ref, 0, sizeof(token->ref))",
+            "rk_mpp_hw_handle_reset_failure(hw, error)",
+        ),
+    )
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_activation_finish_retry",
+        (
+            "rk_mpp_activation_ref_valid(&token->ref)",
+            "session = token->ref.activation->job->session",
+            "rk_mpp_activation_finish_retry_locked(hw, token, status, core)",
+            "rk_mpp_activation_ref_put(&token->ref)",
+            "rk_mpp_activation_retry_quarantine(hw, token, status, core)",
+        ),
+    )
+    retry_callers = {
+        "rk_mpp_hw_commit_active_retry": {
+            "rk_mpp_rkvdec2_prepare_ccu_retry_job": 1,
+        },
+        "rk_mpp_activation_finish_retry_locked": {
+            "rk_mpp_activation_finish_retry": 1,
+        },
+        "rk_mpp_activation_retry_quarantine": {
+            "rk_mpp_activation_finish_retry": 1,
+        },
+        "rk_mpp_activation_finish_retry": {
+            "rk_mpp_rkvdec2_prepare_ccu_retry_job": 1,
+        },
+        "rk_mpp_rkvdec2_prepare_ccu_retry_job": {
+            "rk_mpp_rkvdec2_restart_ccu_unfinished_jobs": 1,
+        },
+    }
+    for callee, expected in retry_callers.items():
+        actual = {
+            function.name: count
+            for function in functions
+            if (count := len(re.findall(rf"\b{callee}\s*\(", function.text)))
+        }
+        if actual != expected:
+            raise ValueError(f"unexpected {callee} call map: {actual}")
+    allowed_retry_consumers = {
+        "rk_mpp_hw_commit_active_retry",
+        "rk_mpp_activation_finish_retry_locked",
+        "rk_mpp_activation_retry_quarantine",
+        "rk_mpp_activation_finish_retry",
+    }
+    allowed_bare_retry_statements = {
+        "rk_mpp_activation_finish_retry_locked": {
+            "struct rk_mpp_activation *old = token ? "
+            "token->ref.activation : NULL;",
+        },
+    }
+    for function in functions:
+        if function.name not in expected_token_users:
+            continue
+        for _line, statement in function.statements:
+            if statement in allowed_bare_retry_statements.get(
+                function.name, set()
+            ):
+                continue
+            unreviewed = direct_identifier_consumers(statement, "token") - (
+                allowed_retry_consumers
+            )
+            if unreviewed:
+                raise ValueError(
+                    f"{function.name}: bare retry token escape is forbidden: "
+                    f"{statement}"
+                )
+            if re.search(
+                r"(?<![=!<>])=\s*(?:\([^;]*?\)\s*)?&?\s*token\b"
+                r"(?!\s*(?:->|\.))|\breturn\s+(?:\([^;]*?\)\s*)?"
+                r"&?\s*token\b(?!\s*(?:->|\.))",
+                statement,
+            ):
+                raise ValueError(
+                    f"{function.name}: bare retry token escape is forbidden: "
+                    f"{statement}"
+                )
+    retry_text = " ".join(
+        by_name[name].text for name in sorted(expected_token_users)
+    )
+    if re.search(r"\*\s*token\s*=(?!=)", retry_text):
+        raise ValueError("whole retry token write is forbidden")
+
+    exact_retry_statements = {
+        "rk_mpp_activation_finish_retry_locked": (
+            "struct rk_mpp_activation *old = token ? "
+            "token->ref.activation : NULL;",
+            "struct rk_mpp_job *job = old ? old->job : NULL;",
+            "lockdep_assert_held(&hw->lock);",
+            "if (!job || !core || !rk_mpp_activation_ref_valid(&token->ref) "
+            "|| old->generation != token->ref.generation || "
+            "old->selected_hw != hw || list_empty(&old->job_link) || "
+            "old == READ_ONCE(job->current_activation) || old == "
+            "rk_mpp_hw_active_activation_locked(hw) || old->slot_state != "
+            "RK_MPP_ACTIVATION_SUPERSEDED || old->transition_reason != "
+            "RK_MPP_TRANSITION_RETRY_REPLACED || old->closure.state != "
+            "RK_MPP_ACTIVATION_CLOSURE_PENDING || "
+            "!old->closure.group.valid || old->closure.group.status || "
+            "!old->closure.group.result.quiesced || "
+            "!old->closure.group.result.reusable || "
+            "old->closure.core.valid) return false;",
+            "old->closure.core.result = *core;",
+            "old->closure.core.status = status;",
+            "old->closure.core.valid = true;",
+            "old->closure.state = RK_MPP_ACTIVATION_CLOSURE_RETIRED;",
+            "return true;",
+        ),
+        "rk_mpp_activation_retry_quarantine": (
+            "struct rk_mpp_activation *activation;",
+            "struct rk_mpp_job *job;",
+            "struct rk_mpp_hw *ccu;",
+            "struct rk_mpp_service *srv = hw->srv;",
+            "unsigned long flags;",
+            "u64 generation;",
+            "int error = status ?: -EUCLEAN;",
+            "lockdep_assert_held(&hw->run_lock);",
+            "if (!token || !rk_mpp_activation_ref_valid(&token->ref)) "
+            "return false;",
+            "activation = token->ref.activation;",
+            "job = activation->job;",
+            "ccu = job->rkvdec_ccu;",
+            "if (ccu) lockdep_assert_held(&ccu->ccu_recovery_lock);",
+            "generation = token->ref.generation;",
+            "mutex_lock(&srv->quarantine_lock);",
+            "spin_lock_irqsave(&hw->lock, flags);",
+            "if (core && !activation->closure.core.valid) { "
+            "activation->closure.core.result = *core;",
+            "activation->closure.core.status = status;",
+            "activation->closure.core.valid = true;",
+            "} activation->closure.state = "
+            "RK_MPP_ACTIVATION_CLOSURE_QUARANTINED;",
+            "activation->slot_state = RK_MPP_ACTIVATION_QUARANTINED;",
+            "activation->transition_reason = "
+            "RK_MPP_TRANSITION_RETRY_REPLACED;",
+            "activation->quarantine_generation = generation;",
+            "if (list_empty(&activation->quarantine_link)) { "
+            "list_add_tail(&activation->quarantine_link, "
+            "&srv->quarantined_activations);",
+            "atomic_inc(&srv->quarantine_count);",
+            "} activation->quarantine_ref_count++;",
+            "memset(&token->ref, 0, sizeof(token->ref));",
+            "spin_unlock_irqrestore(&hw->lock, flags);",
+            "mutex_unlock(&srv->quarantine_lock);",
+            "rk_mpp_hw_handle_reset_failure(hw, error);",
+            "if (ccu && ccu != hw) rk_mpp_hw_handle_reset_failure(ccu, error);",
+            "return true;",
+        ),
+        "rk_mpp_activation_finish_retry": (
+            "struct rk_mpp_session *session;",
+            "unsigned long flags;",
+            "bool finished;",
+            "if (!token || !rk_mpp_activation_ref_valid(&token->ref)) "
+            "return false;",
+            "session = token->ref.activation->job->session;",
+            "lockdep_assert_held(&hw->run_lock);",
+            "mutex_lock(&session->lock);",
+            "spin_lock_irqsave(&hw->lock, flags);",
+            "finished = rk_mpp_activation_finish_retry_locked(hw, token, "
+            "status, core);",
+            "spin_unlock_irqrestore(&hw->lock, flags);",
+            "mutex_unlock(&session->lock);",
+            "if (finished) { "
+            "WARN_ON_ONCE(!rk_mpp_activation_ref_put(&token->ref));",
+            "return true;",
+            "} WARN_ON_ONCE(!rk_mpp_activation_retry_quarantine(hw, token, "
+            "status, core));",
+            "return false;",
+        ),
+    }
+    for name, expected in exact_retry_statements.items():
+        statements = tuple(
+            statement for _line, statement in by_name[name].statements
+        )
+        if statements != expected:
+            raise ValueError(f"{name}: exact retry ownership contract drifted")
+
+    prepare = by_name["rk_mpp_rkvdec2_prepare_ccu_retry_job"].text
+    prepare_markers = (
+        "rk_mpp_hw_commit_active_retry(hw, job, old, successor, group, &token)",
+        "rk_mpp_hw_cancel_timeout(hw)",
+        "rk_mpp_hw_stop_and_recover(hw, job, &recovery)",
+        "rk_mpp_activation_finish_retry(hw, &token, ret, &recovery)",
+    )
+    positions = [prepare.find(marker) for marker in prepare_markers]
+    if (
+        any(position < 0 for position in positions)
+        or positions != sorted(positions)
+        or any(prepare.count(marker) != 1 for marker in prepare_markers)
+    ):
+        raise ValueError("retry prepare ownership calls drifted")
+    commit_failure = prepare[
+        positions[0] + len(prepare_markers[0]) : positions[1]
+    ]
+    recovery_span = prepare[positions[1] : positions[3]]
+    finish_failure_end = prepare.find("if (ret)", positions[3])
+    finish_failure = prepare[
+        positions[3] + len(prepare_markers[3]) : finish_failure_end
+    ]
+    if len(re.findall(r"\b(?:return|goto)\b", commit_failure)) != 1:
+        raise ValueError("retry commit failure must exit before stop")
+    if (
+        len(re.findall(r"\bif\s*\(", recovery_span)) != 1
+        or re.search(r"\b(?:return|goto)\b", recovery_span)
+    ):
+        raise ValueError("retry commit must flow directly through stop and finish")
+    if (
+        finish_failure_end < 0
+        or len(re.findall(r"\b(?:return|goto)\b", finish_failure)) != 1
+    ):
+        raise ValueError("retry finish failure must exit through quarantine")
+    return
 
     production = production_source_text(source, KUNIT_MARKERS[MPP_SOURCE])
     token_type = r"\bstruct\s+rk_mpp_activation_retry_token\b"
@@ -2140,6 +2797,228 @@ def validate_mpp_terminal_claim_contract(
     source: pathlib.Path, functions: list[FunctionBody]
 ) -> None:
     """Hard-guard recovered-terminal proof and fail-closed claim retention."""
+
+    production = production_source_text(source, KUNIT_MARKERS[MPP_SOURCE])
+    token_type = r"\bstruct\s+rk_mpp_activation_claim_token\b"
+    if re.search(rf"\btypedef\b[^;]*{token_type}", production) or re.search(
+        rf"{token_type}\s*\*\s*\*", production
+    ) or re.search(
+        r"\b(?:typeof|__typeof__|__auto_type)\b[^;]*(?:claim|token)",
+        production,
+    ):
+        raise ValueError("claim token typedef, indirect, or inferred aliases are forbidden")
+    by_name = function_map(functions)
+    token_users = {
+        function.name
+        for function in functions
+        if re.search(token_type, function.signature + " " + function.text)
+    }
+    expected_token_users = {
+        "rk_mpp_hw_claim_active_locked",
+        "rk_mpp_hw_restore_active_locked",
+        "rk_mpp_activation_claim_job",
+        "rk_mpp_activation_claim_put",
+        "rk_mpp_activation_finish_terminal_locked",
+        "rk_mpp_activation_finish_terminal",
+        "rk_mpp_activation_finish_observed_terminal_locked",
+        "rk_mpp_activation_finish_observed_terminal",
+        "rk_mpp_activation_claim_quarantine",
+        "rk_mpp_hw_restore_or_quarantine",
+        "rk_mpp_hw_clear_active_job",
+        "rk_mpp_hw_take_active_job",
+        "rk_mpp_hw_take_irq_job",
+        "rk_mpp_hw_take_active_if",
+        "rk_mpp_hw_take_active_if_generation",
+        "rk_mpp_hw_take_iommu_fault_job",
+        "rk_mpp_hw_abort_job",
+        "rk_mpp_rkvdec2_drain_ccu_done_jobs",
+        "rk_mpp_hw_recover_active",
+        "rk_mpp_hw_abort_active",
+        "rk_mpp_hw_abort_active_recovery_locked",
+        "rk_mpp_rkvenc2_thread",
+        "rk_mpp_rkvenc2_submit",
+        "rk_mpp_rkvdec2_thread",
+        "rk_mpp_rkvdec2_submit",
+        "rk_mpp_av1_submit",
+        "rk_mpp_av1_thread",
+    }
+    if token_users != expected_token_users:
+        raise ValueError(f"unexpected claim token owner set: {sorted(token_users)}")
+
+    exact_helpers = {
+        "rk_mpp_activation_claim_job": (
+            "if (!token || !rk_mpp_activation_ref_valid(&token->ref)) "
+            "return NULL;",
+            "return token->ref.activation->job;",
+        ),
+        "rk_mpp_activation_claim_put": (
+            "struct rk_mpp_activation *activation;",
+            "struct rk_mpp_job *job;",
+            "if (!token || !rk_mpp_activation_ref_valid(&token->ref)) "
+            "return false;",
+            "activation = token->ref.activation;",
+            "job = rk_mpp_activation_claim_job(token);",
+            "if (!job || activation->generation != token->ref.generation || "
+            "activation->transition_reason != token->reason || "
+            "!rk_mpp_activation_retirement_released(activation)) return false;",
+            "if (!rk_mpp_activation_ref_put(&token->ref)) return false;",
+            "token->reason = RK_MPP_TRANSITION_NONE;",
+            "return true;",
+        ),
+    }
+    for name, expected in exact_helpers.items():
+        statements = tuple(statement for _line, statement in by_name[name].statements)
+        if statements != expected:
+            raise ValueError(f"{name}: exact claim/quarantine contract drifted")
+
+    retirement = tuple(
+        statement
+        for _line, statement in by_name[
+            "rk_mpp_activation_retirement_released"
+        ].statements
+    )
+    expected_retirement = (
+        "if (activation->slot_state == RK_MPP_ACTIVATION_UNINSTALLED) "
+        "return activation->transition_reason == RK_MPP_TRANSITION_NONE && "
+        "rk_mpp_activation_closure_pristine(activation);",
+        "if (activation->slot_state == RK_MPP_ACTIVATION_SUPERSEDED) "
+        "return activation->transition_reason == "
+        "RK_MPP_TRANSITION_RETRY_REPLACED && activation->closure.state == "
+        "RK_MPP_ACTIVATION_CLOSURE_RETIRED && "
+        "rk_mpp_activation_observation_pristine(activation) && "
+        "activation->closure.group.valid && !activation->closure.group.status && "
+        "activation->closure.group.result.quiesced && "
+        "activation->closure.core.valid;",
+        "if (activation->slot_state != RK_MPP_ACTIVATION_RETIRED || "
+        "activation->transition_reason <= RK_MPP_TRANSITION_NONE || "
+        "activation->transition_reason >= RK_MPP_TRANSITION_RETRY_REPLACED || "
+        "activation->closure.state != RK_MPP_ACTIVATION_CLOSURE_RETIRED) "
+        "return false;",
+        "if (activation->closure.observation.valid) return "
+        "activation->closure.terminal_scope == "
+        "RK_MPP_ACTIVATION_RETIREMENT_NONE && "
+        "!activation->closure.group.valid && !activation->closure.core.valid && "
+        "!activation->closure.terminal.valid && "
+        "rk_mpp_activation_observation_matches(activation);",
+        "return rk_mpp_activation_observation_pristine(activation) && "
+        "((activation->closure.terminal_scope == "
+        "RK_MPP_ACTIVATION_RETIREMENT_CORE && "
+        "activation->closure.terminal.valid && "
+        "!activation->closure.terminal.status && "
+        "activation->closure.terminal.result.quiesced) || "
+        "(activation->closure.terminal_scope == "
+        "RK_MPP_ACTIVATION_RETIREMENT_CCU_GROUP && "
+        "activation->closure.group.valid && "
+        "!activation->closure.group.status && "
+        "activation->closure.group.result.quiesced && "
+        "activation->closure.core.valid));",
+    )
+    if retirement != expected_retirement:
+        raise ValueError("activation storage release predicates drifted")
+
+    allowed_claim_consumers = {
+        "rk_mpp_activation_claim_job",
+        "rk_mpp_activation_claim_put",
+        "rk_mpp_activation_claim_quarantine",
+        "rk_mpp_activation_finish_terminal",
+        "rk_mpp_activation_finish_terminal_locked",
+        "rk_mpp_activation_finish_observed_terminal",
+        "rk_mpp_activation_finish_observed_terminal_locked",
+        "rk_mpp_hw_claim_active_locked",
+        "rk_mpp_hw_clear_active_job",
+        "rk_mpp_hw_restore_active_locked",
+        "rk_mpp_hw_restore_or_quarantine",
+        "rk_mpp_hw_take_active_if",
+        "rk_mpp_hw_take_active_if_generation",
+        "rk_mpp_hw_take_active_job",
+        "rk_mpp_hw_take_iommu_fault_job",
+        "rk_mpp_hw_take_irq_job",
+    }
+    for function in functions:
+        if function.name not in expected_token_users:
+            continue
+        for _line, statement in function.statements:
+            unreviewed = direct_identifier_consumers(statement, "token") - (
+                allowed_claim_consumers
+            )
+            if unreviewed:
+                raise ValueError(
+                    f"{function.name}: claim token escapes to "
+                    f"{sorted(unreviewed)}: {statement}"
+                )
+            if re.search(
+                r"\b(?:memset|memcpy|memmove)\s*\(\s*&?\s*token\b"
+                r"(?!\s*->\s*ref)",
+                statement,
+            ):
+                raise ValueError(f"whole claim token writes drifted: {statement}")
+            if re.search(
+                r"(?<![=!<>])=\s*(?:\([^;]*?\)\s*)?&?\s*token\b"
+                r"(?!\s*(?:->|\.))|\breturn\s+(?:\([^;]*?\)\s*)?"
+                r"&?\s*token\b(?!\s*(?:->|\.))",
+                statement,
+            ):
+                raise ValueError(
+                    f"{function.name}: claim token pointer escape is forbidden: "
+                    f"{statement}"
+                )
+
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_activation_finish_terminal_locked",
+        (
+            "rk_mpp_activation_ref_valid(&token->ref)",
+            "activation = token->ref.activation",
+            "activation->generation != token->ref.generation",
+            "rk_mpp_activation_ref_empty(&hw->active_ref)",
+            "RK_MPP_ACTIVATION_CLOSURE_RETIRED",
+            "RK_MPP_ACTIVATION_RETIRED",
+        ),
+    )
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_activation_claim_quarantine",
+        (
+            "rk_mpp_activation_ref_valid(&token->ref)",
+            "activation = token->ref.activation",
+            "error = quarantine_error ?: core_status ?: group_status ?: -EUCLEAN",
+            "RK_MPP_ACTIVATION_CLOSURE_QUARANTINED",
+            "RK_MPP_ACTIVATION_QUARANTINED",
+            "activation->quarantine_generation = token->ref.generation",
+            "activation->quarantine_ref_count++",
+            "memset(&token->ref, 0, sizeof(token->ref))",
+            "token->reason = RK_MPP_TRANSITION_NONE",
+            "rk_mpp_hw_handle_reset_failure(hw, error)",
+        ),
+    )
+    expected_calls = {
+        "rk_mpp_activation_claim_put": {
+            "rk_mpp_hw_abort_job": 1,
+            "rk_mpp_rkvdec2_drain_ccu_done_jobs": 1,
+            "rk_mpp_hw_recover_active": 1,
+            "rk_mpp_hw_abort_active": 1,
+            "rk_mpp_hw_abort_active_recovery_locked": 1,
+            "rk_mpp_rkvenc2_thread": 1,
+            "rk_mpp_rkvenc2_submit": 2,
+            "rk_mpp_rkvdec2_thread": 1,
+            "rk_mpp_rkvdec2_submit": 1,
+            "rk_mpp_av1_submit": 1,
+            "rk_mpp_av1_thread": 1,
+        },
+        "rk_mpp_service_has_quarantined_activation": {
+            "rk_mpp_hw_remove": 1,
+            "rk_mpp_hw_shutdown": 1,
+        },
+    }
+    for callee, expected in expected_calls.items():
+        actual = {
+            function.name: count
+            for function in functions
+            if (count := len(re.findall(rf"\b{callee}\s*\(", function.text)))
+        }
+        if actual != expected:
+            raise ValueError(f"unexpected {callee} call map: {actual}")
+    return
 
     production = production_source_text(source, KUNIT_MARKERS[MPP_SOURCE])
     token_type = r"\bstruct\s+rk_mpp_activation_claim_token\b"
@@ -2677,18 +3556,18 @@ def validate_mpp_observed_terminal_contract(
             "struct rk_mpp_job *job;",
             "lockdep_assert_held(&hw->run_lock);",
             "lockdep_assert_held(&hw->lock);",
-            "if (!token || !token->owns_job_ref || !token->activation || "
+            "if (!token || !rk_mpp_activation_ref_valid(&token->ref) || "
             "observation <= RK_MPP_ACTIVATION_OBSERVATION_NONE || "
             "observation >= RK_MPP_ACTIVATION_OBSERVATION_COUNT) return false;",
-            "activation = token->activation;",
+            "activation = token->ref.activation;",
             "job = activation->job;",
             "if (!job || activation != READ_ONCE(job->current_activation) || "
             "activation->selected_hw != hw || list_empty(&activation->job_link) || "
-            "activation->generation != token->generation || "
+            "activation->generation != token->ref.generation || "
             "activation->transition_reason != token->reason || "
             "activation->slot_state != RK_MPP_ACTIVATION_CLAIMED || "
             "!rk_mpp_activation_closure_pristine(activation) || "
-            "hw->active_activation) return false;",
+            "!rk_mpp_activation_ref_empty(&hw->active_ref)) return false;",
             "switch (observation) { case "
             "RK_MPP_ACTIVATION_OBSERVATION_NOT_PUBLISHED: if "
             "(token->reason != RK_MPP_TRANSITION_START_FAILURE || ccu || "
@@ -2778,10 +3657,10 @@ def validate_mpp_observed_terminal_contract(
             raise ValueError(f"{name}: unexpected control-transfer shape {actual}")
     expected_calls = {
         "rk_mpp_activation_observation_pristine": {
-            "rk_mpp_activation_storage_released": 2,
+            "rk_mpp_activation_retirement_released": 2,
         },
         "rk_mpp_activation_observation_matches": {
-            "rk_mpp_activation_storage_released": 1,
+            "rk_mpp_activation_retirement_released": 1,
         },
         "rk_mpp_rkvdec2_wait_bus_idle": {
             "rk_mpp_rkvdec2_drain_ccu_done_jobs": 1,
@@ -3079,18 +3958,24 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                     "bool bus_idle_checked; bool valid; };",
                 ),
                 (
+                    "mpp-activation-ref-schema",
+                    "struct rk_mpp_activation_ref {",
+                    "struct rk_mpp_activation_ref { "
+                    "struct rk_mpp_activation *activation; u64 generation; };",
+                ),
+                (
                     "mpp-activation-retry-token-schema",
                     "struct rk_mpp_activation_retry_token {",
                     "struct rk_mpp_activation_retry_token { "
-                    "struct rk_mpp_activation *activation; u64 generation; };",
+                    "struct rk_mpp_activation_ref ref; };",
                 ),
                 (
                     "mpp-activation-claim-token-schema",
                     "struct rk_mpp_activation_claim_token {",
                     "struct rk_mpp_activation_claim_token { "
-                    "struct rk_mpp_activation *activation; u64 generation; "
+                    "struct rk_mpp_activation_ref ref; "
                     "enum rk_mpp_activation_transition_reason reason; "
-                    "bool owns_job_ref; };",
+                    "};",
                 ),
             ):
                 schema_line, schema_text = exact_declaration_block(
@@ -3174,6 +4059,11 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                     (category, relative, "<file-scope>", enum_text, enum_line)
                 )
             for category, pattern, description in (
+                (
+                    "mpp-activation-refcount-schema",
+                    re.compile(r"\brefcount_t\s+refs\s*;"),
+                    "refcount_t refs member",
+                ),
                 (
                     "mpp-activation-link-schema",
                     re.compile(r"\bstruct\s+list_head\s+job_link\s*;"),
@@ -3353,10 +4243,10 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                     ),
                 ),
                 (
-                    "rk_mpp_activation_retry_token",
+                    "rk_mpp_activation_ref",
                     (
                         (
-                            "mpp-activation-retry-token-pointer-schema",
+                            "mpp-activation-ref-pointer-schema",
                             re.compile(
                                 r"\bstruct\s+rk_mpp_activation\s*\*\s*"
                                 r"activation\s*;"
@@ -3364,9 +4254,21 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                             "struct rk_mpp_activation *activation member",
                         ),
                         (
-                            "mpp-activation-retry-token-generation-schema",
+                            "mpp-activation-ref-generation-schema",
                             re.compile(r"\bu64\s+generation\s*;"),
                             "u64 generation member",
+                        ),
+                    ),
+                ),
+                (
+                    "rk_mpp_activation_retry_token",
+                    (
+                        (
+                            "mpp-activation-retry-token-ref-schema",
+                            re.compile(
+                                r"\bstruct\s+rk_mpp_activation_ref\s+ref\s*;"
+                            ),
+                            "struct rk_mpp_activation_ref ref member",
                         ),
                     ),
                 ),
@@ -3374,17 +4276,11 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                     "rk_mpp_activation_claim_token",
                     (
                         (
-                            "mpp-activation-claim-token-pointer-schema",
+                            "mpp-activation-claim-token-ref-schema",
                             re.compile(
-                                r"\bstruct\s+rk_mpp_activation\s*\*\s*"
-                                r"activation\s*;"
+                                r"\bstruct\s+rk_mpp_activation_ref\s+ref\s*;"
                             ),
-                            "struct rk_mpp_activation *activation member",
-                        ),
-                        (
-                            "mpp-activation-claim-token-generation-schema",
-                            re.compile(r"\bu64\s+generation\s*;"),
-                            "u64 generation member",
+                            "struct rk_mpp_activation_ref ref member",
                         ),
                         (
                             "mpp-activation-claim-token-reason-schema",
@@ -3393,11 +4289,6 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                                 r"reason\s*;"
                             ),
                             "enum rk_mpp_activation_transition_reason reason member",
-                        ),
-                        (
-                            "mpp-activation-claim-token-ref-schema",
-                            re.compile(r"\bbool\s+owns_job_ref\s*;"),
-                            "bool owns_job_ref member",
                         ),
                     ),
                 ),
@@ -3417,30 +4308,23 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                     )
             for category, pattern, description in (
                 (
-                    "mpp-active-activation-schema",
+                    "mpp-active-ref-schema",
                     re.compile(
-                        r"\bstruct\s+rk_mpp_activation\s*\*\s*"
-                        r"active_activation\s*;"
+                        r"\bstruct\s+rk_mpp_activation_ref\s+active_ref\s*;"
                     ),
-                    "struct rk_mpp_activation *active_activation member",
+                    "struct rk_mpp_activation_ref active_ref member",
                 ),
                 (
-                    "mpp-timeout-activation-schema",
+                    "mpp-timeout-ref-schema",
                     re.compile(
-                        r"\bstruct\s+rk_mpp_activation\s*\*\s*"
-                        r"timeout_activation\s*;"
+                        r"\bstruct\s+rk_mpp_activation_ref\s+timeout_ref\s*;"
                     ),
-                    "struct rk_mpp_activation *timeout_activation member",
+                    "struct rk_mpp_activation_ref timeout_ref member",
                 ),
                 (
                     "mpp-activation-sequence-schema",
                     re.compile(r"\bu64\s+activation_generation_seq\s*;"),
                     "u64 activation_generation_seq member",
-                ),
-                (
-                    "mpp-timeout-generation-schema",
-                    re.compile(r"\bu64\s+timeout_generation\s*;"),
-                    "u64 timeout_generation member",
                 ),
             ):
                 line, text = unique_struct_member_pattern(
@@ -3455,6 +4339,18 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                 (
                     re.compile(r"\btimeout_job\b"),
                     "legacy timeout_job member",
+                ),
+                (
+                    re.compile(r"\bactive_activation\b"),
+                    "legacy active_activation member",
+                ),
+                (
+                    re.compile(r"\btimeout_activation\b"),
+                    "legacy timeout_activation member",
+                ),
+                (
+                    re.compile(r"\btimeout_generation\b"),
+                    "legacy timeout_generation member",
                 ),
             ):
                 forbid_struct_member_pattern(
@@ -3754,19 +4650,19 @@ def raw_signals(kernel_tree: pathlib.Path) -> list[tuple[str, str, str, str, int
                                 MPP_REGISTER_LEASE_WRITE_RE,
                             ),
                             (
-                                "mpp-active-activation-access",
+                                "mpp-active-ref-access",
                                 MPP_ACTIVE_ACTIVATION_ACCESS_RE,
                             ),
                             (
-                                "mpp-active-activation-write",
+                                "mpp-active-ref-write",
                                 MPP_ACTIVE_ACTIVATION_WRITE_RE,
                             ),
                             (
-                                "mpp-timeout-activation-access",
+                                "mpp-timeout-ref-access",
                                 MPP_TIMEOUT_ACTIVATION_ACCESS_RE,
                             ),
                             (
-                                "mpp-timeout-activation-write",
+                                "mpp-timeout-ref-write",
                                 MPP_TIMEOUT_ACTIVATION_WRITE_RE,
                             ),
                             (
@@ -4313,7 +5209,7 @@ def ownership_violations(signals: Iterable[Signal]) -> list[Signal]:
                 elif reasons != [expected]:
                     violations.append(signal)
         elif (
-            signal.category == "mpp-active-activation-access"
+            signal.category == "mpp-active-ref-access"
             and signal.function not in MPP_ACTIVE_ACTIVATION_ACCESS_OWNERS
         ):
             violations.append(signal)
@@ -4363,13 +5259,13 @@ def ownership_violations(signals: Iterable[Signal]) -> list[Signal]:
         ):
             violations.append(signal)
         elif (
-            signal.category == "mpp-active-activation-write"
+            signal.category == "mpp-active-ref-write"
             and signal.function not in MPP_ACTIVE_ACTIVATION_WRITE_OWNERS
         ):
             violations.append(signal)
         elif (
             signal.category
-            in {"mpp-timeout-activation-access", "mpp-timeout-activation-write"}
+            in {"mpp-timeout-ref-access", "mpp-timeout-ref-write"}
             and signal.function not in MPP_TIMEOUT_ACTIVATION_OWNERS
         ):
             violations.append(signal)
@@ -4425,6 +5321,16 @@ def ownership_violations(signals: Iterable[Signal]) -> list[Signal]:
         elif (
             signal.category == "mpp-activation-generation-write"
             and signal.function not in MPP_ACTIVATION_GENERATION_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-refcount-access"
+            and signal.function not in MPP_ACTIVATION_REFCOUNT_ACCESS_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            signal.category == "mpp-activation-refcount-write"
+            and signal.function not in MPP_ACTIVATION_REFCOUNT_WRITE_OWNERS
         ):
             violations.append(signal)
         elif (
@@ -4602,12 +5508,22 @@ def main(argv: list[str]) -> int:
         return 2
     try:
         resolved = [tree.resolve() for tree in args.kernel_tree]
+        if len(resolved) > 1:
+            for source in SOURCES:
+                reference = (resolved[0] / source).read_bytes()
+                mismatched = [
+                    tree for tree in resolved[1:]
+                    if (tree / source).read_bytes() != reference
+                ]
+                if mismatched:
+                    raise ValueError(
+                        f"tracked source bytes differ for {source}: "
+                        f"{resolved[0]} vs "
+                        + ", ".join(str(tree) for tree in mismatched)
+                    )
         trees: list[tuple[pathlib.Path, list[Signal]]] = []
         for tree in resolved:
-            if trees and all(
-                (tree / source).read_bytes() == (trees[0][0] / source).read_bytes()
-                for source in SOURCES
-            ):
+            if trees:
                 signals = trees[0][1]
             else:
                 signals = audit_tree(tree)

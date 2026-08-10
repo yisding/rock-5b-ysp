@@ -83,7 +83,11 @@ to a service quarantine tombstone that retains resources/dispatch and closes
 admission through reboot. Phase 3I adds immutable `NOT_PUBLISHED`,
 `IRQ_ACCEPTED`, and `CCU_DONE_ACCEPTED` clean-terminal observations while
 treating RKVDEC bus idle as advisory only and keeping recovered proof separate.
-Final outcome arbitration, `RECLAIMABLE`, resource drain, and several
+Phase 3J adds a base activation bias and typed `{activation, generation}`
+external references paired with containing-job references for active, timeout,
+claim, retry, and quarantine ownership. Dispatch/current/list remain borrowed
+and backend resources remain job-shaped. Final outcome arbitration,
+`RECLAIMABLE`, resource drain/base-bias release, and several
 CCU/link/power resources remain job-owned;
 `rk_rga_task_exec` and `rk_rga_acquire_set` do not exist. The cluster
 also does not yet own admission, coordinator power, or the complete

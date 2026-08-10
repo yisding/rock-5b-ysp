@@ -80,8 +80,18 @@ finishers quarantine, and AV1 untrusted-stop failure remains `SLOTTED` for
 remove/shutdown retry. It is still not resource drain, `RECLAIMABLE`, or
 outcome arbitration.
 
+Phase 3J adds `rk_mpp_activation_ref`: every dereference-capable active,
+timeout, claim, retry, or quarantine owner now pairs exact activation identity
+with an activation reference and containing-job reference. Clone, move, and put
+make transfer explicit, while the base bias retains job-owned activation
+storage. Retry preflight refusal leaves the predecessor active and puts the
+unpublished successor pair; only a retry-finish refusal after successful A→B
+publication transfers the predecessor pair to quarantine. Current, dispatch,
+and list pointers remain borrowed; backend resources, base-bias release,
+resource drain, and `RECLAIMABLE` remain outside this checkpoint.
+
 `rk_rga_task_exec` and `rk_rga_acquire_set` should still return no definitions;
-cluster admission, coordinator-power ownership, general clean MPP retirement
+cluster admission, coordinator-power ownership, activation-aware resource drain
 and `RECLAIMABLE`, and complete reset/IOMMU recovery consumers should likewise
 remain absent until their separate checkpoints land.
 

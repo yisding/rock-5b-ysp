@@ -121,7 +121,12 @@ reboot. Phase 3I records exact `NOT_PUBLISHED`, `IRQ_ACCEPTED`, or
 `BUS_IDLE` status remains advisory evidence, recovered proof remains separate,
 and the legacy `CLAIMED` fallback is gone. AV1 untrusted-stop failure retains
 `SLOTTED` active ownership for remove/shutdown retry. Reclaimability, resource
-drain, and final outcome arbitration remain outside the typed owner.
+drain, and final outcome arbitration remain outside the typed owner. Phase 3J
+adds a base activation bias and replaces external job-pointer adapters with
+typed `{activation, generation}` references paired with containing-job
+references for active, timeout, claim, retry, and quarantine ownership.
+Dispatch/current/list identities remain borrowed, and backend resources remain
+job-shaped.
 Cluster/link/DCHS and power leases also remain in the legacy job/hardware graph.
 
 ### 3.2 Session lifecycle
@@ -399,6 +404,18 @@ continues to require its separate typed closure. If AV1 cannot establish a
 trusted stop, its start-failure path retains `SLOTTED` active ownership for
 remove/shutdown retry rather than manufacturing terminal evidence. `RETIRED`
 still does not mean resources drained or storage `RECLAIMABLE`.
+
+Phase 3J makes the lifetime of every dereference-capable external identity
+explicit. Active, timeout, claim, retry, and quarantine owners hold typed
+`{activation, generation}` references paired with containing-job references;
+clone gets both, move transfers both, and put releases both. Each activation's
+base bias belongs to retained job storage and carries no job reference. Retry
+preflight refusal leaves the predecessor active and puts the unpublished
+successor pair; after successful A→B publication, finish refusal transfers the
+predecessor retry pair into quarantine. The job current pointer, session
+dispatch owner, and activation list remain borrowed. No base bias may be
+released early, because backend resource-drain proof and `RECLAIMABLE` do not
+yet exist.
 
 START publication also creates a bounded IRQ/register lease under
 `hw->regs_lock`. The lease records the live reset epoch and, for direct-core
