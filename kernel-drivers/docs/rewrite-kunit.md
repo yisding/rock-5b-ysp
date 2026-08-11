@@ -2,7 +2,7 @@
 
 The rewrite drivers use KUnit as a built-in boot gate for logic and state
 transitions that can be exercised without RK3588 hardware. The YSP result is
-green only when the named **108 MPP + 152 RGA case manifest** matches without
+green only when the named **109 MPP + 152 RGA case manifest** matches without
 duplicates, omissions, failures, or skips **and** the same kernel-log interval
 is free of sanitizer reports, warnings, lockdep findings, refcount failures,
 and media/IOMMU faults. The report also binds the run to the kernel release,
@@ -224,7 +224,7 @@ For each suite it requires:
 
 | Field | Required value |
 |-------|----------------|
-| Inner KTAP plan | exactly 108 MPP or 152 RGA |
+| Inner KTAP plan | exactly 109 MPP or 152 RGA |
 | Observed case results | exactly the planned count |
 | Failed cases | 0 |
 | Skipped cases | 0 |
@@ -342,9 +342,9 @@ source/config/package-bound evidence gate owned result attribution. See the
 [successor attribution and audit](../../findings/2026-07-27-rewrite-reset-import-fixture-lockdep.md).
 
 The maintained tips are now 6.18
-`77b60c9250ccccd8aa77c4b4426b7921e870a03d` on `v6.18.42` and mainline
-`0a645ea1df04225661e9611174abe3ca1451b07f` on `v7.2-rc6`, with an exact
-108/152 manifest. Predecessor 6.18
+`149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` on `v6.18.42` and mainline
+`280181e634a3a10a3a4f1659fe7c7287f7ee3760` on `v7.2-rc6`, with an exact
+109/152 manifest. Predecessor 6.18
 `19634f4eebba` passed its exact 92/152 manifest on KASAN boot `#2` on 2026-08-05:
 244 results (92 MPP plus 152 RGA), zero failures/skips, a clean outer interval,
 and live lockdep. That runtime-verifies the patch-equivalent request/rotation
@@ -361,11 +361,11 @@ typed retry finisher refuses it. Phase 3 completion adds
 `rk_mpp_activation_reason_arbitration_kunit`,
 `rk_mpp_activation_reclaimable_kunit`, and
 `rk_mpp_activation_selected_hw_release_kunit`; the retry fixture also proves
-full resource handoff and early predecessor reclaim. Strict checkpatch is
-0/0/0 over 3,253 lines/tree. The focused final-source 6.18 KUnit-enabled MPP
-object is 6,886,200 bytes at SHA-256
-`c88e58387dd0bd5eb109f441b31346f46cf32f206449639ba7dc6837aed70023`.
-The Phase 3 ownership audit passes at 2,314 signals/tree and fixture debt
+full resource handoff and early predecessor reclaim. Phase 4 converts the RGA
+lifetime fixtures to typed task-execution/generation ownership. Phase 5 adds
+`rk_mpp_reg_builder_seal_kunit` and extends the measured RGA3 resize golden to
+prove raw-request mutation cannot change a published immutable plan. The
+Phase 4/5 ownership audit passes at 2,312 signals/tree and fixture debt
 passes at 306/tree. All eight warning-fatal final-head profiles pass across both
 kernel lines, including both IOMMU providers, both rewrite objects, and the
 Rock 5B DTB. The dedicated test-disabled policy/ABI gate passes on both heads:

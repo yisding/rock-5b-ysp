@@ -200,10 +200,11 @@ The `/dev/rga` driver — session lifetime, userptr/dma-buf imports, and the 10-
 - [`2026-07-20`](2026-07-20-rga2-unmapped-page-table-dma-sync.md) — RGA2 syncs page-table memory through an unmapped DMA address
 - [`2026-07-17`](2026-07-17-rga-session-close-uaf.md) — RGA session-close force-free ignores refcounts; a leaked test handle exposed it as a kernel Oops
 
-### Clean-room rewrite drivers (51)
+### Clean-room rewrite drivers (52)
 
 The from-scratch MPP/RGA replacement: reviews, soft-CCU wedges, and reset/lifecycle races.
 
+- [`2026-08-11`](2026-08-11-rewrite-phases-4-5-task-execution-and-sealed-emission.md) — Rewrite Phases 4 and 5 complete task-execution ownership and sealed emission
 - [`2026-08-09`](2026-08-09-rewrite-phase-3-complete-mpp-activation-retirement.md) — Rewrite Phase 3 completes MPP activation retirement
 - [`2026-08-09`](2026-08-09-rewrite-phase-3j-mpp-typed-activation-references.md) — Rewrite Phase 3J types external MPP activation references
 - [`2026-08-09`](2026-08-09-rewrite-phase-3i-mpp-clean-terminal-observations.md) — Rewrite Phase 3I retains exact clean MPP terminal observations
@@ -362,6 +363,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-08-11-rewrite-phases-4-5-task-execution-and-sealed-emission.md`](2026-08-11-rewrite-phases-4-5-task-execution-and-sealed-emission.md) — Rewrite Phases 4 and 5 complete task-execution ownership and sealed emission
 - [`2026-08-09-rewrite-phase-3j-mpp-typed-activation-references.md`](2026-08-09-rewrite-phase-3j-mpp-typed-activation-references.md) — Rewrite Phase 3J types external MPP activation references
 - [`2026-08-09-rewrite-phase-3i-mpp-clean-terminal-observations.md`](2026-08-09-rewrite-phase-3i-mpp-clean-terminal-observations.md) — Rewrite Phase 3I retains exact clean MPP terminal observations
 - [`2026-08-09-rewrite-phase-3h-mpp-recovered-terminal-quarantine.md`](2026-08-09-rewrite-phase-3h-mpp-recovered-terminal-quarantine.md) — Rewrite Phase 3H retains recovered MPP terminal claims and quarantine ownership

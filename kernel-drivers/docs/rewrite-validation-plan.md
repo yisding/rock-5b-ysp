@@ -9,7 +9,7 @@ qualification verdict and next proof belong to
 and definition of done.
 
 > **Framing.** The targeted userspace surface is code-complete and has MPP
-> **108 KUnit cases** plus RGA **152 KUnit cases** (**260 total**). Exact green
+> **109 KUnit cases** plus RGA **152 KUnit cases** (**261 total**). Exact green
 > booted KTAP is the first qualification rung, not the finish line. These tests
 > are primarily **logic/lifecycle evidence**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
@@ -21,20 +21,21 @@ and definition of done.
 > counts into this plan; follow the status row into the dated finding and
 > correlated run artifacts.
 
-> **Current source boundary (2026-08-09):** Phase 3 is source-complete at
-> `rk3588-rewrite-6.18@77b60c9250ccccd8aa77c4b4426b7921e870a03d` and
-> `rk3588-rewrite-mainline@0a645ea1df04225661e9611174abe3ca1451b07f`.
-> The activation now owns all attempt-bounded CCU/link/DCHS/power/timing
-> resources, hard-CCU retry transfers that record coherently, terminal reasons
-> use order-independent priority arbitration, and one completion owner drains
-> resources and releases exact dispatch/core ownership before publishing
-> `DONE`. Fully drained, unreferenced retired predecessors become
-> `RECLAIMABLE`; quarantine deliberately retains resources. The exact source
-> manifest is 108 MPP plus 152 RGA cases, ownership passes at 2,314 signals/tree,
-> and fixture debt passes at 306/tree. All eight warning-fatal profiles and the
-> dedicated test-disabled ABI-mutation gate pass on both kernel lines. Runtime
-> execution at these tips remains
-> pending and is not implied by source or compile evidence.
+> **Current source boundary (2026-08-11):** Phases 4 and 5 are source-complete
+> at `rk3588-rewrite-6.18@149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` and
+> `rk3588-rewrite-mainline@280181e634a3a10a3a4f1659fe7c7287f7ee3760`.
+> RGA per-task executions now own exact hardware, mapping, MMU, command,
+> USERPTR, timing, async-generation, and retirement lifetimes; one retirement
+> engine destroys proven-stopped executions or retains quarantine, and only the
+> orchestrator advances or completes the whole job. MPP backends consume const
+> sealed register images with separate result storage, while every implemented
+> RGA emitter consumes an immutable validated task plan. Owner-specific START
+> helpers arm the exact watchdog and publish command/register state before the
+> doorbell. The exact source manifest is 109 MPP plus 152 RGA cases, ownership
+> passes at 2,312 signals/tree, and fixture debt passes at 306/tree. All eight
+> warning-fatal profiles and the dedicated test-disabled ABI-mutation gate pass
+> on both kernel lines. Runtime execution at these tips remains pending and is
+> not implied by source or compile evidence.
 >
 > **Historical Phase 3J boundary:** maintained Phase 3J tips
 > `7481df21ca2b1481a3c4b4d222e3ebed28692544` /
@@ -699,7 +700,7 @@ booted sanitizer/fault-injection evidence.
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 260 KUnit cases green **under KASAN** (108 MPP + 152 RGA), persisted from the
+1. 261 KUnit cases green **under KASAN** (109 MPP + 152 RGA), persisted from the
    booted suites by `tests/rewrite-kunit-log-check.sh`; hardware-in-the-loop
    kselftests added (the KUnit cases themselves never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —

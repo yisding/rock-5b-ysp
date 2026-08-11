@@ -195,6 +195,8 @@ owns the public verdict.
 
 | Snapshot | Pin and base | Historical relationships |
 |----------|--------------|--------------------------|
+| 6.18 rewrite Phases 4–5 complete, 2026-08-11 | `rk3588-rewrite-6.18@149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` on `v6.18.42@856a9b51680c` | Phase 3 completion tip `77b60c9250cccc`; adds RGA task-execution ownership plus immutable RGA plans and sealed MPP register images |
+| Mainline rewrite Phases 4–5 complete, 2026-08-11 | `rk3588-rewrite-mainline@280181e634a3a10a3a4f1659fe7c7287f7ee3760` on `v7.2-rc6@075b74841bd0` | Phase 3 completion tip `0a645ea1df042`; byte-identical Phase 4/5 checkpoint |
 | 6.18 rewrite Phase 3 complete, 2026-08-09 | `rk3588-rewrite-6.18@77b60c9250ccccd8aa77c4b4426b7921e870a03d` on `v6.18.42@856a9b51680c` | Phase 3J tip `7481df21ca2b`; completes activation-owned resources, outcome arbitration, central completion, exact release, and reclaim |
 | Mainline rewrite Phase 3 complete, 2026-08-09 | `rk3588-rewrite-mainline@0a645ea1df04225661e9611174abe3ca1451b07f` on `v7.2-rc6@075b74841bd0` | Phase 3J tip `4a632e00c4cd`; byte-identical Phase 3 completion checkpoint |
 | 6.18 rewrite Phase 3J typed activation references, 2026-08-09 | `rk3588-rewrite-6.18@7481df21ca2b1481a3c4b4d222e3ebed28692544` on `v6.18.42@856a9b51680c` | Phase 3I tip `395644689db8f`; pairs each external activation identity/reference with its containing-job reference while retaining the base-biased storage; includes the KUnit-only stack-shape correction |
@@ -239,24 +241,24 @@ owns the public verdict.
 | Mainline rewrite, 2026-08-06 | `rk3588-rewrite-mainline@7a6d4cb075a67` on `v7.2-rc6@075b74841bd0` | prior backups `9e503f6b16df` and `5bae68d8381c` |
 | Upstream-style RGA3 comparison | `rk3588-rewrite-mainline@180ee72a9a80` | detailed in §9 |
 
-The two maintained Phase 3 completion snapshots have byte-identical
+The two maintained Phase 4/5 completion snapshots have byte-identical
 tracked MPP/RGA rewrite sources, Kconfig, ABI ledgers, and UAPI. Their MPP
 source SHA-256 is
-`33a0374b2009cb70a688cd02bfbc501b93fedb68a90d52db4ec654f82dc94f4e`;
-strict full-series checkpatch is 0 errors, 0 warnings, and 0 checks over 3,253
-lines per tree. The focused final-source 6.18 KUnit-enabled MPP object is
-6,886,200 bytes at SHA-256
-`c88e58387dd0bd5eb109f441b31346f46cf32f206449639ba7dc6837aed70023`.
-The exact source manifest is 108 MPP + 152 RGA = 260 cases. Ownership passes at
-2,314 signals/tree and KUnit fixture debt passes at 306/tree. All eight
+`45a8de124ec94b28f85fd117658e560b5c9bee096a7f610bbd04b59a1b97cade`;
+the RGA source SHA-256 is
+`0003a3912d2fabf0b9f3292b49f35171c78db16f1cb6407b784a4aee8ab2ae2d`.
+Strict checkpatch over the Phase 4/5 delta is zero errors and zero warnings,
+with 76 continuation-layout checks. The exact source manifest is 109 MPP +
+152 RGA = 261 cases. Ownership passes at
+2,312 signals/tree and KUnit fixture debt passes at 306/tree. All eight
 warning-fatal final-head profiles pass across both kernel lines (`normal`,
 `test-disabled`, `memory`, and `race`), including both IOMMU providers, both
 rewrite objects, and the Rock 5B DTB. The dedicated test-disabled policy/ABI
 gate passes on both heads: both KUnit options resolve disabled, the same
 providers/objects/DTB compile warning-fatally, and the deliberate MPP ABI
 mutation fails at compile time. `bash scripts/check-repo.sh` passes against
-this exact evidence state; runtime results remain pending. The older
-2026-08-08 rows preserve the recovery, pre-cluster, and pre-refactor snapshots,
+this exact evidence state; runtime results remain pending. The Phase 3 and older
+2026-08-08 rows preserve activation/recovery, pre-cluster, and pre-refactor snapshots,
 while the 2026-08-06 rows remain historical pins rather than claims about later
 branch heads.
 

@@ -18,22 +18,24 @@ The priority is **ownership before convention**:
 4. postpone broad file moves, naming cleanup, and test rationalization until
    the ownership graph has stopped changing.
 
-> **Current status — 2026-08-09:** Phase 3 is source-complete at
-> `rk3588-rewrite-6.18@77b60c9250ccccd8aa77c4b4426b7921e870a03d` and
-> `rk3588-rewrite-mainline@0a645ea1df04225661e9611174abe3ca1451b07f`.
-> The final checkpoint moves every attempt-bounded CCU/link/DCHS/power/timing
-> lease into `rk_mpp_activation`, performs hard-CCU retry as one locked resource
-> handoff, arbitrates all terminal reasons independently of arrival order,
-> funnels successful terminal paths through one completion owner, and releases
-> exact dispatch/selected-core/resource ownership before publishing `DONE`.
-> Retired, fully drained, unreferenced predecessors now become `RECLAIMABLE` and
-> dynamically allocated retry records are freed before final job destruction;
-> quarantine remains deliberately reboot-bound. The exact source manifest is
-> 108 MPP plus 152 RGA cases, the ownership audit passes at 2,314 signals/tree,
-> and fixture debt passes at 306/tree. All eight warning-fatal profiles and the
-> dedicated test-disabled ABI-mutation gate pass on both kernel lines. Source
-> and compile evidence do not replace
-> current-tip boot, runtime KUnit, sanitizer, media, or recovery qualification.
+> **Current status — 2026-08-11:** Phases 4 and 5 are source-complete at
+> `rk3588-rewrite-6.18@149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` and
+> `rk3588-rewrite-mainline@280181e634a3a10a3a4f1659fe7c7287f7ee3760`.
+> Phase 4 gives every RGA hardware task a typed, generation-retained execution
+> owner for its core, mappings, MMU tables, command allocation, USERPTR
+> copyback, timing, IRQ/fault/timeout edges, and retirement state. One engine
+> destroys a stopped execution or retains its exact resources in quarantine;
+> only the whole-job orchestrator advances tasks, selects fallback, completes,
+> and signals the fence. Phase 5 seals MPP register images before backend
+> validation/dispatch, separates command and result storage, converts every
+> implemented RGA emitter to an immutable validated task plan, and makes
+> owner-specific publication helpers arm the watchdog and publish ownership
+> before issuing START. The exact source manifest is 109 MPP plus 152 RGA
+> cases, the ownership audit passes at 2,312 signals/tree, and fixture debt
+> passes at 306/tree. All eight warning-fatal profiles and the dedicated
+> test-disabled ABI-mutation gate pass on both kernel lines. Source and compile
+> evidence do not replace current-tip boot, runtime KUnit, sanitizer, media,
+> differential-output, or recovery qualification.
 >
 > **Checkpoint history through Phase 3J:** Phase 1 is source-complete, all six Phase 2
 > source items are implemented, Phase 3A embedded the first MPP
@@ -182,13 +184,14 @@ runtime units:
 - an RGA **task execution**, which owns the selected hardware, mappings,
   command buffer, and one trip through the active slot.
 
-Those objects address the latent-risk areas directly. MPP's reset domain now
+Those objects now address the latent-risk areas directly. MPP's reset domain
 owns stable identity, membership, single-target state and cluster-validated
-group-pulse epochs. A refcounted lease owns the member-core power holds, but it
-still transfers through legacy jobs; coordinator power, CCU MMIO, reset
-results, and IOMMU refresh remain in different objects and paths. RGA's common recovery tail fixed one multi-task
-advance omission, but a job still mixes whole-request lifetime with the
-resources and state of its current hardware task.
+group-pulse epochs; each activation owns its exact retry/resource/terminal
+lifetime and consumes a sealed register image. RGA separates whole-request
+orchestration from typed per-task executions, and emitters consume immutable
+validated plans rather than raw requests. Coordinator-wide hardware semantics,
+RGA2 large-segment staging, and runtime qualification remain explicit later
+gates rather than ownership exceptions.
 
 The desired ownership graph is:
 
@@ -1040,24 +1043,28 @@ success.
 
 ### Phase 4 — split RGA task execution from the whole job
 
-1. Embed `rk_rga_task_exec` and move selected hardware, mappings, MMU table,
+**Source-complete at the 2026-08-11 checkpoint.**
+
+1. **Implemented.** Embed `rk_rga_task_exec` and move selected hardware, mappings, MMU table,
    command allocation, userptr sync state, timing, generation and IRQ status.
-2. Give every async edge an execution reference plus generation cookie and add
+2. **Implemented.** Give every async edge an execution reference plus generation cookie and add
    the `RETIRED` to `RECLAIMABLE` drain boundary.
-3. Change the hardware slot to an execution pointer.
-4. Make one retirement engine destroy or quarantine the execution and return
+3. **Implemented.** Change the hardware slot to a typed execution reference.
+4. **Implemented.** Make one retirement engine destroy or quarantine the execution and return
    one result to the job orchestrator.
-5. Let only the orchestrator advance `current_task`, create retries/fallbacks,
+5. **Implemented.** Let only the orchestrator advance `current_task`, create retries/fallbacks,
    complete the job, and
    signal the release fence.
-6. **Ownership complete; type cleanup remains:** import capabilities are split
-   from device/domain execution maps and mapping work no longer runs under the
-   global import lock. A later `rk_rga_exec_map` extraction can make the
-   already-correct lifetime structural.
-7. Model direct and staged execution maps, including copy-in/copyback ownership,
-   without yet selecting the RGA2 1 MiB staging implementation.
-8. Encapsulate acquire callbacks in `rk_rga_acquire_set` without changing their
-   zero-crossing protocol.
+6. **Implemented.** Import capabilities are split from device/domain execution
+   maps, and mapping work no longer runs under the global import lock.
+7. **Implemented as an ownership model.** Direct and staged execution-map and
+   copy-owner states are explicit. The RGA2 1 MiB staging algorithm remains a
+   separate feature gate and was not smuggled into this refactor.
+8. **Implemented.** Encapsulate acquire callbacks in `rk_rga_acquire_set`
+   without changing their zero-crossing protocol.
+
+The direct/staged model records copy-in/copyback ownership without yet selecting
+the RGA2 1 MiB staging implementation.
 
 Acceptance: multi-task success and every-task-position failure through IRQ,
 timeout, fault, cancel, close and unbind; RGA3-to-RGA2 fallback; userptr
@@ -1069,15 +1076,18 @@ accounted tombstone whose resources remain pinned until isolation proof or reboo
 
 ### Phase 5 — make validation and emission one-way
 
-- Introduce the MPP builder/seal boundary and reject every post-seal write.
-- Introduce `rk_rga_task_plan`; convert one measured copy/scale/convert profile
+- **Implemented.** Introduce the MPP builder/seal boundary and reject every post-seal write.
+- **Implemented.** Introduce `rk_rga_task_plan`; convert one measured copy/scale/convert profile
   end to end before broad feature families.
-- Convert emitters by semantic family and delete raw-task access as each family
+- **Implemented.** Convert emitters by semantic family and delete raw-task access as each family
   moves.
-- Replace the temporary start funnels with owner-specific MPP activation and RGA
+- **Implemented.** Replace the temporary start funnels with owner-specific MPP activation and RGA
   execution `publish_and_start()` operations.
-- Add independently specified golden command/register expectations and the
-  byte-exact forward-port differential.
+- **Implemented for source and device-free evidence.** Preserve independently
+  specified golden command/register expectations, add an immutable-plan replay
+  check, and require byte-identical tracked sources across the two forward-port
+  bases. The real output-artifact differential remains a runtime qualification
+  gate rather than a claim inferred from source identity.
 
 Acceptance: no MPP backend receives a mutable register image; no RGA emitter
 receives `struct rga_req`; source audit rejects both regressions. The open

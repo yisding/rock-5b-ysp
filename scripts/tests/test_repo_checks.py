@@ -4297,32 +4297,71 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
         rga.write_text(
             "enum rk_rga_debug_event_type { RK_RGA_DEBUG_JOB_FAIL };\n"
             "struct rk_rga_debug_event { u8 type; };\n"
-            "static void rga_map_owner(struct rk_rga_job *job)\n"
+            "static void rk_rga_job_map_import(struct rk_rga_job *job)\n"
             "{\n"
             "\tdma_buf_detach(NULL, NULL);\n"
             "\t__rk_rga_job_release_execution_mappings(job);\n"
+            "}\n"
+            "static void __rk_rga_task_exec_release_mappings(\n"
+            "\t\tstruct rk_rga_task_exec *exec)\n"
+            "{\n"
+            "}\n"
+            "static void rk_rga_task_exec_free_cmd(\n"
+            "\t\tstruct rk_rga_task_exec *exec)\n"
+            "{\n"
+            "}\n"
+            "static void rk_rga_task_exec_release_mappings_powered(\n"
+            "\t\tstruct rk_rga_task_exec *exec)\n"
+            "{\n"
+            "\t__rk_rga_task_exec_release_mappings(exec);\n"
+            "}\n"
+            "static void rk_rga_task_exec_retire_engine(\n"
+            "\t\tstruct rk_rga_task_exec *exec)\n"
+            "{\n"
+            "\trk_rga_task_exec_free_cmd(exec);\n"
+            "}\n"
+            "static struct rk_rga_task_exec *\n"
+            "rk_rga_hw_active_exec_locked(struct rk_rga_hw *hw)\n"
+            "{\n"
+            "\treturn hw->active_ref.exec;\n"
             "}\n"
             "static void rk_rga2_emit_src(struct rk_rga_job *job,\n"
             "\t\t\t     const struct rga_req *task)\n"
             "{\n"
             "\trk_rga_cmd_write(job, RK_RGA2_SRC_INFO_OFFSET, task->render_mode);\n"
             "}\n"
+            "static void rk_rga_job_advance_task(struct rk_rga_job *job)\n"
+            "{\n"
+            "\tjob->current_task++;\n"
+            "}\n"
+            "static void rk_rga_hw_schedule_timeout(\n"
+            "\t\tstruct rk_rga_hw *hw, struct rk_rga_job *job)\n"
+            "{\n"
+            "\thw->timeout_ref.exec = job->current_exec;\n"
+            "}\n"
+            "static void rk_rga_hw_take_irq_ref(struct rk_rga_hw *hw)\n"
+            "{\n"
+            "\thw->irq_ref.exec = NULL;\n"
+            "}\n"
+            "static void rk_rga3_execution_publish_and_start(\n"
+            "\t\tstruct rk_rga_hw *hw, struct rk_rga_job *job)\n"
+            "{\n"
+            "\trk_rga_hw_schedule_timeout(hw, job);\n"
+            "\trk_rga_write(hw, 1, RK_RGA3_CMD_CTRL);\n"
+            "}\n"
             "static void rga_paths(struct rk_rga_hw *hw, struct rk_rga_job *job)\n"
             "{\n"
             "\thw->active_job = job;\n"
-            "\tjob->current_task++;\n"
             "\trk_rga_job_release_execution_mappings_powered(job, hw);\n"
             "\trk_rga_job_free_cmd(job);\n"
             "\tjob->irq_result = 0;\n"
             "\thw->iommu_fault_generation = 1;\n"
             "\thw->recovery_failed = true;\n"
             "\thw->timeout_job = job;\n"
-            "\trk_rga_hw_schedule_timeout(hw, job);\n"
             "\tjob->hw_start_ns = 1;\n"
             "\tWRITE_ONCE(job->result, 0);\n"
             "\tWRITE_ONCE(event.result, 0);\n"
             "\trk_rga_hw_recover_active(hw, false, NULL, 0);\n"
-            "\trk_rga_write(hw, 1, RK_RGA3_CMD_CTRL);\n"
             f"{extra_rga}"
             "}\n"
             "#if IS_ENABLED(CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST)\n"
@@ -4497,7 +4536,7 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             self.assertIn("rga-map-release-primitive", baseline_text)
             self.assertIn("rga-command-release", baseline_text)
             self.assertIn(
-                "__rk_rga_job_release_execution_mappings", baseline_text
+                "__rk_rga_task_exec_release_mappings", baseline_text
             )
             self.assertNotIn("rga_fixture", baseline_text)
             self.assertIn("rkvdec_ccu_power_lease", baseline_text)
@@ -4518,11 +4557,11 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             self.assertIn("mpp-watchdog-snapshot-write", baseline_text)
             self.assertIn("mpp-outcome-publish-entry", baseline_text)
             self.assertIn("rga-irq-snapshot-write", baseline_text)
-            self.assertIn("rga-fault-snapshot-write", baseline_text)
+            self.assertIn("rga-timeout-ref-access", baseline_text)
+            self.assertIn("rga-irq-ref-access", baseline_text)
             self.assertIn("rga-terminal-state-write", baseline_text)
             self.assertIn("rga-job-outcome-write", baseline_text)
             self.assertNotIn("WRITE_ONCE(event.result, 0)", baseline_text)
-            self.assertIn("rga-watchdog-snapshot-write", baseline_text)
             self.assertIn("rga-activation-timing-write", baseline_text)
             self.assertIn("rga-terminal-entry", baseline_text)
             self.assertIn("start-doorbell-write", baseline_text)
@@ -4629,14 +4668,13 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
                 ),
                 extra_rga=(
                     "\tdma_buf_unmap_attachment(NULL, NULL, 0);\n"
-                    "\trk_rga_job_discard_execution_mappings(job);\n"
-                    "\tdma_free_coherent(job->cmd_dev, job->cmd_size,\n"
-                    "\t\t\t  job->cmd_vaddr, job->cmd_dma);\n"
+                    "\trk_rga_task_exec_release_mappings_powered(\n"
+                    "\t\tjob->current_exec);\n"
+                    "\trk_rga_task_exec_free_cmd(job->current_exec);\n"
                     "\tjobs[0]->irq_seen = true;\n"
-                    "\thw[0].iommu_fault_generation = 2;\n"
+                    "\thws[0]->irq_ref.exec = job->current_exec;\n"
                     "\t(*hw).removing = true;\n"
-                    "\thws[0]->timeout_generation = 2;\n"
-                    "\txchg(&hws[0]->timeout_generation, 3);\n"
+                    "\thws[0]->timeout_ref.exec = job->current_exec;\n"
                     "\trk_rga_hw_schedule_timeout(hw, &replacement);\n"
                     "\tjobs[0]->current_task >>= 1;\n"
                     "\t--jobs[0]->current_task;\n"
@@ -4713,10 +4751,10 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             self.assertIn("NEW\trga-map-release-primitive", changed.stderr)
             self.assertIn("NEW\trga-command-release", changed.stderr)
             self.assertIn("NEW\trga-irq-snapshot-write", changed.stderr)
-            self.assertIn("NEW\trga-fault-snapshot-write", changed.stderr)
+            self.assertIn("NEW\trga-timeout-ref-access", changed.stderr)
+            self.assertIn("NEW\trga-irq-ref-access", changed.stderr)
             self.assertIn("NEW\trga-terminal-state-write", changed.stderr)
             self.assertIn("NEW\trga-job-outcome-write", changed.stderr)
-            self.assertIn("NEW\trga-watchdog-snapshot-write", changed.stderr)
             self.assertIn("NEW\trga-watchdog-arm-entry", changed.stderr)
             self.assertIn("NEW\trga-activation-timing-write", changed.stderr)
             self.assertIn("NEW\trga-terminal-entry", changed.stderr)
@@ -4788,10 +4826,8 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
                     "mpp-cluster-topology-input-access",
                     "hws[0]->iommu_domain = domain",
                 ),
-                (
-                    "rga-watchdog-snapshot-write",
-                    "xchg(&hws[0]->timeout_generation",
-                ),
+                ("rga-timeout-ref-access", "hws[0]->timeout_ref.exec"),
+                ("rga-irq-ref-access", "hws[0]->irq_ref.exec"),
                 ("rga-task-advance", "current_task >>= 1"),
                 ("rga-task-advance", "--jobs[0]->current_task"),
             ):
@@ -4825,7 +4861,12 @@ static void rk_mpp_hw_shutdown(struct rk_mpp_hw *hw)
             self.assertEqual(
                 changed.stderr.count("dma_buf_unmap_attachment(NULL"), 1
             )
-            self.assertEqual(changed.stderr.count("job->cmd_vaddr"), 1)
+            self.assertEqual(
+                changed.stderr.count(
+                    "rk_rga_task_exec_free_cmd(job->current_exec)"
+                ),
+                1,
+            )
 
             baseline.write_text(
                 baseline_text.replace("# source-head\tunknown", "# source-head\tdeadbeef"),

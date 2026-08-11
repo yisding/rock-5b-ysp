@@ -757,6 +757,7 @@ MPP_SELECTED_HW_ACCESS_OWNERS = {
     "rk_mpp_activation_try_reclaim",
     "rk_mpp_av1_submit",
     "rk_mpp_av1_validate",
+    "rk_mpp_av1_activation_publish_and_start",
     "rk_mpp_cluster_arm_soft_ccu",
     "rk_mpp_cluster_collect_stop_cores",
     "rk_mpp_cluster_power_lease_acquire",
@@ -834,6 +835,7 @@ MPP_CURRENT_ACTIVATION_ACCESS_OWNERS = {
     "rk_mpp_activation_try_reclaim",
     "rk_mpp_av1_submit",
     "rk_mpp_av1_validate",
+    "rk_mpp_av1_activation_publish_and_start",
     "rk_mpp_cluster_arm_soft_ccu",
     "rk_mpp_cluster_collect_stop_cores",
     "rk_mpp_cluster_power_lease_acquire",
@@ -994,11 +996,14 @@ MPP_RKVDEC_CCU_WRITE_OWNERS = {
     "rk_mpp_rkvdec2_submit",
 }
 RGA_ACTIVE_SLOT_WRITE_RE = field_write_re(
-    r"active_job|active_generation|activation_generation_seq"
+    r"active_ref|activation_generation_seq",
+    publishers=ACTIVATION_FIELD_PUBLISHERS,
 )
 RGA_ACTIVE_SLOT_ACCESS_RE = re.compile(
-    r"\b(?:active_job|active_generation|activation_generation_seq)\b"
+    rf"{FIELD_TARGET}(?:active_ref|activation_generation_seq)\b"
 )
+RGA_TIMEOUT_REF_ACCESS_RE = re.compile(rf"{FIELD_TARGET}timeout_ref\b")
+RGA_IRQ_REF_ACCESS_RE = re.compile(rf"{FIELD_TARGET}irq_ref\b")
 MPP_ACTIVE_ACTIVATION_ACCESS_RE = re.compile(rf"{FIELD_TARGET}active_ref\b")
 MPP_ACTIVE_ACTIVATION_WRITE_RE = field_write_re(
     r"active_ref", publishers=ACTIVATION_FIELD_PUBLISHERS
@@ -1186,30 +1191,30 @@ MPP_TERMINAL_RE = re.compile(
 )
 RGA_TASK_ADVANCE_RE = field_write_re(r"current_task")
 RGA_EXEC_MAP_OWNER_RE = re.compile(
-    r"\b(?:__rk_rga_job_release_execution_mappings|"
-    r"rk_rga_job_(?:release_execution_mappings_powered|"
-    r"discard_execution_mappings))\s*\("
+    r"\b(?:__rk_rga_task_exec_release_mappings|"
+    r"rk_rga_task_exec_(?:release_mappings_powered|"
+    r"release_rga2_mmu))\s*\("
 )
 RGA_MAP_RELEASE_PRIMITIVE_RE = re.compile(
     r"\b(?:rk_rga_unmap_userptr_sgt|dma_buf_unmap_attachment(?:_unlocked)?|"
-    r"dma_buf_detach|rk_rga_job_(?:clear|release)_rga2_mmu)\s*\("
+    r"dma_buf_detach|rk_rga_task_exec_release_rga2_mmu)\s*\("
 )
 RGA_COMMAND_RELEASE_RE = re.compile(
-    r"\brk_rga_job_free_cmd\s*\(|"
-    r"\bdma_free_coherent\s*\([^;]*\bcmd_(?:dev|size|vaddr|dma)\b"
+    r"\brk_rga_task_exec_free_cmd\s*\(|"
+    r"\bdma_free_coherent\s*\([^;]*\bexec->cmd_(?:dev|size|vaddr|dma)\b"
 )
 RGA_IRQ_SNAPSHOT_WRITE_RE = field_write_re(
     r"intr_status|hw_status|cmd_status|work_cycle|parse_status|irq_result|"
     r"irq_seen"
 )
-RGA_FAULT_SNAPSHOT_WRITE_RE = field_write_re(r"iommu_fault_generation")
+RGA_FAULT_SNAPSHOT_WRITE_RE = re.compile(r"(?!)")
 RGA_TERMINAL_STATE_WRITE_RE = field_write_re(r"recovery_failed|removing")
 RGA_JOB_OUTCOME_WRITE_RE = field_write_re(
     r"result|done",
     target=POINTER_FIELD_TARGET,
 )
 RGA_WATCHDOG_SNAPSHOT_WRITE_RE = field_write_re(
-    r"timeout_job|timeout_generation"
+    r"timeout_ref", publishers=ACTIVATION_FIELD_PUBLISHERS
 )
 RGA_ACTIVATION_TIMING_WRITE_RE = field_write_re(r"hw_start_ns|hw_elapsed_ns")
 RGA_TERMINAL_RE = re.compile(
@@ -1240,6 +1245,67 @@ RGA_START_WRITE_RE = re.compile(
     r"\brk_rga_write\s*\([^;]*(?:RK_RGA2_CMD_CTRL|RK_RGA3_CMD_CTRL)"
 )
 RAW_TASK_RE = re.compile(r"\bstruct\s+rga_req\s*\*|\bjob->tasks\b")
+MPP_MUTABLE_IMAGE_PARAMETER_RE = re.compile(
+    r"(?<!const\s)struct\s+rk_mpp_reg_image\s*\*"
+)
+MPP_BACKEND_IMAGE_FUNCTIONS = {
+    "rk_mpp_rkvenc2_validate",
+    "rk_mpp_rkvenc2_submit",
+    "rk_mpp_rkvdec2_validate",
+    "rk_mpp_rkvdec2_submit",
+    "rk_mpp_av1_validate",
+    "rk_mpp_av1_submit",
+}
+RGA_ACTIVE_REF_ACCESS_OWNERS = {
+    "rk_rga_hw_active_exec_locked",
+    "rk_rga_hw_active_generation_locked",
+    "rk_rga_hw_install_active_locked",
+    "rk_rga_hw_take_active_locked",
+    "rk_rga_hw_take_active_if_locked",
+    "rk_rga_hw_schedule_timeout",
+    "rk_rga_hw_mark_iommu_fault",
+    "rk_rga_hw_iommu_fault_matches_locked",
+    "rk_rga_irq_handler",
+    "rk_rga_irq_thread",
+    "rk_rga_task_exec_retire_engine",
+}
+RGA_ACTIVE_REF_WRITE_OWNERS = {
+    "rk_rga_hw_install_active_locked",
+    "rk_rga_hw_take_active_locked",
+    "rk_rga_task_exec_retire_engine",
+}
+RGA_TIMEOUT_REF_OWNERS = {
+    "rk_rga_hw_take_timeout_ref",
+    "rk_rga_hw_schedule_timeout",
+}
+RGA_IRQ_REF_OWNERS = {
+    "rk_rga_hw_drop_matching_irq_ref",
+    "rk_rga_hw_take_irq_ref",
+    "rk_rga_irq_handler",
+}
+RGA_TASK_ADVANCE_OWNERS = {"rk_rga_job_advance_task"}
+RGA_WATCHDOG_ARM_OWNERS = {
+    "rk_rga2_execution_publish_and_start",
+    "rk_rga3_execution_publish_and_start",
+}
+RGA_START_WRITE_OWNERS = {
+    "rk_rga2_execution_publish_and_start",
+    "rk_rga3_execution_publish_and_start",
+}
+RGA_EXEC_MAP_OWNER_CALLERS = {
+    "__rk_rga_task_exec_release_mappings",
+    "rk_rga_task_exec_release_mappings_powered",
+    "rk_rga_task_exec_retire_engine",
+}
+RGA_MAP_RELEASE_PRIMITIVE_OWNERS = {
+    "__rk_rga_task_exec_release_mappings",
+    "rk_rga_job_map_import",
+}
+RGA_COMMAND_RELEASE_OWNERS = {
+    "rk_rga_task_exec_alloc_cmd",
+    "rk_rga_task_exec_free_cmd",
+    "rk_rga_task_exec_retire_engine",
+}
 DEBUG_INTERFACE_RE = re.compile(
     r"\bdebugfs_create_(?:atomic_t|u32|bool|file)\s*\(|"
     r"\brk_(?:mpp|rga)_debugfs_create_(?:atomic64|core_counts|core_times|route_b)\s*\("
@@ -3751,7 +3817,8 @@ def validate_mpp_phase3_completion_contract(
         (
             "struct rk_mpp_hw *hw = rk_mpp_job_get_hw(job)",
             "const struct rk_mpp_backend_ops *ops = hw ? hw->match->ops : NULL",
-            "ret = ops->submit(job)",
+            "rk_mpp_job_sealed_image(job)",
+            "ret = ops->submit(job, image)",
             "rk_mpp_job_complete(job, ret)",
             "rk_mpp_hw_put(hw)",
         ),
@@ -3821,6 +3888,125 @@ def validate_mpp_phase3_completion_contract(
         ("rk_mpp_job_publish_outcome_locked", "job->state = RK_MPP_JOB_DONE;")
     ]:
         raise ValueError(f"unexpected MPP DONE publishers: {done_writers}")
+
+
+def validate_mpp_phase5_contract(functions: list[FunctionBody]) -> None:
+    """Hard-guard the one-way register-image and START publication boundary."""
+
+    by_name = function_map(functions)
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_reg_builder_seal",
+        (
+            "if (job->reg_builder.state == RK_MPP_REG_BUILDER_SEALED) "
+            "return image",
+            "if (rk_mpp_reg_builder_require_open(job)) return ERR_PTR(-EPERM)",
+            "dst->regs = kmemdup(src->regs, src->reg_bytes, GFP_KERNEL)",
+            "smp_store_release(&job->reg_builder.state, "
+            "RK_MPP_REG_BUILDER_SEALED)",
+        ),
+    )
+    require_ordered_fragments(
+        by_name,
+        "rk_mpp_job_submit",
+        (
+            "rk_mpp_job_rkvenc_fixup_slice_flush(job)",
+            "rk_mpp_rkvdec2_prepare_ccu_regs(job)",
+            "image = rk_mpp_reg_builder_seal(job)",
+            "ret = ops->validate(job, image)",
+        ),
+    )
+    for name in (
+        "rk_mpp_job_ensure_region_bytes",
+        "rk_mpp_job_store_reg_read",
+        "rk_mpp_job_store_reg_offsets",
+        "rk_mpp_job_store_rcb_info",
+        "rk_mpp_job_rkvenc_fixup_slice_flush",
+        "rk_mpp_job_translate_reg_image",
+        "rk_mpp_rkvdec2_prepare_ccu_regs",
+        "rk_mpp_job_materialize_request",
+    ):
+        function = by_name.get(name)
+        if not function or "rk_mpp_reg_builder_require_open(job)" not in function.text:
+            raise ValueError(f"{name}: missing OPEN builder guard")
+    for name, doorbell in (
+        ("rk_mpp_cluster_publish_soft_ccu_job", "RK_MPP_RKVDEC_START_BASE"),
+        ("rk_mpp_rkvdec2_publish_and_start_core", "RK_MPP_RKVDEC_START_BASE"),
+        ("rk_mpp_rkvenc2_publish_and_start", "RK_MPP_RKVENC_START_BASE"),
+        ("rk_mpp_av1_activation_publish_and_start", "rk_mpp_av1_publish_and_start"),
+    ):
+        require_ordered_fragments(
+            by_name,
+            name,
+            (
+                "rk_mpp_job_sealed_image(job)",
+                "rk_mpp_hw_schedule_timeout(hw)",
+                doorbell,
+            ),
+        )
+
+
+def validate_rga_phase45_contract(functions: list[FunctionBody]) -> None:
+    """Hard-guard task-execution retirement, immutable plans, and START order."""
+
+    by_name = function_map(functions)
+    require_ordered_fragments(
+        by_name,
+        "rk_rga_task_plan_build",
+        (
+            "plan = kzalloc(sizeof(*plan), GFP_KERNEL)",
+            "rk_rga_task_plan_copy_semantics(plan, task)",
+            "ret = rk_rga3_validate_bitblt(validate_task, "
+            "&plan->profile.rga3_bitblt)",
+            "smp_store_release(&exec->plan, plan)",
+        ),
+    )
+    require_ordered_fragments(
+        by_name,
+        "rk_rga_backend_start",
+        (
+            "ret = rk_rga_job_prepare_hw_mappings(hw, job)",
+            "ret = rk_rga_task_plan_build(job, hw->type)",
+            "rk_rga_task_exec_sync_userptr_for_device(exec, hw->dev)",
+            "ret = rk_rga_task_exec_alloc_cmd(exec, hw)",
+            "ret = rk_rga_job_emit_cmd(hw, job)",
+            "ret = rk_rga3_execution_publish_and_start(hw, exec)",
+        ),
+    )
+    for name, doorbell in (
+        (
+            "rk_rga2_execution_publish_and_start",
+            "RK_RGA2_CMD_CTRL_CMD_LINE_ST",
+        ),
+        (
+            "rk_rga3_execution_publish_and_start",
+            "RK_RGA3_CMD_CTRL_LINE_START",
+        ),
+    ):
+        require_ordered_fragments(
+            by_name,
+            name,
+            (
+                "rk_rga_hw_schedule_timeout(hw, exec)",
+                "dma_wmb()",
+                "exec->cmd_dma",
+                doorbell,
+            ),
+        )
+    require_ordered_fragments(
+        by_name,
+        "rk_rga_task_exec_retire_engine",
+        (
+            "rk_rga_hw_drop_matching_irq_ref(hw, exec)",
+            "if (!dma_stopped)",
+            "exec->state = RK_RGA_TASK_EXEC_QUARANTINED",
+            "rk_rga_task_exec_release_mappings_powered(exec, hw)",
+            "rk_rga_task_exec_free_cmd(exec)",
+            "rk_rga_task_exec_free_cmd(exec)",
+            "rk_rga_task_exec_retire(exec)",
+            "rk_rga_task_exec_ref_put(claim)",
+        ),
+    )
 
 
 def validate_mpp_observed_terminal_contract(
@@ -4269,6 +4455,85 @@ def raw_signals(
                 ("debug-event-schema", relative, "<file-scope>", text, line)
             )
         if relative == MPP_SOURCE:
+            if validate_phase3_completion:
+                for category, declaration, expected in (
+                    (
+                        "mpp-reg-builder-state-schema",
+                        "enum rk_mpp_reg_builder_state {",
+                        "enum rk_mpp_reg_builder_state { "
+                        "RK_MPP_REG_BUILDER_OPEN, "
+                        "RK_MPP_REG_BUILDER_SEALED, };",
+                    ),
+                    (
+                        "mpp-backend-const-image-schema",
+                        "struct rk_mpp_backend_ops {",
+                        "struct rk_mpp_backend_ops { "
+                        "int (*validate)(struct rk_mpp_job *job, "
+                        "const struct rk_mpp_reg_image *image); "
+                        "int (*submit)(struct rk_mpp_job *job, "
+                        "const struct rk_mpp_reg_image *image); "
+                        "irqreturn_t (*irq)(struct rk_mpp_hw *hw, "
+                        "const struct rk_mpp_irq_register_lease *lease); "
+                        "irqreturn_t (*thread)(struct rk_mpp_hw *hw); "
+                        "void (*quiesce_aux_irqs)(struct rk_mpp_hw *hw); };",
+                    ),
+                ):
+                    schema_line, schema_text = exact_declaration_block(
+                        source, declaration, expected
+                    )
+                    found.append(
+                        (
+                            category,
+                            relative,
+                            "<file-scope>",
+                            schema_text,
+                            schema_line,
+                        )
+                    )
+                for structure, category, pattern, description in (
+                    (
+                        "rk_mpp_reg_builder",
+                        "mpp-reg-builder-image-schema",
+                        re.compile(r"\bstruct\s+rk_mpp_reg_image\s+image\s*;"),
+                        "register image member",
+                    ),
+                    (
+                        "rk_mpp_reg_builder",
+                        "mpp-reg-builder-state-member-schema",
+                        re.compile(
+                            r"\benum\s+rk_mpp_reg_builder_state\s+state\s*;"
+                        ),
+                        "builder state member",
+                    ),
+                    (
+                        "rk_mpp_job",
+                        "mpp-job-reg-builder-schema",
+                        re.compile(
+                            r"\bstruct\s+rk_mpp_reg_builder\s+reg_builder\s*;"
+                        ),
+                        "job register builder member",
+                    ),
+                    (
+                        "rk_mpp_job",
+                        "mpp-job-reg-result-schema",
+                        re.compile(
+                            r"\bstruct\s+rk_mpp_reg_result\s+reg_result\s*;"
+                        ),
+                        "job register result member",
+                    ),
+                ):
+                    member_line, member_text = required_struct_member_pattern(
+                        source, structure, pattern, description
+                    )
+                    found.append(
+                        (
+                            category,
+                            relative,
+                            "<file-scope>",
+                            member_text,
+                            member_line,
+                        )
+                    )
             line, text = declaration_block(source, "struct rk_mpp_activation {")
             found.append(
                 ("mpp-activation-schema", relative, "<file-scope>", text, line)
@@ -4882,6 +5147,69 @@ def raw_signals(
                             line,
                         )
                     )
+        if relative == RGA_SOURCE and validate_phase3_completion:
+            schema_line, schema_text = exact_declaration_block(
+                source,
+                "enum rk_rga_task_exec_state {",
+                "enum rk_rga_task_exec_state { "
+                "RK_RGA_TASK_EXEC_UNINSTALLED, RK_RGA_TASK_EXEC_SLOTTED, "
+                "RK_RGA_TASK_EXEC_CLAIMED, RK_RGA_TASK_EXEC_RETIRED, "
+                "RK_RGA_TASK_EXEC_RECLAIMABLE, "
+                "RK_RGA_TASK_EXEC_QUARANTINED, };",
+            )
+            found.append(
+                (
+                    "rga-task-exec-state-schema",
+                    relative,
+                    "<file-scope>",
+                    schema_text,
+                    schema_line,
+                )
+            )
+            for structure, category, pattern, description in (
+                (
+                    "rk_rga_task_exec",
+                    "rga-task-exec-plan-schema",
+                    re.compile(r"\bstruct\s+rk_rga_task_plan\s*\*\s*plan\s*;"),
+                    "execution-owned task plan",
+                ),
+                (
+                    "rk_rga_task_exec_ref",
+                    "rga-task-exec-ref-generation-schema",
+                    re.compile(r"\bu64\s+generation\s*;"),
+                    "execution reference generation",
+                ),
+                (
+                    "rk_rga_acquire_set",
+                    "rga-acquire-set-job-schema",
+                    re.compile(r"\bstruct\s+rk_rga_job\s*\*\s*job\s*;"),
+                    "acquire-set job owner",
+                ),
+                (
+                    "rk_rga_acquire_set",
+                    "rga-acquire-set-pending-schema",
+                    re.compile(r"\batomic_t\s+pending_count\s*;"),
+                    "acquire-set pending count",
+                ),
+            ):
+                member_line, member_text = required_struct_member_pattern(
+                    source, structure, pattern, description
+                )
+                found.append(
+                    (category, relative, "<file-scope>", member_text, member_line)
+                )
+            plan_line, plan_text = declaration_block(
+                source, "struct rk_rga_task_plan {"
+            )
+            found.append(
+                (
+                    "rga-task-plan-schema",
+                    relative,
+                    "<file-scope>",
+                    plan_text,
+                    plan_line,
+                )
+            )
         activation_typedefs = (
             set(
                 ACTIVATION_TYPEDEF_RE.findall(
@@ -4915,6 +5243,9 @@ def raw_signals(
             validate_mpp_terminal_claim_contract(source, functions)
             if validate_phase3_completion:
                 validate_mpp_phase3_completion_contract(source, functions)
+                validate_mpp_phase5_contract(functions)
+        if relative == RGA_SOURCE and validate_phase3_completion:
+            validate_rga_phase45_contract(functions)
         if relative == MPP_SOURCE and sum(
             function.name == "rk_mpp_transition_yields_to_fault"
             for function in functions
@@ -4933,6 +5264,21 @@ def raw_signals(
                 if relative == MPP_SOURCE
                 else None
             )
+            if (
+                validate_phase3_completion
+                and relative == MPP_SOURCE
+                and function.name in MPP_BACKEND_IMAGE_FUNCTIONS
+                and MPP_MUTABLE_IMAGE_PARAMETER_RE.search(function.signature)
+            ):
+                found.append(
+                    (
+                        "mpp-mutable-backend-image-forbidden",
+                        relative,
+                        function.name,
+                        function.signature,
+                        function.first_line,
+                    )
+                )
             if (
                 relative == MPP_SOURCE
                 and function.name == "rk_mpp_transition_yields_to_fault"
@@ -5422,6 +5768,11 @@ def raw_signals(
                                 "rga-active-slot-write",
                                 RGA_ACTIVE_SLOT_WRITE_RE,
                             ),
+                            (
+                                "rga-timeout-ref-access",
+                                RGA_TIMEOUT_REF_ACCESS_RE,
+                            ),
+                            ("rga-irq-ref-access", RGA_IRQ_REF_ACCESS_RE),
                             ("rga-exec-map-owner", RGA_EXEC_MAP_OWNER_RE),
                             (
                                 "rga-map-release-primitive",
@@ -5491,7 +5842,11 @@ def raw_signals(
                 ):
                     found.append(
                         (
-                            "rga-raw-task-emitter",
+                            (
+                                "rga-raw-task-emitter-forbidden"
+                                if validate_phase3_completion
+                                else "rga-raw-task-emitter"
+                            ),
                             relative,
                             function.name,
                             function.signature,
@@ -5615,13 +5970,17 @@ def category_counts(signals: Iterable[Signal]) -> str:
     return ", ".join(f"{category}={counts[category]}" for category in sorted(counts))
 
 
-def ownership_violations(signals: Iterable[Signal]) -> list[Signal]:
+def ownership_violations(
+    signals: Iterable[Signal], *, enforce_phase45: bool = True
+) -> list[Signal]:
     violations: list[Signal] = []
     for signal in signals:
         if signal.category in {
             "mpp-dispatch-legacy",
             "mpp-slot-legacy",
             "mpp-slot-legacy-helper",
+            "mpp-mutable-backend-image-forbidden",
+            "rga-raw-task-emitter-forbidden",
         }:
             violations.append(signal)
         elif signal.category == "mpp-active-transition-entry":
@@ -5931,6 +6290,67 @@ def ownership_violations(signals: Iterable[Signal]) -> list[Signal]:
             and signal.function not in MPP_QUARANTINE_COUNT_WRITE_OWNERS
         ):
             violations.append(signal)
+        elif (
+            enforce_phase45
+            and signal.category == "rga-active-slot-access"
+            and signal.function not in RGA_ACTIVE_REF_ACCESS_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            enforce_phase45
+            and signal.category == "rga-active-slot-write"
+            and signal.function not in RGA_ACTIVE_REF_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            enforce_phase45
+            and signal.category == "rga-timeout-ref-access"
+            and signal.function not in RGA_TIMEOUT_REF_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            enforce_phase45
+            and signal.category == "rga-irq-ref-access"
+            and signal.function not in RGA_IRQ_REF_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            enforce_phase45
+            and signal.category == "rga-task-advance"
+            and signal.function not in RGA_TASK_ADVANCE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            enforce_phase45
+            and signal.category == "rga-watchdog-arm-entry"
+            and signal.function not in RGA_WATCHDOG_ARM_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            enforce_phase45
+            and signal.category == "start-doorbell-write"
+            and signal.source == RGA_SOURCE
+            and signal.function not in RGA_START_WRITE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            enforce_phase45
+            and signal.category == "rga-exec-map-owner"
+            and signal.function not in RGA_EXEC_MAP_OWNER_CALLERS
+        ):
+            violations.append(signal)
+        elif (
+            enforce_phase45
+            and signal.category == "rga-map-release-primitive"
+            and signal.function not in RGA_MAP_RELEASE_PRIMITIVE_OWNERS
+        ):
+            violations.append(signal)
+        elif (
+            enforce_phase45
+            and signal.category == "rga-command-release"
+            and signal.function not in RGA_COMMAND_RELEASE_OWNERS
+        ):
+            violations.append(signal)
     return violations
 
 
@@ -5975,7 +6395,9 @@ def main(argv: list[str]) -> int:
         violations = [
             (tree, signal)
             for tree, signals in trees
-            for signal in ownership_violations(signals)
+            for signal in ownership_violations(
+                signals, enforce_phase45=not args.legacy_test_fixture
+            )
         ]
         if violations:
             for tree, signal in violations:
