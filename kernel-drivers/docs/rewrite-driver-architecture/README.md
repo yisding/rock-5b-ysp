@@ -5,8 +5,9 @@ It assumes C familiarity, but introduces platform drivers, ioctls, DMA, IOMMUs,
 interrupts, workqueues, and references where the implementation needs them.
 
 This is a teaching guide, not a status ledger. It explains the as-built
-ownership model and the distinct target architecture. The
-[design chapter](04-design-lessons.md#61-as-built-strengths-and-remaining-ownership-debt)
+ownership model, the refactor that produced it, and the remaining architecture
+and qualification boundaries. The
+[design chapter](04-design-lessons.md#61-as-built-ownership-after-the-refactor)
 and [ownership-refactor plan](../rewrite-ownership-refactor-plan.md) distinguish
 implemented objects from proposed ones.
 
@@ -82,7 +83,7 @@ The durable architectural boundary is:
 | ABI | supported MPP/RGA command and request shapes plus explicit unsafe or unimplemented rejections |
 | In-source tests | how pure parsing, bounds, routing, register emission, IRQ policy, and race-state transitions are modeled |
 | Hardware evidence | why compilation and KUnit cannot establish real pixels, bitstreams, IRQ wiring, DMA behavior, or reset effectiveness |
-| Target ownership | the MPP cluster owns topology and hard-CCU reset-pulse validation, and a refcounted cluster lease owns member-core power holds. Phase 3 now gives each admitted activation exact typed external references, closure/quarantine evidence, attempt-bounded CCU/link/DCHS/power/timing resources, coherent hard-CCU retry handoff, order-independent terminal arbitration, central drain/`DONE` publication, and `RECLAIMABLE` retirement. Dispatch/current/list remain borrowed identities, and quarantine retains resources through reboot. RGA task-execution/acquire-set objects plus MPP cluster admission/coordinator-power/full-recovery authority remain refactor goals rather than current behavior claims |
+| Ownership boundary | MPP gives each admitted activation exact typed external references, terminal/quarantine evidence, attempt resources, coherent retry handoff, order-independent arbitration, central drain/`DONE`, and reclaim. RGA gives each task attempt a typed execution owner for its core, mappings/MMU/command/plan/copyback/power/IRQ state, with a sole retirement engine and separate whole-job orchestrator/acquire set. MPP images are sealed before const backend use; RGA emitters consume immutable plans. Quarantine retains exact resources when DMA stop is unproved. MPP cluster admission/coordinator-power policy, RGA2 large-segment staging, Phase 6 organization, and Phase 7 runtime qualification remain open boundaries. |
 
 The practical design scope includes RKVENC2/RKVDEC2 H.264/H.265, decoder-parity
 VP9, the separate VPU981/VSI AV1 path, and the Linux librga/FFmpeg/GStreamer
@@ -103,9 +104,10 @@ proof.
 | [4. Design and error-path lessons](04-design-lessons.md) | Ownership tables, asynchronous edges, completion claims, recovery state machines, topology, errors, unwind patterns, and target objects |
 | [5. Observability and testing](05-observability-and-testing.md) | Debug counters, evidence levels, KUnit's role, and hardware-proof boundaries |
 | [6. Source reading and review](06-source-reading-and-review.md) | Source-reading order, review checklist, glossary, and final invariant |
+| [7. Ownership-refactor case study](07-ownership-refactor-case-study.md) | Phase 0–5 sequence, post-refactor boundary audit, why object ownership preceded sealed recipes, and a new developer's change map |
 
 Developers new to kernel work should read chapters 0 and 1, then the MPP or RGA
-chapter, followed by chapter 4. Chapters 5 and 6 support testing and review.
+chapter, followed by chapters 4 and 7. Chapters 5 and 6 support testing and review.
 The [glossary](06-source-reading-and-review.md#12-glossary) is available
 independently.
 

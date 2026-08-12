@@ -1,6 +1,6 @@
 # Rewrite ownership inventory; new signals fail, resolved signals are allowed.
-# source-head	149a9ecd38f78daec7a2c6f8c6010e55ea8ad252
-# source-head	280181e634a3a10a3a4f1659fe7c7287f7ee3760
+# source-head	b6335efd8f98bedabf426a80d224f85a266c8ea4
+# source-head	d9cbcf21cda1c047c053447a48a908dcb6e4c5d6
 # category	source	function	ordinal	normalized source signal
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	enum rk_mpp_debug_event_type { RK_MPP_DEBUG_REQUEST_FAIL, RK_MPP_DEBUG_SELECT_FAIL, RK_MPP_DEBUG_TRANSLATE_FAIL, RK_MPP_DEBUG_RCB_FAIL, RK_MPP_DEBUG_SUBMIT_FAIL, RK_MPP_DEBUG_POLL_FAIL, RK_MPP_DEBUG_QUEUED, RK_MPP_DEBUG_DISPATCH, RK_MPP_DEBUG_STARTED, RK_MPP_DEBUG_IRQ, RK_MPP_DEBUG_DONE, RK_MPP_DEBUG_TIMEOUT, RK_MPP_DEBUG_IOMMU_FAULT, RK_MPP_DEBUG_ABORT, RK_MPP_DEBUG_SPURIOUS_IRQ, };
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	struct rk_mpp_debug_event { u64 seq; u64 timestamp_ns; u64 data; u32 session_id; u32 job_id; u32 client_type; u32 irq_status; s32 core_id; s32 result; u8 type; char hw_name[20]; char dev_name[32]; };
@@ -2170,7 +2170,8 @@ rga-active-slot-access	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_h
 rga-active-slot-access	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_install_active_locked	1	if (WARN_ON_ONCE(!rk_rga_task_exec_ref_empty(&hw->active_ref)) || WARN_ON_ONCE(!exec || exec->state != RK_RGA_TASK_EXEC_UNINSTALLED || exec != READ_ONCE(exec->job->current_exec))) return false;
 rga-active-slot-access	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_install_active_locked	1	if (WARN_ON_ONCE(!rk_rga_task_exec_ref_get(&hw->active_ref, exec))) { exec->generation = 0;
 rga-active-slot-access	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_iommu_fault_matches_locked	1	return rk_rga_task_exec_ref_valid(fault) && hw->active_ref.exec == fault->exec && hw->active_ref.generation == fault->generation;
-rga-active-slot-access	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_mark_iommu_fault	1	if (rk_rga_task_exec_ref_valid(&hw->active_ref)) { list_for_each_entry(pos, &hw->iommu_fault_events, node) { if (pos->ref.exec == hw->active_ref.exec && pos->ref.generation == hw->active_ref.generation) { marked = true;
+rga-active-slot-access	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_mark_iommu_fault	1	if (rk_rga_task_exec_ref_valid(&hw->active_ref)) { exec = hw->active_ref.exec;
+rga-active-slot-access	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_mark_iommu_fault	1	list_for_each_entry(pos, &hw->iommu_fault_events, node) { if (pos->ref.exec == hw->active_ref.exec && pos->ref.generation == hw->active_ref.generation) { goto unlock;
 rga-active-slot-access	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_mark_iommu_fault	1	} } if (rk_rga_task_exec_ref_clone(&event->ref, &hw->active_ref)) { list_add_tail(&event->node, &hw->iommu_fault_events);
 rga-active-slot-access	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_schedule_timeout	1	if (hw->active_ref.exec != exec || hw->active_ref.generation != exec->generation) { ret = -ESTALE;
 rga-active-slot-access	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_schedule_timeout	1	} else if (hw->timeout_ref.exec != exec || hw->timeout_ref.generation != exec->generation) { if (!rk_rga_task_exec_ref_clone(&next, &hw->active_ref)) { ret = -EUCLEAN;

@@ -21,11 +21,13 @@
 The common as-built strengths are more important than the differences:
 
 - copy user state into kernel-owned snapshots;
-- validate before publication;
+- validate once into immutable plans or sealed images before publication;
 - make asynchronous ownership explicit;
+- give each physical attempt a narrower owner than the logical job;
 - select a concrete DMA device before mapping;
 - serialize each active hardware slot;
 - use generation numbers for delayed recovery;
+- route all terminal contenders through one retirement/completion owner;
 - do not complete until DMA-visible resources are safe;
 - stop routing before teardown;
 - wait for references before freeing device-managed resources.
@@ -34,73 +36,49 @@ The common as-built strengths are more important than the differences:
 
 ## 6. How to design a driver like this
 
-### 6.1 As-built strengths and remaining ownership debt
+### 6.1 As-built ownership after the refactor
 
-The current implementation should not be described as either “the target
-architecture is already complete” or “the rewrite got ownership wrong.” Its
-first-order direction is sound: sessions retain accepted work, jobs retain
-buffers and hardware, delayed events carry generations, and failed recovery
-stops admission before memory is released. Those properties are materially
-clearer than the BSP's distributed global managers.
+The source-complete Phase 0–5 refactor changed ownership altitude without
+changing the userspace ABI or replacing the working backends. The broad job is
+still the logical transaction, but it is no longer the convenient owner of
+every resource touched while that transaction runs.
 
-The remaining problem is **ownership altitude**. Several resources are owned by
-an object broader than the lifetime they actually serve:
+| Boundary | As-built owner now | Why that owner fits | Remaining boundary |
+|----------|--------------------|---------------------|--------------------|
+| MPP shared decoder hardware | `rk_mpp_cluster`, `rk_mpp_reset_domain`, `rk_mpp_dma_group`, and a refcounted cluster power lease divide topology, reset epochs, translation recovery, isolation, and member-core power | Shared physical effects cannot be modeled safely as a field on one job or core. | Cluster admission, coordinator power, and broader recovery policy are not yet one composed authority. |
+| One MPP run | `rk_mpp_activation` owns identity, generation/deadline, selected hardware, typed async references, terminal evidence/arbitration, attempt resources, retry handoff, drain, and reclaim | A retry is a new physical attempt even when userspace sees one logical job. | Source architecture is complete; current-tip runtime recovery, sanitizer, media, and hardware proof remain open. |
+| One RGA task | `rk_rga_task_exec` owns one selected core, mappings/MMU table, command allocation, immutable plan, power, USERPTR copyback, IRQ/fault/timeout observations, and retirement | A multi-task job and same-task fallback can create several non-overlapping hardware lifetimes. | The direct/staged ownership states exist, but the RGA2 large-segment staging algorithm remains a separate feature gate. |
+| RGA acquire callbacks | `rk_rga_acquire_set` owns callback/sentinel/work/cancel state while the job owns the aggregate dependency result | Callback lifetime ends before or independently of hardware execution lifetime. | Runtime callback/cancel/close race qualification remains open. |
+| Hardware recipe | `rk_mpp_reg_builder` seals a const image and clones result storage; `rk_rga_task_plan` is immutable emitter input | Validation becomes a one-way type transition rather than a convention every backend must remember. | Byte-exact pixels/bitstreams and immediate-IRQ behavior still require hardware differential tests. |
 
-| Boundary | As-built model | Target architecture | Why it matters |
-|----------|------------------------|---------------------|----------------|
-| MPP shared decoder hardware | `rk_mpp_cluster` composes member topology and validates one shared hard-CCU reset pulse; a refcounted lease owns the exact member-core power holds but still transfers through legacy jobs, while hardware, reset-domain state, and DMA-group objects divide admission, coordinator power, IOMMU refresh, and quarantine | migrate the remaining transitions behind cluster methods while reset domain and DMA group remain distinct authorities | A new terminal path can otherwise repair reset but omit refresh, coordinator-power release, or peer quarantine. |
-| One MPP run | `rk_mpp_activation` owns identity, generation/deadline, selected hardware, slot/claim references, typed closure/quarantine proof, terminal reason arbitration, CCU/link/DCHS/power/timing resources, coherent retry handoff, drain, and reclaimability | keep one activation as the sole owner of one admitted hardware lifetime | Phase 3 is structurally complete; runtime race, recovery, sanitizer, and hardware proof remain open. |
-| One RGA task | `rk_rga_job` owns the whole request and the current task's selected hardware, mappings, command buffer, generation, IRQ state, and copyback obligations | `rk_rga_task_exec` owns one task on one selected core; `rk_rga_job` owns only the aggregate request/fence result | Multi-task advancement and per-task teardown should not be reimplemented independently in IRQ and recovery tails. |
-| RGA acquire callbacks | Callback arrays, pending counts, work ownership, and cancellation state live across the broad job | `rk_rga_acquire_set` contains the callback lifetime | Close/cancel should resolve one callback object rather than manipulate fields spread across a submitted request. |
-| Hardware recipes | Validators and emitters can still inspect mutable register/task representations | A sealed MPP register image and immutable RGA task plan feed start/emission | Later patching should not invalidate an earlier provenance or capability decision. |
-
-The target graph is therefore an incremental refactor of the current one:
+The structural change is easier to see as a before/after graph:
 
 ```mermaid
 flowchart LR
-  subgraph current["As built"]
-    mj["MPP job<br/>transaction + retained activations"]
-    mh["MPP hw<br/>core + CCU/recovery roles"]
-    rj["RGA job<br/>request + current execution"]
+  subgraph before["Before the ownership refactor"]
+    bm["MPP job<br/>logical work + attempt leases"]
+    br["RGA job<br/>request + current task resources"]
+    bc["validated recipe<br/>still mutable"]
   end
-  subgraph target["Target"]
-    mt["MPP job"] --> ma["activation"] --> mc["cluster authorities"]
-    rt["RGA job"] --> re["task execution"] --> rh["one core"]
-    rt --> ra["acquire set"]
+  subgraph after["After Phase 5"]
+    mj["MPP job"] --> ma["activation"] --> mc["cluster authorities"]
+    rj["RGA job"] --> re["task execution"] --> rh["one core"]
+    rj --> ra["acquire set"]
+    sb["open builder"] --> si["sealed image"]
+    rr["raw RGA request"] --> rp["immutable task plan"]
   end
-  mj -. refactor .-> mt
-  mh -. compose .-> mc
-  rj -. refactor .-> rt
+  bm -. narrowed .-> ma
+  br -. narrowed .-> re
+  bc -. made one-way .-> si
 ```
 
-The as-built model now has `rk_mpp_cluster` topology, hard-CCU reset-pulse
-validation, a cluster-validated member-core power lease, and retained
-`rk_mpp_activation` identity. Each hard-CCU retry gets a distinct successor,
-and Phase 3G retains typed closure proof for its predecessor. Phase 3H makes
-the active claim token own its exact detached job reference, retires recovered
-terminal paths on typed core or group/core proof, and transfers restore refusal
-to a service quarantine tombstone that retains resources/dispatch and closes
-admission through reboot. Phase 3I adds immutable `NOT_PUBLISHED`,
-`IRQ_ACCEPTED`, and `CCU_DONE_ACCEPTED` clean-terminal observations while
-treating RKVDEC bus idle as advisory only and keeping recovered proof separate.
-Phase 3J adds a base activation bias and typed `{activation, generation}`
-external references paired with containing-job references for active, timeout,
-claim, retry, and quarantine ownership. The Phase 3 completion checkpoint
-moves attempt-bounded CCU/link/DCHS/power/timing resources into the activation,
-hands the complete record to hard-CCU retry successors, arbitrates terminal
-reasons with stable priority, and centralizes drain, exact selected-core and
-dispatch release, `DONE` publication, and reclaim. Dispatch/current/list remain
-borrowed identities;
-`rk_rga_task_exec` and `rk_rga_acquire_set` do not exist. The cluster
-also does not yet own admission, coordinator power, or the complete
-reset/IOMMU recovery result. The
-[ownership-refactor plan](../rewrite-ownership-refactor-plan.md) defines the
-migration and its invariants; the
-[retrospective](../../../findings/2026-08-01-rewrite-driver-retrospective.md)
-records why object ownership should precede further feature breadth. Until that
-target work is reflected in this guide, reviewers must audit the cross-path
-conventions described in the as-built chapters rather than assuming the target
-types enforce them.
+This does not mean the drivers are production-qualified. It means their
+source-level ownership model now encodes the intended runtime boundaries.
+Phase 6 file/test rationalization and Phase 7 board qualification remain
+separate work. The [refactor case study](07-ownership-refactor-case-study.md)
+explains why the sequence mattered; the
+[ownership-refactor plan](../rewrite-ownership-refactor-plan.md) preserves the
+implementation checkpoints and acceptance gates.
 
 Several kernel mechanisms appear together because they solve different
 problems:
@@ -114,12 +92,13 @@ problems:
 | Fence/waitqueue | “When may another participant continue?” | Whether memory cleanup happened before the signal |
 
 A robust design often needs all five. For example, a timeout worker retains a
-job reference, takes a lock to compare the active slot, compares a generation
-to reject stale work, is drained during removal, and completes through the same
-path that eventually wakes the waiter. Replacing any of those steps with “the
-pointer is probably still valid” leaves a different race open.
+typed activation/task-execution reference plus its containing job, takes a lock
+to compare the active slot, compares a generation to reject stale work, is
+drained during removal, and completes through the same retirement engine that
+eventually wakes the waiter. Replacing any of those steps with “the pointer is
+probably still valid” leaves a different race open.
 
-### 6.1 Start with an ownership table
+### 6.2 Start with an ownership table
 
 Before writing functions, list every resource:
 
@@ -127,14 +106,15 @@ Before writing functions, list every resource:
 |----------|---------------|--------------|-------------------------|
 | file/session | open file | submitted jobs | file closed and job refs zero |
 | imported buffer | session ID/list | configured request, job, mapping | all refs zero after DMA stops |
-| job | ioctl submitter | session list, queue, active slot, timeout, callbacks | every owner drops its ref |
-| hardware object | platform probe | jobs, mappings, command buffers, recovery | removed from routing and refs return to probe owner |
+| job | ioctl submitter | session list, queue, acquire set, poll/fence owner | aggregate completion visible and every owner drops its ref |
+| activation/task execution | job storage | active slot, IRQ, timeout, fault, claim/quarantine owner | terminal proof, resources drained/handed off, and typed refs gone |
+| hardware object | platform probe | executions, mappings, command buffers, recovery | removed from routing and refs return to probe owner |
 | IRQ | devres/probe | hard and threaded handlers | hardware quiesced and handlers synchronized |
-| coherent command/descriptor | job or hardware | active engine | DMA stopped, then free |
+| coherent command/descriptor | activation/task execution | active engine | DMA stopped or ownership handed off, then free |
 
 If a resource has no named final-release condition, the design is incomplete.
 
-### 6.2 Draw every asynchronous edge
+### 6.3 Draw every asynchronous edge
 
 Search for APIs that outlive the calling stack:
 
@@ -154,7 +134,7 @@ For each edge, answer:
 4. Can cancellation race with callback execution?
 5. Who owns completion if both paths meet?
 
-### 6.3 Separate state protection from operation serialization
+### 6.4 Separate state protection from operation serialization
 
 A spinlock can protect `active_activation` but cannot safely cover reset, PM, or DMA
 unmap. A mutex can serialize reset but cannot be acquired in hard IRQ context.
@@ -172,7 +152,7 @@ mutex:
 The IRQ top half records state under the spinlock; the IRQ thread performs the
 transaction under the mutex.
 
-### 6.4 Make one path own completion
+### 6.5 Make one path own completion
 
 IRQ, timeout, close, fault, and remove may all try to end one job. They must
 first atomically claim the same active slot or transition.
@@ -188,15 +168,15 @@ both free it
 Good:
 
 ```text
-IRQ/timeout/removal contend on protected active_activation + generation
-winner removes it and owns completion
+IRQ/timeout/removal contend on protected active execution + generation
+winner moves its typed reference into a claim and owns retirement
 loser observes NULL or generation mismatch
 ```
 
 References keep the object alive while contenders inspect it; the claim decides
 who performs terminal actions.
 
-### 6.5 Treat recovery as another state machine
+### 6.6 Treat recovery as another state machine
 
 Do not write recovery as a collection of best-effort calls after an error.
 Define its invariants:
@@ -204,7 +184,7 @@ Define its invariants:
 ```text
 running
   -> IRQ disabled/synchronized
-  -> exact job claimed
+  -> exact activation/task execution claimed
   -> DMA stopped or reset proved
   -> mappings/descriptors may be released
   -> job completed
@@ -221,7 +201,7 @@ running
 
 The second branch is as important as the normal recovery branch.
 
-### 6.6 Validate topology, not just individual resources
+### 6.7 Validate topology, not just individual resources
 
 Probe should reject inconsistent systems early:
 
@@ -237,7 +217,7 @@ Probe should reject inconsistent systems early:
 A device can have valid registers and still be unusable because its relationship
 to sibling devices is wrong.
 
-### 6.7 Preserve error meanings
+### 6.8 Preserve error meanings
 
 Useful conventions in these drivers are:
 
@@ -251,6 +231,34 @@ Useful conventions in these drivers are:
 
 Distinct errors make tests and field diagnosis much better than returning
 `-EINVAL` for everything.
+
+### 6.9 Make validation a one-way transition
+
+“Validated” should describe a representation, not a past event that later code
+can invalidate:
+
+```text
+untrusted/canonical input -> open builder -> immutable plan or sealed image
+                                             -> publish/start
+hardware observations     -> separate result storage
+```
+
+Mutators must reject a sealed object, backend interfaces should accept const
+input, and runtime overlays must live with the activation rather than patch the
+recipe. Keeping result storage separate prevents IRQ/readback from turning a
+command snapshot back into a mutable scratch buffer.
+
+### 6.10 Give independently replaceable work distinct storage
+
+A generation can reject a stale callback, but it cannot make one allocation
+represent two attempts at once. If retry, fallback, or multi-task progression
+can replace the current hardware lifetime while delayed events still exist,
+allocate a successor and retain the predecessor until its owners drain. This
+is why MPP retries and RGA task/fallback progression now use distinct
+activation or execution objects even though userspace still sees one job. The
+allocation policy may still differ: MPP frees a drained retry predecessor after
+its typed owners vanish, while RGA retains its bounded execution records until
+whole-job release to avoid an eager-free race among lockless final puts.
 
 ---
 

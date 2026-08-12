@@ -1,14 +1,14 @@
 # Source reading, review checklist, and glossary
 
 [← Observability and testing](05-observability-and-testing.md) ·
-[Guide home](README.md)
+[Guide home](README.md) · [Next: ownership-refactor case study →](07-ownership-refactor-case-study.md)
 
 ## 10. A practical source-reading order
 
 The sources are large because implementation and KUnit tests share one
 translation unit. Read by concepts rather than top to bottom. The symbol order
-below describes the as-built model, not the proposed object names in the
-ownership refactor. Before a pin-specific review, select the exact tree through
+below describes the as-built post-Phase-5 model. Before a pin-specific review,
+select the exact tree through
 the [rewrite evidence owner](../rewrite-drivers.md#6-status--citable-location)
 or [source map](../../../docs/source-trees.md#8-rewrite-driver-tree) and verify
 that these symbols still delimit the same responsibilities.
@@ -17,7 +17,10 @@ that these symbols still delimit the same responsibilities.
 
 1. Read the top-level structures:
    `rk_mpp_service`, `rk_mpp_session`, `rk_mpp_job`, `rk_mpp_hw`,
-   `rk_mpp_import`, `rk_mpp_activation`, `rk_mpp_activation_claim_token`,
+   `rk_mpp_import`, `rk_mpp_reg_builder`, `rk_mpp_reg_image`,
+   `rk_mpp_reg_result`, `rk_mpp_activation`,
+   `rk_mpp_activation_resources`, `rk_mpp_activation_ref`,
+   `rk_mpp_activation_claim_token`,
    `rk_mpp_reset_domain`, `rk_mpp_cluster`, `rk_mpp_dma_group`, and
    `rk_mpp_backend_ops`.
 2. Read `rk_mpp_init()`, `rk_mpp_hw_probe()`, `rk_mpp_open()`.
@@ -26,91 +29,81 @@ that these symbols still delimit the same responsibilities.
    `rk_mpp_process_request()`.
 4. Follow job construction:
    `rk_mpp_job_add_request()` -> register storage/translation ->
+   `rk_mpp_reg_builder_seal()` -> const backend validation ->
    `rk_mpp_job_submit()`.
 5. Follow execution:
-   `rk_mpp_scheduler_work()` -> backend `submit()`.
+   `rk_mpp_scheduler_work()` -> backend `submit(image)` -> the backend's
+   owner-specific `publish_and_start()` helper.
 6. Follow one normal completion:
-   backend hard IRQ -> backend IRQ thread -> `rk_mpp_job_complete()` ->
+   backend hard IRQ -> backend IRQ thread -> exact activation claim ->
+   `rk_mpp_activation_complete_claim()` -> `rk_mpp_job_complete()` ->
    `rk_mpp_session_poll_job()`.
-7. Read timeout/fault recovery and then platform remove.
-8. Read permanent DMA isolation last; it makes more sense after normal
+7. Follow `rk_mpp_activation_try_reclaim()` for a retired retry predecessor.
+8. Read timeout/fault recovery, quarantine, and then platform remove.
+9. Read permanent DMA isolation last; it makes more sense after normal
    ownership is clear.
 
 ### 10.2 RGA
 
 1. Read `rk_rga_service`, `rk_rga_session`, `rk_rga_request`, `rk_rga_job`,
-   `rk_rga_import`, `rk_rga_job_mapping`, and `rk_rga_hw`. Notice that the
-   whole job still carries fields for its current task execution.
+   `rk_rga_acquire_set`, `rk_rga_import`, `rk_rga_task_exec`,
+   `rk_rga_task_exec_ref`, `rk_rga_task_plan`, `rk_rga_job_mapping`, and
+   `rk_rga_hw`. Separate aggregate job fields from one execution's fields.
 2. Read `rk_rga_init()`, `rk_rga_hw_probe()`, `rk_rga_open()`.
 3. Follow legacy `rk_rga_ioctl_blit()` first because it creates one task.
 4. Then read request create/config/submit to see snapshot ownership.
-5. Read import preparation and image-layout/provenance validation.
-6. Follow `rk_rga_job_submit()` through acquire/release fence handling.
+5. Read import preparation and image-layout/provenance validation, keeping
+   import capability separate from execution mapping.
+6. Follow `rk_rga_job_submit()` through `rk_rga_acquire_set` and release-fence
+   handling.
 7. Follow `rk_rga_job_queue()` -> core selection -> `rk_rga_hw_dispatch()` ->
-   `rk_rga_backend_start()`.
-8. Read one RGA2 and one RGA3 validator/emitter.
-9. Follow hard IRQ -> IRQ thread -> mapping clear -> task advance/completion.
-10. Finish with timeout/fault recovery, close, and hardware remove.
+   active execution install -> `rk_rga_backend_start()`.
+8. Follow execution mapping -> `rk_rga_task_plan_build()` -> one RGA2 and one
+   RGA3 plan-consuming emitter -> execution `publish_and_start()`.
+9. Follow hard IRQ -> typed `irq_ref` -> exact claim ->
+   `rk_rga_task_exec_retire_engine()` -> `rk_rga_hw_finish_job_locked()`.
+10. Follow one next-task successor and one same-task fallback to see why they
+    allocate new execution storage, then follow `rk_rga_task_exec_try_reclaim()`
+    and final job release to see why RGA retains that bounded storage after its
+    hardware resources are reclaimable.
+11. Finish with timeout/fault recovery, quarantine, close, and hardware remove.
 
 After tracing the current types, read the
-[as-built/target comparison](04-design-lessons.md#61-as-built-strengths-and-remaining-ownership-debt)
-and then the [ownership-refactor plan](../rewrite-ownership-refactor-plan.md).
-Searching the implementation for `rk_mpp_cluster` now finds topology plus the
-hard-CCU group-reset validator/owner and member-core power lease. Searching for
-`rk_mpp_activation` now finds the embedded first record, job-owned retained
-attempt list/current pointer, generation/deadline/selected-core ownership,
-activation-typed active/timeout slots, and the Phase 3E provisional slot
-state/reason. One claim helper owns every detach and restore can return
-`CLAIMED` storage to `SLOTTED`. Phase 3F gives hard-CCU retry a distinct
-successor and freezes the predecessor as `SUPERSEDED/RETRY_REPLACED`. Phase 3G
-adds `rk_mpp_activation_closure` and the exact retry token: the copied group
-result proves predecessor quiescence, and the later core record gates successor
-reuse before that predecessor becomes `RETIRED`. Phase 3H makes the separate
-claim token own the exact active-slot job reference. Recovered terminal paths
-record typed direct-core or hard-CCU group/core proof before retirement; exact
-restore refusal moves that reference and generation to the service quarantine
-list with distinct diagnostic/core/group evidence and reboot-bound
-resource/dispatch ownership. Clean IRQ/`CCU_DONE` and pre-doorbell
-`START_FAILURE` still adapt through the legacy `CLAIMED` release boundary. This
-is not general clean retirement, reclaimability, or outcome arbitration.
-Phase 3I replaces that fallback with immutable `NOT_PUBLISHED`, `IRQ_ACCEPTED`,
-or `CCU_DONE_ACCEPTED` observation/status before exact clean retirement. Its
-RKVDEC bus-idle tuple is advisory, recovered proof remains separate, impossible
-finishers quarantine, and AV1 untrusted-stop failure remains `SLOTTED` for
-remove/shutdown retry. It is still not resource drain, `RECLAIMABLE`, or
-outcome arbitration.
+[as-built ownership comparison](04-design-lessons.md#61-as-built-ownership-after-the-refactor)
+and then the [refactor case study](07-ownership-refactor-case-study.md). Use the
+[ownership-refactor plan](../rewrite-ownership-refactor-plan.md) when you need
+the implementation checkpoints rather than the teaching narrative.
 
-Phase 3J adds `rk_mpp_activation_ref`: every dereference-capable active,
-timeout, claim, retry, or quarantine owner now pairs exact activation identity
-with an activation reference and containing-job reference. Clone, move, and put
-make transfer explicit, while the base bias retains job-owned activation
-storage. Retry preflight refusal leaves the predecessor active and puts the
-unpublished successor pair; only a retry-finish refusal after successful A→B
-publication transfers the predecessor pair to quarantine. Current, dispatch,
-and list pointers remain borrowed; backend resources, base-bias release,
-resource drain, and `RECLAIMABLE` remain outside this checkpoint.
+Searching for these symbol families reveals the ownership seams:
 
-The Phase 3 completion checkpoint adds `rk_mpp_activation_resources`, terminal
-reason/result masks, `rk_mpp_activation_try_reclaim()`, and the central
-`rk_mpp_activation_complete_claim()` path. Follow those symbols to see coherent
-hard-CCU resource handoff, stable-priority outcome arbitration, drain before
-the sole successful `DONE` publication, exact selected-core/dispatch release,
-and early reclaim of dynamically allocated retired predecessors. Backend start
-paths independently pin and revalidate the selected hardware before touching
-its operations; quarantine remains a resource-retaining terminal owner.
+- `rk_mpp_cluster*`, `rk_mpp_reset_domain*`, and `rk_mpp_dma_group*` show how
+  shared topology, reset epochs, translation refresh, power leases, and
+  terminal isolation remain distinct authorities.
+- `rk_mpp_activation*` shows typed reference get/clone/move/put, exact active
+  claims, distinct retry successors, closure/quarantine evidence, stable
+  terminal arbitration, coherent resource handoff, central completion, and
+  reclaim.
+- `rk_mpp_reg_builder*` and `rk_mpp_job_sealed_image()` show the one-way
+  command boundary; `rk_mpp_reg_result` shows why readback is separate.
+- `rk_rga_task_exec*` shows the typed active/IRQ/timeout/fault owners and sole
+  execution retirement engine; `rk_rga_hw_finish_job_locked()` is the separate
+  whole-job orchestrator.
+- `rk_rga_acquire_set*` shows callback/cancel ownership before hardware
+  admission, while `rk_rga_task_plan*` and the emitters show immutable semantic
+  input after selected-core validation.
 
-`rk_rga_task_exec` and `rk_rga_acquire_set` should still return no definitions;
-cluster admission, coordinator-power ownership, and further consolidation of
-reset/IOMMU recovery consumers remain later MPP work. Activation-aware resource
-drain and `RECLAIMABLE` should now resolve to the completed Phase 3 engine.
+Cluster admission, coordinator-power ownership, and further consolidation of
+MPP reset/IOMMU recovery policy remain later architecture work. RGA2
+large-segment staging and all current-tip runtime qualification remain separate
+gates, not exceptions to the completed source ownership model.
 
 Use `rg` to navigate by symbol:
 
 ```bash
-rg -n 'rk_mpp_job_submit|rk_mpp_hw_recover_active|claim_quarantine|rk_mpp_hw_remove' \
+rg -n 'rk_mpp_reg_builder_seal|rk_mpp_activation_complete_claim|claim_quarantine|rk_mpp_hw_remove' \
   drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c
 
-rg -n 'rk_rga_job_submit|rk_rga_hw_dispatch|rk_rga_hw_recover_active' \
+rg -n 'rk_rga_acquire_set|rk_rga_task_plan_build|rk_rga_task_exec_retire_engine|rk_rga_hw_finish_job_locked' \
   drivers/video/rockchip/rga-rewrite/rga_rewrite.c
 ```
 
@@ -123,21 +116,28 @@ For every new ioctl or feature:
 1. Are all userspace counts and sizes bounded before allocation/copy?
 2. Does checked arithmetic cover every size and address calculation?
 3. Is all asynchronous input copied into kernel-owned memory?
-4. Which object owns each buffer, fence, job, and hardware reference?
+4. Which lifetime is logical-job state, and which belongs to one activation or
+   task execution?
 5. Is the selected DMA device fixed before mapping?
 6. Can file-descriptor reuse defeat cache identity?
-7. Is command emission complete before the start/doorbell write?
-8. Can IRQ, timeout, close, fault, and remove all race for completion?
-9. What atomic claim makes exactly one of them the winner?
-10. Can stale delayed work affect a replacement job?
-11. Is DMA stopped before mappings or command buffers are freed?
-12. What happens if reset itself fails?
-13. Does remove block admission before it drains?
-14. Does remove wait for references before devres frees MMIO/IRQ state?
-15. Is completion signaled only after cache sync and copyback?
-16. Are lock order and callback context documented?
-17. Is the error path covered by KUnit or fault injection?
-18. Is there an observable counter proving the intended path ran?
+7. Does validation publish a const sealed image or immutable plan, with
+   hardware results stored elsewhere?
+8. Are active ownership and the exact watchdog generation published before the
+   start/doorbell write?
+9. Can IRQ, timeout, close, fault, and remove all race for retirement?
+10. What typed claim makes exactly one of them the owner?
+11. Can stale delayed work affect a replacement activation/execution?
+12. Does retry, fallback, or next-task progression allocate distinct storage
+    before the predecessor's async owners drain?
+13. Is DMA stopped before mappings or command buffers are freed?
+14. What happens if reset itself fails—restore, isolate, or quarantine?
+15. Does remove block admission before it drains?
+16. Does remove wait for references before devres frees MMIO/IRQ state?
+17. Is completion signaled only after cache sync and copyback?
+18. Are lock order and callback context documented?
+19. Is the error path covered by KUnit or fault injection, and does the source
+    audit reject a new bypass writer?
+20. Is there an observable counter proving the intended path ran?
 
 If any answer is "the global pointer probably still exists," the ownership
 model needs more work.
@@ -154,6 +154,10 @@ model needs more work.
 | **misc device** | Simple character-device registration used to create `/dev/mpp_service` or `/dev/rga` |
 | **probe/remove** | Platform-driver callbacks that acquire/publish a hardware instance and later stop/unpublish it |
 | **ioctl** | Device-specific syscall used by a process to send an ABI command |
+| **job** | One accepted userspace transaction and its aggregate result; it may contain several physical attempts |
+| **activation** | One admitted MPP hardware attempt, including retry-specific resources and terminal evidence |
+| **task execution** | One RGA task attempt on one selected core, including mappings, command image, async references, and copyback duty |
+| **sealed image / immutable plan** | Validated command representation that production backends may read but no longer mutate |
 | **CCU** | Codec coordination unit for multicore scheduling/execution |
 | **DCHS** | RKVENC2 dual-core handshake state patched per active encoder job |
 | **DMA** | Hardware reading or writing memory directly, independently of CPU loads/stores |
@@ -176,8 +180,8 @@ model needs more work.
 | **KUnit** | Linux in-kernel unit-test framework used for the hardware-independent cases |
 | **acquire fence** | Dependency that must complete before this job starts |
 | **release fence** | Completion object signaled after this job and memory effects finish |
-| **quarantine** | Permanently stop routing work to hardware after unsafe recovery |
-| **generation** | Monotonic activation identity used to reject stale callbacks |
+| **quarantine** | Fail closed after unproved stop/isolation: stop routing and retain the exact execution plus DMA-visible resources instead of pretending cleanup succeeded |
+| **generation** | Monotonic attempt identity paired with an object reference to reject stale callbacks |
 | **provenance** | The actual backing object/range behind a submitted address or handle |
 | **terminal isolation** | Fail-closed proof that a failed engine can no longer DMA |
 
@@ -189,10 +193,13 @@ For both drivers, reduce the architecture to this invariant:
 
 ```text
 No untrusted request reaches hardware until it is copied, bounded, resolved,
-retained, and validated.
+retained, and converted into a sealed image or immutable plan.
 
-No asynchronous path dereferences an object without a reference and a lock or
-published-state rule.
+No asynchronous path dereferences an activation/task execution without a typed
+reference, exact generation, and a lock or published-state rule.
+
+No logical job is confused with a replaceable hardware attempt: retry,
+fallback, and next-task progression get distinct execution storage.
 
 No completion becomes visible until hardware has stopped using memory and all
 required DMA synchronization/copyback has finished.
@@ -208,4 +215,4 @@ every kernel driver that performs asynchronous DMA.
 ---
 
 [← Observability and testing](05-observability-and-testing.md) ·
-[Guide home](README.md)
+[Guide home](README.md) · [Next: ownership-refactor case study →](07-ownership-refactor-case-study.md)

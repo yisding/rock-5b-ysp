@@ -32,13 +32,14 @@ flowchart LR
     U["Userspace ABI"] --> S["Per-open session"]
     S --> R["Copied and validated request"]
     R --> J["Refcounted job"]
-    J --> M["DMA mappings"]
     J --> Q["Scheduler queue"]
-    Q --> H["Refcounted hardware core"]
+    Q --> E["Activation / task execution"]
+    E --> M["DMA mappings and command resources"]
+    E --> H["Refcounted hardware core"]
     H --> P["Power + clocks + reset"]
     H --> X["MMIO start"]
     X --> I["IRQ / timeout / IOMMU fault"]
-    I --> C["One completion owner"]
+    I --> C["One execution-retirement owner"]
     C --> U
 ```
 
@@ -60,25 +61,30 @@ Before looking at structures and locks, follow one ordinary operation:
 4. The driver checks every count, offset, image dimension, format, flag, and
    arithmetic result. It resolves buffer handles into kernel objects and takes
    references that keep them alive.
-5. The driver creates a **job**, a kernel-owned snapshot containing everything
-   later asynchronous code needs.
+5. The driver creates a **job**, a kernel-owned snapshot of the accepted
+   userspace transaction. The job owns its aggregate result and user-visible
+   completion.
 6. A scheduler selects a compatible RGA core and puts the job on that core's
    queue.
-7. When the core is free, the driver powers it, maps buffers into that device's
-   address space, writes its registers, and finally writes the start bit.
-8. `ioctl()` may already have returned for an asynchronous request. The job,
-   mappings, and session must therefore survive independently of the original
-   syscall stack.
-9. The engine performs DMA: it reads and writes memory directly without the
+7. When the core is free, the driver creates a **task execution** for the one
+   task/core attempt. That narrower object owns the selected core, mappings,
+   command image, timeout generation, IRQ observations, and copyback duty.
+8. The driver powers the core, maps buffers into that device's address space,
+   writes its registers, and finally writes the start bit.
+9. `ioctl()` may already have returned for an asynchronous request. The job,
+   execution, mappings, and session must therefore survive independently of
+   the original syscall stack.
+10. The engine performs DMA: it reads and writes memory directly without the
    CPU copying every pixel.
-10. The engine raises an interrupt. A short hard-interrupt handler acknowledges
+11. The engine raises an interrupt. A short hard-interrupt handler acknowledges
     it; a sleep-capable interrupt thread performs the longer completion work.
-11. The completion path stops using the hardware, makes device writes visible
-    to the CPU, unmaps or copies back buffers, records the result, and only then
-    signals a fence or wakes a waiting process.
-12. References are dropped. The job is freed only when the queue, active slot,
-    session, timeout, fence callbacks, and other possible owners have all let
-    go.
+12. The execution-retirement path proves DMA stopped, makes device writes
+    visible to the CPU, unmaps or copies back buffers, and destroys the command
+    allocation. The job orchestrator then advances to the next task or records
+    the aggregate result and signals the fence.
+13. References are dropped. An execution is reclaimable only after its active,
+    IRQ, timeout, and fault owners have let go; the job is freed only after its
+    queue, session, acquire-fence, result, and other possible owners drain.
 
 MPP follows the same outline, but userspace supplies a mostly register-shaped
 codec job and later polls for result registers instead of describing an image
@@ -90,9 +96,10 @@ This walk-through introduces the main vocabulary:
 |------|-----------------------------|
 | **request** | Data copied from one userspace command before it is accepted |
 | **session** | Kernel state belonging to one open device file |
-| **job** | Stable kernel snapshot of accepted work that may outlive the ioctl |
+| **job** | Stable kernel snapshot and aggregate result of accepted work that may outlive the ioctl |
+| **activation / task execution** | One admitted trip through hardware: a codec attempt or one RGA task on one selected core |
 | **queue** | Jobs accepted by software but not yet running on a core |
-| **active slot** | The one job a particular hardware core currently owns |
+| **active slot** | A typed reference to the one activation or task execution a core currently owns |
 | **mapping** | A buffer made addressable by a particular DMA device |
 | **IRQ/interrupt** | Hardware notifying the CPU that something happened |
 | **fence/waitqueue** | A way to notify a dependent job or userspace that work completed |
@@ -102,22 +109,34 @@ A useful first principle follows: returning from `ioctl()` ends a syscall, not
 necessarily the operation. Any object needed afterward requires an explicit
 asynchronous owner.
 
-### 1.2 Four boundaries to keep separate
+### 1.2 Five boundaries to keep separate
 
-Both rewrites separate four kinds of state:
+Both rewrites separate five kinds of state:
 
 1. **Service state** exists for the loaded module: registered hardware, global
    scheduling, counters, debugfs, and device-node registration.
 2. **Session state** exists for one `open()`: client identity, imported
    resources, configured requests, and jobs visible to that file.
 3. **Job state** is an immutable or mostly immutable snapshot of one
-   submission. It retains everything asynchronous execution will need.
-4. **Hardware state** exists for one platform device: MMIO, IRQ, clocks,
+   submission. It owns the user-visible transaction and aggregate result.
+4. **Execution state** exists for one admitted hardware lifetime. MPP calls it
+   an activation; RGA calls it a task execution. It owns the selected core,
+   generation, attempt-specific DMA/command resources, terminal evidence, and
+   the transition to retired, reclaimable, or quarantined.
+5. **Hardware state** exists for one platform device: MMIO, IRQ, clocks,
    resets, power state, queue/active slot, timeout work, and recovery state.
 
 Do not collapse these lifetimes into one global structure. A file can close
 while a job still exists, and a platform device can begin removal while a file
 is still open. Refcounts and drain protocols bridge those lifetime gaps.
+
+The job/execution split deserves special attention. A job is the logical work
+userspace will poll or fence; an execution is the physical attempt that can be
+replaced by a hard-CCU retry, the next RGA task, or a same-task fallback. When
+attempt-specific fields live in the job, a delayed callback can accidentally
+observe the replacement attempt through the same broad pointer. Giving every
+attempt distinct storage and a generation makes that confusion testable and
+rejectable.
 
 One concrete close race shows why:
 
@@ -336,11 +355,11 @@ The **hard-IRQ handler**:
 The **IRQ thread**:
 
 - may take mutexes;
-- claims the active job;
+- claims the exact active activation/task execution;
 - cancels timeout work;
-- performs readback or reset;
-- powers down;
-- completes the job and schedules more work.
+- performs readback or reset and invokes the execution-retirement owner;
+- powers down only after DMA-visible resources are safe;
+- lets the logical-job completion/orchestrator schedule more work.
 
 This split keeps slow operations, sleeping locks, runtime PM, and memory
 teardown out of hard-IRQ context.

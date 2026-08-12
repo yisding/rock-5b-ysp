@@ -9,15 +9,15 @@ kernel APIs.
 
 This document compares architecture, not just feature lists. The forward-port
 side remains the 2026-07-26 comparison pin; the rewrite side was rechecked at
-the maintained 2026-08-04 tips:
+the source-complete Phase 4/5 snapshots:
 
 | Track | Pin |
 |-------|-----|
 | BSP-derived forward port | `rk3588-video-6.18@12a7da02bea83` |
-| 6.18 rewrite | `rk3588-rewrite-6.18@19634f4eebba` on `v6.18.42` |
-| Mainline rewrite cross-check | `rk3588-rewrite-mainline@b296374b7520` on `v7.2-rc6`; the tracked rewrite sources, Kconfig, ABI ledgers, and UAPI are byte-identical to the 6.18 versions |
+| 6.18 rewrite | `rk3588-rewrite-6.18@149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` on `v6.18.42` |
+| Mainline rewrite cross-check | `rk3588-rewrite-mainline@280181e634a3a10a3a4f1659fe7c7287f7ee3760` on `v7.2-rc6`; the tracked rewrite sources, Kconfig, ABI ledgers, and UAPI are byte-identical to the 6.18 versions |
 
-The [current implementation comparison](./rewrite-drivers.md#current-comparison-2026-08-09)
+The [current implementation comparison](./rewrite-drivers.md#current-comparison-2026-08-11)
 owns moving status, scope, exact source counts, and the production decision.
 The [forward-port driver guide](./how-the-drivers-work.md) and
 [rewrite architecture guide](./rewrite-driver-architecture/README.md) remain
@@ -65,7 +65,7 @@ reset, fault recovery, or device removal.
 | Design question | BSP-derived answer | Rewrite answer |
 |-----------------|--------------------|----------------|
 | What is preserved? | The broad vendor subsystem and historical ABI behavior. | The observed current ROCK 5B ABI and hardware behavior. |
-| Where does state live? | Global service/request/memory managers plus per-device scheduler state. | Opening session, copied submitted job, and retained hardware/import objects; some shared activation and per-task execution state remains embedded in broader objects. |
+| Where does state live? | Global service/request/memory managers plus per-device scheduler state. | Opening session and copied logical job, plus narrower MPP activation or RGA task-execution owners, retained imports/hardware, and explicit shared-hardware authorities. |
 | How is kernel drift handled? | Compatibility headers and narrow adaptations around BSP assumptions. | Public kernel APIs, with the same driver sources replayed on 6.18 and current mainline. |
 | How is unsupported behavior treated? | Usually inherited because the vendor surface is carried wholesale. | Classified in `ABI.rst` and rejected explicitly when no safe implementation exists. |
 | What is the main source of confidence? | Vendor history plus extensive board and production testing. | Executable invariants and source clarity; board qualification remains incomplete. |
@@ -140,22 +140,24 @@ flowchart TB
   fd["open /dev/mpp_service"]
   session["rk_mpp_session<br/>lock · imports · staged/active jobs · epoch"]
   parse["strict V1 parser<br/>classify flags/commands · copy payloads"]
-  snapshot["rk_mpp_job<br/>copied request/register state"]
-  validate["address provenance + bounds<br/>topology + hardware-ID checks"]
+  snapshot["rk_mpp_job<br/>copied request + open builder"]
+  validate["translate + seal const image<br/>topology + hardware-ID checks"]
   queue["service scheduler queue"]
   choose{"eligible least-loaded core"}
+  activation["rk_mpp_activation<br/>one attempt + exact resources"]
   enc["rk_mpp_hw<br/>RKVENC2 + DCHS"]
   decsoft["rk_mpp_hw<br/>RKVDEC2 soft CCU"]
   dechard["CCU-owned coherent link tables<br/>hard CCU opt-in"]
   active["per-core exact active_activation<br/>saved generation cookies"]
-  done{"IRQ · timeout · IOMMU fault<br/>compete to claim exact slot"}
-  finish["readback or reset<br/>complete one job · wake poller"]
-  quarantine["reset proof failed<br/>quarantine core/group"]
+  done{"IRQ · timeout · fault · teardown<br/>compete for typed activation claim"}
+  finish["terminal arbitration + drain<br/>publish DONE · wake poller"]
+  quarantine["stop/isolation unproved<br/>retain exact resources"]
 
   fd --> session --> parse --> snapshot --> validate --> queue --> choose
-  choose --> enc --> active
-  choose --> decsoft --> active
-  choose --> dechard --> active
+  choose --> activation
+  activation --> enc --> active
+  activation --> decsoft --> active
+  activation --> dechard --> active
   active --> done --> finish
   done --> quarantine
   session -. retains .-> snapshot
@@ -166,15 +168,20 @@ Important properties:
 
 - Message payloads and session controls are copied into kernel-owned staged
   jobs. Later messages cannot retroactively change an already staged job.
-- A job retains every dma-buf import and the selected hardware object until no
-  asynchronous path can use either one.
+- A job retains every dma-buf import and its aggregate userspace result. Each
+  activation retains the selected hardware and attempt-bounded resources until
+  no asynchronous path can use them.
 - Queue publication, core removal, session reset, and active-slot publication
   are coordinated so an accepted job cannot disappear between owners.
 - IRQ, timeout, fault, close, and removal do not independently “finish” a job.
-  They contend on the same protected active slot; only the winner owns terminal
-  completion.
-- A generation identifies one activation of one hardware slot. Delayed work
-  from an older activation cannot reset its replacement.
+  They contend on the same typed activation slot; one claim owns retirement
+  and all successful paths converge on one completion tail.
+- A generation and retained activation address identify one attempt. Hard-CCU
+  retry gets distinct successor storage, so delayed work cannot observe a
+  replacement through a reused job pointer.
+- Terminal reasons use stable-priority arbitration; attempt resources drain or
+  transfer coherently before `DONE`, and predecessor storage is reclaimed only
+  after external activation references are gone.
 - If reset cannot prove the engine stopped DMA, the rewrite quarantines the
   core—or the dependent decoder group—rather than returning it to scheduling.
 
@@ -195,9 +202,10 @@ flowchart LR
     rs["session"] --> ri["imports"]
     rs --> rj["submitted jobs"]
     rj --> ri
-    rj --> rh["retained hardware"]
-    rh --> ra["exact active slot"]
-    ra --> rj
+    rj --> ract["activation(s)"]
+    ract --> rh["retained hardware + attempt resources"]
+    rh --> rslot["exact active slot"]
+    rslot --> rc["central retirement/completion"]
   end
 ```
 
@@ -214,8 +222,8 @@ Both architectures must implement the same RK3588 coordination:
 
 | Path | BSP-derived forward port | Rewrite |
 |------|--------------------------|---------|
-| RKVENC2 | Taskqueue selects a core; DCHS IDs link dependent work across the two VEPU580 cores. | Service queue chooses an eligible least-loaded core; job-owned DCHS state is validated and released with the job. |
-| RKVDEC2 soft CCU | Shared queue; software finds an idle VDPU381 core while the CCU owns common hardware state. | Software selection with per-core active slots; reset/error recovery is serialized around the exact job. |
+| RKVENC2 | Taskqueue selects a core; DCHS IDs link dependent work across the two VEPU580 cores. | Service queue chooses an eligible least-loaded core; activation-owned DCHS state is drained by the central completion owner. |
+| RKVDEC2 soft CCU | Shared queue; software finds an idle VDPU381 core while the CCU owns common hardware state. | Software selection with per-core activation slots; reset/error recovery is serialized around the exact attempt. |
 | RKVDEC2 hard CCU | Vendor link tables and CCU dispatch machinery. | Opt-in coherent link tables recreated with public DMA APIs, explicit shared-domain checks, sentinel reservation, and coordinator-wide ownership. |
 | Contention | Vendor queueing/task state decides when a core becomes available. | Accepted work remains on an internal queue rather than returning `-EBUSY`. |
 
@@ -291,25 +299,27 @@ flowchart TB
   session["rk_rga_session<br/>request IDR · import IDR · submitted jobs"]
   config["copy and validate request<br/>own task/fence/import references"]
   request["session-owned configured request"]
-  submit["clone rk_rga_job config"]
-  materialize["resolve planes + per-core mappings<br/>allocate coherent command buffer"]
+  submit["clone logical rk_rga_job<br/>aggregate result + fence"]
+  acquire["rk_rga_acquire_set<br/>callback/cancel zero crossing"]
   select{"capability/load selection"}
+  execution["rk_rga_task_exec<br/>one task/core attempt"]
+  materialize["execution mappings + immutable plan<br/>coherent command buffer"]
   q0["RGA3 core 0 queue"]
   q1["RGA3 core 1 queue"]
   q2["RGA2 queue"]
-  active["per-core active_job + generation"]
-  emit["RGA2/RGA3 validator + emitter"]
-  finish{"IRQ · timeout · fault<br/>claim exact active job"}
-  next{"more tasks<br/>in this request?"}
+  active["typed active/IRQ/timeout/fault refs<br/>exact execution + generation"]
+  emit["plan-consuming RGA2/RGA3 emitter<br/>publish ownership, START last"]
+  finish{"one execution retirement engine<br/>destroy or quarantine"}
+  next{"whole-job orchestrator<br/>next task or final result?"}
   complete["signal job-owned fence<br/>remove from session · drop refs"]
   quarantine["reset failed<br/>quarantine core"]
 
-  fd --> session --> config --> request --> submit --> materialize --> select
-  select --> q0 --> active
-  select --> q1 --> active
-  select --> q2 --> active
-  active --> emit --> finish --> next
-  next -->|yes: select next task| materialize
+  fd --> session --> config --> request --> submit --> acquire --> select
+  select --> q0 --> execution
+  select --> q1 --> execution
+  select --> q2 --> execution
+  execution --> materialize --> active --> emit --> finish --> next
+  next -->|yes: allocate successor| select
   next -->|no| complete
   finish --> quarantine
   session -. owns .-> request
@@ -322,14 +332,25 @@ The rewrite deliberately changes request execution:
   not a global pending-request namespace.
 - Submission clones kernel-owned job configuration. The configured request may be
   reconfigured or destroyed without altering already submitted work.
-- A job retains its acquire callback, release fence, imports, per-core mappings,
-  command buffer, hardware reference, and session-list membership.
+- A job owns its imports, release fence, aggregate result, current-task index,
+  retained execution list, and session-list membership. Its acquire callbacks
+  are encapsulated in one `rk_rga_acquire_set`.
+- Each `rk_rga_task_exec` owns the selected core, mappings/MMU table, immutable
+  task plan, coherent command buffer, USERPTR copyback, power, generation, IRQ
+  observations, and retirement state.
 - Multi-task jobs progress serially. Each next task can be rerouted to the
   appropriate RGA2/RGA3 core, but two tasks from the same submitted request are
   not fanned out concurrently.
+- Each next task or same-task RGA2-to-RGA3 fallback receives distinct execution
+  storage. Retired records remain on the bounded whole-job list until final job
+  release so lockless final observer puts cannot race an eager free. Only the
+  whole-job orchestrator advances `current_task` or signals the release fence.
 - The selected core is known before execution mappings and command buffers are
   finalized, so DMA ownership is attached to the device that will actually run
   the task.
+- Validators publish an immutable task plan. Production emitters do not accept
+  raw `rga_req` input, and owner-specific publication arms the exact timeout
+  before issuing START last.
 - Physical-address imports and unimplemented command profiles fail closed.
 
 ### 3.3 RGA request-model tradeoff
@@ -349,11 +370,11 @@ flowchart LR
   end
 
   subgraph R["rewrite: serial handoff"]
-    rr["one submitted job"] --> rt1["task 1"]
+    rr["one submitted job"] --> rt1["task 1 execution"]
     rt1 --> rc0["eligible core"]
-    rc0 --> rt2["task 2"]
+    rc0 --> rt2["fresh task 2 execution"]
     rt2 --> rc1["possibly different core"]
-    rc1 --> rt3["task 3"]
+    rc1 --> rt3["fresh task 3 execution"]
     rt3 --> rdone["job completion"]
   end
 ```
@@ -382,8 +403,9 @@ flowchart TB
   subgraph RU["rewrite buffer route"]
     rfd["userspace dma-buf fd or userptr"] --> rimport["session import<br/>identity + provenance"]
     rimport --> rjob["job retains import"]
-    rjob --> rdev["select exact DMA device"]
-    rdev --> rmap["job-owned mapping<br/>contiguous span + aperture proof"]
+    rjob --> rexec["task execution"]
+    rexec --> rdev["select exact DMA device"]
+    rdev --> rmap["execution-owned mapping<br/>role + copyback owner"]
     rmap --> riova["validated IOVA"]
     riova --> rhw["hardware"]
   end
@@ -391,12 +413,12 @@ flowchart TB
 
 | Concern | BSP-derived architecture | Rewrite architecture |
 |---------|--------------------------|----------------------|
-| dma-buf reuse | Session/global caches avoid remapping. | Session imports are keyed by fd, dma-buf identity, and DMA device; jobs retain mappings. |
-| Core selection vs mapping | Mapping and scheduler association are mediated through the global memory subsystem. | The concrete core/DMA device is selected before per-job execution mapping. |
+| dma-buf reuse | Session/global caches avoid remapping. | Jobs retain import capabilities; every task execution creates a selected-device mapping with explicit role/copyback state. |
+| Core selection vs mapping | Mapping and scheduler association are mediated through the global memory subsystem. | The concrete core/DMA device is selected before execution-owned mapping. |
 | Scattered userptr | Vendor memory/MMU modes support a broad historical surface. | Normal DMA mapping is tried first; RGA3 may build a driver-owned contiguous IOVA span through the public IOMMU API. |
 | Literal addresses | Broad vendor behavior, with later hardening around apertures and physical imports. | Literal IOVAs must be proven inside a retained session mapping; raw physical imports are rejected. |
 | Decoder peer visibility | Vendor shared-domain/CCU model. | Hard-CCU admission verifies that every possible executing peer sees the same DMA/IOMMU domain. |
-| Fault attribution | Vendor-derived fault and recovery plumbing, hardened in the forward port. | Provider-local callbacks identify the exact physical source, then route recovery to the owning active job or coordinator. |
+| Fault attribution | Vendor-derived fault and recovery plumbing, hardened in the forward port. | Provider-local callbacks identify the exact physical source and retain the exact activation/task execution plus generation before deferred recovery. |
 
 The rewrite's central invariant is:
 
@@ -446,13 +468,14 @@ flowchart TB
   fault["IOMMU fault worker"]
   close["session close/reset"]
   remove["platform remove"]
-  claim{"under slot/session locks:<br/>is this exact job + generation active?"}
-  lose["not owner<br/>drop retained reference"]
-  win["winner owns terminal path"]
-  stop{"DMA stopped or reset succeeded?"}
-  finish["readback/error result<br/>detach slot · complete job"]
-  isolate["quarantine core/group<br/>disable admission + IRQ"]
-  drain["fail queued dependent work"]
+  claim{"under owner locks:<br/>exact execution + generation active?"}
+  lose["not owner<br/>drop typed reference"]
+  win["winner moves typed slot ref<br/>into terminal claim"]
+  stop{"DMA stopped or<br/>terminally isolated?"}
+  retire["copyback/readback<br/>drain execution resources"]
+  finish["retire execution resources<br/>retain record · orchestrate job"]
+  isolate["quarantine exact execution<br/>retain DMA-visible resources"]
+  drain["disable admission/IRQ<br/>fail dependent work"]
 
   irq --> claim
   timeout --> claim
@@ -461,16 +484,19 @@ flowchart TB
   remove --> claim
   claim -->|no| lose
   claim -->|yes| win --> stop
-  stop -->|yes| finish
-  stop -->|no| isolate --> drain --> finish
+  stop -->|yes| retire --> finish
+  stop -->|no| isolate --> drain
 ```
 
 The rewrite separates three ideas that are easy to conflate:
 
-1. A **reference** proves the job or hardware object remains allocated.
-2. A **lock/active-slot claim** chooses which contender owns completion.
-3. A **generation** proves delayed work belongs to this activation rather than a
-   later job that reused the same core.
+1. A **reference** proves the activation/task execution and containing job
+   remain allocated.
+2. A **lock/active-slot claim** chooses which contender owns retirement.
+3. A **generation** proves delayed work belongs to this attempt rather than a
+   successor on the same core.
+4. A **state/closure record** proves whether retirement, reclamation, restore,
+   or quarantine is legal.
 
 This is a stronger recovery architecture, but it is also more code. Hard-CCU
 peer execution, deferred fault recovery, reset failure, and removal all need
@@ -501,8 +527,8 @@ backend and manager structures after the file operation returns.
 ```mermaid
 flowchart LR
   close["file close"] --> gate["mark session closing<br/>reject new tracking"]
-  gate --> pending["cancel acquire callbacks<br/>remove queued jobs"]
-  pending --> active["claim/reset active jobs"]
+  gate --> pending["cancel acquire set<br/>remove queued jobs"]
+  pending --> active["claim exact active executions<br/>retire or quarantine"]
   active --> handoff["wait for dispatch and job-list drain"]
   handoff --> ids["destroy configured requests/import IDs"]
   ids --> free["drop final session reference"]
@@ -547,10 +573,10 @@ BSP-derived RGA                   rewrite RGA
 
 | Source property | BSP-derived forward port | Rewrite |
 |-----------------|--------------------------|---------|
-| MPP code/build lines | 18,442 at the forward-port comparison pin, including AV1, compatibility headers, and legacy-SoC helpers | 18,163 C lines at `19634f4eebba`, including the embedded KUnit block and VPU981 AV1 backend |
-| RGA code/build lines | 21,160 at the forward-port comparison pin | 26,060 C lines at `19634f4eebba`, including the embedded KUnit block |
-| ABI ledger | External project documentation and vendor headers | 648-line MPP and 633-line RGA in-tree `ABI.rst` files |
-| In-driver KUnit | None comparable | 101 MPP + 152 RGA cases |
+| MPP code/build lines | 18,442 at the forward-port comparison pin, including AV1, compatibility headers, and legacy-SoC helpers | 25,594 C lines at the Phase 4/5 snapshot, including the embedded KUnit block, activation refactor, sealed builder, and VPU981 AV1 backend |
+| RGA code/build lines | 21,160 at the forward-port comparison pin | 27,277 C lines at the Phase 4/5 snapshot, including the embedded KUnit block, task-execution owner, acquire set, and immutable plans |
+| ABI ledger | External project documentation and vendor headers | 395-line MPP and 345-line RGA in-tree `ABI.rst` files |
+| In-driver KUnit | None comparable | Exact source manifest: 109 MPP + 152 RGA cases |
 | Primary verification style | Board conformance, sanitizer builds, hostile reproducers, production runs | KUnit/build profiles first, then the same board suites and differential artifacts |
 
 The modular BSP layout is easier to browse file by file. The rewrite keeps an
@@ -559,29 +585,25 @@ drivers are harder to review as diffs and more likely to create merge
 conflicts. Embedded KUnit explains much of their apparent size, but it also
 interleaves test and runtime code in unusually large translation units.
 
-### 7.1 As-built ownership versus the proposed refactor
+### 7.1 Ownership-refactor result and remaining boundary
 
-The rewrite is more explicit than the BSP-derived stack, but the current source
-does not yet implement the final ownership decomposition described in the
-[ownership refactor plan](rewrite-ownership-refactor-plan.md):
+The Phase 0–5 source refactor implements the narrow runtime owners described in
+the [ownership-refactor plan](rewrite-ownership-refactor-plan.md):
 
-| Responsibility | As built at the maintained tips | Proposed owner |
-|----------------|----------------------------------|----------------|
-| Shared decoder CCU, reset, IOMMU, and power state | `rk_mpp_cluster` topology and group-reset validation plus a refcounted member-core power lease; coordinator power and remaining transitions stay split across hardware, job, reset-domain authority, and DMA-group state | remaining cluster transition methods |
-| One hardware run and its terminal claimant | Job plus per-core active slot and generation fields | `rk_mpp_activation` |
-| One RGA task's selected core, mappings, command buffer, and generation | Mutable fields on the broader `rk_rga_job` | `rk_rga_task_exec` |
-| Acquire-fence callback retirement | Job/request callbacks and drain bookkeeping | `rk_rga_acquire_set` |
+| Responsibility | As built at the Phase 4/5 snapshots | Remaining boundary |
+|----------------|-----------------------------------------|--------------------|
+| Shared decoder CCU, reset, IOMMU, and power state | Cluster topology/group-reset validation, reset-domain epochs, typed single/group recovery, DMA-group refresh/isolation, and a refcounted member-core power lease | Cluster admission, coordinator power, and broader recovery policy remain divided authorities. |
+| One MPP hardware run | `rk_mpp_activation` owns typed async references, selected core, attempt resources, retry handoff, terminal arbitration/evidence, drain, quarantine, and reclaim | Exact-tip runtime recovery/sanitizer/media qualification remains open. |
+| One RGA task/core attempt | `rk_rga_task_exec` owns mappings/MMU/command/plan/power/copyback/IRQ state and one retirement engine; the job orchestrates successors and final fences | RGA2 large-segment staging and exact-tip runtime race/output qualification remain open. |
+| Acquire-fence callback retirement | `rk_rga_acquire_set` owns waiters, sentinel/zero crossing, cancellation, work, and result | Callback/close/cancel KCSAN and board stress remain open. |
+| Command representation | MPP backends consume const sealed images with separate results; RGA emitters consume immutable task plans | Real immediate-IRQ and byte-exact artifact differential remain open. |
 
-`rk_mpp_cluster` is now present as a topology object, validates the shared
-hard-CCU reset pulse, and identifies refcounted member-core power leases. Those
-leases still transfer through legacy jobs, while admission, coordinator power,
-IOMMU, and quarantine transitions remain outside the cluster. The other proposed
-types are not present in either maintained tree. The current exact-slot,
-generation, refcount, quarantine, and fail-closed rules are real; the remaining
-target objects are a reviewable next architecture, not evidence about code
-already running. See the architecture guide's
-[as-built/target boundary](rewrite-driver-architecture/04-design-lessons.md#61-as-built-strengths-and-remaining-ownership-debt)
-for the full object model.
+These are current source objects, not proposed names. The remaining distinction
+is evidence: source/compile gates establish that the ownership graph exists,
+while board qualification must establish that its hardware assumptions are
+true. See the architecture guide's
+[as-built/remaining boundary](rewrite-driver-architecture/04-design-lessons.md#61-as-built-ownership-after-the-refactor)
+and [refactor case study](rewrite-driver-architecture/07-ownership-refactor-case-study.md).
 
 ## 8. Pros and cons
 
@@ -601,11 +623,11 @@ for the full object model.
 | Pros | Cons |
 |------|------|
 | Public kernel APIs and near-identical driver sources across 6.18 and current mainline reduce forward-maintenance coupling. | Current scope includes a source-only RKMPP AV1 backend, but still omits JPEG/legacy VPU blocks, physical imports, and some historical RGA profiles; AV1 has no hardware evidence yet. |
-| Session/job/hardware/import ownership makes asynchronous lifetime and close/remove order locally auditable. | Refcount, lock, generation, work-cancel, and quarantine state machines add substantial implementation complexity. |
+| Session/job plus activation/task-execution ownership makes asynchronous lifetime and close/remove order locally auditable. | Refcount, lock, generation, work-cancel, and quarantine state machines add substantial implementation complexity. |
 | Fail-closed ABI, address-provenance, topology, hardware-ID, and reset checks reduce silent unsafe behavior. | Strict rejection can expose compatibility gaps only when real userspace reaches them. |
 | Exact active-slot claims and generation-aware recovery directly address bug classes seen in the BSP architecture. | Clearer architecture has not prevented rewrite-specific recovery, fixture, DT-resource, and shared-IRQ defects. |
-| 253 KUnit cases and explicit ABI ledgers make assumptions executable and reviewable. | Large single-file drivers and embedded tests are a review/merge burden; KUnit cannot prove real register recipes, IRQ wiring, or DMA reset behavior. |
-| Lower non-test source footprint: roughly half-size MPP and 37% smaller RGA runtime slices. | No successful current-tip media-hardware, production-performance, fuzz, or soak record yet. |
+| 261 named KUnit cases, ownership source audits, and explicit ABI ledgers make assumptions executable and reviewable. | Large single-file drivers and embedded tests are a review/merge burden; KUnit cannot prove real register recipes, IRQ wiring, or DMA reset behavior. |
+| Sealed MPP images, immutable RGA plans, and singular retirement owners mechanically reject several missed-twin classes. | No successful current-tip media-hardware, production-performance, fuzz, or soak record yet. |
 | Better long-term candidate if hardware parity is demonstrated. | Higher immediate qualification risk. |
 
 ## 9. Decision matrix
@@ -615,7 +637,7 @@ for the full object model.
 | Ship a working ROCK 5B media stack | BSP-derived forward port | It is the only broadly hardware- and production-validated implementation. |
 | Preserve every vendor/legacy behavior | BSP-derived forward port | Its scope is intentionally wider. |
 | Minimize kernel-version coupling | Rewrite | Public APIs and the same source on 6.18/current mainline reduce compatibility surface. |
-| Audit one job's lifetime and recovery | Rewrite | Session/job ownership, exact slot claims, generations, and quarantine make the proof local. |
+| Audit one job's attempts and recovery | Rewrite | Activation/task-execution owners, exact typed claims, generations, and quarantine make the proof local. |
 | Navigate subsystem code by responsibility | BSP-derived forward port | Its many focused files separate policy, memory, jobs, backends, and debugging. |
 | Execute parser/register-emission/error invariants without the board | Rewrite | Embedded KUnit and explicit ABI ledgers provide that layer. |
 | Establish behavioral truth on real RK3588 silicon | BSP-derived forward port | Its output and performance are already measured; it remains the differential oracle. |
@@ -629,8 +651,9 @@ them incrementally. Its main weakness is distributed global ownership, which
 makes races and future kernel integration expensive to reason about.
 
 The rewrite optimizes for **containment and maintainability**. It narrows scope,
-ties resources to sessions and copied submitted jobs, uses public APIs, and treats
-unsupported or unprovable states as errors. Its main weakness is that the
+ties logical results to copied jobs and physical resources to exact
+activations/task executions, uses public APIs, and treats unsupported or
+unprovable states as errors. Its main weakness is that the
 cleaner model has grown into two large implementations and has not yet earned
 the forward port's hardware evidence.
 
@@ -651,7 +674,7 @@ its ownership and kernel-integration model is better suited to long-term
 maintenance. Promote it only when those architectural advantages and equivalent
 hardware evidence exist at the same time.
 
-## 11. Quality comparison with upstream media and vendor drivers (updated 2026-08-04)
+## 11. Quality comparison with upstream media and vendor drivers (updated 2026-08-11)
 
 The rewrite is a better **source design** than the original BSP MPP/RGA stack,
 but it is not yet a better **delivered driver** than the BSP-derived forward
@@ -665,11 +688,11 @@ evidence:
 
 | Input | Pin or evidence boundary |
 |-------|--------------------------|
-| Rewrite 6.18 | `rk3588-rewrite-6.18@19634f4eebba` on `v6.18.42`; 18,163-line MPP and 26,060-line RGA translation units |
-| Rewrite mainline replay | `rk3588-rewrite-mainline@b296374b7520` on `v7.2-rc6`; tracked rewrite sources, Kconfig, ABI ledgers, and UAPI are byte-identical |
+| Rewrite 6.18 | `rk3588-rewrite-6.18@149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` on `v6.18.42`; 25,594-line MPP and 27,277-line RGA translation units |
+| Rewrite mainline replay | `rk3588-rewrite-mainline@280181e634a3a10a3a4f1659fe7c7287f7ee3760` on `v7.2-rc6`; tracked rewrite sources, Kconfig, ABI ledgers, and UAPI are byte-identical |
 | Rockchip BSP donor | `develop-6.1@b4ef083dc0c3` |
 | Upstream-style comparators | Linux `v7.2-rc5`-era `rockchip/rkvdec`, Verisilicon Hantro, Chips&Media Wave5, Qualcomm Venus, MediaTek vcodec, Allegro DVT, and Amphion sources in the mainline replay tree |
-| Runtime boundary | The current tips pass focused warning-fatal MPP object builds and the exact 306-signal KUnit source audit; the preceding reset-domain tips pass the full clean-archive matrix. The current 101 MPP + 152 RGA manifest, cluster/group-reset/power-lease/recovery construction, multicore fixes, and AV1/VSI path are not boot-verified. |
+| Runtime boundary | All eight warning-fatal build profiles pass. The ownership audit passes at 2,312 signals/tree, fixture debt at 306/tree, and the exact source manifest is 109 MPP + 152 RGA cases. The Phase 4/5 tips, including activation/task-execution ownership, sealed/immutable recipes, and AV1/VSI, are not boot-verified. |
 
 The upstream comparators are reference designs for kernel-boundary and
 maintenance quality, not feature- or performance-equivalent implementations.

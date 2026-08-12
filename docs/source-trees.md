@@ -195,6 +195,8 @@ owns the public verdict.
 
 | Snapshot | Pin and base | Historical relationships |
 |----------|--------------|--------------------------|
+| 6.18 rewrite post-refactor boundary hardening, 2026-08-11 | `rk3588-rewrite-6.18@d9cbcf21cda1c047c053447a48a908dcb6e4c5d6` on `v6.18.42@856a9b51680c` | Phase 4/5 tip `149a9ecd38f78`; adds fixed-width MPP UAPI decoding and RGA validation, pin-accounting, fault-latching, reclamation, and suspend boundary repairs |
+| Mainline rewrite post-refactor boundary hardening, 2026-08-11 | `rk3588-rewrite-mainline@b6335efd8f98bedabf426a80d224f85a266c8ea4` on `v7.2-rc6@075b74841bd0` | Phase 4/5 tip `280181e634a3`; byte-identical rewrite C/Kconfig/ABI/UAPI checkpoint |
 | 6.18 rewrite Phases 4–5 complete, 2026-08-11 | `rk3588-rewrite-6.18@149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` on `v6.18.42@856a9b51680c` | Phase 3 completion tip `77b60c9250cccc`; adds RGA task-execution ownership plus immutable RGA plans and sealed MPP register images |
 | Mainline rewrite Phases 4–5 complete, 2026-08-11 | `rk3588-rewrite-mainline@280181e634a3a10a3a4f1659fe7c7287f7ee3760` on `v7.2-rc6@075b74841bd0` | Phase 3 completion tip `0a645ea1df042`; byte-identical Phase 4/5 checkpoint |
 | 6.18 rewrite Phase 3 complete, 2026-08-09 | `rk3588-rewrite-6.18@77b60c9250ccccd8aa77c4b4426b7921e870a03d` on `v6.18.42@856a9b51680c` | Phase 3J tip `7481df21ca2b`; completes activation-owned resources, outcome arbitration, central completion, exact release, and reclaim |

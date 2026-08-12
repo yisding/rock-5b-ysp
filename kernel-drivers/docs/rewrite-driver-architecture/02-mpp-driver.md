@@ -10,9 +10,10 @@ acts primarily as a validated register-job transport:
 
 ```mermaid
 flowchart LR
-    L["librockchip_mpp"] --> V["MPP message validation"]
+    L["librockchip_mpp"] --> V["MPP message collection"]
     V --> T["fd/IOVA translation"]
-    T --> Q["service queue"]
+    T --> S["seal immutable register image"]
+    S --> Q["validate + service queue"]
     Q --> B["RKVENC2, RKVDEC2, or AV1 backend"]
     B --> MMIO["register write + start"]
     MMIO --> IRQ["IRQ/readback"]
@@ -62,7 +63,9 @@ The principal objects are:
 | `rk_mpp_hw` | platform probe | device, MMIO, IRQ, clocks, resets, activation-typed active/timeout slots, fault work, CCU state |
 | `rk_mpp_session` | `/dev/mpp_service` `open()` | client type, imports, active jobs, translation table, RCB and codec metadata |
 | `rk_mpp_import` | fd translation | DMA-BUF, attachment, mapped scatterlist, device-specific IOVA |
-| `rk_mpp_job` | ioctl message collection | copied requests, register image, imports, result/readback, embedded first activation, current activation pointer, retained activation list, and the stable logical CCU list node |
+| `rk_mpp_job` | ioctl message collection | copied requests, open register builder, separate readback result, imports, embedded first activation, current activation pointer, retained activation list, aggregate result, and the stable logical CCU list node |
+| `rk_mpp_reg_builder` / `rk_mpp_reg_image` | job construction | mutable private register recipe until one release-published `SEALED` transition; backends receive only the resulting const image |
+| `rk_mpp_reg_result` | image sealing | cloned readback destinations and later IRQ/result data, so hardware observations never mutate the sealed command image |
 | `rk_mpp_activation` | initial job allocation or hard-CCU retry successor allocation | parent identity, retained selected hardware, immutable attempt address/generation, deadline, dispatch/slot/claim references, typed closure and quarantine evidence, order-independent terminal arbitration, attempt-bounded CCU/link/DCHS/power/timing resources, coherent retry handoff, terminal drain, and reclaimability |
 | `rk_mpp_reset_domain` | first matching hardware probe | immutable node identity, member lifetime, mutex, single-target reset state/epoch, responsible hardware, operation counters, one epoch for each cluster-validated hard-CCU pulse, and the epoch supplied to typed single-core recovery |
 | `rk_mpp_cluster` | first matching CCU-identity probe | stable member topology, borrowed coordinator, learned core type, reset authority, derived DMA relationship count, hard-reset participant validation, deduplicated pinned-participant DMA recovery, coordinator running-list/link ownership, and soft/hard arm/START publication |
@@ -74,17 +77,18 @@ The important reference direction is:
 
 ```text
 job -> session
-job -> retained activation list -> selected hardware per activation
-job -> every import used by its register image
-job -> decoder CCU/link descriptor when required
+job -> retained activation list -> selected hardware + attempt resources
+job -> every import used by its sealed register image
+job -> separate readback result
 ```
 
 Consequently, closing a file or removing a handle cannot free memory still
 needed by an accepted job.
 
-This is the as-built graph. Phase 3 has moved attempt-bounded state out of the
-broad `rk_mpp_job`; remaining `rk_mpp_hw`/cluster debt concerns admission and
-shared-hardware policy rather than activation retirement. `rk_mpp_cluster` constructs topology, owns
+This is the as-built graph. The ownership refactor moved attempt-bounded state
+out of the broad `rk_mpp_job`; remaining `rk_mpp_hw`/cluster debt concerns
+admission and shared-hardware policy rather than activation retirement.
+`rk_mpp_cluster` constructs topology, owns
 validation for one hard-CCU reset-domain pulse, and funnels coordinator
 running-list/link and soft/hard publication mechanics. Single-core reset and
 idle-fault paths now refresh translations through one typed result before
@@ -93,45 +97,19 @@ participants' DMA groups and refreshes each once before resend; terminal
 isolation reports quiesced without reuse. The
 cluster-validated power lease owns member-core holds through the exact
 activation resource record; the cluster does not own admission, coordinator
-per-job power, descriptor admission, or quarantine. Phase 3A embeds the first
-`rk_mpp_activation` in the job as the source of truth for its assigned
-generation and absolute watchdog deadline. Phase 3B makes the session's
-RKVDEC dispatch owner point at the exact current activation instead of tracking
-two booleans. Phase 3C moves the retained selected-core reference into each
-activation. Phase 3D makes exact activation addresses the active- and
-timeout-slot type while preserving one independent containing-job reference
-for each non-NULL slot. Phase 3E funnels every active-slot detach through one
-reasoned claim owner: `SLOTTED` becomes `CLAIMED`, and reset or stop failure
-restores that exact record. Phase 3F adds a job-owned activation list and
-current pointer; every committed hard-CCU retry gets a distinct successor
-while the old record freezes as `SUPERSEDED/RETRY_REPLACED`. Old storage
-remains address-stable until final job release. This is retained identity, not
-a complete transition owner. Phase 3G adds a narrow exception for hard-CCU
-retry predecessors: the completed group recovery is copied before
-supersession, and an exact pointer/generation token records the later per-core
-result before marking that predecessor `RETIRED`. Phase 3H extends typed closure
-to recovered terminal claims. Its nonempty claim token owns the job reference
-detached from the active slot; successful direct-core or hard-CCU group/core
-proof retires that activation, while exact restore refusal transfers the
-reference and token generation to a service `QUARANTINED` tombstone. The
-tombstone keeps diagnostic/core/group evidence distinct, retains resources and
-dispatch, closes core/CCU admission, blocks remove, and survives shutdown until
-reboot. Phase 3I records exact `NOT_PUBLISHED`, `IRQ_ACCEPTED`, or
-`CCU_DONE_ACCEPTED` observation/status before clean retirement. RKVDEC
-`BUS_IDLE` status remains advisory evidence, recovered proof remains separate,
-and the legacy `CLAIMED` fallback is gone. AV1 untrusted-stop failure retains
-`SLOTTED` active ownership for remove/shutdown retry. Phase 3J adds a base
-activation bias and replaces external job-pointer adapters with
-typed `{activation, generation}` references paired with containing-job
-references for active, timeout, claim, retry, and quarantine ownership.
-Dispatch/current/list identities remain borrowed. The Phase 3 completion
-checkpoint then moves CCU/link/DCHS/power/timing leases into an activation-owned
-resource record, transfers that entire record during hard-CCU retry under the
-coordinator/core locks, and accumulates terminal reasons for stable-priority
-arbitration. One completion owner drains exact resources and releases
-selected-core/dispatch ownership before publishing `DONE`; retired drained
-predecessors become `RECLAIMABLE` once external references are gone, while
-quarantine retains its resources through reboot.
+per-job power, descriptor admission, or quarantine.
+
+Each activation now owns one immutable attempt identity, selected core,
+generation/deadline, typed active/timeout/claim references, terminal evidence,
+and its CCU/link/DCHS/power/timing resources. A committed hard-CCU retry gets a
+distinct successor and transfers the complete resource record; it never
+rewrites the predecessor in place. Terminal reasons accumulate under a stable
+priority, then one completion owner drains resources, releases selected-core
+and session-dispatch ownership, and alone publishes `DONE`. A retired drained
+predecessor becomes `RECLAIMABLE` only after its typed references are gone.
+Quarantine deliberately retains its exact references and resources through
+reboot. The [refactor case study](07-ownership-refactor-case-study.md) explains
+the checkpoint sequence that established these invariants.
 
 ### 3.2 Session lifecycle
 
@@ -198,13 +176,18 @@ Before submission, the driver:
 2. chooses an eligible core;
 3. allocates/extends the kernel register image with overflow checks;
 4. translates buffer references or validates explicit IOVAs;
-5. applies address offsets;
-6. applies RCB information;
-7. calls the hardware backend's validator;
-8. publishes the job to the queue.
+5. applies address offsets and all pre-dispatch RCB information;
+6. clones the future readback destinations into a separate result object;
+7. release-publishes the register builder as `SEALED`;
+8. passes the const sealed image to the hardware backend's validator;
+9. publishes the job to the queue.
 
 The staged register image lives in kernel memory. Hardware and IRQ code never
-dereference the original userspace pointer.
+dereference the original userspace pointer. More subtly, no backend may mutate
+the image after sealing. Runtime-only DCHS state is an activation resource
+overlay, and readback goes to `rk_mpp_reg_result`; neither is a reason to reopen
+the command recipe. The release/acquire publication pair makes `SEALED` a real
+cross-context boundary rather than a comment saying validation happened.
 
 ### 3.5 DMA-BUF import and register translation
 
@@ -291,17 +274,20 @@ the dispatch can no longer start or own hardware; an unproved stop keeps it
 held fail-closed. Final job release also refuses to free an activation still
 named by the session, avoiding a dangling pointer or slab-reuse ABA. Hard-CCU
 retry transfers the pointer directly to the distinct retained successor under
-the scheduler/admission lock, so no same-session admission window opens. A
-Phase 3H quarantine keeps that exact owner pointer and its containing job alive
-until reboot rather than releasing dispatch after an unproved restore.
+the scheduler/admission lock, so no same-session admission window opens.
+Quarantine keeps that exact owner pointer and its containing job alive until
+reboot rather than releasing dispatch after an unproved restore.
 
 MPP uses a small backend interface:
 
 ```c
 struct rk_mpp_backend_ops {
-        int (*validate)(struct rk_mpp_job *job);
-        int (*submit)(struct rk_mpp_job *job);
-        irqreturn_t (*irq)(struct rk_mpp_hw *hw);
+        int (*validate)(struct rk_mpp_job *job,
+                        const struct rk_mpp_reg_image *image);
+        int (*submit)(struct rk_mpp_job *job,
+                      const struct rk_mpp_reg_image *image);
+        irqreturn_t (*irq)(struct rk_mpp_hw *hw,
+                           const struct rk_mpp_irq_register_lease *lease);
         irqreturn_t (*thread)(struct rk_mpp_hw *hw);
         void (*quiesce_aux_irqs)(struct rk_mpp_hw *hw);
 };
@@ -346,82 +332,41 @@ Without a generation check, timer A could reset job B.
 Each activation also owns an absolute watchdog deadline plus an
 explicit validity bit. Canceling and restoring the timeout target for the same
 attempt preserves that deadline; installing a new current attempt clears it.
-The active and timeout slots retain activation pointers, but existing terminal
-callers still recover `activation->job` through compatibility adapters.
-Hard-CCU retry now publishes a separately allocated successor and keeps every
-predecessor linked until final job release. The saved timeout generation stays
-as a defensive exact-attempt cookie in addition to the now-distinct address.
+The active slot, watchdog, claim token, retry token, and quarantine tombstone
+all carry typed `{activation, generation}` references. Each such reference also
+retains the containing job. `clone` takes both references, `move` transfers
+them without changing the count, and `put` releases both. This is deliberately
+stronger than copying a pointer and hoping the job remains alive.
 
-Phase 3E adds one reasoned claim owner for every active-slot detach. All match,
-generation, and fault-priority predicates run before it changes `SLOTTED` to
-`CLAIMED`; failed claims leave state and reason untouched. A pending IOMMU
-fault keeps the existing priority over IRQ, timeout, and CCU-done claims, while
-session/device teardown retains its existing first-winner behavior. Restore
-returns the same activation to `SLOTTED` with no generation, deadline, or
-reference change. `CLAIMED` is therefore a restorable ownership record, not
-`RETIRED`, and the early session-abort result publication remains outside this
-owner. These are deliberate Phase 3E boundaries, not the final activation
-retirement or outcome-arbitration engine.
+The normal state progression is:
 
-Phase 3F makes retry identity immutable. The first activation uses embedded
-storage; later hard-CCU attempts are separately allocated and linked to the
-job. Retry switches the job's current pointer, session dispatch owner, and
-hardware active slot together, then marks the predecessor
-`SUPERSEDED/RETRY_REPLACED` without freeing or reusing it. The old generation
-and deadline remain frozen while detached timeout work drains. Every retained
-activation owns one selected-core reference until the all-attempt completion
-or destructor walk drops them. The switch deliberately occurs at the same
-pre-stop point as Phase 3E's in-place generation advance, so superseded means
-logically replaced rather than quiesced or retired.
+```text
+UNINSTALLED -> SLOTTED -> CLAIMED -> RETIRED -> RECLAIMABLE
+                      \-> QUARANTINED
+SLOTTED -> SUPERSEDED -> RETIRED -> RECLAIMABLE   (hard-CCU retry predecessor)
+```
 
-Phase 3G retains the proof that closes that predecessor. Retry commit requires
-and copies a quiesced/reusable group result, then returns an exact
-pointer/generation token. Per-core stop/recovery always records its result
-through that token before the predecessor moves from pending supersession to
-`RETIRED`. The group record proves the old shared descriptor/DMA lifetime has
-ended; the core record separately gates whether the successor may start. This
-does not retire ordinary terminal claims or permit early activation storage
-freeing.
+One claim helper owns every active-slot detach. A failed stop may restore the
+same claim to `SLOTTED`; it may not quietly release it. Clean completion records
+an immutable `NOT_PUBLISHED`, `IRQ_ACCEPTED`, or `CCU_DONE_ACCEPTED`
+observation. Recovered completion instead requires typed core or group/core
+quiescence evidence. RKVDEC `BUS_IDLE` is diagnostic evidence only, never a
+DMA-retirement proof.
 
-Phase 3H makes the separate active-claim token a reference owner: its one job
-reference is the reference removed from `active_activation`. Recovered
-error-IRQ, timeout, fault, abort/close, remove/shutdown, reset-error, and
-dependent paths release that token only after a typed direct-core or hard-CCU
-group/core result moves
-the activation to `RETIRED`. If exact restore fails, the token instead moves
-the reference and original generation to the service quarantine list. That
-tombstone records a diagnostic quarantine error separately from the core and
-group recovery statuses, keeps the activation's resources and dispatch lease,
-closes selected-core and owned-CCU admission, blocks remove teardown, and is
-retained through shutdown until reboot. Clean IRQ/`CCU_DONE` and pre-doorbell
-`START_FAILURE` still use the Phase 3G `CLAIMED` release boundary; Phase 3H is
-not general clean retirement, `RECLAIMABLE`, or final outcome arbitration.
+A hard-CCU retry allocates a distinct successor and atomically transfers the
+current, dispatch, active-slot, and complete attempt-resource ownership. The
+predecessor's address, generation, deadline, and closure evidence remain
+unchanged while stale callbacks drain. Terminal reasons are accumulated and a
+stable priority chooses the final public result, so arrival order between IRQ,
+timeout, fault, and teardown does not change policy.
 
-Phase 3I removes that clean-terminal fallback. Pre-doorbell start rollback
-records `NOT_PUBLISHED`; accepted direct IRQ records `IRQ_ACCEPTED` plus its
-hardware status; accepted descriptor completion records `CCU_DONE_ACCEPTED`
-plus its descriptor status. Each exact observation is immutable before the
-claim becomes `RETIRED`, and a foreign/impossible finisher quarantines instead
-of rewriting it. The optional RKVDEC `BUS_IDLE` checked/status tuple is
-diagnostic evidence only, not a quiescence or reuse proof. Recovered retirement
-continues to require its separate typed closure. If AV1 cannot establish a
-trusted stop, its start-failure path retains `SLOTTED` active ownership for
-remove/shutdown retry rather than manufacturing terminal evidence. `RETIRED`
-still does not mean resources drained or storage `RECLAIMABLE`.
-
-Phase 3J makes the lifetime of every dereference-capable external identity
-explicit. Active, timeout, claim, retry, and quarantine owners hold typed
-`{activation, generation}` references paired with containing-job references;
-clone gets both, move transfers both, and put releases both. Each activation's
-base bias belongs to retained job storage and carries no job reference. Retry
-preflight refusal leaves the predecessor active and puts the unpublished
-successor pair; after successful A→B publication, finish refusal transfers the
-predecessor retry pair into quarantine. The job current pointer, session
-dispatch owner, and activation list remain borrowed. The Phase 3 completion
-checkpoint releases a predecessor's list/base bias only after typed external
-owners, selected hardware, dispatch identity, retirement, and resource-drain or
-handoff state prove it reclaimable. Embedded storage remains part of the job;
-allocated retry storage is freed immediately at that boundary.
+`RETIRED` means the attempt has terminal proof; it does not by itself permit
+freeing. Reclaim additionally requires drained or handed-off resources, no
+typed external references beyond the list bias, no selected-core reference,
+and no dispatch identity. The embedded first activation remains part of the
+job; dynamically allocated retry predecessors may be freed at that boundary.
+`QUARANTINED` is the fail-closed alternative: the driver retains exact
+references and DMA-visible resources rather than manufacturing safe cleanup.
 
 START publication also creates a bounded IRQ/register lease under
 `hw->regs_lock`. The lease records the live reset epoch and, for direct-core
@@ -437,20 +382,22 @@ descriptor lifetime, but remain reset-epoch bound.
 
 The RKVENC2 backend:
 
-1. validates required MMIO ranges, IRQ, core clock, writes, and readbacks;
-2. claims the core's active slot under `run_lock`;
+1. validates required MMIO ranges, IRQ, core clock, writes, and readbacks from
+   the const sealed image;
+2. claims the core's exact activation under `run_lock`;
 3. powers the core;
 4. clears old state/counters;
 5. patches dual-core DCHS identifiers;
 6. writes all registers except the start register;
 7. programs the hardware watchdog from resolution and clock rate;
-8. arms the software timeout;
+8. arms the exact activation-generation timeout;
 9. issues a write barrier;
 10. writes the start value.
 
-The start register is written last. This is a general hardware-driver rule:
-fully construct visible state, use the required memory ordering, and only then
-ring the doorbell/start bit.
+The owner-specific `publish_and_start()` operation keeps those final steps
+together, and the start register is written last. This is a general
+hardware-driver rule: fully construct and publish visible ownership, use the
+required memory ordering, and only then ring the doorbell/start bit.
 
 Encoder slice mode is a second completion stream. Hard IRQ acknowledges and
 records the lease-bound status, then the threaded handler pushes slice lengths
@@ -473,13 +420,13 @@ In soft mode the selected core remains the software owner:
 - arm timeout;
 - start that core.
 
-Completion is attributed directly to the core's active job.
+Completion is attributed directly to the core's active activation.
 
 #### Hard CCU/link mode
 
 In hard mode the driver creates a DMA-coherent link-table descriptor. The CCU
 can execute the descriptor on a core different from the software-side owner.
-The job therefore retains:
+The activation therefore retains:
 
 - the selected core;
 - the exact coordinator;
@@ -510,13 +457,13 @@ START transaction is ordered as follows:
 2. decoder and AFBC registers are programmed without ringing START;
 3. `vsi_iommu_reserve_dma()` takes the provider admission mutex, resumes it,
    disables/drains its IRQ, and performs the final fault snapshot;
-4. MPP publishes the active job and generation;
+4. MPP publishes the active activation and generation;
 5. one raw-spinlocked auxiliary transaction drains stale AFBC status, requires
    it to deassert, publishes the AFBC generation, writes VCD START, and unmasks
    the dedicated AFBC IRQ;
 6. `vsi_iommu_release_dma()` snapshots a fault once more before restoring the
    provider IRQ/PM state and may synchronously dispatch the consumer callback
-   while the MPP job is still owned.
+   while the MPP activation is still owned.
 
 The provider retains fault address/status/domain state until exactly one
 delivery path claims it. Callback in-flight accounting covers IRQ and
@@ -538,19 +485,24 @@ cannot be proved.
 
 The hard IRQ snapshots the live register lease, acknowledges hardware, and
 records status with that epoch/generation. The threaded handler rejects a
-missing, consumed, or stale record before it claims the active job, then
-cancels its timeout, reads requested registers, handles error/reset
-requirements, powers down, and calls `rk_mpp_job_complete()`.
+missing, consumed, or stale record before it claims the exact activation, then
+cancels its timeout, writes hardware observations into the separate result
+object, handles error/reset requirements, and converges on the central
+completion owner.
 
 Completion:
 
-1. records elapsed hardware time;
-2. stores the result and changes state to `DONE` under the session lock;
-3. releases DCHS/link resources;
-4. drops the hardware reference;
-5. releases the exact RKVDEC activation-dispatch owner, if held;
-6. wakes the session waitqueue;
-7. schedules the next queued work.
+1. records elapsed hardware time and the terminal reason's candidate result;
+2. applies the stable terminal-priority policy once;
+3. drains activation-owned DCHS/link/CCU/power/timing resources;
+4. releases the exact selected-core and RKVDEC dispatch identities;
+5. stores the chosen result and changes the logical job state to `DONE`;
+6. wakes the session waitqueue and schedules the next queued work;
+7. reclaims retired predecessor storage whose external owners have drained.
+
+Quarantine never enters this successful terminal tail. That exclusion is what
+makes `DONE` mean the driver completed the required cleanup rather than merely
+decided that the operation failed.
 
 The session's active-job list preserves userspace submission order.
 `POLL_HW_FINISH` waits until the first job is done, removes it from that list,
@@ -590,10 +542,9 @@ The recovery path:
 
 The important rule is: **do not free DMA-visible memory merely because software
 decided a job failed**. First prove the engine can no longer fetch from it.
-If a stop attempt cannot supply that proof, recovery restores the active job
-and fault-generation marker, quarantines the engine, fails queued work, and
-keeps the DMA-visible resources pinned for a later fail-stop remove/shutdown
-retry.
+If a stop attempt cannot supply that proof, recovery restores or quarantines
+the exact activation and fault-generation owner, fails queued work, and keeps
+the DMA-visible resources pinned for a later fail-stop remove/shutdown retry.
 
 ### 3.12 Reset failure and permanent DMA isolation
 
@@ -644,7 +595,7 @@ preserve memory safety.
 | `hw.ccu_recovery_lock` | shared coordinator admission/recovery | process/IRQ thread |
 | `hw.run_lock` | one core's start, completion, abort, recovery, removal | process/IRQ thread |
 | `reset_domain.lock` | reset state/epoch and physical reset transaction | innermost sleepable mutex; only bounded `regs_lock` lease revocation nests beneath it before a reset write |
-| `hw.lock` | active/timeout job and activation generations | hard IRQ and process |
+| `hw.lock` | typed active/timeout activation references, claim state, generations, and small IRQ-visible transition data | hard IRQ and process |
 | `hw.regs_lock` | register power count, published reset/generation lease, and recorded IRQ lease/status | raw spinlock shared by reset, START, hard IRQ, and thread |
 | `hw.aux_lock` | AV1 AFBC mask/status/generation and START handoff | raw spinlock shared with dedicated hard IRQ; nested inside `regs_lock` when both are held |
 | `job.rkvenc_slice_lock` | slice FIFO flags/data | IRQ thread and process |

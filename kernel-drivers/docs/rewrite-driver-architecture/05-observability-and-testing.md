@@ -64,6 +64,16 @@ The [rewrite KUnit guide](../rewrite-kunit.md) documents their source
 organization, fixture contract, debug-kernel autorun, exact-count KTAP parser,
 kernel-log gate, and evidence-capture workflow.
 
+The ownership refactor also added a different kind of test: the maintained
+[`rewrite-ownership-source-audit.py`](../../tests/rewrite-ownership-source-audit.py)
+rejects structural bypasses that a runtime test may never schedule. It checks,
+among other invariants, that active-slot writes use the typed helpers, only the
+RGA orchestrator advances tasks, MPP backends receive const sealed images, RGA
+emitters do not accept raw requests, execution resources have one teardown
+owner, and watchdog ownership is published before a doorbell. Its baseline is
+an explicit reviewed allowlist, not a claim that text search proves concurrency
+correctness.
+
 The tests concentrate on boundaries that are difficult to reproduce reliably
 on hardware:
 
@@ -77,8 +87,24 @@ on hardware:
 - IRQ status decoding;
 - reset/quarantine behavior;
 - CCU/link/DCHS coordination;
-- task progression and command emission;
+- activation/task-execution transitions, terminal arbitration, and reclaim;
+- acquire-set callback/cancel zero crossing;
+- builder sealing, rejection of post-seal writes, and separation of result
+  storage;
+- immutable RGA plan replay and command emission;
 - close/remove handoffs.
+
+These tests form three complementary contracts:
+
+| Contract | Best at catching | Blind spot |
+|----------|------------------|------------|
+| KUnit state/recipe cases | Wrong transitions, ref transfers, parsing, arithmetic, plan fields, and command words | Real IRQ/DMA/reset timing |
+| Source audit | A newly introduced bypass writer, raw-request emitter, duplicate completion tail, or forbidden teardown site | Semantic correctness of an allowed helper |
+| Hardware qualification | Actual MMIO, DMA visibility, reset, pixels/bitstreams, and race behavior | Rare paths not exercised by the chosen workload |
+
+A new developer should normally update the owning KUnit case and source rule
+with an ownership change, then still run the relevant board gate. Passing one
+contract is not permission to skip the other two.
 
 The evidence levels must not be collapsed:
 

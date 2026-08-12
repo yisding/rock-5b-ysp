@@ -143,7 +143,7 @@ comments contradict — see
 > ([kernel status](./forward-port-status.md), [`status.md`](../../status.md)). Location + pin in
 > §6.
 
-## Current comparison (2026-08-09)
+## Current comparison (2026-08-11)
 
 The implementations are now stable enough to compare as designs, but not yet
 equally qualified products. The forward port is the broader, measured delivery
@@ -156,16 +156,16 @@ and teardown charts.
 
 | Dimension | Forward-port (`mpp/`, `rga3/`) | Rewrite (`mpp-rewrite/`, `rga-rewrite/`) |
 |-----------|--------------------------------|------------------------------------------|
-| Primary objective | Preserve Rockchip behavior while moving the BSP stack to Linux 6.18. | Preserve the current ROCK 5B userspace contract while replacing BSP internals with public kernel APIs and explicit ownership. Current tips are 6.18 `149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` on `v6.18.42` and mainline `280181e634a3a10a3a4f1659fe7c7287f7ee3760` on `v7.2-rc6`. |
-| Code origin | Rockchip 6.1 BSP, ~87% unchanged (~90% Rockchip-authored), followed by the maintained forward-port/hardening series. | Independent implementation; current tips include the AV1 backend, August adversarial repairs, librga DMA/fence/bounce compatibility, selected-core USERPTR mapping under power, per-session RKVDEC dispatch serialization, RGA command-buffer publication, Phase 1 ownership funnels, Phase 2 reset/cluster/recovery and IRQ-register leases, completed Phase 3 MPP activation ownership/retirement, Phase 4 RGA task-execution ownership, Phase 5 sealed MPP images and immutable RGA task plans, BSP-shaped MPP device discovery, explicit RGA3 shared-IRQ wiring, exact KUnit manifests, compile-time ABI layout contracts, and reconciled ABI ledgers. |
+| Primary objective | Preserve Rockchip behavior while moving the BSP stack to Linux 6.18. | Preserve the current ROCK 5B userspace contract while replacing BSP internals with public kernel APIs and explicit ownership. Current local tips are 6.18 `d9cbcf21cda1c047c053447a48a908dcb6e4c5d6` on `v6.18.42` and mainline `b6335efd8f98bedabf426a80d224f85a266c8ea4` on `v7.2-rc6`; the fully built Phase 4/5 completion parents remain separate evidence anchors. |
+| Code origin | Rockchip 6.1 BSP, ~87% unchanged (~90% Rockchip-authored), followed by the maintained forward-port/hardening series. | Independent implementation; current tips include the AV1 backend, August adversarial repairs, librga DMA/fence/bounce compatibility, selected-core USERPTR mapping under power, per-session RKVDEC dispatch serialization, RGA command-buffer publication, Phase 1 ownership funnels, Phase 2 reset/cluster/recovery and IRQ-register leases, completed Phase 3 MPP activation ownership/retirement, Phase 4 RGA task-execution ownership, Phase 5 sealed MPP images and immutable RGA task plans, and the post-refactor boundary hardening for fixed-width MPP UAPI decoding, IOMMU build dependencies, RGA request preflight, USERPTR pin accounting, fault latching, conservative execution reclamation, and system suspend. |
 | Hardware and codec scope | Broad BSP surface, including RK3588 RKVENC2/RKVDEC2, RGA2/RGA3, the separate RKMPP AV1/VPU981 backend, and legacy SoC helper code. | Deliberately RK3588-focused: RKVENC2/RKVDEC2, the separate RKMPP AV1/VPU981 block, and RGA2/RGA3. JPEG and older VDPU/VPU blocks remain outside this slice; AV1 is source/build-only. |
 | Userspace ABI policy | Carries the broad vendor ABI and its historical behavior, including profiles not required by the current ROCK 5B workload. | Implements the observed current `mpp-rockchip`/`librga`/FFmpeg/GStreamer subset, documents the boundary in two `ABI.rst` files, and returns explicit errors for recognized unsupported or unsafe paths. |
 | State and lifetime model | Modular BSP subsystem, but heavily global: service/request/memory managers route work into per-core scheduler state. The hardening tail repairs ownership races without replacing that model. | Session-owned IDs/imports and copied jobs retain exact hardware/import references. One `rk_mpp_activation` owns each admitted attempt's generation/deadline, typed active/timeout/claim identities, closure/quarantine proof, CCU/link/DCHS/power/timing leases, terminal reason arbitration, exact drain, and reclaim boundary. One `rk_rga_task_exec` owns each task's selected core, mappings, MMU/command storage, typed async edges, copyback, timing, retirement, and quarantine. Only the job orchestrator advances tasks or completes/fences the request. |
 | DMA/IOMMU model | Compatibility shims plus vendor-derived mapping and recovery machinery, progressively hardened with public fault routing and 32-bit aperture checks. | Public dma-buf/DMA/IOMMU APIs only; mappings are tied to the selected DMA device, literal IOVAs require provenance, and scattered RGA userptr uses a driver-owned contiguous IOVA fallback. RGA imports retain identity/pins only; execution mappings are installed after the selected core is powered and retired before power-off. The current tip publishes the complete coherent command image with `dma_wmb()` before the MMIO start doorbell. |
 | Kernel-version coupling | Production work is pinned to 6.18 and carries `compat/` glue; resync cost is paid when BSP assumptions meet newer kernel APIs. | The tracked rewrite driver/Kconfig/ABI/uAPI files are byte-identical on 6.18 and the current mainline branch; surrounding kernel, DT, and IOMMU integration differs. Final-source Phase 4/5 KUnit-enabled and test-disabled objects compile on both lines; both still need independent boot proof. |
-| Source organization | Many focused C/header files: easier subsystem-local navigation, but behavior crosses global managers, backend ops, and compatibility layers. | One large C file per driver plus an ABI ledger. Ownership flow is more local, but the current 25,594-line MPP and 27,277-line RGA translation units include large embedded KUnit regions and remain a review/merge burden. |
-| In-tree testability | No comparable driver KUnit suite; confidence comes primarily from BSP history, repository reproducers, and extensive board runs. | 109 MPP + 152 RGA KUnit cases (261 total), fail-closed validators, sealed-image and immutable-plan goldens, debugfs counters, an exact 2,312/tree ownership audit, a 306/tree fixture-debt audit, and cross-kernel warning-fatal build profiles. The tests have already exposed fixture/lifetime defects, so their presence is useful evidence rather than a correctness guarantee. |
-| Board evidence | Published 6.18 kernel has broad conformance, bit-exact, sanitizer, root-gate, and production-performance evidence. | KASAN boot `#2` (`g19634f4eebba`, 2026-08-05) completed exact 92/92 MPP plus 152/152 RGA KTAP with a clean outer interval and live lockdep. Kernel #8 at `gf37186832202` later exposed residual same-session decode corruption, solo RGA3 vpp corruption, and an overlay-chain RGA3 IOMMU fault; those observations motivated the current source repairs. Phase 4/5 tips `149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` / `280181e634a3a10a3a4f1659fe7c7287f7ee3760` have source and compile evidence but remain unbooted, and the RGA2 1 MiB SWIOTLB staging limitation remains open. No current-tip RGA media or AV1 hardware result exists. |
+| Source organization | Many focused C/header files: easier subsystem-local navigation, but behavior crosses global managers, backend ops, and compatibility layers. | One large C file per driver plus an ABI ledger. Ownership flow is more local, but the current 25,608-line MPP and 27,696-line RGA translation units include large embedded KUnit regions and remain a review/merge burden. |
+| In-tree testability | No comparable driver KUnit suite; confidence comes primarily from BSP history, repository reproducers, and extensive board runs. | 109 MPP + 152 RGA KUnit cases (261 total), fail-closed validators, sealed-image and immutable-plan goldens, debugfs counters, a source-pinned ownership audit, a fixture-debt audit, and cross-kernel warning-fatal build profiles. The current boundary-hardening heads preserve the named manifest and pass the 2,313/tree ownership inventory; the eight-profile compile record remains tied to their Phase 4/5 parents. |
+| Board evidence | Published 6.18 kernel has broad conformance, bit-exact, sanitizer, root-gate, and production-performance evidence. | KASAN boot `#2` (`g19634f4eebba`, 2026-08-05) completed exact 92/92 MPP plus 152/152 RGA KTAP with a clean outer interval and live lockdep. Kernel #8 at `gf37186832202` later exposed residual same-session decode corruption, solo RGA3 vpp corruption, and an overlay-chain RGA3 IOMMU fault; those observations motivated the source repairs. Phase 4/5 tips `149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` / `280181e634a3a10a3a4f1659fe7c7287f7ee3760` have source and compile evidence but remain unbooted; the newer boundary-hardening tips are source-audited but not yet compile- or boot-qualified. The RGA2 1 MiB SWIOTLB staging limitation also remains open. |
 | Present deployment role | Production baseline and differential oracle. | Advanced bring-up and candidate successor; not yet a production substitute. |
 
 The most important contrast is therefore not “old code versus clean code.” It
@@ -289,19 +289,23 @@ in ownership and maintenance shape. The vendor driver is a broad BSP subsystem
 with global `rga_drvdata`, scheduler policy, `rga_mm`, debug/procfs machinery,
 legacy SoC compatibility, KERNEL_VERSION gates, and page-table walking. The
 rewrite keeps the `/dev/rga` ABI but uses session-owned ids, refcounted imports
-and jobs, job-owned per-core mappings, public dma-buf/DMA APIs, and explicit
-`-EOPNOTSUPP` boundaries for profiles it does not yet emit. If it ends up near
+and whole jobs, execution-owned per-core mappings, immutable task plans, public
+dma-buf/DMA APIs, and explicit `-EOPNOTSUPP` boundaries for profiles it does not
+yet emit. If it ends up near
 the vendor size, the win is still clearer ownership, less BSP baggage, and an
 auditable public-API driver. If it drifts into copied vendor tables and quirks,
 that advantage shrinks.
 
-### Exact RGA size accounting
+### Historical pre-refactor RGA size accounting
 
-The current source-size comparison uses the common 6.18 forward-port base
+The following 2026-07 snapshot predates the ownership refactor and is preserved
+to explain why raw line count did not motivate it. It uses the common 6.18 forward-port base
 `12a7da02bea83` and rewrite tip `835b19f81d2b` from
 [source-tree pins](../../docs/source-trees.md) §8. It counts tracked `*.c`,
 `*.h`, `Kconfig`, and `Makefile` lines from Git objects, so ignored build
-products in either worktree cannot inflate it.
+products in either worktree cannot inflate it. The current Phase 4/5 source is
+larger and is accounted separately in the
+[architecture comparison](./driver-architecture-comparison.md#7-source-structure-and-test-architecture).
 
 | Content | Forward-port `rga3/` | Rewrite `rga-rewrite/` |
 |---------|---------------------:|-----------------------:|
@@ -402,18 +406,19 @@ open
   -> IRQ looks the request up by id and updates completion counters
 ```
 
-The rewrite is a **session/job/core ownership model**:
+The rewrite is a **session/job/execution/core ownership model**:
 
 ```text
 open
   -> owning session {request IDR, import IDR, submitted-job list}
   -> configured request owns copied tasks/imports/fences
-  -> submit clones kernel-owned job configuration
-  -> job selects and retains an eligible hardware core
-  -> job creates mappings and a command buffer for that core
-  -> per-core queue + active_job
-  -> IRQ/timeout/fault completes that exact job
-  -> session releases it only after every owner drains
+  -> submit clones a kernel-owned whole job
+  -> acquire set resolves dependencies before dispatch
+  -> job orchestrator creates a distinct task execution
+  -> execution selects a core, owns mappings/MMU/command, and freezes a task plan
+  -> owner-specific publish_and_start() installs active_exec and rings the doorbell last
+  -> IRQ/timeout/fault retains and retires that exact {execution, generation}
+  -> job alone advances current_task, creates fallback/next-task successors, or signals its fence
 ```
 
 The corresponding objects differ like this:
@@ -424,13 +429,16 @@ The corresponding objects differ like this:
 | Session | Mostly identity/process metadata plus a refcount | Owns import IDs, request IDs, submitted jobs, and close/dispatch state |
 | Request | Stored in a global pending-request IDR | Stored in the opening session's request IDR and owns copied tasks/import/fence references |
 | Imports | Stored in global `rga_mm`, tagged with a session, and associated with a mapping scheduler | Stored in the session and retained directly by configured requests and submitted jobs |
-| Job | Refers back to a request by numeric ID and obtains resources through global managers | Owns its task snapshot, import references, per-core mappings, fences, command buffer, session link, and hardware reference |
-| Hardware | Entry in the global scheduler array, with a backend-ops vtable, `todo_list`, and `running_job` | Refcounted object with its own queue, `active_job`, start/recovery lock, timeout/fault work, power state, and quarantine state |
+| Job | Refers back to a request by numeric ID and obtains resources through global managers | Owns its task snapshot, import references, aggregate result, fence, session link, and `current_task`; it orchestrates executions but does not own one execution's hardware resources |
+| Acquire dependencies | Callback state is attached to the global request path | `rk_rga_acquire_set` owns the callback/sentinel/work/cancel lifetime and reports one aggregate dependency result to the job |
+| Task execution | No separate object; one forward-port `rga_job` is already one schedulable task | `rk_rga_task_exec` is one physical task/core attempt and owns the selected hardware, mappings, RGA2 MMU, command allocation, immutable `rk_rga_task_plan`, USERPTR copyback, power, timing, and typed async references |
+| Hardware | Entry in the global scheduler array, with a backend-ops vtable, `todo_list`, and `running_job` | Refcounted object with its own queue, `active_exec`, start/recovery lock, timeout/fault work, power state, and quarantine state |
 
-The rewrite still has global state; it deliberately moves user-resource
-ownership out of it. The service is a registry and coordination root, while the
-session and job own the resources whose teardown races with ioctls, fence
-callbacks, IRQs, timeouts, and platform removal.
+The rewrite still has global state; it deliberately moves user-resource and
+attempt-resource ownership out of it. The service is a registry and coordination
+root, the session owns public handles, the job owns the userspace transaction,
+and the execution owns everything that must stay coherent while one core may be
+running or recovering.
 
 #### Multi-task request model
 
@@ -558,7 +566,7 @@ contract; the later local reconciliation branch does:
 | Rockchip 5.10 `bfa51d2ab081` | fans unflagged tasks out independently | one ordered hardware command batch |
 | Forward-port `18fae9957686` | fans every task out as an independent `rga_job` | still fans out; its header does not define bit 6 and regular request commit never interprets it |
 | Reconciled local forward port `8d78edbe910c` | fans unflagged tasks out independently | one ordered hardware command batch, including the required master/slave follow-up |
-| Rewrite `0d71ded1690c` | executes tasks serially through `current_task` | also executes serially, so dependency ordering happens to be correct |
+| Rewrite `149a9ecd38f78` | executes tasks serially through distinct task executions orchestrated by `current_task` | also executes serially, so dependency ordering happens to be correct |
 
 The published forward-port pin favors the performance semantics of an
 independent batch but can violate the new dependency flag; the reconciled local
@@ -635,20 +643,27 @@ initialization, and then enqueues the prepared job.
 The rewrite deliberately rejects physical-address imports. dma-bufs use public
 attach/map APIs; userptr imports pin pages and build owned sg-tables, with the
 contiguous-IOMMU fallback documented in [RGA userptr/IOMMU](../rga/docs/userptr-iommu.md).
-The session owns the import, while each submitted job owns the mapping for the
-core that will execute it. At backend start the rewrite rebases images to that
-core's DMA device, synchronizes userptr memory, powers the core, allocates a
-job-owned coherent command buffer, emits commands, and starts hardware. A
-handle can therefore outlive one mapping without allowing release to invalidate
-an in-flight job.
+The session owns the import identity and pins. Each `rk_rga_task_exec` owns the
+mapping for its selected core, including whether the path is direct, staged, or
+the copy owner. It also owns the RGA2 MMU allocation and coherent command
+buffer. After mapping and validation, the driver freezes an immutable
+`rk_rga_task_plan`; emitters consume that plan rather than the raw request or
+`job->tasks`. Owner-specific `publish_and_start()` validates the exact
+execution/plan, arms that execution's timeout, orders the coherent command
+image with `dma_wmb()`, and rings the MMIO doorbell last. A handle can therefore
+outlive one execution mapping without allowing release to invalidate in-flight
+hardware state.
 
 #### Fences, close, and removal
 
 The forward request owns its release fence; an acquire callback commits the
 request, and each completed job finds the request in the global manager to
-increment its completion counters. The rewrite job directly owns its acquire
-references/callbacks, release fence and pending fd reservation, session-list
-membership, and hardware reference.
+increment its completion counters. The rewrite job owns its release fence,
+pending fd reservation, session-list membership, and aggregate result.
+`rk_rga_acquire_set` separately owns acquire callbacks and cancellation until it
+hands one dependency result to that job. Hardware references belong to the
+current execution and to typed active/IRQ/timeout/fault observations, each paired
+with the containing-job reference required to keep the transaction alive.
 
 That ownership makes rewrite close deterministic: mark the session closing,
 reject new tracking, cancel jobs waiting on acquire fences, remove its queued
@@ -663,16 +678,19 @@ an unrelated descriptor reused by another thread.
 The forward port preserves the BSP state-bit, `running_job`, backend soft-reset,
 request-lookup, and diagnostic machinery. The rewrite serializes hardware
 start, IRQ completion, timeout, recovery, and removal with each core's run lock.
-Every activation has a generation, and timeout/fault work retains or rechecks
-the exact target before claiming the active slot. A stale worker therefore
-cannot reset a replacement job.
+Every task execution has a generation. Active, IRQ, timeout, and fault paths
+retain typed `{execution, generation}` references and recheck the exact target
+before claiming `active_exec`. A stale worker therefore cannot reset a
+replacement execution.
 
-After an error, timeout, or IOMMU fault, the rewrite resets the selected core,
-refreshes the attached IOMMU domain, completes the exact job and resumes its
-queue. If reset or domain recovery fails, the core is quarantined: routing skips
-it, queued work fails, and its IRQ remains disabled so powered-off MMIO cannot
-be touched. Loss of the last usable core also fails async jobs still waiting on
-acquire fences.
+One retirement engine handles clean IRQ, error IRQ, timeout, fault, cancel, and
+start failure. It destroys execution resources only after proving DMA stopped;
+otherwise it restores the exact typed owner as `QUARANTINED` and deliberately
+retains mappings, command storage, power, and references. Only after successful
+retirement does the whole-job orchestrator advance `current_task`, create a
+distinct same-task fallback or next-task successor, or publish the final result
+and fence. Loss of the last usable core also fails async jobs still waiting in
+their acquire sets.
 
 The architectural trade is therefore:
 
@@ -681,7 +699,7 @@ The architectural trade is therefore:
 | Broad multi-generation BSP compatibility and proven hardware behavior | RK3588-specific profiles; partial boot/probe evidence but no successful media-hardware proof yet |
 | Conventional subsystem files and backend vtables | One large translation unit, though logical ownership is stricter |
 | Independent jobs allow batch tasks to run across cores | Serial per-request task progression simplifies ordering/fences |
-| Global managers make cross-subsystem lookup convenient | Session/job ownership makes close, reset, IRQ, and removal locally auditable |
+| Global managers make cross-subsystem lookup convenient | Session/job/execution ownership makes close, reset, IRQ, and removal locally auditable |
 | Physical/virtual/dma-buf and BSP MMU modes | Public dma-buf/userptr paths; physical addresses fail closed |
 | Existing BSP recovery and debugger surface | Exact-job recovery, quarantine, focused counters, and embedded KUnit |
 
@@ -1288,11 +1306,11 @@ confirm against the TRM before treating either as canonical.
 |------|--------------------|
 | Code | `drivers/video/rockchip/mpp-rewrite/` (`mpp_rewrite.c`; +`ABI.rst`, `Kconfig`, `Makefile`) + `drivers/video/rockchip/rga-rewrite/` (`rga_rewrite.c`; +`ABI.rst`, `Kconfig`, `Makefile`). The trees contain 109 MPP and 152 RGA KUnit cases (261 total). |
 | Current KUnit repair | KASAN boot `Pc86b-Cad24` (`gdf22eeef8757`, 2026-08-05) passes the exact **92 MPP + 152 RGA** manifest: 244 results, zero failures/skips, clean outer-KTAP interval, and live lockdep. It also passes 12/12 official MPP and reaches 21/34 required librga cases. Source stamp `gf37186832202` later booted as kernel #8 and exposed the residual decoder and RGA3 failures documented in the live findings. The current 109/152 manifest and successor ownership changes remain unbooted; all 261 cases and the GStreamer/FFmpeg conformance workloads require exact-tip replay together with an aged clean kmemleak scan, restored services, and all expected cores. |
-| Current source tips | 6.18 `rk3588-rewrite-6.18@149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` on `v6.18.42` and mainline `rk3588-rewrite-mainline@280181e634a3a10a3a4f1659fe7c7287f7ee3760` on `v7.2-rc6` are the maintained tips. Phase 3 gives each MPP activation exact resource and terminal ownership. Phase 4 gives each RGA task a typed execution/generation lifetime, one destroy-or-quarantine engine, and sole whole-job orchestration. Phase 5 seals MPP command images before const backend validation/dispatch and converts all implemented RGA emitters to immutable validated plans; owner-specific START paths publish watchdog and ownership before the doorbell. The tracked MPP/RGA sources, Kconfig, ABI ledgers, and UAPI are byte-identical between the two maintained branches. VSI retains kernel-version-specific IOMMU attach APIs outside that identical set, with the same admission, retained-fault, callback-drain, and domain-retirement contract. |
-| 6.18 rebase/IRQ history | The current branch is a 432-commit local range on official `v6.18.42@856a9b51680c`. `git range-diff` maps the 384 retained rebase commits exactly and omits only the old libbpf const-correctness fix already present upstream; thirty-three compatibility, fixture, and ownership-refactor commits follow `c20fc8c1cbf76`. The prior tip is preserved at `ysp-backup/rk3588-rewrite-6.18-before-6.18.42-20260804@33c30ec6989e`. Historically, the shared-IRQ checkpoint was **`eb64bc7de327`** ("media: rockchip: rga-rewrite: model shared IRQ wiring"), after published DT/fixture repair `0cc483d3ee20`; those pre-current-rebase identifiers and the forward-port oracle `rk3588-video-6.18@12a7da02bea83` remain provenance records. The earlier pre-forward-port tip is preserved locally as `ysp-backup/rk3588-rewrite-6.18-before-fwport-20260726@40cf22629cf63`. The historical stack kept the 13 rewrite commits previously recorded as `c540d63a8a9be..40cf22629cf63`, then `57e4aaac55eab..5a55fa4743b2`, after the forward-port commits. **Pre-rebase state (2026-07-24):** committed branch `rk3588-rewrite-6.18` at **`40cf22629cf63`** ("media: rockchip: rga-rewrite: carry the 10-bit byte-stride ABI into TILE"), the tip of a **13-commit series** (`c540d63a8a9be..40cf22629cf63` — a 12-commit defect audit plus the 10-bit TILE byte-stride reconciliation ([TILE finding](../../findings/2026-07-24-rga-10bit-tile-byte-stride-and-fbc-exception.md), pairs with librga fork `4c26ddf`), split by defect class, each commit individually compile-verified so the series is bisectable) that fixes 17 confirmed defects across both drivers — three wake-after-unlock use-after-frees, a stale-timeout-generation reset, a route-B SWIOTLB regression from `0d71ded1690c9`, an MPP abort-sweep list overload (UAF + counter skew), a global-lock `copy_to_user()` DoS, compact-10-bit `x_offset` byte conversion on both cores, the RGA2 color-key enable, and the RGA3 scale/window capability gates. **Behaviour change:** the new RGA3 68x2 minimum moves small blits to RGA2, matching the vendor table. See [audit finding](../../findings/2026-07-24-rewrite-driver-multi-agent-defect-audit.md). The series sits atop **`185d4dcec110`** ("media: rockchip: rga-rewrite: honor the legacy byte-stride ABI for 10-bit rasters") in `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc`, which in turn is atop `1fe46df86f1ca` ("harden rewrite driver recovery") and parent `8469183da227` ("port forward-port RGA bugfixes"). Over the July 15 MPP/RGA hardening it layers the July 17 RGA low-voltage quirks/config-error IRQ/cache-line shadows/CSC rule, the ported forward-port RGA bugfixes (10-bit plane offsets, max-seg-size, import double-put, acquire-abort race, job_put NULL guard), the 2026-07-23 recovery-hardening churn (~9k insert/~4.9k delete; RGA KUnit 122 → 147, MPP 86 → 85), and the 2026-07-24 **raster 10-bit byte-stride ABI alignment** (layout/validators/RGA3 write-offset path now match the byte-literal register writers; pairs with fwport `0072` and the librga-fork im2d conversion; [stride finding](../../findings/2026-07-24-rga3-legacy-blit-10bit-stride-convention-fault.md)). A KASAN+lockdep debug Armbian kernel of the pre-rebase tip was built as `P4052-C40aa`; later repaired boots and current build evidence are summarized in the KUnit/validation rows above and below. |
-| Mainline rebase/IRQ history | The current branch is a 357-commit local range on official `v7.2-rc6@075b74841bd0`; the original rebase mapped all 310 retained commits exactly, followed by thirty-three compatibility, fixture, and ownership-refactor commits after `09e39082007dd`. The prior tip is preserved at `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc6-20260804@9e503f6b16df`. Historically, the shared-IRQ checkpoint was **`6ac18425f66c`** ("media: rockchip: rga-rewrite: model shared IRQ wiring"), after published `edba1c58a726` on official kernel.org **`v7.2-rc5@f5098b6bae76`**. Mainline already carried the non-overlapping `0x200` RGA3 core resources. The earlier pre-rebase repaired tip is preserved as `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc5-20260726@5bae68d8381c`; the older pre-rc2 backup is also retained. |
+| Current source tips | 6.18 `rk3588-rewrite-6.18@d9cbcf21cda1c047c053447a48a908dcb6e4c5d6` on `v6.18.42` and mainline `rk3588-rewrite-mainline@b6335efd8f98bedabf426a80d224f85a266c8ea4` on `v7.2-rc6` are the maintained local tips. They retain the Phase 3 activation owner, Phase 4 task-execution owner, and Phase 5 sealed/immutable publication model, then harden the surrounding boundaries: fixed-width MPP UAPI decoding, explicit IOMMU build prerequisites, RGA request preflight and unsupported-field rejection, service-wide USERPTR pin accounting, retained import rollback identity, allocation-independent IOMMU-fault latching, conservative execution-storage reclamation, and suspend/resume admission and callback drain. The tracked MPP/RGA sources, Kconfig, ABI ledgers, and UAPI are byte-identical between the two branches. The exact named manifest still matches both trees, and the ownership audit accepts 2,313 signals/tree; compile and runtime evidence remain tied to the earlier Phase 4/5 completion pins. VSI retains kernel-version-specific IOMMU attach APIs outside that identical set. |
+| 6.18 rebase/IRQ history | The current branch is a 437-commit local range on official `v6.18.42@856a9b51680c`. `git range-diff` maps the 384 retained rebase commits exactly and omits only the old libbpf const-correctness fix already present upstream; thirty-eight compatibility, fixture, ownership-refactor, and boundary-hardening commits follow `c20fc8c1cbf76`. The prior tip is preserved at `ysp-backup/rk3588-rewrite-6.18-before-6.18.42-20260804@33c30ec6989e`. Historically, the shared-IRQ checkpoint was **`eb64bc7de327`** ("media: rockchip: rga-rewrite: model shared IRQ wiring"), after published DT/fixture repair `0cc483d3ee20`; those pre-current-rebase identifiers and the forward-port oracle `rk3588-video-6.18@12a7da02bea83` remain provenance records. The earlier pre-forward-port tip is preserved locally as `ysp-backup/rk3588-rewrite-6.18-before-fwport-20260726@40cf22629cf63`. The historical stack kept the 13 rewrite commits previously recorded as `c540d63a8a9be..40cf22629cf63`, then `57e4aaac55eab..5a55fa4743b2`, after the forward-port commits. **Pre-rebase state (2026-07-24):** committed branch `rk3588-rewrite-6.18` at **`40cf22629cf63`** ("media: rockchip: rga-rewrite: carry the 10-bit byte-stride ABI into TILE"), the tip of a **13-commit series** (`c540d63a8a9be..40cf22629cf63` — a 12-commit defect audit plus the 10-bit TILE byte-stride reconciliation ([TILE finding](../../findings/2026-07-24-rga-10bit-tile-byte-stride-and-fbc-exception.md), pairs with librga fork `4c26ddf`), split by defect class, each commit individually compile-verified so the series is bisectable) that fixes 17 confirmed defects across both drivers — three wake-after-unlock use-after-frees, a stale-timeout-generation reset, a route-B SWIOTLB regression from `0d71ded1690c9`, an MPP abort-sweep list overload (UAF + counter skew), a global-lock `copy_to_user()` DoS, compact-10-bit `x_offset` byte conversion on both cores, the RGA2 color-key enable, and the RGA3 scale/window capability gates. **Behaviour change:** the new RGA3 68x2 minimum moves small blits to RGA2, matching the vendor table. See [audit finding](../../findings/2026-07-24-rewrite-driver-multi-agent-defect-audit.md). The series sits atop **`185d4dcec110`** ("media: rockchip: rga-rewrite: honor the legacy byte-stride ABI for 10-bit rasters") in `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc`, which in turn is atop `1fe46df86f1ca` ("harden rewrite driver recovery") and parent `8469183da227` ("port forward-port RGA bugfixes"). Over the July 15 MPP/RGA hardening it layers the July 17 RGA low-voltage quirks/config-error IRQ/cache-line shadows/CSC rule, the ported forward-port RGA bugfixes (10-bit plane offsets, max-seg-size, import double-put, acquire-abort race, job_put NULL guard), the 2026-07-23 recovery-hardening churn (~9k insert/~4.9k delete; RGA KUnit 122 → 147, MPP 86 → 85), and the 2026-07-24 **raster 10-bit byte-stride ABI alignment** (layout/validators/RGA3 write-offset path now match the byte-literal register writers; pairs with fwport `0072` and the librga-fork im2d conversion; [stride finding](../../findings/2026-07-24-rga3-legacy-blit-10bit-stride-convention-fault.md)). A KASAN+lockdep debug Armbian kernel of the pre-rebase tip was built as `P4052-C40aa`; later repaired boots and current build evidence are summarized in the KUnit/validation rows above and below. |
+| Mainline rebase/IRQ history | The current branch is a 362-commit local range on official `v7.2-rc6@075b74841bd0`; the original rebase mapped all 310 retained commits exactly, followed by thirty-eight compatibility, fixture, ownership-refactor, and boundary-hardening commits after `09e39082007dd`. The prior tip is preserved at `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc6-20260804@9e503f6b16df`. Historically, the shared-IRQ checkpoint was **`6ac18425f66c`** ("media: rockchip: rga-rewrite: model shared IRQ wiring"), after published `edba1c58a726` on official kernel.org **`v7.2-rc5@f5098b6bae76`**. Mainline already carried the non-overlapping `0x200` RGA3 core resources. The earlier pre-rebase repaired tip is preserved as `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc5-20260726@5bae68d8381c`; the older pre-rc2 backup is also retained. |
 | Package composites | `rk3588-rewrite-armbian-6.18.38` at **`8daf5e9513b8`** layers the rewrite after the exact Armbian current/forward-port Linux 6.18.38 source snapshot. `rk3588-rewrite-armbian-7.2-rc3` at **`24f7424fb958`** layers it after official `v7.2-rc3` plus Armbian `rockchip64-bleedingedge`. The latter's Armbian snapshot is `2657f01c9b9a`, produced from build checkout `5cbc1c59c`. These composites are historical and predate the current rewrite tips; none is current-tip runtime evidence. |
-| Validation | On 2026-08-11, completed Phases 4/5 pin byte-identical MPP SHA-256 `45a8de124ec94b28f85fd117658e560b5c9bee096a7f610bbd04b59a1b97cade` and RGA SHA-256 `0003a3912d2fabf0b9f3292b49f35171c78db16f1cb6407b784a4aee8ab2ae2d`. Ownership passes at 2,312/tree, fixture debt at 306/tree, and the exact manifest is 109/152. All eight warning-fatal profiles and the dedicated test-disabled ABI-mutation gate pass on both kernel lines; runtime execution remains pending. Strict checkpatch has zero errors/warnings and 76 continuation-layout checks. The predecessor 6.18 Phase 1 tip `ab69ece998642` was packaged as inspected P692f with stamp `(gab69ece99864)` but remains uninstalled and unbooted. No package or boot carries Phases 2–5; exact-tip KUnit, corrected USERPTR GStreamer, MPP/FFmpeg, RGA3 vpp/overlay, aged kmemleak, final librga, performance, and AV1 fault/AFBC proof remain open. |
+| Validation | On 2026-08-11, completed Phases 4/5 pin byte-identical MPP SHA-256 `45a8de124ec94b28f85fd117658e560b5c9bee096a7f610bbd04b59a1b97cade` and RGA SHA-256 `0003a3912d2fabf0b9f3292b49f35171c78db16f1cb6407b784a4aee8ab2ae2d`. Ownership passes at 2,312/tree, fixture debt at 306/tree, and the exact manifest is 109/152. All eight warning-fatal profiles and the dedicated test-disabled ABI-mutation gate pass on both kernel lines; runtime execution remains pending. Strict checkpatch has zero errors/warnings and 76 continuation-layout checks. The newer boundary-hardening tips keep the 109/152 manifest and pass the updated 2,313/tree ownership audit, but do not inherit those compile or checkpatch claims. The predecessor 6.18 Phase 1 tip `ab69ece998642` was packaged as inspected P692f with stamp `(gab69ece99864)` but remains uninstalled and unbooted. No package or boot carries Phases 2–5 or the boundary follow-up; exact-tip KUnit, corrected USERPTR GStreamer, MPP/FFmpeg, RGA3 vpp/overlay, aged kmemleak, final librga, performance, and AV1 fault/AFBC proof remain open. |
 
 GStreamer, FFmpeg, and MPP differential testing are now stronger than the table
 row's historical summary: generated H.264/H.265 inputs, generated VP9 IVF
@@ -1325,10 +1343,14 @@ it.
 
 For implementation structure, the
 [`rewrite-ownership-refactor-plan.md`](./rewrite-ownership-refactor-plan.md)
-turns the rewrite retrospective into a staged migration of the existing code.
-It prioritizes MPP cluster/reset/DMA ownership, singular active-job retirement,
-RGA per-task execution and mapping ownership before the later validated-plan,
-sealed-image, file-split, and convention cleanup phases.
+records the staged migration and its checkpoint history. Phases 1-5 are now in
+the source: write funnels; MPP reset/cluster ownership; MPP activations and
+retirement; RGA task executions, mappings, retirement, and acquire sets; and
+sealed MPP images plus immutable RGA task plans. The teaching
+[ownership-refactor case study](./rewrite-driver-architecture/07-ownership-refactor-case-study.md)
+explains why those changes were coupled, how to read the resulting code, and
+what a new kernel-driver developer should do differently. Phase 6 source
+organization and Phase 7 runtime qualification remain open.
 
 Cross-references: [uAPI guide](./dev-uapis.md) (uAPI surface),
 [userspace library guide](../../vendor-libraries/docs/how-the-userspace-libs-work.md) (the librga behaviours §3
