@@ -243,16 +243,16 @@ owns the public verdict.
 | Mainline rewrite, 2026-08-06 | `rk3588-rewrite-mainline@7a6d4cb075a67` on `v7.2-rc6@075b74841bd0` | prior backups `9e503f6b16df` and `5bae68d8381c` |
 | Upstream-style RGA3 comparison | `rk3588-rewrite-mainline@180ee72a9a80` | detailed in §9 |
 
-The two maintained Phase 4/5 completion snapshots have byte-identical
+The two maintained boundary-hardening snapshots have byte-identical
 tracked MPP/RGA rewrite sources, Kconfig, ABI ledgers, and UAPI. Their MPP
 source SHA-256 is
-`45a8de124ec94b28f85fd117658e560b5c9bee096a7f610bbd04b59a1b97cade`;
+`349709b66254d6f3c1aeb7b5023e4fc2836d3a7dbedadfe287d14ac5d5344c7a`;
 the RGA source SHA-256 is
-`0003a3912d2fabf0b9f3292b49f35171c78db16f1cb6407b784a4aee8ab2ae2d`.
-Strict checkpatch over the Phase 4/5 delta is zero errors and zero warnings,
-with 76 continuation-layout checks. The exact source manifest is 109 MPP +
+`86100ff095475551ea043f6b89160b621183a649b865c599718d2194937f6619`.
+Strict checkpatch over each boundary-hardening delta is zero errors, zero
+warnings, and zero checks. The exact source manifest is 109 MPP +
 152 RGA = 261 cases. Ownership passes at
-2,312 signals/tree and KUnit fixture debt passes at 306/tree. All eight
+2,313 signals/tree and KUnit fixture debt passes at 306/tree. All eight
 warning-fatal final-head profiles pass across both kernel lines (`normal`,
 `test-disabled`, `memory`, and `race`), including both IOMMU providers, both
 rewrite objects, and the Rock 5B DTB. The dedicated test-disabled policy/ABI

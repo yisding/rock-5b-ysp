@@ -21,9 +21,10 @@ and definition of done.
 > counts into this plan; follow the status row into the dated finding and
 > correlated run artifacts.
 
-> **Current source boundary (2026-08-11):** Phases 4 and 5 are source-complete
-> at `rk3588-rewrite-6.18@149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` and
-> `rk3588-rewrite-mainline@280181e634a3a10a3a4f1659fe7c7287f7ee3760`.
+> **Current source boundary (2026-08-11):** Phases 4 and 5 plus the reviewed
+> boundary-hardening follow-up are source-complete at
+> `rk3588-rewrite-6.18@d9cbcf21cda1c047c053447a48a908dcb6e4c5d6` and
+> `rk3588-rewrite-mainline@b6335efd8f98bedabf426a80d224f85a266c8ea4`.
 > RGA per-task executions now own exact hardware, mapping, MMU, command,
 > USERPTR, timing, async-generation, and retirement lifetimes; one retirement
 > engine destroys proven-stopped executions or retains quarantine, and only the
@@ -31,8 +32,12 @@ and definition of done.
 > sealed register images with separate result storage, while every implemented
 > RGA emitter consumes an immutable validated task plan. Owner-specific START
 > helpers arm the exact watchdog and publish command/register state before the
-> doorbell. The exact source manifest is 109 MPP plus 152 RGA cases, ownership
-> passes at 2,312 signals/tree, and fixture debt passes at 306/tree. All eight
+> doorbell. The follow-up adds fixed-width MPP UAPI decoding, explicit IOMMU
+> build prerequisites, RGA request preflight, service-wide USERPTR pin
+> accounting, allocation-independent fault latching, conservative execution
+> reclamation, and suspend/resume admission and callback drain. The exact
+> source manifest is 109 MPP plus 152 RGA cases, ownership passes at 2,313
+> signals/tree, and fixture debt passes at 306/tree. All eight
 > warning-fatal profiles and the dedicated test-disabled ABI-mutation gate pass
 > on both kernel lines. Runtime execution at these tips remains pending and is
 > not implied by source or compile evidence.
