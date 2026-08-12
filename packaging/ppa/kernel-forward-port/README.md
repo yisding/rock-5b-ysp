@@ -3,7 +3,43 @@
 This directory owns the source-package path for the co-installable ROCK 5B
 forward-port kernel.
 
-**Published, installed, and booted (checked 2026-08-11):**
+**Accepted 2026-08-11 (source publication pending):**
+`6.18.44+rk3588av1fwport20260811-0ubuntu1~rk1` — the complete
+`0001`–`0097` production forward-port tip `e7ff978398825`. The canonical
+dedicated PPA lane used Armbian build input `535528112704`, selected Linux
+6.18.44 stable commit `1efe5d048a391`, applied all 97 patches, retained source
+stamp `e7ff97839882`, matched the maintained forward-port IOMMU implementation,
+kept its required synchronous fault handler, and contained zero `*-rewrite`
+paths.
+
+The generated `.dsc` passed `dscverify --nosigcheck` and extracted cleanly.
+The extracted source reports Linux 6.18.44; packaged `rga_mm.c` is byte-identical
+to `e7ff978398825`; and the packaged config keeps
+`CONFIG_ROCKCHIP_MPP_SERVICE=y` and `CONFIG_ROCKCHIP_MULTI_RGA=y` while leaving
+the rewrite drivers, KASAN, and KCSAN off. Direct GPG verification reports good
+signatures on the `.dsc`, `.buildinfo`, and source `.changes` from
+`0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`. Final signed-artifact SHA-256
+values are:
+
+- orig: `3e93aa748e19cbdd865c28445c3202ad5450c318940845cbd5a2b54a52a9efba`;
+- Debian tar: `89124c04c98c03a02108aa81f32a2e2e250ff9e689572306db7b62870a41da43`;
+- `.dsc`: `63fb79a878a99c8c14cd0356888fa4de8601c44df35b5ad5d1595063266b6231`;
+- `.buildinfo`: `495485845fa095b66359493797625e20a4fc8434c52057e85e8b3422b807a64b`;
+- source `.changes`: `65796c461e99a2aa8ed6f6f3521b0b0f204043e892a03e8ed0aaa4754adfe988`.
+
+`dput --check-only` passed its suite, source-only, field, checksum, and GPG
+gates. `dput` then transferred all five source artifacts to
+`ppa:yi-ding/ubuntu-rock-5b` at 17:30 PDT and wrote
+`linux-rockchip64-ysp_6.18.44+rk3588av1fwport20260811-0ubuntu1~rk1_source.ppa.upload`
+(SHA-256
+`e351ea71a22ad052e891fc3e31de5655953f968fb60e52d2b9331771233d9c46`).
+An exact-version Launchpad API query immediately afterward returned no source
+record. A later authoritative recheck found exact source publication
+[`18669946`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18669946)
+in `Pending` state. This confirms archive acceptance; the arm64 build, binary
+publication, installation, boot, and runtime behavior remain unverified.
+
+**Previous published, installed, and booted (checked 2026-08-11):**
 `6.18.43+rk3588av1fwport20260808-0ubuntu1~rk1` — the complete
 `0001`–`0096` production forward-port tip `7698e7018e3d5`. The dedicated PPA
 lane applied all 96 patches after Armbian build input `7b923c78b50d` selected
@@ -46,7 +82,9 @@ hardware start: a high physically contiguous USERPTR was misclassified as raw
 direct-address memory and excluded RGA2 before patch `0093`'s transient remap.
 Source patch `0097` at `e7ff978398825` fixes all three admission/MMU/address
 decisions and passes strict checkpatch plus a complete production-config RGA
-`W=1 WERROR=1` build; it is not packaged or booted. See the
+`W=1 WERROR=1` build. It is packaged and accepted as a Pending source
+publication in the 6.18.44 successor above, but is not booted or
+runtime-verified. See the
 [`0097` finding](../../../findings/2026-08-11-forward-port-rga2-contiguous-userptr-rejection.md).
 
 **Previous Published 2026-08-07 candidate:** `6.18.43+rk3588av1fwport20260807-0ubuntu1~rk1`
@@ -77,8 +115,9 @@ patch `0093` fixes driver-owned USERPTR segment sizing, while `0095` supersedes
 `0093`–`0096` tail is in the Published, installed, and booted `20260808`
 successor described above. Its old oversized-SG signature is absent and 30/31
 required librga cases pass; the remaining high-contiguous-USERPTR admission
-gap is fixed by unpublished source patch `0097`. See the
-[USERPTR finding](../../../findings/2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md)
+gap is fixed by source patch `0097`, packaged and accepted as a Pending source
+publication in the 6.18.44 successor above. See the
+[USERPTR finding](../../../findings/2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md),
 [ownership audit finding](../../../findings/2026-08-08-forward-port-rga-mpp-ownership-audit-fixes.md),
 and [0097 finding](../../../findings/2026-08-11-forward-port-rga2-contiguous-userptr-rejection.md).
 
@@ -277,7 +316,7 @@ The package remains conservative and recovery-friendly:
 | Binary packages | Co-installable names first: `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and `linux-headers-ysp-rockchip64`. A later drop-in package can replace `linux-image-current-rockchip64` after boot/revert testing. |
 | Architecture | `arm64` only. |
 | Kernel variant | Armbian `rockchip64-current` 6.18 worktree with the self-contained-DT RK3588 MPP/RGA/AV1/IEP2 forward port applied. The older convert-in-place combined kernel can use the same source-package shape later if needed. |
-| Upload state | `20260808` source carrying `0093`–`0096`, its successful arm64 build, and all three binaries are Published, installed, and booted. Functional qualification is partial: identity/ABI/MPP and 30/31 librga cases pass, while gray256 exposes a high-contiguous-USERPTR gap. Source `0097` fixes that path but is not packaged. The broader 6.18.42 campaign remains the fully integrated hardware baseline. |
+| Upload state | `20260811` Linux 6.18.44 source carrying exact `0001`–`0097` is signed, extraction/source/config verified, client-uploaded, and accepted as Pending source publication `18669946`; arm64 build, binary publication, install, and boot remain unverified. The preceding `20260808` `0096` source and binaries are Published, installed, and booted with partial qualification: identity/ABI/MPP and 30/31 librga cases pass. The broader 6.18.42 campaign remains the fully integrated hardware baseline. |
 
 ## Source Inputs
 
@@ -290,7 +329,7 @@ that grouped root.
 | Patched Armbian kernel worktree | `KERNEL_PPA_REPO=$WORKSPACE_ROOT/build/kernel/rock5b-kernel-build/armbian-build-ppa/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64__ppa-forward-port` |
 | Production kernel config | `KERNEL_PPA_CONFIG=$ROOT/packaging/ppa/kernel-forward-port/debian/config/arm64-rockchip64.config` |
 | Source package name | `KERNEL_PPA_SOURCE=linux-rockchip64-ysp` |
-| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.43+rk3588av1fwport20260808` |
+| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.44+rk3588av1fwport20260811` |
 
 The exporter copies the patched worktree contents, including Armbian patch
 changes and untracked patch-added files, while excluding `.git`, `.config`,
@@ -528,8 +567,15 @@ commands are operator-validated.
 > the forward-port tree and rejects paths or shared-file symbols that the
 > selected forward-port tree does not own before export.
 
-**State as of 2026-08-11.** Exact `0001`–`0096` source
-`7698e7018e3d5` is packaged as
+**State as of 2026-08-11.** Exact `0001`–`0097` source `e7ff978398825` is
+packaged on Linux 6.18.44 as
+`6.18.44+rk3588av1fwport20260811-0ubuntu1~rk1`, signed, checksum-, extraction-,
+source-, config-, and `dput --check-only`-verified, and client-uploaded. An
+immediate exact-version Launchpad API query returned no record; a later recheck
+found exact source publication `18669946` in `Pending` state. Archive acceptance
+is confirmed, while arm64 build, binary publication, installation, boot, and
+runtime behavior remain unverified. The preceding `0001`–`0096` source `7698e7018e3d5`
+is packaged as
 `6.18.43+rk3588av1fwport20260808-0ubuntu1~rk1`, signed, checksum- and
 extraction-verified, Published as source `18663042`, successfully built as arm64
 build `33479597`, and Published as all three co-installable binaries. The image,
@@ -539,12 +585,13 @@ required librga cases. Gray256 alone is rejected at policy because a high
 physically contiguous USERPTR is mistaken for raw direct-address memory; the
 former oversized-SG SWIOTLB signature is gone. Source `e7ff978398825` / patch
 `0097` repairs that admission plus the matching MMU and address choices and is
-strict-checkpatch and full-RGA `W=1 WERROR=1` verified, but not packaged or
-booted. The exact 6.18.42 campaign remains the broader integrated evidence
+strict-checkpatch, full-RGA `W=1 WERROR=1`, and source-package verified, but is
+not booted or runtime-verified. The exact 6.18.42 campaign remains the broader integrated evidence
 baseline: its functional/recovery verdict is green, with the decode fd-span
 oracle explicitly non-green.
 
-1. Package, publish, install, and boot exact `0097`; repeatedly pass gray256
+1. Confirm Launchpad builds and publishes exact `0097`, then install and boot
+   it; repeatedly pass gray256
    plus the two historically intermittent RGA2 USERPTR samples, force
    successful-bounce and oversized high DMA-BUF alias/staging paths, confirm
    hard-CCU fallback, and then run full production conformance.

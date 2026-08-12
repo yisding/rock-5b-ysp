@@ -1,3 +1,21 @@
+linux-rockchip64-ysp (6.18.44+rk3588av1fwport20260811-0ubuntu1~rk1) resolute; urgency=high
+
+  * Rebase the package from Linux 6.18.43 to stable Linux 6.18.44 commit
+    1efe5d048a391, and extend the maintained forward-port series from
+    0001-0096 to 0001-0097 at tip e7ff978398825.
+  * Treat a high physically contiguous virtual import as remappable USERPTR
+    memory instead of raw direct-address memory: admit it to RGA2, keep the
+    RGA2 MMU enabled, and prepare its virtual address for the transient
+    below-4-GiB mapping path.
+  * Preserve below-4-GiB direct buffers, high DMA-BUF staging, and rejection of
+    raw high physical imports.
+  * Runtime basis: the exact 0001-0096 package is Published, installed, and
+    booted; it passes identity, ABI, all 12 MPP cases, and 30/31 required
+    librga cases. This source fix is strict-checkpatch and production-config
+    full-RGA W=1 WERROR=1 verified, but is not installed or booted.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Tue, 11 Aug 2026 17:23:00 -0700
+
 linux-rockchip64-ysp (6.18.43+rk3588av1fwport20260808-0ubuntu1~rk1) resolute; urgency=high
 
   * Extend the maintained forward-port series from 0001-0092 to 0001-0096 at

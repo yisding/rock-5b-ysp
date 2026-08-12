@@ -435,7 +435,9 @@ enabled for a high contiguous USERPTR, and prepares its virtual address rather
 than the high physical address. Below-4-GiB contiguous buffers stay direct;
 raw high physical imports stay rejected; and high DMA-BUFs retain `0095`
 staging. Strict checkpatch and a complete production-config RGA directory
-build with `W=1 WERROR=1` pass. Packaging and runtime replay remain pending.
+build with `W=1 WERROR=1` pass. Exact Linux 6.18.44 source is signed,
+extraction/source/config verified, and accepted as Pending source publication
+`18669946`; build and runtime replay remain pending.
 The [dated finding](../../../findings/2026-08-11-forward-port-rga2-contiguous-userptr-rejection.md)
 owns the measured `0096` failure, root cause, and verification gate.
 

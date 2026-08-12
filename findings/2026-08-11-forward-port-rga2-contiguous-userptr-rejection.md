@@ -10,7 +10,8 @@
 > `rga_mm_get_buffer_info()`
 > Date: 2026-08-11
 > Trust: **MEASURED** / **CODE-INSPECTED** / **ROOT-CAUSED** /
-> **BOOT-VERIFIED** / **FIX-COMPILE-VERIFIED** / **PARTIAL**
+> **BOOT-VERIFIED** / **FIX-COMPILE-VERIFIED** / **PACKAGE-VERIFIED** /
+> **PARTIAL**
 
 ## Result
 
@@ -105,10 +106,23 @@ zero errors, warnings, or checks. The complete production-config
 and `built-in.a` is
 `777b06995e8934c37b333728338ae5a53a367c17d2952e542add9aaf5750ce69`.
 
+Exact `0001`–`0097` is also packaged on Linux 6.18.44 as
+`6.18.44+rk3588av1fwport20260811-0ubuntu1~rk1`. The signed source passed
+`dscverify`, fresh extraction, package-version/config checks, and direct GPG
+verification; extracted `rga_mm.c` is byte-identical to `e7ff978398825`.
+`dput --check-only` passed and `dput` transferred all five artifacts at 17:30
+PDT. An immediate exact-version Launchpad API query returned no source record,
+then a later recheck found exact source publication `18669946` in `Pending`
+state. Archive acceptance is confirmed; the arm64 build, binary publication,
+installation, boot, and runtime remain unverified. The package owner records
+the signed hashes and upload marker in the
+[PPA kernel record](../packaging/ppa/kernel-forward-port/README.md).
+
 ## Verification gate
 
-Build, package, install, and boot exact `0001`–`0097` with a recovery kernel
-retained. First run `rga_cvtcolor_gray256_demo` repeatedly and require every
+Confirm the arm64 build and publication, then install and boot exact
+`0001`–`0097` with a recovery kernel retained. First run
+`rga_cvtcolor_gray256_demo` repeatedly and require every
 iteration to pass with no under-4-GiB policy rejection, SWIOTLB mapping failure,
 IOMMU fault, warning, or non-zero residual counter. Then rerun the other two
 historically intermittent RGA2-only USERPTR cases
@@ -123,7 +137,9 @@ root-counter, and display gates remain separate requirements.
 
 The `0001`–`0096` package has boot and partial functional evidence, but its
 complete production conformance result is red. Patch `0097` is source-, style-,
-and compile-verified only; it is not packaged, booted, or runtime-verified.
+compile-, and signed-source-package verified on Linux 6.18.44 and is
+accepted as Pending source publication `18669946`. No Launchpad build, binary
+publication, boot, or runtime result is verified.
 This result does not validate GStreamer, FFmpeg, sanitizer behavior, DMA-BUF
 staging aliases, concurrent SWIOTLB pressure, or fault recovery on the new
 tail.
