@@ -8,6 +8,14 @@
 > Date: 2026-08-08
 > Trust: **CODE-INSPECTED** / **CONFIRMED** / **FIX-COMPILE-VERIFIED** / **PARTIAL**
 
+> **Corrected 2026-08-11 by**
+> [`2026-08-11-forward-port-rga2-contiguous-userptr-rejection.md`](2026-08-11-forward-port-rga2-contiguous-userptr-rejection.md).
+> Exact `0001`–`0096` is now published, installed, and booted. Identity, ABI,
+> MPP, and 30/31 required librga cases pass; full conformance stops at a
+> separate high-contiguous-USERPTR policy gap fixed in source patch `0097`.
+> The `0095`–`0096` ownership, staging-alias, and fault-admission gates remain
+> unverified.
+
 ## Result
 
 Two independently reviewed commits close the source-level gaps found after
@@ -75,10 +83,11 @@ payloads, and direct GPG verification passes for the signed `.dsc`,
 `.buildinfo`, and source `.changes`.
 
 `dput` completed client-side transfer of all five source artifacts to the
-normal PPA at 17:45 PDT. The package record owns the exact artifact hashes and
-upload marker. Launchpad acceptance, build, and publication were deliberately
-left unclaimed because the API had not exposed the version immediately after
-transfer.
+normal PPA at 17:45 PDT. Launchpad subsequently Published source publication
+`18663042`, successful arm64 build `33479597`, and image/DTB/headers binary
+publications `247936301`, `247936299`, and `247936300`. Those exact binaries
+are installed and booted; the package record owns the artifact hashes and full
+publication identity.
 
 ## Why the rewrite fix remains different
 
@@ -91,27 +100,27 @@ The full rewrite design and its pending proof are in the
 
 ## Verification gate
 
-Confirm Launchpad accepts, builds, and publishes exact `0001`–`0096`, then
-install and boot it with a recovery kernel retained.
-First pass the original three RGA2-only librga failures. Then force both a
+Build, package, install, and boot exact `0001`–`0097` with a recovery kernel
+retained, then pass the focused USERPTR replay and complete production
+conformance matrix. Force both a
 below-limit high-memory alias whose direct SWIOTLB map would have succeeded and
 an oversized high-memory DMA-BUF; require correct producer/consumer content,
 one shared staging object, one success-only copy-back, and zero active staging
 objects/bytes afterward.
 
-Run the complete production conformance matrix, concurrent RGA request/MPI and
-MPP session/result cases, cancellation/session-close and PM-failure injection,
+Run concurrent RGA request/MPI and MPP session/result cases,
+cancellation/session-close and PM-failure injection,
 and provider faults at each admission boundary. A hard-CCU DT request must emit
 the fallback warning and select the soft worker. Repeat the exact tail under
 KASAN/lockdep and require clean kernel logs, counters, fences, and recovery.
 
 ## Boundary
 
-This tail is source-, style-, compile-, independent-review-, and signed-source-
-package verified. Client-side `dput` transfer is complete; Launchpad
-acceptance/build/publication is unverified. It is not installed, booted,
-sanitizer-tested, or runtime-verified.
-The installed 6.18.43 package still ends at `0092` and retains its recorded
-librga failure. CPU-inaccessible/secure exporters, raw high physical memory,
-and buffers beyond the staging limits remain deliberately unsupported on
-RGA2. No rewrite source was changed.
+This tail is source-, style-, compile-, independent-review-, signed-source-
+package-, publication-, install-, and boot-verified. Its ordinary MPP suite
+passes, but the focused ownership, alias-staging, provider-fault, hard-CCU,
+and sanitizer gates remain open. Complete production conformance is still red
+because of the separate USERPTR admission defect fixed by source `0097`.
+CPU-inaccessible/secure exporters, raw high physical memory, and buffers beyond
+the staging limits remain deliberately unsupported on RGA2. No rewrite source
+was changed.

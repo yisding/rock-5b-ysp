@@ -15,6 +15,11 @@
 > per-use SWIOTLB mappings also created independent alias images. Patch `0095`
 > now stages every high-address RGA2 DMA-BUF through one job-shared object.
 
+> **Runtime update 2026-08-11:** exact `0001`–`0096` is Published, installed,
+> and booted, and ordinary conformance reaches 30/31 required librga cases.
+> That run did not exercise the dedicated DMA-BUF alias/staging gate. Source
+> patch `0097` fixes the separate USERPTR admission failure that stopped it.
+
 ## Result
 
 Patch `0094` supplied the forward port's first source-level response to the
@@ -79,10 +84,10 @@ The build state is retained under
 
 ## Verification gate
 
-Build and package the exact `0001`–`0096` series, install it with a recovery
-kernel retained, and boot the matching YSP DTB. First require the original
-three RGA2-only USERPTR failures to pass, proving `0093`. Then run the plain
-system-heap DMA-BUF allocator sample and at least one forced-RGA2 partial write,
+Build, package, install, and boot the exact `0001`–`0097` series with a recovery
+kernel retained and the matching YSP DTB. First require the focused `0097`
+USERPTR replay to pass. Then run the plain system-heap DMA-BUF allocator sample
+and at least one forced-RGA2 partial write,
 requiring correct output plus positive staging attempt/success/copy counters,
 zero staging failures, and zero active objects/bytes after completion. Repeat
 with one DMA-BUF aliased across planes or consecutive tasks and require a
@@ -95,9 +100,10 @@ IOMMU, warning, oops, or recovery signature.
 
 ## Boundary
 
-The corrected `0095` tail is source-, style-, and compile-verified only. It is
-not packaged, installed, booted, or runtime-verified. CPU-inaccessible/secure
-exporters,
+The corrected `0095` tail is source-, style-, and compile-verified and is
+included in the Published, installed, and booted `0096` package. Its focused
+DMA-BUF staging and alias behavior remains runtime-unverified.
+CPU-inaccessible/secure exporters,
 DMA-BUFs that would exceed the 64 MiB per-job cap, raw high physical memory,
 and arbitrary mapping failures remain deliberately unsupported on RGA2. The
 separate rewrite implementation remains untouched; its proposed equivalent is

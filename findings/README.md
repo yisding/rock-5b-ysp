@@ -176,10 +176,11 @@ Vendor MPP/rkvenc/rkvdec forward-ported to 6.18 — defects, audits, and whole-t
 - [`2026-07-17`](2026-07-17-forward-port-conformance-preflight-oops.md) — Forward-port conformance preflight Oopsed before the first MPP case
 - [`2026-07-16`](2026-07-16-rockchip-bsp-driver-quality.md) — Rockchip BSP driver quality is feature-strong but below mature mainline robustness
 
-### Kernel RGA: memory contracts and 10-bit ABI (19)
+### Kernel RGA: memory contracts and 10-bit ABI (20)
 
 The `/dev/rga` driver — session lifetime, userptr/dma-buf imports, and the 10-bit stride convention.
 
+- [`2026-08-11`](2026-08-11-forward-port-rga2-contiguous-userptr-rejection.md) — Forward-port 0096 rejects high contiguous USERPTRs before the RGA2 remap
 - [`2026-08-08`](2026-08-08-forward-port-rga2-dmabuf-staging.md) — Forward port stages exporter-owned high DMA-BUFs for RGA2-only work
 - [`2026-08-08`](2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md) — Forward-port 6.18.43 conformance isolates oversized RGA2 USERPTR SWIOTLB segments
 - [`2026-08-06`](2026-08-06-librga-palette-demo-is-not-kernel-conformance.md) — librga's palette demo does not provide a kernel conformance signal
@@ -364,6 +365,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 
 <!-- findings-index:start -->
 - [`2026-08-11-rewrite-phases-4-5-task-execution-and-sealed-emission.md`](2026-08-11-rewrite-phases-4-5-task-execution-and-sealed-emission.md) — Rewrite Phases 4 and 5 complete task-execution ownership and sealed emission
+- [`2026-08-11-forward-port-rga2-contiguous-userptr-rejection.md`](2026-08-11-forward-port-rga2-contiguous-userptr-rejection.md) — Forward-port 0096 rejects high contiguous USERPTRs before the RGA2 remap
 - [`2026-08-09-rewrite-phase-3j-mpp-typed-activation-references.md`](2026-08-09-rewrite-phase-3j-mpp-typed-activation-references.md) — Rewrite Phase 3J types external MPP activation references
 - [`2026-08-09-rewrite-phase-3i-mpp-clean-terminal-observations.md`](2026-08-09-rewrite-phase-3i-mpp-clean-terminal-observations.md) — Rewrite Phase 3I retains exact clean MPP terminal observations
 - [`2026-08-09-rewrite-phase-3h-mpp-recovered-terminal-quarantine.md`](2026-08-09-rewrite-phase-3h-mpp-recovered-terminal-quarantine.md) — Rewrite Phase 3H retains recovered MPP terminal claims and quarantine ownership

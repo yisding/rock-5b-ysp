@@ -41,8 +41,8 @@ were written — resolve any older number through the **renumber map** at the en
 
 Exported with `git format-patch 7d0a66e4bb908..rk3588-video-6.18` from the kernel
 worktree at `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` (branch
-`rk3588-video-6.18`). This checked-in export is the contiguous `0001`–`0096`
-snapshot ending at `7698e7018e3d5`. W16 owns the moving branch;
+`rk3588-video-6.18`). This checked-in export is the contiguous `0001`–`0097`
+snapshot ending at `e7ff978398825`. W16 owns the moving branch;
 the forward-port package record owns actual artifacts; the
 [scorecard](../../docs/forward-port-status.md) owns accumulated validation.
 Backup of the pre-cleanup tip: tag
@@ -357,9 +357,11 @@ pages reached the 32-bit RGA2 DMA device as merged 2 MiB SG entries, exceeding
 SWIOTLB's per-entry mapping limit before hardware start. `0093` sizes both
 direct and transient RGA2 USERPTR SG entries from `dma_max_mapping_size()`;
 RGA3 and physical-import coalescing are unchanged. The patch is strict-
-checkpatch clean and affected-object compile-verified, but not packaged or
-booted. The [dated finding](../../../findings/2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md)
-owns the measured run and verification gate.
+checkpatch clean and affected-object compile-verified. Exact `0001`–`0096` is
+published, installed, and booted: the former 2 MiB rejection is absent, but a
+high contiguous USERPTR exposed the follow-on admission gap fixed by `0097`.
+The [dated finding](../../../findings/2026-08-08-forward-port-rga2-userptr-swiotlb-segments.md)
+owns the original result and correction route.
 
 | # | Title | Commit | Was |
 |---|-------|--------|-----|
@@ -375,7 +377,8 @@ exact attachment `-EIO`. Staging is shared by DMA-BUF identity across all
 planes/tasks, copies back only after successful quiesced completion, and
 exports lifecycle/leak counters. CPU-inaccessible exporters and buffers beyond
 the 64 MiB per-job cap still fail closed. The patch is strict-checkpatch and
-full-RGA-driver compile-verified, but not packaged or booted. The
+full-RGA-driver compile-verified and is booted as part of exact `0096`, but its
+dedicated DMA-BUF staging and alias gates remain unverified. The
 [dated finding](../../../findings/2026-08-08-forward-port-rga2-dmabuf-staging.md)
 owns the design boundary and hardware gate.
 
@@ -392,7 +395,8 @@ stage keyed by DMA-BUF identity. The patch also closes request/fence/scheduler,
 session-handle/import, PM-unwind, pool-rollback, and shutdown ownership gaps
 found by the subsequent multi-agent review. Strict checkpatch, production and
 async-disabled full-RGA `W=1 WERROR=1` builds, and two final independent source
-reviews pass; package and runtime proof remain pending. The
+reviews pass. Exact `0096` is published and booted with partial conformance;
+the dedicated ownership and alias-staging proof remains pending. The
 [audit finding](../../../findings/2026-08-08-forward-port-rga-mpp-ownership-audit-fixes.md)
 owns the complete boundary and verification gate.
 
@@ -408,11 +412,36 @@ VSI providers preserve faults latched after START, reject missing PM supplier
 links, and quiesce callbacks consistently. RKVDEC2 hard CCU requests are forced
 to soft mode before worker/IRQ selection. Full MPP and IOMMU-directory
 `W=1 WERROR=1` builds, strict checkpatch, and independent MPP/integration
-reviews pass; package and runtime proof remain pending.
+reviews pass. Exact `0096` is published and booted; its ordinary MPP suite
+passes, while focused ownership, fault-admission, and hard-CCU fallback proof
+remain pending.
 
 | # | Title | Commit | Was |
 |---|-------|--------|-----|
 | `0096` | video: rockchip: mpp: serialize task and fault ownership | `7698e7018e3d5` | — |
+
+### 0097 — RGA2 high contiguous USERPTR admission (2026-08-11)
+
+The first exact-`0096` boot removed the original oversized-SG failure but
+isolated a prior policy mistake. A multi-megabyte USERPTR backed by physically
+contiguous high pages carried `RGA_MEM_PHYSICAL_CONTIGUOUS`; admission treated
+that generic property as proof that the buffer had to bypass the RGA2 MMU,
+even though a virtual import retains pinned pages and can use the transient
+RGA2 remap. Gray256 therefore had no compatible core before mapping or hardware
+start.
+
+`0097` recognizes pinned virtual imports during admission, keeps the RGA2 MMU
+enabled for a high contiguous USERPTR, and prepares its virtual address rather
+than the high physical address. Below-4-GiB contiguous buffers stay direct;
+raw high physical imports stay rejected; and high DMA-BUFs retain `0095`
+staging. Strict checkpatch and a complete production-config RGA directory
+build with `W=1 WERROR=1` pass. Packaging and runtime replay remain pending.
+The [dated finding](../../../findings/2026-08-11-forward-port-rga2-contiguous-userptr-rejection.md)
+owns the measured `0096` failure, root cause, and verification gate.
+
+| # | Title | Commit | Was |
+|---|-------|--------|-----|
+| `0097` | video: rockchip: rga3: remap contiguous high USERPTRs | `e7ff978398825` | — |
 
 ## Renumber map (2026-07-23)
 

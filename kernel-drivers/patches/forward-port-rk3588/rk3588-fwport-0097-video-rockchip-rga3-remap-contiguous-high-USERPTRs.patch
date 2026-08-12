@@ -1,0 +1,84 @@
+From e7ff978398825b63ddcb13e0572d77564034c1e2 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Tue, 11 Aug 2026 14:21:33 -0700
+Subject: [PATCH 97/97] video: rockchip: rga3: remap contiguous high USERPTRs
+
+A high virtual import can still be physically contiguous when its pages
+come from a transparent huge page. Do not classify that generic property as
+raw direct-address memory before RGA2 support checks, because the retained
+USERPTR pages remain remappable below 4 GiB.
+
+Admit pinned virtual imports to the transient RGA2 path, keep their MMU page
+table enabled, and prepare the virtual address instead of the high physical
+address. Preserve the direct path for below-4-GiB buffers and the rejection of
+raw high physical imports.
+---
+ drivers/video/rockchip/rga3/rga_mm.c | 23 ++++++++++++++---------
+ 1 file changed, 14 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
+index 16ba3bf69e4af..f6c0e1e7096bb 100644
+--- a/drivers/video/rockchip/rga3/rga_mm.c
++++ b/drivers/video/rockchip/rga3/rga_mm.c
+@@ -1643,14 +1643,13 @@ int rga_mm_lookup_rga2_support(struct rga_mm *mm_session, uint64_t handle,
+ 		return buffer->dma_buffer && buffer->dma_buffer->dma_buf ?
+ 		       RGA2_BUFFER_STAGEABLE : RGA2_BUFFER_UNSUPPORTED;
+ 
+-	/* Over-4G contiguous non-DMA-BUF memory bypasses the RGA2 MMU. */
+-	if (buffer->mm_flag & RGA_MEM_PHYSICAL_CONTIGUOUS)
+-		return RGA2_BUFFER_UNSUPPORTED;
+-
+ 	/*
+ 	 * Over-4G memory is servable through the RGA2 MMU when a transient
+ 	 * per-job DMA mapping of the 32-bit RGA2 device can bounce it below
+ 	 * 4G: dma-buf imports re-attach, virtual imports re-map their pages.
++	 * A virtual import can be physically contiguous at import time (for
++	 * example when malloc() is backed by a transparent huge page), but it
++	 * must still take this remap path rather than bypassing the RGA2 MMU.
+ 	 */
+ 	switch (buffer->type) {
+ 	case RGA_DMA_BUFFER:
+@@ -1659,6 +1658,8 @@ int rga_mm_lookup_rga2_support(struct rga_mm *mm_session, uint64_t handle,
+ 	case RGA_VIRTUAL_ADDRESS:
+ 		return buffer->virt_addr && buffer->virt_addr->pages ?
+ 		       RGA2_BUFFER_DIRECT : RGA2_BUFFER_UNSUPPORTED;
++	case RGA_PHYSICAL_ADDRESS:
++		return RGA2_BUFFER_UNSUPPORTED;
+ 	default:
+ 		return RGA2_BUFFER_UNSUPPORTED;
+ 	}
+@@ -1800,14 +1801,16 @@ static bool rga_mm_is_need_mmu(struct rga_job *job, struct rga_internal_buffer *
+ 		return false;
+ 
+ 	/*
+-	 * High DMA-BUFs that look physically contiguous still need the RGA2
+-	 * MMU: their direct address is outside the 32-bit aperture and the
+-	 * per-job path may replace them with DMA32 staging pages.
++	 * High DMA-BUFs and USERPTRs that look physically contiguous still need
++	 * the RGA2 MMU: their direct address is outside the 32-bit aperture and
++	 * the per-job path may replace or remap them below 4G. Raw physical
++	 * imports remain direct-address-only.
+ 	 */
+ 	if (buffer->mm_flag & RGA_MEM_PHYSICAL_CONTIGUOUS) {
+ 		if (!(buffer->mm_flag & RGA_MEM_UNDER_4G) &&
+ 		    (buffer->type == RGA_DMA_BUFFER ||
+-		     buffer->type == RGA_DMA_BUFFER_PTR))
++		     buffer->type == RGA_DMA_BUFFER_PTR ||
++		     buffer->type == RGA_VIRTUAL_ADDRESS))
+ 			return true;
+ 
+ 		return false;
+@@ -2805,7 +2808,9 @@ static int rga_mm_get_buffer_info(struct rga_job *job,
+ 		break;
+ 	case RGA_MMU:
+ 	default:
+-		if (internal_buffer->mm_flag & RGA_MEM_PHYSICAL_CONTIGUOUS) {
++		if ((internal_buffer->mm_flag & RGA_MEM_PHYSICAL_CONTIGUOUS) &&
++		    ((internal_buffer->mm_flag & RGA_MEM_UNDER_4G) ||
++		     internal_buffer->type == RGA_PHYSICAL_ADDRESS)) {
+ 			addr = internal_buffer->phys_addr;
+ 			break;
+ 		}
+-- 
+2.55.0
+
