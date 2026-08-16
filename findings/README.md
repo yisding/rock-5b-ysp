@@ -150,10 +150,11 @@ RK3588 platform behaviour outside the media path.
 - [`2026-07-26`](2026-07-26-dwc-pcie-pmu-bus-notifier-lockdep-false-positive.md) — DWC PCIe PMU nests distinct same-class bus notifier locks and disables lockdep
 - [`2026-07-25`](2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md) — RK3588 per-die voltage binning: the BSP selects voltage from eFuse, mainline ships only the worst-die column
 
-### Kernel forward port: MPP and codec drivers (21)
+### Kernel forward port: MPP and codec drivers (22)
 
 Vendor MPP/rkvenc/rkvdec forward-ported to 6.18 — defects, audits, and whole-tip validation runs.
 
+- [`2026-08-16`](2026-08-16-forward-port-rkvenc-intermittent-encode-corruption.md) — Forward-port RKVENC emits intermittently corrupt H.264/HEVC frames with clean kernel logs
 - [`2026-08-08`](2026-08-08-forward-port-rga-mpp-ownership-audit-fixes.md) — Forward-port 0095–0096 close RGA/MPP ownership and fault-admission gaps
 - [`2026-08-04`](2026-08-04-forward-port-6-18-42-0092-production-validation.md) — Forward-port 6.18.42 production validation boots 0092 and closes the functional recovery gates
 - [`2026-08-04`](2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md) — Forward-port 0090–0092 close the RGA job-task and decoder recovery lifetime gaps
@@ -364,6 +365,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-08-16-forward-port-rkvenc-intermittent-encode-corruption.md`](2026-08-16-forward-port-rkvenc-intermittent-encode-corruption.md) — Forward-port RKVENC emits intermittently corrupt H.264/HEVC frames with clean kernel logs
 - [`2026-08-11-rewrite-phases-4-5-task-execution-and-sealed-emission.md`](2026-08-11-rewrite-phases-4-5-task-execution-and-sealed-emission.md) — Rewrite Phases 4 and 5 complete task-execution ownership and sealed emission
 - [`2026-08-11-forward-port-rga2-contiguous-userptr-rejection.md`](2026-08-11-forward-port-rga2-contiguous-userptr-rejection.md) — Forward-port 0096 rejects high contiguous USERPTRs before the RGA2 remap
 - [`2026-08-09-rewrite-phase-3j-mpp-typed-activation-references.md`](2026-08-09-rewrite-phase-3j-mpp-typed-activation-references.md) — Rewrite Phase 3J types external MPP activation references
