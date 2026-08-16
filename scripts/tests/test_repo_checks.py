@@ -22,6 +22,21 @@ from repo_files import (  # noqa: E402
 )
 
 
+# The rewrite source-audit cases each drive the real audit over a synthetic
+# C tree, which costs seconds per invocation and minutes across the class --
+# far more than every other test here combined.  They guard driver-source
+# contracts, so nothing below them changes when only documentation moves.
+# check-repo.sh sets this when the audit, its baseline, or the rewrite driver
+# sources are among the changed files; pass --all to force it.
+SLOW_SOURCE_AUDIT = os.environ.get("REPO_CHECK_SOURCE_AUDIT") == "1"
+
+source_audit_test = unittest.skipUnless(
+    SLOW_SOURCE_AUDIT,
+    "source-audit case is opt-in: set REPO_CHECK_SOURCE_AUDIT=1, or run "
+    "scripts/check-repo.sh --all",
+)
+
+
 def load_doc_checker():
     spec = importlib.util.spec_from_file_location(
         "check_doc_consistency",
@@ -2346,6 +2361,7 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
             result.stderr,
         )
 
+    @source_audit_test
     def test_validate_continue_cannot_finalize_failed_stage_as_pass(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             command_env = os.environ.copy()
@@ -2600,6 +2616,7 @@ class RewriteKunitSourceAuditTests(unittest.TestCase):
             self.assertIn("NEW\tproduction-singleton-access", audited.stderr)
 
 
+@source_audit_test
 class RewriteOwnershipSourceAuditTests(unittest.TestCase):
     audit = (
         REPO_ROOT

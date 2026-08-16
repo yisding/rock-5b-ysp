@@ -6,6 +6,26 @@ status, and the handoff gate (`bash scripts/check-repo.sh`) — is
 [`CONTRIBUTING.md`](CONTRIBUTING.md); read that first. This file holds only the
 things that differ from ordinary practice on this machine.
 
+## Running the handoff gate
+
+This repository is primarily documentation. Most changes are Markdown, and the
+gate is scoped to match — do not reach for the full matrix by reflex.
+
+- Run plain `bash scripts/check-repo.sh`. It always checks Markdown links,
+  documentation consistency, and whitespace over the whole repository (seconds),
+  and scopes the two expensive stages to what the branch actually changed.
+- Add `--all` **only** when the change is global: editing
+  `scripts/check-repo.sh` itself or the checks it drives, a repository-wide
+  rename or reformat, a release handoff, or when you have reason to believe the
+  scoping missed something. `--all` re-runs the rewrite source-audit tests,
+  which take minutes.
+- Do not invoke `shellcheck` across every shell file, or run
+  `python3 -m unittest discover` directly, to "be thorough". Both bypass the
+  scoping and cost minutes for changes that cannot affect them. Use the gate.
+- The gate prints which stages it scoped or skipped. Quote that line when you
+  report the result rather than implying full coverage — a scoped pass is a
+  pass for what changed, not for the repository.
+
 ## GitHub workflow
 
 - Push completed changes directly to `main`; do not open pull requests.

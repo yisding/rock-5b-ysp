@@ -368,10 +368,19 @@ bash scripts/check-repo.sh
 This checks local Markdown paths and anchors — including relative links that
 climb out of the repository, which are unreachable from any other checkout and
 are always a bug — runs the repository-check
-regression tests, runs ShellCheck at warning-or-higher severity across every
-maintained shell file, runs the documentation consistency check described above,
+regression tests, runs ShellCheck at warning-or-higher severity, runs the
+documentation consistency check described above,
 and finds whitespace errors in staged, unstaged, and untracked files. Run `bash -n` on changed shell scripts as
-an additional syntax gate. Run project-specific build or hardware
+an additional syntax gate.
+
+The documentation checks always cover the whole repository. The two expensive
+stages are scoped to what the branch changed — ShellCheck to changed shell
+files, and the rewrite source-audit tests to changes in the audit scripts,
+their baselines, the conformance harness, or the test module — because this
+repository is mostly documentation and those stages cost minutes. `--all`
+ignores the scoping and runs everything; use it for a release handoff, after a
+repository-wide change, or when editing the gate itself. The run prints which
+stages it scoped or skipped, so report that alongside the result. Run project-specific build or hardware
 tests in proportion to the behavior changed, and report exactly what was and
 was not exercised.
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import collections
 import dataclasses
+import functools
 import pathlib
 import re
 import subprocess
@@ -1603,8 +1604,9 @@ def normalize(text: str) -> str:
     return " ".join(text.strip().split())
 
 
-def strip_comments(lines: list[str]) -> list[str]:
-    """Remove comments while preserving line count and string contents."""
+@functools.lru_cache(maxsize=None)
+def _strip_comments_cached(lines: tuple[str, ...]) -> tuple[str, ...]:
+    """Character-scan one source once; see strip_comments for the contract."""
 
     stripped: list[str] = []
     in_block = False
@@ -1643,7 +1645,18 @@ def strip_comments(lines: list[str]) -> list[str]:
             output.append(char)
             index += 1
         stripped.append("".join(output))
-    return stripped
+    return tuple(stripped)
+
+
+def strip_comments(lines: list[str]) -> list[str]:
+    """Remove comments while preserving line count and string contents.
+
+    Memoized on content because the callers below re-read and re-strip the
+    same two sources many times per run, and the scan above is per character.
+    Returns a fresh list so a caller may mutate its own copy.
+    """
+
+    return list(_strip_comments_cached(tuple(lines)))
 
 
 def kunit_lines(lines: list[str], symbol: str) -> set[int]:
@@ -4312,10 +4325,9 @@ def unique_struct_member_declaration(
     """Return one exact member from one exact production struct definition."""
 
     lines = strip_comments(source.read_text(encoding="utf-8").splitlines())
+    structure_re = re.compile(rf"\bstruct\s+{re.escape(structure)}\s*\{{")
     structure_starts = [
-        index
-        for index, line in enumerate(lines)
-        if re.search(rf"\bstruct\s+{re.escape(structure)}\s*\{{", line)
+        index for index, line in enumerate(lines) if structure_re.search(line)
     ]
     if len(structure_starts) != 1:
         raise ValueError(
@@ -4354,10 +4366,9 @@ def struct_member_pattern_matches(
     """Return matches inside one exact struct plus the source-wide count."""
 
     lines = strip_comments(source.read_text(encoding="utf-8").splitlines())
+    structure_re = re.compile(rf"\bstruct\s+{re.escape(structure)}\s*\{{")
     structure_starts = [
-        index
-        for index, line in enumerate(lines)
-        if re.search(rf"\bstruct\s+{re.escape(structure)}\s*\{{", line)
+        index for index, line in enumerate(lines) if structure_re.search(line)
     ]
     if len(structure_starts) != 1:
         raise ValueError(

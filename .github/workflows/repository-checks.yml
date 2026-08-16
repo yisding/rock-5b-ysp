@@ -29,4 +29,7 @@ jobs:
           sudo apt-get install --no-install-recommends --yes shellcheck
 
       - name: Run repository checks
-        run: bash scripts/check-repo.sh
+        # CI is the exhaustive pass: local runs scope ShellCheck and the
+        # source-audit tests to what changed, and a shallow or detached
+        # checkout cannot compute that scope reliably anyway.
+        run: bash scripts/check-repo.sh --all
