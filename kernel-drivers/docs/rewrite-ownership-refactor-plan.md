@@ -18,9 +18,14 @@ The priority is **ownership before convention**:
 4. postpone broad file moves, naming cleanup, and test rationalization until
    the ownership graph has stopped changing.
 
-> **Current status — 2026-08-11:** Phases 4 and 5 are source-complete at
-> `rk3588-rewrite-6.18@149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` and
-> `rk3588-rewrite-mainline@280181e634a3a10a3a4f1659fe7c7287f7ee3760`.
+> **Current status — 2026-08-11:** the maintained tips are
+> `rk3588-rewrite-6.18@d9cbcf21cda1c047c053447a48a908dcb6e4c5d6` and
+> `rk3588-rewrite-mainline@b6335efd8f98bedabf426a80d224f85a266c8ea4`.
+> They retain the source-complete Phase 4/5 checkpoints at
+> `149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` and
+> `280181e634a3a10a3a4f1659fe7c7287f7ee3760`, then harden the immediately
+> surrounding ABI, admission, resource-accounting, fault, reclamation, and
+> suspend/resume boundaries.
 > Phase 4 gives every RGA hardware task a typed, generation-retained execution
 > owner for its core, mappings, MMU tables, command allocation, USERPTR
 > copyback, timing, IRQ/fault/timeout edges, and retirement state. One engine
@@ -31,11 +36,15 @@ The priority is **ownership before convention**:
 > implemented RGA emitter to an immutable validated task plan, and makes
 > owner-specific publication helpers arm the watchdog and publish ownership
 > before issuing START. The exact source manifest is 109 MPP plus 152 RGA
-> cases, the ownership audit passes at 2,312 signals/tree, and fixture debt
+> cases, the ownership audit passes at 2,313 signals/tree, and fixture debt
 > passes at 306/tree. All eight warning-fatal profiles and the dedicated
-> test-disabled ABI-mutation gate pass on both kernel lines. Source and compile
-> evidence do not replace current-tip boot, runtime KUnit, sanitizer, media,
-> differential-output, or recovery qualification.
+> test-disabled ABI-mutation gate pass on both exact heads. Strict checkpatch
+> over each boundary-hardening delta reports zero errors, warnings, and checks;
+> the byte-identical MPP/RGA source SHA-256 values are
+> `349709b66254d6f3c1aeb7b5023e4fc2836d3a7dbedadfe287d14ac5d5344c7a` and
+> `86100ff095475551ea043f6b89160b621183a649b865c599718d2194937f6619`.
+> Source and compile evidence do not replace current-tip boot, runtime KUnit,
+> sanitizer, media, differential-output, or recovery qualification.
 >
 > **Checkpoint history through Phase 3J:** Phase 1 is source-complete, all six Phase 2
 > source items are implemented, Phase 3A embedded the first MPP
@@ -1103,6 +1112,23 @@ case manifests and source-audit signal counts. Then remove shadow fields,
 temporary adapters, duplicate helpers, stale lock comments, and consumer-named
 tests that exercise the same normalized recipe.
 
+Use the as-built ownership boundaries rather than introducing a new generic
+framework. The initial split should approximately isolate:
+
+- MPP UAPI/job construction, imports, activation lifetime, cluster/reset/DMA
+  recovery, RKVENC2, RKVDEC2/CCU, AV1/VSI, and diagnostics;
+- RGA UAPI/session/request handling, imports and execution mappings, immutable
+  task planning, execution/retirement, scheduling/fences, RGA2 emission, RGA3
+  emission, PM/recovery, and diagnostics; and
+- KUnit suites in test translation units matching the production owner they
+  exercise.
+
+The first commits are code motion only. They must preserve symbol behavior,
+the 109-MPP/152-RGA named manifest, ownership and fixture-debt signal counts,
+warning-fatal object builds, and the exact-tip runtime baseline recorded before
+the move. Backend-specific semantics should remain explicit: file size alone
+is not a reason to manufacture one broad abstraction over MPP, RGA2, and RGA3.
+
 This phase is intentionally later than the retrospective's counterfactual
 “split tests first” advice. In a fresh rewrite, early separation is cheaper. In
 this existing 40,000-plus-line implementation, a large move before the object
@@ -1117,6 +1143,203 @@ KUnit, public-ABI conformance, differential pixels/bitstreams, recovery matrix,
 hostile lifecycle tests, KASAN/KCSAN/lockdep, performance, and soak. Keep AV1
 DMA-retirement, hard CCU, gated-clock MMIO, and byte-exact compressed-layout
 questions explicitly gated until board evidence closes them.
+
+## Post-Phase-5 architecture assessment and improvement queue
+
+The Phase 1–5 direction is sound. Do not replace it with another wholesale
+rewrite. The logical-job/physical-attempt split, typed asynchronous references,
+generation checks, central retirement, immutable recipes, separate result
+storage, and fail-closed quarantine address the failure classes that motivated
+this work. Future changes should reduce exceptions to those rules rather than
+reintroducing manager-owned lifetime or parallel terminal tails.
+
+Preserve these invariants:
+
+- one logical MPP job may create several non-overlapping physical activations;
+- one logical RGA request may create several non-overlapping task executions;
+- IRQ, timeout, fault, cancel, close, and removal converge on one retirement
+  policy for the exact attempt;
+- generation rejects an event from a predecessor but never substitutes for a
+  reference or terminal proof;
+- MPP images and RGA plans become immutable before ownership publication and
+  START, while hardware observations use separate result storage;
+- unproved DMA stop retains mappings, command storage, power, references, and
+  admission exclusion in quarantine; and
+- reset domains, DMA groups, and CCU clusters remain distinct physical
+  relationships even when a cluster operation composes them.
+
+### Priority and decision order
+
+| Priority | Improvement | Decision boundary |
+|----------|-------------|-------------------|
+| 1 | Qualify the exact boundary-hardening tips before changing their architecture | Establish a board-backed regression baseline; this is a checkpoint, not permission to inherit results across later changes. |
+| 2 | Complete Phase 6 source/test separation | Pure code motion along the owners that now exist; no behavior or generic-framework redesign. |
+| 3 | Complete MPP cluster authority | Required remaining ownership work: admission, coordinator power, descriptor membership, recovery composition, and quarantine scope. |
+| 4 | Normalize activation/execution allocation and references | Optional simplification after the split; adopt only if it materially reduces the proof surface without weakening fail-closed behavior. |
+| 5 | Separate an MPP logical register plan from each activation's device-specific image | Larger scheduling/mapping redesign; require a demonstrated affinity, recovery, or throughput benefit. |
+| 6 | Restore parallel unflagged RGA task batches | Compatibility/performance feature; require paired evidence that per-request serialization matters. |
+
+### Exact-tip checkpoint before Phase 6
+
+Before code motion or another ownership change, package, install, and boot the
+exact boundary-hardening tips. Require all 261 KUnit cases, a fatal-free lockdep
+interval, terminal-reason and old-generation event permutations, acquisition
+failpoints, fallback/copyback, retirement/quarantine balance, and the byte-exact
+MPP/RGA artifact differential. Record source/package identity, counters, logs,
+and the still-open sanitizer/media/recovery boundary.
+
+Freeze that record as the before/after oracle for Phase 6. The checkpoint does
+not replace the complete Phase 7 production ladder; it prevents a later code
+move or ownership change from being compared only with an older pre-refactor
+boot.
+
+### Complete the MPP cluster control plane
+
+`rk_mpp_cluster` is currently a stable topology and operation funnel, while
+the coordinator's `ccu_recovery_lock` remains the provisional transition lock.
+Coordinator register power remains per-job, and the stable CCU list node
+remains in `rk_mpp_job` even though the current activation owns the matching
+descriptor resources. Finish the migration with one cluster-level admission
+and operation state machine:
+
+```text
+AVAILABLE -> RUNNING -> RECOVERING -> AVAILABLE
+                                  \-> QUARANTINED
+            \-> REMOVING
+```
+
+The cluster should own:
+
+- admission while recovery, suspend, quarantine, or member removal is active;
+- coordinator and exact member-core power as one refcounted run lease;
+- descriptor admission, link membership, and the continuous arm-to-START
+  critical section;
+- a recovery generation plus the exact affected-member and DMA-group view;
+- composition of reset-domain effect with DMA refresh or terminal isolation;
+  and
+- member-, coordinator-, or cluster-scoped quarantine publication and refusal.
+
+Do not merge the reset domain or DMA groups into the cluster. A cluster run or
+recovery method composes their typed results while each owner continues to
+describe its own physical relationship. An activation should ultimately hold
+one cluster run lease instead of coordinating member power, coordinator power,
+descriptor/list membership, and recovery locks through separate conventions.
+
+Acceptance requires that callers request cluster operations rather than walk
+siblings or take coordinator locks directly; one failed recovery cannot
+re-admit any affected member without reset effect plus translation refresh or
+isolation proof; and the existing soft/hard-CCU retry, abort, remove, suspend,
+and quarantine matrices remain green.
+
+### Consider uniform independently allocated attempts
+
+Both drivers embed the first physical attempt in the logical job and allocate
+successors separately. That made the ownership migration incremental, but it
+also leaves two storage policies. Typed references retain both an attempt and
+its containing job; MPP uses a base-reference bias plus custom reclaim under
+the session and scheduler locks, while RGA retains every bounded successor
+until whole-job release to avoid eager-free races among lockless final puts.
+
+After the source split and cluster work, evaluate allocating every activation
+and task execution independently:
+
+- each attempt has one conventional refcount and release callback;
+- it holds the containing-job reference required by delayed callbacks;
+- the job owns one explicit attempt reference and drops it only after terminal
+  retirement and handoff;
+- active, IRQ, timeout, fault, retry, and quarantine owners clone or move the
+  same typed attempt reference; and
+- the RKVDEC session dispatch lease becomes an owning typed ticket rather than
+  a borrowed activation pointer protected by final-release refusal.
+
+The intended benefit is uniform destruction: remove embedded-versus-successor
+branches, list/base bias, `refcount != 1` conventions, and special eager-reclaim
+checks. This is not an urgent correctness fix. Keep the current model if the
+replacement needs sleeping finalizers, introduces an ownership cycle without a
+singular break point, or increases the number of terminal transitions. Prove
+allocation-failure, concurrent-final-put, retry/fallback, quarantine, and job
+destruction behavior before accepting the change.
+
+### Consider activation-owned MPP image materialization
+
+The current normal fd-backed MPP path chooses hardware, creates device-specific
+DMA mappings, patches IOVAs, and seals the job image before scheduler dispatch,
+while the activation owns the selected physical run. A cleaner but larger
+future split would be:
+
+```text
+logical job
+  -> immutable register plan + buffer identities/binding recipes
+
+physical activation
+  -> selected core + device/domain mappings
+  -> materialized sealed register image
+  -> hardware run and result
+```
+
+That model would allow normal jobs to select a core at dispatch, make mapping
+and command-image lifetime match the activation, and make a cross-core retry
+materialize a fresh device-correct image instead of relying on early affinity.
+Explicit-IOVA mode remains deliberately affinity-pinned: its retained mapping
+provenance constrains the eligible device and is not made portable by a new
+type.
+
+Do not undertake this change for aesthetic symmetry. First measure whether
+early core binding causes material head-of-line delay, mapping churn, or
+recovery complexity. Preserve one-way validation by sealing each materialized
+image before backend validation/publication, retain a device-independent
+golden plan for differential tests, and compare dispatch fairness, mapping
+counters, pixels/bitstreams, and failure behavior against the current model.
+
+### Restore the RGA sequential/independent batch distinction only with evidence
+
+The current RGA rewrite serializes every task in one userspace request. This is
+safe for dependencies and matches the major FFmpeg/GStreamer/ordinary IM2D
+calling shapes, but it does not distinguish an unflagged independent Task-API
+batch from `IM_JOB_FLAGS_EXEC_SEQUENTIAL`. If paired hardware measurements show
+a relevant loss, preserve the current parent ownership while changing only the
+scheduling shape:
+
+- a sequential request retains the current `current_task` orchestrator;
+- an unflagged request creates independently schedulable child task
+  executions, each with its own selected core, mappings, command image,
+  generation, and retirement;
+- the parent owns the aggregate result, cancellation generation, child count,
+  and one release fence;
+- first failure closes new child admission, while already-active children
+  still drain or quarantine through the common retirement engine; and
+- the parent signals only after every child is terminal and all required
+  copyback is visible.
+
+This must not restore global request lookup or give children independent final
+fence/close/remove tails. Require a paired single-request versus separate-async
+measurement with output hashes, per-core counters, release-fence timing, and
+DDR-bandwidth context before deciding the extra state is justified.
+
+### Non-goals and sequencing guardrails
+
+- Do not add another rewrite layer or broad global manager around the new
+  owners.
+- Do not infer that MPP, RGA2, and RGA3 need one backend abstraction merely
+  because their current translation units are large.
+- Do not merge reset, power, CCU, and IOMMU topology into one false object;
+  compose their results in the operation owner.
+- Do not add an execution-mapping cache before performance evidence and a
+  device/domain-generation invalidation contract exist.
+- Do not make quarantine reclaimable merely to clear counters. A later reaper
+  may release resources only after positive reset/stop, callback drain, and
+  translation-isolation proof.
+- Do not carry the exact-tip checkpoint across Phase 6, cluster changes,
+  lifetime normalization, late MPP materialization, or parallel RGA batches;
+  each accepted change re-runs its affected gates.
+
+Recommended order: record the exact-tip runtime checkpoint; perform Phase 6 as
+pure code motion; complete cluster authority; decide whether uniform attempt
+allocation actually reduces proof complexity; then let measured scheduling and
+performance evidence decide activation-owned MPP images and parallel unflagged
+RGA batches. Run the full Phase 7 ladder after the required architecture work,
+and qualify any optional improvement against the last accepted baseline rather
+than treating source clarity as inherited hardware evidence.
 
 ## Source-audit rules worth making mechanical
 
