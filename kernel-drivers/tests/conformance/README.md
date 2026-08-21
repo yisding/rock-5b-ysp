@@ -30,9 +30,10 @@ the terminal view and persisted plan use the same parseable schema.
 
 The runner tests the kernel that is currently booted; it does not install or
 reboot kernels. To cover the full matrix, boot each BSP, forward-port, rewrite,
-KASAN, and KCSAN image in turn and repeat the same two commands. The shared
-standard set stays the same, while compatible target-specific rows are resolved
-for that boot.
+KASAN, and KCSAN image in turn and repeat the same two commands. Compatible
+target-specific rows are resolved for that boot. In particular, the stateful
+`abi` replay is excluded from BSP boots and remains a standard forward-port/
+rewrite check.
 
 Use explicit selectors when planning off-board, testing detection itself, or
 pinning a CI job to one matrix cell:
@@ -52,15 +53,16 @@ either axis.
 ## What the standard run tests
 
 The standard set favors tests that can run unchanged across every kernel. It
-adds rewrite-only boot checks automatically, but leaves long or destructive
-stress tests as explicit opt-ins.
+adds rewrite-only boot checks automatically and excludes stateful ABI replay
+from the vendor BSP, whose legacy drivers cannot safely exercise its request
+and session controls. Long or destructive stress tests remain explicit opt-ins.
 
 | Test | What it exercises | What a pass establishes |
 |------|-------------------|--------------------------|
 | `kunit` | Complete booted MPP and RGA rewrite KUnit manifests and their boot-log interval. Rewrite only. | The expected kernel-side lifecycle cases ran without a KUnit failure, skip, fatal boot signature, or disabled lockdep. It does not exercise real media hardware. |
 | `system-info` | Running kernel, packages, device nodes, driver ownership, boot artifacts, and relevant board state. | The result is tied to a reconstructible boot and userspace identity. Discovery alone is not a functional pass. |
 | `matrix-identity` | Vendor-versus-rewrite Kconfig, kernel series, and KASAN/KCSAN state. | The booted kernel matches the profile under which its logs will be stored. |
-| `abi` | Safe MPP and RGA query, import/release, parser, and request-boundary ioctls. | The normalized userspace-visible contract matches the selected driver without submitting arbitrary hardware work. |
+| `abi` | Safe MPP and RGA query, import/release, parser, and request-boundary ioctls. Forward-port and rewrite only; the vendor BSP excludes this stateful replay. | The normalized userspace-visible contract matches the selected driver without submitting arbitrary hardware work. |
 | `mpp` | Official MPP information, H.264/H.265/VP9/AVS2 decode, H.264/H.265 encode, multi-thread, multi-instance, slice-polling, rate-control, and legacy API cases when their inputs are available. | Required cases complete, produced artifacts are recorded, and the bounded kernel-log/counter gates are clean. The exact media matrix depends on available assets. |
 | `librga` | Official librga copy, fill, resize, conversion, blending, transform, allocator, async/fence, tiled/FBC, and maintained deterministic smoke cases. | Required operations and output checks pass, hardware counters move where required, idle gauges settle, and fatal sample diagnostics cannot be hidden by misleading process statuses. |
 | `gstreamer` | MPP/RGA plugin discovery, encode/decode/transcode, buffer pools, DMABuf, caps changes, flush/EOS/restart loops, parallel pipelines, AFBC, and 10-bit paths. | Required pipelines survive real GStreamer state and allocator transitions with expected artifacts and clean bounded kernel evidence. |

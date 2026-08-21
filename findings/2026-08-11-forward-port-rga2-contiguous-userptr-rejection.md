@@ -22,6 +22,14 @@ passed 30 of 31 required cases but failed
 `rga_cvtcolor_gray256_demo`, so the fail-fast top-level runner did not reach
 GStreamer or FFmpeg.
 
+A 2026-08-20 BSP control run on `6.1.115-vendor-rk35xx` also rejected gray256:
+the isolated case failed 10/10, and a final run with diagnostics suppressed
+failed in 0.030 seconds.  Its kernel log ends at `ID[61]: no core match` and
+`submit failed`; the bounded dmesg window contains no IOMMU fault or fatal
+kernel signature, and the captured RGA counter delta is empty.  This confirms
+the BSP baseline lacks this request shape too, but does not change the
+forward-port root cause or validate the `0097` fix.
+
 This is a different failure boundary from the installed `0092` package.
 Patch `0093` removed the earlier 2 MiB SG-entry rejection: the new kernel log
 contains no `swiotlb buffer is full` or `dma_map_sg failed` line. Instead, the
@@ -81,6 +89,16 @@ imports.
   `b18f7b6d2bb90132abf31da9ff4127a032e376a14e90e3ef14757068405541f3`;
   new dmesg
   `fb276f1bfa6c63dd150c17a33f541567848ce842d55ae9ba6992a12a2948ca56`.
+- **BSP control 2026-08-20:** booted `6.1.115-vendor-rk35xx` (`#1 SMP Sun Jun
+  14 17:47:08 UTC 2026`); `sudo env PROFILE=bsp
+  RGA_REQUIRED_CASES=rga_cvtcolor_gray256_demo RGA_DIAGNOSTIC_CASES=' '
+  bash kernel-drivers/tests/librga-suite.sh` isolated the official sample.
+  The case failed 10/10 in the preceding repeat run (21–39 ms each); the final
+  no-diagnostics run failed as `log-fail` in 0.030 seconds. External artifact
+  root: `../rock-5b/build/rockchip-conformance/logs/bsp/20260820-183652-librga-suite/`;
+  its `dmesg-new.txt` records `no core match`, `job assign failed`, and
+  `submit failed`, while `dmesg-scan.tsv` is clean and
+  `debugfs-counters-delta.tsv` has no counter rows.
 
 ## Fix
 

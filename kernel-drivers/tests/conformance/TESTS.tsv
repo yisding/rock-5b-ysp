@@ -2,7 +2,7 @@ id	group	targets	configurations	default	runner	argument	compare	description
 kunit	boot	rewrite	all	yes	builtin	kunit	no	Require the complete booted rewrite KUnit manifest and clean boot interval
 system-info	identity	all	all	yes	builtin	system-info	no	Capture the exact boot kernel packages devices and driver ownership
 matrix-identity	identity	all	all	yes	builtin	matrix-identity	no	Require the booted kernel config to match the declared target and instrumentation
-abi	compatibility	all	all	yes	builtin	abi	yes	Replay and normalize the safe MPP and RGA ioctl contract
+abi	compatibility	forward-port,rewrite	all	yes	builtin	abi	yes	Replay and normalize the safe MPP and RGA ioctl contract
 mpp	functional	all	all	yes	suite	mpp	yes	Run the official MPP decode encode multi-instance and rate-control matrix
 librga	functional	all	all	yes	suite	librga	yes	Run the official librga samples plus the maintained deterministic smoke matrix
 gstreamer	integration	all	all	yes	suite	gstreamer	yes	Run GStreamer MPP and RGA state buffer-pool and pipeline cases

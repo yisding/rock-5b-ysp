@@ -2222,7 +2222,7 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
         )
         self.assertTrue(all(len(row) == len(rows[0]) for row in rows))
 
-    def test_standard_set_is_shared_by_bsp_and_rewrite(self) -> None:
+    def test_abi_replay_is_excluded_from_bsp(self) -> None:
         bsp = self.run_plan("--target", "bsp", "--configuration", "production")
         rewrite = self.run_plan(
             "--target", "rewrite", "--configuration", "production"
@@ -2234,7 +2234,6 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
         for test_id in (
             "system-info",
             "matrix-identity",
-            "abi",
             "mpp",
             "librga",
             "gstreamer",
@@ -2242,6 +2241,8 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
         ):
             self.assertEqual(bsp_rows[test_id], "selected")
             self.assertEqual(rewrite_rows[test_id], "selected")
+        self.assertEqual(bsp_rows["abi"], "incompatible")
+        self.assertEqual(rewrite_rows["abi"], "selected")
         self.assertEqual(bsp_rows["kunit"], "incompatible")
         self.assertEqual(rewrite_rows["kunit"], "selected")
 
@@ -2271,6 +2272,18 @@ class ConformanceHarnessPlanTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 1)
         self.assertIn("is incompatible", result.stderr)
+
+    def test_bsp_rejects_explicit_abi_replay(self) -> None:
+        result = self.run_plan(
+            "--target",
+            "bsp",
+            "--configuration",
+            "production",
+            "--only",
+            "abi",
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("test abi is incompatible", result.stderr)
 
     def test_legacy_profile_resolves_both_axes(self) -> None:
         result = self.run_plan(env={"PROFILE": "rewrite-kcsan"})

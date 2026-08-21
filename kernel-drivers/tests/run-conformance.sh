@@ -589,7 +589,7 @@ validate_catalog_contract()
 	local id target_file configuration_file target configuration selected
 	local expected
 
-	for expected in system-info matrix-identity abi mpp librga gstreamer ffmpeg; do
+	for expected in system-info matrix-identity mpp librga gstreamer ffmpeg; do
 		if ! catalog_has_id "$expected"; then
 			printf 'standard conformance catalog is missing %s\n' "$expected" >&2
 			return 1
@@ -602,6 +602,20 @@ validate_catalog_contract()
 			return 1
 		fi
 	done
+
+	# ABI replay reaches legacy stateful MPP/RGA controls. It is deliberately
+	# excluded from the vendor BSP after a booted BSP run corrupted kernel memory.
+	if ! catalog_has_id abi; then
+		printf 'standard conformance catalog is missing abi\n' >&2
+		return 1
+	fi
+	if [ "${TEST_DEFAULT[abi]}" != yes ] ||
+		[ "${TEST_TARGETS[abi]}" != forward-port,rewrite ] ||
+		[ "${TEST_CONFIGURATIONS[abi]}" != all ]; then
+		printf '%s\n' \
+			'ABI replay must default on for forward-port/rewrite and exclude the BSP'
+		return 1
+	fi
 
 	for target_file in "$TARGET_DIR"/*.env; do
 		target=${target_file##*/}
