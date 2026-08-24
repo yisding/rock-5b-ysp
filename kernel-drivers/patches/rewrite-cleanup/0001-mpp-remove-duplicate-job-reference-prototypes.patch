@@ -1,0 +1,11 @@
+--- a/drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c
++++ b/drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c
+@@ -4708,8 +4708,6 @@
+ 				      u32 offset, u32 size);
+ static int rk_mpp_hw_power_on(struct rk_mpp_hw *hw);
+ static void rk_mpp_hw_power_off(struct rk_mpp_hw *hw);
+-static void rk_mpp_job_get(struct rk_mpp_job *job);
+-static void rk_mpp_job_put(struct rk_mpp_job *job);
+ 
+ static u32 rk_mpp_cluster_power_lease_core_count(const struct rk_mpp_job *job)
+ {
