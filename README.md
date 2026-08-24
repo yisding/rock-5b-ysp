@@ -70,7 +70,7 @@ instead of repeating status, commands, or the project taxonomy here.
 | Review the maintained kernel patch deliverables | [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
 | Reconstruct external sources or resolve code citations | [`docs/source-trees.md`](docs/source-trees.md) |
 | Run repository or board operations | [`scripts/`](scripts/README.md) |
-| Review environment-specific agent instructions | [`AGENTS.md`](AGENTS.md) |
+| Review environment-specific agent instructions | [`AGENTS.md`](AGENTS.md) (`CLAUDE.md` is a symlink to it) |
 
 This is an integration record, not a source monorepo. A subsystem absent from
 the dashboard is not implicitly working or broken; check support coverage and
