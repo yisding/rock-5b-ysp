@@ -1,20 +1,20 @@
 # RK3588 maxline implementation and build record
 
-> Scope: 2026-08-02 RK3588 maxline `public`/`wip` refresh on Linus master and
-> linux-next, plus the retained 2026-07-17 package evidence
+> Scope: 2026-08-23 rebase of the RK3588 maxline `public`/`wip` stacks from
+> Linux `7.2-rc6` to shipped Linux `v7.2`, plus retained earlier evidence
 > Source: this directory's [`README.md`](README.md), manifest, public/WIP
 > ledgers, exported patches, pinned configuration, and the
 > native build and package inspections recorded below
-> Date: 2026-08-02
+> Date: 2026-08-23
 > Trust: MEASURED (build/package/header results) / SOURCE-INSPECTED (integrated
 > trees and package payloads) / CONFIG-INSPECTED (pinned final configuration)
 > Board/build host: Radxa ROCK 5B, native arm64
 > Host OS: Armbian 26.5.1 / Ubuntu 26.04 (`resolute`)
 > Running recovery kernel: `6.18.38-ysp-rockchip64`
-> Result: refreshed source integration and compile gates are recorded below;
-> Debian package, payload, and external-module header results remain historical
-> evidence from the superseded 2026-07-17 trees; installation and hardware
-> tests remain open
+> Result: both integration stacks rebased cleanly onto shipped `v7.2`; final tree
+> deltas match the previously validated profile trees and the pinned feature
+> configuration survives `olddefconfig`. No new full compile, package, installation,
+> or hardware result exists for this rebase
 
 ## Repository handoff
 
@@ -43,9 +43,9 @@ the refreshed source profiles; no refreshed binary package is claimed here.
 
 | Layer | Identity | Size relative to parent |
 | --- | --- | --- |
-| Linus base | `origin/master`, `075b74841bd0065a3bda3440873c747938e69b68` | rechecked 2026-08-02; Makefile version `7.2.0-rc6` |
-| Public | `rk3588-maxline-public`, `e6951bc3f935427a24140421f780113a64b8a54c` | 299 commits; 192 files, 34,192 insertions, 5,790 deletions |
-| WIP | `rk3588-maxline-wip`, `73d29539f7bba7d5865680d35a291ed48bb19cd5` | 19 commits; 18 files, 1,391 insertions, 54 deletions beyond public |
+| Linus base | `v7.2`, `8d3ae59288f1e7d58d76558a6ee96d533bc5019f` | fetched 2026-08-23; Makefile version `7.2.0` |
+| Public | `rk3588-7.2-public`, `a52ffff8cb35f2c2bd99450ca22f5d1e268cc18a` | same 299 rebased commits; 192 files, 34,192 insertions, 5,790 deletions above `v7.2` |
+| WIP | `rk3588-maxline-wip`, `5466810e49f94d670a65b97db745c8bdc6596f08` | same 19-commit tail replayed onto the public head |
 | linux-next base | `next-20260731`, `415606a7be939835db9b0d6b711887586646346d` | exact tag commit |
 | Public-next | `rk3588-maxline-public-next`, `0cae4ac6682384151b7c94c5db7f614775e0eee6` | 264 commits above linux-next |
 | WIP-next | `rk3588-maxline-wip-next`, `15a5179dc3b2318e6c56d300e2f4c74ef0a3fb7b` | 19 commits above public-next |
@@ -63,8 +63,8 @@ The exported deltas are pinned as follows:
 
 | File | SHA-256 |
 | --- | --- |
-| `patches/maxline-public.patch` | `c663b04221cfd270fa1ec0a8b1254ec0653638351b737c122256d33d92a120a3` |
-| `patches/maxline-wip.patch` | `89cd7bb62bd194bc0fcffe494f4e2aa4b42c4197f2f9e04885b06673eb242dcf` |
+| `patches/maxline-public.patch` | `b88379e540e862de6e617800bf7f3159b4f3a86e2688fb8d693aeda3a57f760c` |
+| `patches/maxline-wip.patch` | `7e0cd7307e095d4760bd076872f8a2bbfc2a7fdd31e89750717413659aac96ad` |
 | `config/arm64-rockchip64.config` | `a571b504f7bdf7aa3db37c7097390a9a2781561852af4587d0476b5ed9cf2450` |
 
 For public mail, an exact lore raw-mail URL can be reconstructed as
@@ -110,6 +110,24 @@ patches:
 
 ## Configuration result
 
+### 2026-08-23 release-base rebase audit
+
+- Fetched upstream through `4352b8aee98005853aa63f57d6377282de17a33f` and tag
+  `v7.2@8d3ae59288f1`.
+- Rebased all 299 public commits cleanly from `7.2-rc6@237a1c39e8df` to `v7.2`,
+  then rebased all 19 WIP commits cleanly from the old public head to the new one.
+- Compared each refreshed final tree with its corresponding pre-rebase final tree:
+  both differ only by the 747 commits between `7.2-rc6` and `v7.2` (603 files,
+  +8,554/-3,055). The rebase introduced no integration-delta drift.
+- Verified the exported WIP patch reproduces the WIP branch tree exactly when
+  applied on top of the public head.
+- Ran arm64 `olddefconfig` against the checked-in config on the WIP tree. Every
+  explicitly listed RK3588 feature selection remained unchanged; observed differences
+  were compiler/toolchain-derived hidden symbols plus new v7.2 defaults such as
+  `COMPAT_VDSO` and `ARM64_BTI_KERNEL`, not losses of requested board features.
+
+### Retained 2026-08-02 compile evidence
+
 The full config is checked in. Important requested results include:
 
 ```text
@@ -141,7 +159,8 @@ CONFIG_VSI_IOMMU=y
 
 The 2026-08-02 refresh ran two concurrent four-job native arm64 builds with the
 system toolchain path required by this repository. These standalone compile
-gates invoked GCC directly and did not use ccache. The same host reports:
+gates invoked GCC directly and did not use ccache. They describe the superseded
+`7.2-rc6` source identity, not the 2026-08-23 release-base rebase. The same host reports:
 
 ```text
 gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0
@@ -169,7 +188,7 @@ PATH=/usr/sbin:/usr/bin:/sbin:/bin make \
   -j4 Image modules dtbs
 ```
 
-## Current 2026-08-02 compile results
+## Superseded 2026-08-02 compile results
 
 The Linus/public command exited successfully, and an immediate incremental
 rerun also exited successfully. These are raw, unstripped build-tree artifacts,
@@ -335,13 +354,14 @@ future revision of the RK3588 crypto series.
 
 ## Explicit boundary and next action
 
-No refreshed package set exists, and no maxline package has been installed or
-booted. There is no claim yet for
-NVMe/root survival, Ethernet, USB, PCIe, suspend, display, audio, camera,
-codec, NPU, crypto, CAN, HDMI-RX, FRL, or VP9 runtime behavior.
+No refreshed package set exists for the `v7.2` rebase, its full native compile
+gate has not been rerun, and no maxline package has been installed or booted.
+There is no claim yet for NVMe/root survival, Ethernet, USB, PCIe, suspend,
+display, audio, camera, codec, NPU, crypto, CAN, HDMI-RX, FRL, or VP9 runtime
+behavior.
 
-Build and inspect refreshed `public` packages, then install them first while
-retaining the 6.18 packages and recovery access.
+Rerun the public full build/package gates, then install public first while retaining
+the 6.18 packages and recovery access.
 Keep the existing `snd_soc_hdmi_codec` blacklist for the survival boot, then
 test the public platform/display/DP/media gates in the order documented in the
 main finding. Test public VP9 after the platform gates. Install `wip` only after

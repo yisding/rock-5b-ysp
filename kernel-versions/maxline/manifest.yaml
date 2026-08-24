@@ -1,28 +1,28 @@
 format: 2
-generated: 2026-08-02
+generated: 2026-08-23
 base:
-  ref: origin/master
-  fetched: 2026-08-02
-  kernel_version: 7.2.0-rc6
-  commit: 075b74841bd0065a3bda3440873c747938e69b68
+  ref: v7.2
+  fetched: 2026-08-23
+  kernel_version: 7.2.0
+  commit: 8d3ae59288f1e7d58d76558a6ee96d533bc5019f
   source: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
 profiles:
   public:
     integration_branch: rk3588-maxline-public
-    integration_commit: e6951bc3f935427a24140421f780113a64b8a54c
+    integration_commit: a52ffff8cb35f2c2bd99450ca22f5d1e268cc18a
     commits_after_base: 299
     patch: patches/maxline-public.patch
-    patch_sha256: c663b04221cfd270fa1ec0a8b1254ec0653638351b737c122256d33d92a120a3
-    release: 7.2.0-rc6-ysp-maxline-public-rockchip64
-    package_version: 7.2.0~rc6+git20260802+rk3588maxlinepublic-0ubuntu1
+    patch_sha256: b88379e540e862de6e617800bf7f3159b4f3a86e2688fb8d693aeda3a57f760c
+    release: 7.2.0-ysp-maxline-public-rockchip64
+    package_version: 7.2.0+git20260823+rk3588maxlinepublic-0ubuntu1
   wip:
     integration_branch: rk3588-maxline-wip
-    integration_commit: 73d29539f7bba7d5865680d35a291ed48bb19cd5
+    integration_commit: 5466810e49f94d670a65b97db745c8bdc6596f08
     commits_after_public: 19
     patch: patches/maxline-wip.patch
-    patch_sha256: 89cd7bb62bd194bc0fcffe494f4e2aa4b42c4197f2f9e04885b06673eb242dcf
-    release: 7.2.0-rc6-ysp-maxline-wip-rockchip64
-    package_version: 7.2.0~rc6+git20260802+rk3588maxlinewip-0ubuntu1
+    patch_sha256: 7e0cd7307e095d4760bd076872f8a2bbfc2a7fdd31e89750717413659aac96ad
+    release: 7.2.0-ysp-maxline-wip-rockchip64
+    package_version: 7.2.0+git20260823+rk3588maxlinewip-0ubuntu1
 linux_next_validation:
   ref: next-20260731
   commit: 415606a7be939835db9b0d6b711887586646346d
@@ -44,11 +44,11 @@ config:
 public_series_ledger: public-series.tsv
 wip_donor_ledger: wip-donors.tsv
 verification:
-  date: 2026-08-02
+  date: 2026-08-23
   report: verification.md
   architecture: arm64
   compile_gate: Image modules dtbs
-  linus_public: passed
+  release_base_public: not_run
   linux_next_wip: interrupted_by_user
   package_build_for_refresh: not_run
   booted_on_rock_5b: false

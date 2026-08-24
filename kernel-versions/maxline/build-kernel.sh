@@ -11,12 +11,12 @@ usage() {
 profile="${1:-}"
 case "$profile" in
 	public)
-		package_version="7.2.0~rc6+git20260802+rk3588maxlinepublic-0ubuntu1"
-		integration_commit="e6951bc3f935427a24140421f780113a64b8a54c"
+		package_version="7.2.0+git20260823+rk3588maxlinepublic-0ubuntu1"
+		integration_commit="a52ffff8cb35f2c2bd99450ca22f5d1e268cc18a"
 		;;
 	wip)
-		package_version="7.2.0~rc6+git20260802+rk3588maxlinewip-0ubuntu1"
-		integration_commit="73d29539f7bba7d5865680d35a291ed48bb19cd5"
+		package_version="7.2.0+git20260823+rk3588maxlinewip-0ubuntu1"
+		integration_commit="5466810e49f94d670a65b97db745c8bdc6596f08"
 		;;
 	*)
 		usage
@@ -30,7 +30,7 @@ kernel_git="${MAXLINE_KERNEL_GIT:-$(dirname "$repo_root")/kernel/linux}"
 output_dir="${MAXLINE_OUTPUT_DIR:-$repo_root/packaging/ppa/out/maxline/package-$profile}"
 jobs="${MAXLINE_JOBS:-$(nproc)}"
 source_dir="$output_dir/linux-rockchip64-ysp-maxline-$profile"
-base_commit="075b74841bd0065a3bda3440873c747938e69b68"
+base_commit="8d3ae59288f1e7d58d76558a6ee96d533bc5019f"
 reuse_build_dir="${MAXLINE_BUILD_DIR:-}"
 reuse_source_dir="${MAXLINE_SOURCE_DIR:-}"
 

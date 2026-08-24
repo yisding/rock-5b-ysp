@@ -1,9 +1,10 @@
 # RK3588 maximum-mainline kernel builds
 
 This project builds two reproducible, Armbian-compatible maximum-mainline
-kernel package sets for the ROCK 5B. Both start at Torvalds
-`master@075b74841bd0` rechecked on 2026-08-02. The integration deltas are checked in, so a rebuild does not
-depend on whatever a mailing-list endpoint calls "latest" in the future.
+kernel package sets for the ROCK 5B. Both start at shipped Torvalds Linux
+`v7.2@8d3ae59288f1`, fetched on 2026-08-23. The integration deltas are checked
+in, so a rebuild does not depend on whatever a mailing-list endpoint calls
+"latest" in the future.
 
 For a reader-first comparison with Armbian 6.18, Ubuntu 26.04's 7.0 kernel,
 and the pinned upstream snapshot, including the distinction between code that is
@@ -17,8 +18,8 @@ maxline adds for the ROCK 5B](board-support.md).
 | User outcome | Compare the known-good 6.18 vendor-media path with a broad, auditable mainline RK3588 feature integration, without replacing the recovery kernel or confusing compilation with board support. |
 | Developer focus | Reproduce the pinned proposal integration, review conflict resolutions and profile boundaries, build co-installable packages, and advance them through explicit boot and hardware gates. |
 | Owns | The manifest, public/WIP ledgers, exported integration patches, pinned config, build helper, board comparison, historical design record, and measured verification record in this directory. The Debian packaging overlay remains under [`packaging/ppa/kernel-maxline/`](../../packaging/ppa/kernel-maxline/README.md). |
-| Depends on | Torvalds Linux `7.2-rc6`, `master@075b74841bd0`, the pinned proposal sources, Armbian's boot/package contract, and tested serial or physical recovery access before installation. |
-| Current state | The 2026-08-02 source refresh is pinned on both Torvalds master and `next-20260731`; compile validation is recorded in [`verification.md`](verification.md). The earlier 2026-07-17 profiles passed package, payload, and headers checks, but those old binaries do not represent this refresh. No maxline profile has been installed, booted, or hardware-tested. See [`status.md` track 13](../../status.md#dashboard). |
+| Depends on | Torvalds Linux `v7.2@8d3ae59288f1`, the pinned proposal sources, Armbian's boot/package contract, and tested serial or physical recovery access before installation. |
+| Current state | The public and WIP stacks were rebased from 2026-08-02's `7.2-rc6` endpoint to shipped Linux `v7.2`; all 299 public commits replayed cleanly and the 19-commit WIP tail then replayed cleanly. Source reconstruction is pinned, but no new full compile or package evidence exists yet. No maxline profile has been installed, booted, or hardware-tested. See [`status.md` track 13](../../status.md#dashboard). |
 
 ## Maintained records
 
@@ -43,9 +44,10 @@ maxline adds for the ROCK 5B](board-support.md).
   VDPU381 VP9 moved to `public` when a four-patch public v1 series appeared.
   This remains the maximum-feature build, not a stability claim.
 
-The public integration is 299 commits above `075b74841bd0`. The WIP delta is 19
-more commits. Exact input identities, hashes, exported patch hashes, branch
-heads, config hash, and resulting kernel release names are in
+The public integration remains 299 commits above the selected Linus base; the base
+itself advanced from `7.2-rc6` to released `v7.2`. The WIP delta is 19 more commits.
+Exact input identities, hashes, exported patch hashes, branch heads, config hash,
+and resulting kernel release names are in
 [`manifest.yaml`](manifest.yaml), [`public-series.tsv`](public-series.tsv),
 and [`wip-donors.tsv`](wip-donors.tsv).
 
@@ -151,10 +153,10 @@ has unique binary package names and a unique kernel release:
 
 ```text
 linux-{image,dtb,headers}-ysp-maxline-public-rockchip64
-7.2.0-rc6-ysp-maxline-public-rockchip64
+7.2.0-ysp-maxline-public-rockchip64
 
 linux-{image,dtb,headers}-ysp-maxline-wip-rockchip64
-7.2.0-rc6-ysp-maxline-wip-rockchip64
+7.2.0-ysp-maxline-wip-rockchip64
 ```
 
 The package layout follows this repository's existing Armbian-compatible
@@ -185,19 +187,18 @@ without also changing their `debian/rules`.
 
 ## Verified build
 
-The Linus-based public profile passes a full native arm64
-`Image modules dtbs` gate and a clean incremental recheck. Focused linux-next
-objects for both next-only conflict fixes pass, and a broader linux-next/WIP
-build reached the refreshed PHY, PCIe, DRM/VOP2, DW-DP, and HDMI paths without
-error before being stopped at the user's request. It therefore has no full
-build pass. Exact results and identities are in
-[`verification.md`](verification.md).
+The prior `7.2-rc6` public profile passed a full native arm64 `Image modules dtbs`
+gate. For the 2026-08-23 release-base rebase, both stacks replayed without conflicts,
+their resulting tree deltas are identical to the prior profile trees relative to their
+own bases, and the pinned configuration retains every listed RK3588 feature after an
+arm64 `olddefconfig` check. A new full build gate is still owed; exact current and
+historical results are in [`verification.md`](verification.md).
 
-Debian packages were not rebuilt for this refresh. The six packages, payload
-inspection, and external-module headers smoke tests recorded on 2026-07-17
-belong to the superseded `v7.2-rc3` source identities and remain historical
-evidence in the verification record. Generated objects and packages stay under
-ignored `packaging/ppa/out/maxline/`; they are not Git artifacts.
+Debian packages were not rebuilt for this rebase. The six packages, payload
+inspection, and external-module headers smoke tests recorded on 2026-07-17 belong
+to superseded source identities and remain historical evidence in the verification
+record. Generated objects and packages stay under ignored
+`packaging/ppa/out/maxline/`; they are not Git artifacts.
 
 The complete [`verification record`](verification.md) preserves build-host
 versions, exact tree and payload sizes, package metadata, symbol checks,

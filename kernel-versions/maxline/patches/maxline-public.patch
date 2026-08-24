@@ -1,6 +1,6 @@
 diff --git a/Documentation/ABI/testing/procfs-fdinfo-v4l2 b/Documentation/ABI/testing/procfs-fdinfo-v4l2
 new file mode 100644
-index 0000000000000..7c64403b6814c
+index 0000000000000000000000000000000000000000..7c64403b6814c1895af2285b28f6126ef37080f7
 --- /dev/null
 +++ b/Documentation/ABI/testing/procfs-fdinfo-v4l2
 @@ -0,0 +1,129 @@
@@ -135,7 +135,7 @@ index 0000000000000..7c64403b6814c
 +		  v4l2-curfreq-<core_id>:\t<uint> Hz\n
 diff --git a/Documentation/devicetree/bindings/crypto/rockchip,rk3588-crypto.yaml b/Documentation/devicetree/bindings/crypto/rockchip,rk3588-crypto.yaml
 new file mode 100644
-index 0000000000000..fc09f21b06549
+index 0000000000000000000000000000000000000000..fc09f21b065494ebb8e293a2b63a75cf2de135bc
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/crypto/rockchip,rk3588-crypto.yaml
 @@ -0,0 +1,75 @@
@@ -215,7 +215,7 @@ index 0000000000000..fc09f21b06549
 +        };
 +    };
 diff --git a/Documentation/devicetree/bindings/display/rockchip/rockchip,dw-dp.yaml b/Documentation/devicetree/bindings/display/rockchip/rockchip,dw-dp.yaml
-index 2b0d9e23e9432..c4f8959dd65da 100644
+index 2b0d9e23e9432f785c1c8bb595166baa47984b5a..c4f8959dd65da92d181448a13b7d0712e2cda1f4 100644
 --- a/Documentation/devicetree/bindings/display/rockchip/rockchip,dw-dp.yaml
 +++ b/Documentation/devicetree/bindings/display/rockchip/rockchip,dw-dp.yaml
 @@ -25,7 +25,7 @@ description: |
@@ -256,7 +256,7 @@ index 2b0d9e23e9432..c4f8959dd65da 100644
          ports {
            #address-cells = <1>;
 diff --git a/Documentation/devicetree/bindings/display/rockchip/rockchip-vop2.yaml b/Documentation/devicetree/bindings/display/rockchip/rockchip-vop2.yaml
-index 93da1fb9adc47..50a1a2d509754 100644
+index 93da1fb9adc47b20dafc5fb03ee72f458a0f6228..50a1a2d509754797cb982fc9d13c903b7e790813 100644
 --- a/Documentation/devicetree/bindings/display/rockchip/rockchip-vop2.yaml
 +++ b/Documentation/devicetree/bindings/display/rockchip/rockchip-vop2.yaml
 @@ -82,6 +82,27 @@ properties:
@@ -359,7 +359,7 @@ index 93da1fb9adc47..50a1a2d509754 100644
                      #size-cells = <0>;
 diff --git a/Documentation/devicetree/bindings/media/rockchip-isp2.yaml b/Documentation/devicetree/bindings/media/rockchip-isp2.yaml
 new file mode 100644
-index 0000000000000..f4ef089adf6ef
+index 0000000000000000000000000000000000000000..f4ef089adf6ef16a9bb1c379f67632797b8203ea
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/media/rockchip-isp2.yaml
 @@ -0,0 +1,127 @@
@@ -491,7 +491,7 @@ index 0000000000000..f4ef089adf6ef
 +        };
 +    };
 diff --git a/Documentation/devicetree/bindings/media/snps,dw-hdmi-rx.yaml b/Documentation/devicetree/bindings/media/snps,dw-hdmi-rx.yaml
-index b7f6c87d0e06a..b80660da10505 100644
+index b7f6c87d0e06aedbe990b556ded1662a90de05f7..b80660da105053abe59104b5ecc725ff26f4d35b 100644
 --- a/Documentation/devicetree/bindings/media/snps,dw-hdmi-rx.yaml
 +++ b/Documentation/devicetree/bindings/media/snps,dw-hdmi-rx.yaml
 @@ -78,6 +78,13 @@ properties:
@@ -527,7 +527,7 @@ index b7f6c87d0e06a..b80660da10505 100644
 +      #sound-dai-cells = <1>;
      };
 diff --git a/Documentation/devicetree/bindings/net/can/rockchip,rk3568v2-canfd.yaml b/Documentation/devicetree/bindings/net/can/rockchip,rk3568v2-canfd.yaml
-index a077c03300137..81e2b6dfeb023 100644
+index a077c03300137894c9d0dfaf180a9ba6c43644b7..81e2b6dfeb0233560889dd4b5c4899e2c66a7ee1 100644
 --- a/Documentation/devicetree/bindings/net/can/rockchip,rk3568v2-canfd.yaml
 +++ b/Documentation/devicetree/bindings/net/can/rockchip,rk3568v2-canfd.yaml
 @@ -16,7 +16,9 @@ allOf:
@@ -542,7 +542,7 @@ index a077c03300137..81e2b6dfeb023 100644
            - const: rockchip,rk3568v3-canfd
            - const: rockchip,rk3568v2-canfd
 diff --git a/Documentation/devicetree/bindings/phy/phy-rockchip-usbdp.yaml b/Documentation/devicetree/bindings/phy/phy-rockchip-usbdp.yaml
-index 8b7059d5b1826..89efaf005a7b0 100644
+index 8b7059d5b1826fdec5170cf78d6e27f2bd6766bb..89efaf005a7b0d057dd71aa8df8c45e236b9b5bf 100644
 --- a/Documentation/devicetree/bindings/phy/phy-rockchip-usbdp.yaml
 +++ b/Documentation/devicetree/bindings/phy/phy-rockchip-usbdp.yaml
 @@ -110,10 +110,34 @@ properties:
@@ -581,7 +581,7 @@ index 8b7059d5b1826..89efaf005a7b0 100644
    - compatible
    - reg
 diff --git a/Documentation/devicetree/bindings/phy/rockchip,rk3588-mipi-dcphy.yaml b/Documentation/devicetree/bindings/phy/rockchip,rk3588-mipi-dcphy.yaml
-index c8ff5ba22a86b..68a43db9c6690 100644
+index c8ff5ba22a86b5ba49deeb017204d95f748c92c7..68a43db9c66906f573c72fb8c968f393ea05a16c 100644
 --- a/Documentation/devicetree/bindings/phy/rockchip,rk3588-mipi-dcphy.yaml
 +++ b/Documentation/devicetree/bindings/phy/rockchip,rk3588-mipi-dcphy.yaml
 @@ -20,12 +20,22 @@ properties:
@@ -621,7 +621,7 @@ index c8ff5ba22a86b..68a43db9c6690 100644
        };
      };
 diff --git a/Documentation/devicetree/bindings/phy/rockchip-inno-csi-dphy.yaml b/Documentation/devicetree/bindings/phy/rockchip-inno-csi-dphy.yaml
-index 03950b3cad08c..913aa688c0ae9 100644
+index 03950b3cad08c1d3ab7afba9b4cf0bfb70d8e541..913aa688c0ae94a61d234620853f6e7c3d0ae2ad 100644
 --- a/Documentation/devicetree/bindings/phy/rockchip-inno-csi-dphy.yaml
 +++ b/Documentation/devicetree/bindings/phy/rockchip-inno-csi-dphy.yaml
 @@ -56,6 +56,16 @@ properties:
@@ -642,7 +642,7 @@ index 03950b3cad08c..913aa688c0ae9 100644
    - compatible
    - reg
 diff --git a/Documentation/gpu/drm-kms-helpers.rst b/Documentation/gpu/drm-kms-helpers.rst
-index 80453dda33b84..94cfc26aceccc 100644
+index 80453dda33b8484f68ee26c3311a72f2286bd586..94cfc26aceccc3731bb3ac8c48ef49e8eaf2ed35 100644
 --- a/Documentation/gpu/drm-kms-helpers.rst
 +++ b/Documentation/gpu/drm-kms-helpers.rst
 @@ -171,6 +171,12 @@ Bridge Operations
@@ -659,7 +659,7 @@ index 80453dda33b84..94cfc26aceccc 100644
  -----------------------
  
 diff --git a/Documentation/gpu/drm-kms.rst b/Documentation/gpu/drm-kms.rst
-index fa69a5450f967..2b6a96211cfcc 100644
+index fa69a5450f9674de8a04a450afa148b21af4ec9c..2b6a96211cfcc7f415860ae786bd17d019309a2f 100644
 --- a/Documentation/gpu/drm-kms.rst
 +++ b/Documentation/gpu/drm-kms.rst
 @@ -604,6 +604,12 @@ Color Management Properties
@@ -676,7 +676,7 @@ index fa69a5450f967..2b6a96211cfcc 100644
  -------------------
  
 diff --git a/Documentation/userspace-api/media/drivers/index.rst b/Documentation/userspace-api/media/drivers/index.rst
-index 02967c9b18d6e..0b82df83b2d07 100644
+index 02967c9b18d6e90f414ccc1329c09bffee895e68..0b82df83b2d07a07b31212f6256dc00156101361 100644
 --- a/Documentation/userspace-api/media/drivers/index.rst
 +++ b/Documentation/userspace-api/media/drivers/index.rst
 @@ -34,6 +34,7 @@ For more details see the file COPYING in the source distribution of Linux.
@@ -689,7 +689,7 @@ index 02967c9b18d6e..0b82df83b2d07 100644
  	thp7312
 diff --git a/Documentation/userspace-api/media/drivers/v4l2-usage-metrics.rst b/Documentation/userspace-api/media/drivers/v4l2-usage-metrics.rst
 new file mode 100644
-index 0000000000000..c56b1d608cd48
+index 0000000000000000000000000000000000000000..c56b1d608cd488da62bfaaa0b314f3fbf94994ea
 --- /dev/null
 +++ b/Documentation/userspace-api/media/drivers/v4l2-usage-metrics.rst
 @@ -0,0 +1,137 @@
@@ -831,7 +831,7 @@ index 0000000000000..c56b1d608cd48
 +  v4l2-maxfreq-0:               600000000 Hz
 +  v4l2-curfreq-0:               600000000 Hz
 diff --git a/arch/arm64/boot/dts/rockchip/rk356x-base.dtsi b/arch/arm64/boot/dts/rockchip/rk356x-base.dtsi
-index a5832895bd392..9de7e7487ca10 100644
+index a5832895bd39245fe6fd14c960ceb2f635554861..9de7e7487ca10ec7210b312468c21d06737f187d 100644
 --- a/arch/arm64/boot/dts/rockchip/rk356x-base.dtsi
 +++ b/arch/arm64/boot/dts/rockchip/rk356x-base.dtsi
 @@ -1112,6 +1112,18 @@ sdhci: mmc@fe310000 {
@@ -854,7 +854,7 @@ index a5832895bd392..9de7e7487ca10 100644
  	 * Testing showed that the HWRNG found in RK3566 produces unacceptably
  	 * low quality of random data, so the HWRNG isn't enabled for all RK356x
 diff --git a/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi b/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi
-index fc1fdbfd31622..4d626f46cd8da 100644
+index fc1fdbfd316223f8fbddfcf6cb3f1863cd8957d4..4d626f46cd8da404c0eb531fb77511eea7f58691 100644
 --- a/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi
 +++ b/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi
 @@ -1548,10 +1548,16 @@ vicap_mipi5: port@6 {
@@ -1050,7 +1050,7 @@ index fc1fdbfd31622..4d626f46cd8da 100644
  
  #include "rk3588-base-pinctrl.dtsi"
 diff --git a/arch/arm64/boot/dts/rockchip/rk3588-extra.dtsi b/arch/arm64/boot/dts/rockchip/rk3588-extra.dtsi
-index a2640014ee042..e0dce15643997 100644
+index a2640014ee04213e4d304af12d97870872d925ac..e0dce156439975032a8bc96033f319878991d875 100644
 --- a/arch/arm64/boot/dts/rockchip/rk3588-extra.dtsi
 +++ b/arch/arm64/boot/dts/rockchip/rk3588-extra.dtsi
 @@ -23,6 +23,23 @@ simple-audio-card,cpu {
@@ -1086,7 +1086,7 @@ index a2640014ee042..e0dce15643997 100644
  	};
  
 diff --git a/arch/arm64/boot/dts/rockchip/rk3588-orangepi-5-plus.dts b/arch/arm64/boot/dts/rockchip/rk3588-orangepi-5-plus.dts
-index 145986695720a..840b4deb81e40 100644
+index 145986695720a86598eb57821d89631eee7bcef2..840b4deb81e4015e6246780dcb20fcabfcbd5e88 100644
 --- a/arch/arm64/boot/dts/rockchip/rk3588-orangepi-5-plus.dts
 +++ b/arch/arm64/boot/dts/rockchip/rk3588-orangepi-5-plus.dts
 @@ -179,6 +179,10 @@ &hdmi_receiver {
@@ -1112,7 +1112,7 @@ index 145986695720a..840b4deb81e40 100644
  	gpios = <&gpio3 RK_PA6 GPIO_ACTIVE_HIGH>;
  	status = "okay";
 diff --git a/arch/arm64/boot/dts/rockchip/rk3588-tiger-haikou.dts b/arch/arm64/boot/dts/rockchip/rk3588-tiger-haikou.dts
-index 873fbeb8daa16..6c57c9f54a305 100644
+index 873fbeb8daa162354027dcf96e1f10de4231faec..6c57c9f54a30527c3ffa934c43c1f5f92a6ed975 100644
 --- a/arch/arm64/boot/dts/rockchip/rk3588-tiger-haikou.dts
 +++ b/arch/arm64/boot/dts/rockchip/rk3588-tiger-haikou.dts
 @@ -155,6 +155,10 @@ vddd_audio_1v6: regulator-vddd-audio-1v6 {
@@ -1127,7 +1127,7 @@ index 873fbeb8daa16..6c57c9f54a305 100644
  	status = "okay";
  };
 diff --git a/arch/arm64/boot/dts/rockchip/rk3588-tiger.dtsi b/arch/arm64/boot/dts/rockchip/rk3588-tiger.dtsi
-index 139f70e7bbd90..161c89c62bcda 100644
+index 139f70e7bbd9062a16ff907e30f2d8075b2e2c6d..161c89c62bcdab07a578b2a1aac8beebaad4fca1 100644
 --- a/arch/arm64/boot/dts/rockchip/rk3588-tiger.dtsi
 +++ b/arch/arm64/boot/dts/rockchip/rk3588-tiger.dtsi
 @@ -90,6 +90,11 @@ vcc5v0_sys: regulator-vcc5v0-sys {
@@ -1143,7 +1143,7 @@ index 139f70e7bbd90..161c89c62bcda 100644
  	cpu-supply = <&vdd_cpu_big0_s0>;
  };
 diff --git a/drivers/accel/rocket/rocket_job.c b/drivers/accel/rocket/rocket_job.c
-index 2f1861f960ccb..f41acf7e17600 100644
+index ac51bff39833fa4381666b21de9f68139e1e878d..3550286e0a94d4ff1380b37884a0382b10b5f888 100644
 --- a/drivers/accel/rocket/rocket_job.c
 +++ b/drivers/accel/rocket/rocket_job.c
 @@ -96,6 +96,14 @@ rocket_copy_tasks(struct drm_device *dev,
@@ -1264,7 +1264,7 @@ index 2f1861f960ccb..f41acf7e17600 100644
  
  	rocket_pc_writel(core, INTERRUPT_MASK, 0x0);
 diff --git a/drivers/accel/rocket/rocket_job.h b/drivers/accel/rocket/rocket_job.h
-index 4ae00feec3b93..6931dfed8615b 100644
+index 4ae00feec3b939a592b99ee6c32854f788acd395..6931dfed8615b382737af91d44c4447d1f7dba25 100644
 --- a/drivers/accel/rocket/rocket_job.h
 +++ b/drivers/accel/rocket/rocket_job.h
 @@ -13,6 +13,8 @@
@@ -1277,7 +1277,7 @@ index 4ae00feec3b93..6931dfed8615b 100644
  
  struct rocket_job {
 diff --git a/drivers/crypto/Kconfig b/drivers/crypto/Kconfig
-index 216a00bad5d70..bd1a704ca9988 100644
+index 216a00bad5d706402dbf61fe3979e16dfbdccd8a..bd1a704ca9988955b72ac0ba356a130564d9a11e 100644
 --- a/drivers/crypto/Kconfig
 +++ b/drivers/crypto/Kconfig
 @@ -690,6 +690,38 @@ config CRYPTO_DEV_ROCKCHIP_DEBUG
@@ -1320,7 +1320,7 @@ index 216a00bad5d70..bd1a704ca9988 100644
  	tristate "Enable Tegra Security Engine"
  	depends on TEGRA_HOST1X
 diff --git a/drivers/crypto/Makefile b/drivers/crypto/Makefile
-index 5a950c7abc393..9e406729ab947 100644
+index 5a950c7abc393dab7357e591bcad53c613eee8e0..9e406729ab947a2f1ec3d5098b3df9c2180340bb 100644
 --- a/drivers/crypto/Makefile
 +++ b/drivers/crypto/Makefile
 @@ -29,6 +29,7 @@ obj-$(CONFIG_CRYPTO_DEV_PPC4XX) += amcc/
@@ -1332,7 +1332,7 @@ index 5a950c7abc393..9e406729ab947 100644
  obj-$(CONFIG_CRYPTO_DEV_SA2UL) += sa2ul.o
  obj-$(CONFIG_CRYPTO_DEV_SAHARA) += sahara.o
 diff --git a/drivers/crypto/rockchip/Makefile b/drivers/crypto/rockchip/Makefile
-index 785277aca71ed..ea946ba0d4d57 100644
+index 785277aca71ed7c78835fedc4b859b3ab7eb7933..ea946ba0d4d579c69d61505c7c0aab61d8cd1898 100644
 --- a/drivers/crypto/rockchip/Makefile
 +++ b/drivers/crypto/rockchip/Makefile
 @@ -3,3 +3,8 @@ obj-$(CONFIG_CRYPTO_DEV_ROCKCHIP) += rk_crypto.o
@@ -1346,7 +1346,7 @@ index 785277aca71ed..ea946ba0d4d57 100644
 +		   rk2_crypto_ahash.o
 diff --git a/drivers/crypto/rockchip/rk2_crypto.c b/drivers/crypto/rockchip/rk2_crypto.c
 new file mode 100644
-index 0000000000000..7d0c5f5df6824
+index 0000000000000000000000000000000000000000..7d0c5f5df682457ac443ed021598536d04fffc3f
 --- /dev/null
 +++ b/drivers/crypto/rockchip/rk2_crypto.c
 @@ -0,0 +1,745 @@
@@ -2097,7 +2097,7 @@ index 0000000000000..7d0c5f5df6824
 +MODULE_AUTHOR("Dawid Olesinski <dawidro@gmail.com>");
 diff --git a/drivers/crypto/rockchip/rk2_crypto.h b/drivers/crypto/rockchip/rk2_crypto.h
 new file mode 100644
-index 0000000000000..8792d9f1c8477
+index 0000000000000000000000000000000000000000..8792d9f1c847732ba36d5dd90029326fd04c73df
 --- /dev/null
 +++ b/drivers/crypto/rockchip/rk2_crypto.h
 @@ -0,0 +1,249 @@
@@ -2352,7 +2352,7 @@ index 0000000000000..8792d9f1c8477
 +#endif /* __RK2_CRYPTO_H__ */
 diff --git a/drivers/crypto/rockchip/rk2_crypto_ahash.c b/drivers/crypto/rockchip/rk2_crypto_ahash.c
 new file mode 100644
-index 0000000000000..475eb82a5f0d5
+index 0000000000000000000000000000000000000000..475eb82a5f0d5bbb82ee7d6790018d78aec84b53
 --- /dev/null
 +++ b/drivers/crypto/rockchip/rk2_crypto_ahash.c
 @@ -0,0 +1,565 @@
@@ -2923,7 +2923,7 @@ index 0000000000000..475eb82a5f0d5
 +}
 diff --git a/drivers/crypto/rockchip/rk2_crypto_skcipher.c b/drivers/crypto/rockchip/rk2_crypto_skcipher.c
 new file mode 100644
-index 0000000000000..8ca1e69595387
+index 0000000000000000000000000000000000000000..8ca1e695953878db1a7a0e33dde8922aedb1d3d9
 --- /dev/null
 +++ b/drivers/crypto/rockchip/rk2_crypto_skcipher.c
 @@ -0,0 +1,728 @@
@@ -3656,10 +3656,10 @@ index 0000000000000..8ca1e69595387
 +	crypto_free_skcipher(ctx->fallback_tfm);
 +}
 diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
-index 1820547b1dde8..3979bb643bb9c 100644
+index 941c1a3128249865b990a3692611c092240b41c4..2666c01ee46fc516d31022b92c412323b01414b8 100644
 --- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
 +++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
-@@ -6966,11 +6966,14 @@ static void fill_stream_properties_from_drm_display_mode(
+@@ -6971,11 +6971,14 @@ static void fill_stream_properties_from_drm_display_mode(
  	const struct dc_stream_state *old_stream,
  	int requested_bpc)
  {
@@ -3674,7 +3674,7 @@ index 1820547b1dde8..3979bb643bb9c 100644
  	ssize_t err;
  
  	if (connector->connector_type != DRM_MODE_CONNECTOR_WRITEBACK)
-@@ -6983,31 +6986,41 @@ static void fill_stream_properties_from_drm_display_mode(
+@@ -6988,31 +6991,41 @@ static void fill_stream_properties_from_drm_display_mode(
  	timing_out->h_border_right = 0;
  	timing_out->v_border_top = 0;
  	timing_out->v_border_bottom = 0;
@@ -3736,7 +3736,7 @@ index 1820547b1dde8..3979bb643bb9c 100644
  
  	timing_out->timing_3d_format = TIMING_3D_FORMAT_NONE;
  	timing_out->display_color_depth = convert_color_depth_from_display_info(
-@@ -8421,6 +8434,38 @@ static enum dc_status dm_validate_stream_and_context(struct dc *dc,
+@@ -8426,6 +8439,38 @@ static enum dc_status dm_validate_stream_and_context(struct dc *dc,
  	return dc_result;
  }
  
@@ -3775,7 +3775,7 @@ index 1820547b1dde8..3979bb643bb9c 100644
  struct dc_stream_state *
  create_validate_stream_for_sink(struct drm_connector *connector,
  				const struct drm_display_mode *drm_mode,
-@@ -8468,6 +8513,9 @@ create_validate_stream_for_sink(struct drm_connector *connector,
+@@ -8473,6 +8518,9 @@ create_validate_stream_for_sink(struct drm_connector *connector,
  		if (dc_result == DC_OK)
  			dc_result = dm_validate_stream_and_context(adev->dm.dc, stream);
  
@@ -3785,7 +3785,7 @@ index 1820547b1dde8..3979bb643bb9c 100644
  		if (dc_result != DC_OK) {
  			drm_dbg_kms(connector->dev, "Pruned mode %d x %d (clk %d) %s %s -- %s\n",
  				      drm_mode->hdisplay,
-@@ -9297,6 +9345,12 @@ static const u32 supported_colorspaces =
+@@ -9302,6 +9350,12 @@ static const u32 supported_colorspaces =
  	BIT(DRM_MODE_COLORIMETRY_BT2020_RGB) |
  	BIT(DRM_MODE_COLORIMETRY_BT2020_YCC);
  
@@ -3798,7 +3798,7 @@ index 1820547b1dde8..3979bb643bb9c 100644
  void amdgpu_dm_connector_init_helper(struct amdgpu_display_manager *dm,
  				     struct amdgpu_dm_connector *aconnector,
  				     int connector_type,
-@@ -9413,8 +9467,11 @@ void amdgpu_dm_connector_init_helper(struct amdgpu_display_manager *dm,
+@@ -9418,8 +9472,11 @@ void amdgpu_dm_connector_init_helper(struct amdgpu_display_manager *dm,
  	    connector_type == DRM_MODE_CONNECTOR_eDP) {
  		drm_connector_attach_hdr_output_metadata_property(&aconnector->base);
  
@@ -3812,7 +3812,7 @@ index 1820547b1dde8..3979bb643bb9c 100644
  		if (adev->dm.hdcp_workqueue)
  			drm_connector_attach_content_protection_property(&aconnector->base, true);
 diff --git a/drivers/gpu/drm/bridge/adv7511/adv7511_drv.c b/drivers/gpu/drm/bridge/adv7511/adv7511_drv.c
-index 02f8f7e78a163..cd61ea98b6112 100644
+index 02f8f7e78a163ee058e2a817340b55c6de09e710..cd61ea98b6112c3fef070042848a7f5da5d81f0a 100644
 --- a/drivers/gpu/drm/bridge/adv7511/adv7511_drv.c
 +++ b/drivers/gpu/drm/bridge/adv7511/adv7511_drv.c
 @@ -8,6 +8,7 @@
@@ -3873,7 +3873,7 @@ index 02f8f7e78a163..cd61ea98b6112 100644
  #ifdef CONFIG_DRM_I2C_ADV7511_AUDIO
  	adv7511->bridge.ops |= DRM_BRIDGE_OP_HDMI_AUDIO;
 diff --git a/drivers/gpu/drm/bridge/inno-hdmi.c b/drivers/gpu/drm/bridge/inno-hdmi.c
-index 9a62bf59a4033..e72ff166593b9 100644
+index 9a62bf59a4033ae9150d82a6defdd78d1f1f2fcb..e72ff166593b9b6783f4cca8696515f4a58f0bd0 100644
 --- a/drivers/gpu/drm/bridge/inno-hdmi.c
 +++ b/drivers/gpu/drm/bridge/inno-hdmi.c
 @@ -1119,6 +1119,7 @@ struct inno_hdmi *inno_hdmi_bind(struct device *dev,
@@ -3885,7 +3885,7 @@ index 9a62bf59a4033..e72ff166593b9 100644
  	hdmi->bridge.ddc = inno_hdmi_i2c_adapter(hdmi);
  	if (IS_ERR(hdmi->bridge.ddc))
 diff --git a/drivers/gpu/drm/bridge/ite-it6263.c b/drivers/gpu/drm/bridge/ite-it6263.c
-index c7d588be12cbf..00044dedbb160 100644
+index c7d588be12cbfaea20515498123df2f62d5c4a33..00044dedbb160d1d49f7695dd5c2875dc65ed8bf 100644
 --- a/drivers/gpu/drm/bridge/ite-it6263.c
 +++ b/drivers/gpu/drm/bridge/ite-it6263.c
 @@ -15,7 +15,6 @@
@@ -3962,7 +3962,7 @@ index c7d588be12cbf..00044dedbb160 100644
  	return devm_drm_bridge_add(dev, &it->bridge);
  }
 diff --git a/drivers/gpu/drm/bridge/ite-it66121.c b/drivers/gpu/drm/bridge/ite-it66121.c
-index a2f48db369e30..9ba78f517e29d 100644
+index a2f48db369e30cc83a96614c42849a2a8f59d075..9ba78f517e29d2905d981489be72311ee82283c6 100644
 --- a/drivers/gpu/drm/bridge/ite-it66121.c
 +++ b/drivers/gpu/drm/bridge/ite-it66121.c
 @@ -10,6 +10,7 @@
@@ -4000,7 +4000,7 @@ index a2f48db369e30..9ba78f517e29d 100644
  		ctx->bridge.ops |= DRM_BRIDGE_OP_HPD;
  
 diff --git a/drivers/gpu/drm/bridge/lontium-lt9611.c b/drivers/gpu/drm/bridge/lontium-lt9611.c
-index 21305296e1117..4887e52fb184e 100644
+index 21305296e1117813c4a7d3e6c3997ffd168f8000..4887e52fb184eca35ac1a93fc5a8e829f161a4ee 100644
 --- a/drivers/gpu/drm/bridge/lontium-lt9611.c
 +++ b/drivers/gpu/drm/bridge/lontium-lt9611.c
 @@ -5,6 +5,7 @@
@@ -4048,7 +4048,7 @@ index 21305296e1117..4887e52fb184e 100644
  	drm_bridge_add(&lt9611->bridge);
  
 diff --git a/drivers/gpu/drm/bridge/synopsys/dw-dp.c b/drivers/gpu/drm/bridge/synopsys/dw-dp.c
-index 21541be094c47..6511522765342 100644
+index 21541be094c47e16ab78a8c77c27fbcc8d98e75d..6511522765342705bfd79cd3fa3fc4d4ca8c46cf 100644
 --- a/drivers/gpu/drm/bridge/synopsys/dw-dp.c
 +++ b/drivers/gpu/drm/bridge/synopsys/dw-dp.c
 @@ -8,6 +8,7 @@
@@ -5119,7 +5119,7 @@ index 21541be094c47..6511522765342 100644
  MODULE_AUTHOR("Andy Yan <andyshrk@163.com>");
  MODULE_DESCRIPTION("DW DP Core Library");
 diff --git a/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.c b/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.c
-index 1c214a8e6dc2d..4698933a30ebc 100644
+index 1c214a8e6dc2db7a700c3ca9872f9adde3ebd334..4698933a30ebc7d81c8755a0508b77da56a2e6f7 100644
 --- a/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.c
 +++ b/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.c
 @@ -2,6 +2,7 @@
@@ -5638,7 +5638,7 @@ index 1c214a8e6dc2d..4698933a30ebc 100644
  {
  	disable_irq(hdmi->main_irq);
 diff --git a/drivers/gpu/drm/display/drm_bridge_connector.c b/drivers/gpu/drm/display/drm_bridge_connector.c
-index 649969fca1413..a39a1902b1bcf 100644
+index 649969fca1413b392db288ac7bd64f19c8b1b09e..a39a1902b1bcf308e2aab05cf2534545cf6e9e3b 100644
 --- a/drivers/gpu/drm/display/drm_bridge_connector.c
 +++ b/drivers/gpu/drm/display/drm_bridge_connector.c
 @@ -180,6 +180,12 @@ static void drm_bridge_connector_oob_hotplug_event(struct drm_connector *connect
@@ -5965,7 +5965,7 @@ index 649969fca1413..a39a1902b1bcf 100644
  			return ERR_PTR(ret);
  	} else {
 diff --git a/drivers/gpu/drm/display/drm_hdmi_helper.c b/drivers/gpu/drm/display/drm_hdmi_helper.c
-index 5cb0b033b1713..493f2728ab865 100644
+index 5cb0b033b1713ee9e3aee46503aeaa2cdb8306b1..493f2728ab8650dde02a56be04a7eccd93fb0a2e 100644
 --- a/drivers/gpu/drm/display/drm_hdmi_helper.c
 +++ b/drivers/gpu/drm/display/drm_hdmi_helper.c
 @@ -4,12 +4,21 @@
@@ -6289,7 +6289,7 @@ index 5cb0b033b1713..493f2728ab865 100644
 +}
 +EXPORT_SYMBOL(drm_connector_hdmi_sync_scdc);
 diff --git a/drivers/gpu/drm/display/drm_hdmi_state_helper.c b/drivers/gpu/drm/display/drm_hdmi_state_helper.c
-index 4867edbf2622b..27d85b1a50c7e 100644
+index cae0d85fb44079ce1824311530a4b292c9807dcd..9365f4b6cfc3ec4ebeaac00b1fb848e8f872f3cd 100644
 --- a/drivers/gpu/drm/display/drm_hdmi_state_helper.c
 +++ b/drivers/gpu/drm/display/drm_hdmi_state_helper.c
 @@ -1,5 +1,6 @@
@@ -6608,7 +6608,7 @@ index 4867edbf2622b..27d85b1a50c7e 100644
  static int clear_infoframe(struct drm_connector *connector,
  			   const struct drm_connector_infoframe_funcs *funcs,
  			   const char *type)
-@@ -1149,18 +1358,22 @@ drm_atomic_helper_connector_hdmi_clear_audio_infoframe(struct drm_connector *con
+@@ -1150,18 +1359,22 @@ drm_atomic_helper_connector_hdmi_clear_audio_infoframe(struct drm_connector *con
  }
  EXPORT_SYMBOL(drm_atomic_helper_connector_hdmi_clear_audio_infoframe);
  
@@ -6637,7 +6637,7 @@ index 4867edbf2622b..27d85b1a50c7e 100644
  	}
  
  	if (connector->hdmi.funcs->read_edid)
-@@ -1173,38 +1386,54 @@ drm_atomic_helper_connector_hdmi_update(struct drm_connector *connector,
+@@ -1174,38 +1387,54 @@ drm_atomic_helper_connector_hdmi_update(struct drm_connector *connector,
  	drm_edid_free(drm_edid);
  
  	if (status == connector_status_connected) {
@@ -6706,7 +6706,7 @@ index 4867edbf2622b..27d85b1a50c7e 100644
 -EXPORT_SYMBOL(drm_atomic_helper_connector_hdmi_force);
 +EXPORT_SYMBOL(drm_atomic_helper_connector_hdmi_force_ctx);
 diff --git a/drivers/gpu/drm/display/drm_scdc_helper.c b/drivers/gpu/drm/display/drm_scdc_helper.c
-index df878aad4a36b..74388481fc556 100644
+index df878aad4a36b242e331eafd019c00be8a1f5087..74388481fc556b0d51f16626343e08cdad47b1f2 100644
 --- a/drivers/gpu/drm/display/drm_scdc_helper.c
 +++ b/drivers/gpu/drm/display/drm_scdc_helper.c
 @@ -21,10 +21,14 @@
@@ -7139,7 +7139,7 @@ index df878aad4a36b..74388481fc556 100644
 +}
 +EXPORT_SYMBOL(drm_scdc_debugfs_init);
 diff --git a/drivers/gpu/drm/drm_atomic_helper.c b/drivers/gpu/drm/drm_atomic_helper.c
-index 51f39edc31edc..8821de09708e2 100644
+index 51f39edc31edc6f9fb5b621d625424023e5a337f..8821de09708e292d3f621a3f2896d902a72dcb40 100644
 --- a/drivers/gpu/drm/drm_atomic_helper.c
 +++ b/drivers/gpu/drm/drm_atomic_helper.c
 @@ -28,6 +28,7 @@
@@ -7246,7 +7246,7 @@ index 51f39edc31edc..8821de09708e2 100644
 +}
 +EXPORT_SYMBOL(drm_atomic_helper_bridge_get_hdmi_output_bus_fmts);
 diff --git a/drivers/gpu/drm/drm_atomic_uapi.c b/drivers/gpu/drm/drm_atomic_uapi.c
-index e997917819e8e..1050dddadb17e 100644
+index e997917819e8eac298f4da5df131259d438b530a..1050dddadb17eaf17fc575176eaeb1e3e715dcd4 100644
 --- a/drivers/gpu/drm/drm_atomic_uapi.c
 +++ b/drivers/gpu/drm/drm_atomic_uapi.c
 @@ -960,6 +960,8 @@ static int drm_atomic_connector_set_property(struct drm_connector *connector,
@@ -7268,7 +7268,7 @@ index e997917819e8e..1050dddadb17e 100644
  		return connector->funcs->atomic_get_property(connector,
  				state, property, val);
 diff --git a/drivers/gpu/drm/drm_bridge.c b/drivers/gpu/drm/drm_bridge.c
-index 687b36eea0c70..3bfa0e911b09c 100644
+index 687b36eea0c703062a6847a7f0da23b41eaee175..3bfa0e911b09c679ebb04ba3d7472609b2be92bd 100644
 --- a/drivers/gpu/drm/drm_bridge.c
 +++ b/drivers/gpu/drm/drm_bridge.c
 @@ -21,6 +21,7 @@
@@ -7453,7 +7453,7 @@ index 687b36eea0c70..3bfa0e911b09c 100644
  
  	kfree(out_bus_fmts);
 diff --git a/drivers/gpu/drm/drm_bridge_helper.c b/drivers/gpu/drm/drm_bridge_helper.c
-index 420f29cf3e543..0a3c8fee66b32 100644
+index 420f29cf3e5435d8af90464ee1a2068f23e24221..0a3c8fee66b3258d60a7bb853ed013af2e947bd2 100644
 --- a/drivers/gpu/drm/drm_bridge_helper.c
 +++ b/drivers/gpu/drm/drm_bridge_helper.c
 @@ -50,8 +50,6 @@ int drm_bridge_helper_reset_crtc(struct drm_bridge *bridge,
@@ -7466,7 +7466,7 @@ index 420f29cf3e543..0a3c8fee66b32 100644
  out:
  	drm_modeset_unlock(&dev->mode_config.connection_mutex);
 diff --git a/drivers/gpu/drm/drm_connector.c b/drivers/gpu/drm/drm_connector.c
-index 11646453aaac9..2e9e9dfd62504 100644
+index 11646453aaac9b8cb82943aea164a4aaf6b46c37..2e9e9dfd62504fc132998afc01f04757f39631e4 100644
 --- a/drivers/gpu/drm/drm_connector.c
 +++ b/drivers/gpu/drm/drm_connector.c
 @@ -546,14 +546,10 @@ EXPORT_SYMBOL(drmm_connector_init);
@@ -7830,7 +7830,7 @@ index 11646453aaac9..2e9e9dfd62504 100644
  /**
   * DOC: Tile group
 diff --git a/drivers/gpu/drm/drm_debugfs.c b/drivers/gpu/drm/drm_debugfs.c
-index ae1c6126c2c59..a72f9723d3a97 100644
+index ae1c6126c2c592cc1db3b06f99e13b23076e987a..a72f9723d3a974002c05f012981ec34c667f1a16 100644
 --- a/drivers/gpu/drm/drm_debugfs.c
 +++ b/drivers/gpu/drm/drm_debugfs.c
 @@ -633,161 +633,6 @@ static const struct file_operations drm_connector_fops = {
@@ -8005,7 +8005,7 @@ index ae1c6126c2c59..a72f9723d3a97 100644
  		connector->funcs->debugfs_init(connector, root);
  }
 diff --git a/drivers/gpu/drm/drm_probe_helper.c b/drivers/gpu/drm/drm_probe_helper.c
-index d4dc8cb45bcec..b59e535ef2879 100644
+index d4dc8cb45bcecec2339429e89ccd1bf18a0fbd27..b59e535ef2879dd8f39ed11a2d286cea0a13fbf4 100644
 --- a/drivers/gpu/drm/drm_probe_helper.c
 +++ b/drivers/gpu/drm/drm_probe_helper.c
 @@ -559,6 +559,7 @@ static int __drm_helper_update_and_validate(struct drm_connector *connector,
@@ -8038,7 +8038,7 @@ index d4dc8cb45bcec..b59e535ef2879 100644
  		ret = drm_helper_probe_detect(connector, &ctx, true);
  
 diff --git a/drivers/gpu/drm/i915/display/intel_dp.c b/drivers/gpu/drm/i915/display/intel_dp.c
-index 5733d2e7ac7f1..8ece1a71ffd0d 100644
+index 5733d2e7ac7f13d0f8d9cbcb1fb0f22bf5497cf1..8ece1a71ffd0d56cea677cee45547c1004ae28cb 100644
 --- a/drivers/gpu/drm/i915/display/intel_dp.c
 +++ b/drivers/gpu/drm/i915/display/intel_dp.c
 @@ -1382,6 +1382,16 @@ intel_dp_mode_valid_downstream(struct intel_connector *connector,
@@ -8165,7 +8165,7 @@ index 5733d2e7ac7f1..8ece1a71ffd0d 100644
  
  static void
 diff --git a/drivers/gpu/drm/i915/display/intel_hdmi.c b/drivers/gpu/drm/i915/display/intel_hdmi.c
-index b9d11fb8559df..58f8c4c81a24b 100644
+index b9d11fb8559dfec0adebe42419d1e9dee128d88a..58f8c4c81a24bbac9666cc2f43ff55c3cf939cb8 100644
 --- a/drivers/gpu/drm/i915/display/intel_hdmi.c
 +++ b/drivers/gpu/drm/i915/display/intel_hdmi.c
 @@ -1966,6 +1966,8 @@ static bool intel_hdmi_sink_bpc_possible(struct drm_connector *_connector,
@@ -8301,7 +8301,7 @@ index b9d11fb8559df..58f8c4c81a24b 100644
  	if (DISPLAY_VER(display) >= 10)
  		drm_connector_attach_hdr_output_metadata_property(&connector->base);
 diff --git a/drivers/gpu/drm/rockchip/dw_dp-rockchip.c b/drivers/gpu/drm/rockchip/dw_dp-rockchip.c
-index 32bc73a1d5e45..34e3a195aab58 100644
+index 32bc73a1d5e456a419f9cd0745da59eda83138f3..34e3a195aab582aeb09d5d47c4d8ce5c4dc4938d 100644
 --- a/drivers/gpu/drm/rockchip/dw_dp-rockchip.c
 +++ b/drivers/gpu/drm/rockchip/dw_dp-rockchip.c
 @@ -7,9 +7,13 @@
@@ -8570,7 +8570,7 @@ index 32bc73a1d5e45..34e3a195aab58 100644
  	},
  };
 diff --git a/drivers/gpu/drm/rockchip/dw_hdmi_qp-rockchip.c b/drivers/gpu/drm/rockchip/dw_hdmi_qp-rockchip.c
-index f35484715c2d1..8b0a71a3709f4 100644
+index f35484715c2d1d809a1529dd6f9b465fafb20e8e..8b0a71a3709f4c22681d59d36f9717b7ed68bdca 100644
 --- a/drivers/gpu/drm/rockchip/dw_hdmi_qp-rockchip.c
 +++ b/drivers/gpu/drm/rockchip/dw_hdmi_qp-rockchip.c
 @@ -11,6 +11,7 @@
@@ -9223,7 +9223,7 @@ index f35484715c2d1..8b0a71a3709f4 100644
  	return 0;
  }
 diff --git a/drivers/gpu/drm/rockchip/rk3066_hdmi.c b/drivers/gpu/drm/rockchip/rk3066_hdmi.c
-index 1996f8656612d..b4e49a7f4cfd1 100644
+index 1996f8656612d405cd020d7e68532f54731f5ebe..b4e49a7f4cfd12c07026d65047e280a575285e2e 100644
 --- a/drivers/gpu/drm/rockchip/rk3066_hdmi.c
 +++ b/drivers/gpu/drm/rockchip/rk3066_hdmi.c
 @@ -15,6 +15,7 @@
@@ -9243,7 +9243,7 @@ index 1996f8656612d..b4e49a7f4cfd1 100644
  	hdmi->bridge.ddc = rk3066_hdmi_i2c_adapter(hdmi);
  	if (IS_ERR(hdmi->bridge.ddc))
 diff --git a/drivers/gpu/drm/rockchip/rockchip_drm_drv.h b/drivers/gpu/drm/rockchip/rockchip_drm_drv.h
-index 2e86ad00979c4..d57620c66f16d 100644
+index 2e86ad00979c4131d4ff8e7201d468c3f4c083e7..d57620c66f16d978c130ffe880884c58f8bda317 100644
 --- a/drivers/gpu/drm/rockchip/rockchip_drm_drv.h
 +++ b/drivers/gpu/drm/rockchip/rockchip_drm_drv.h
 @@ -10,6 +10,7 @@
@@ -9278,7 +9278,7 @@ index 2e86ad00979c4..d57620c66f16d 100644
  #define to_rockchip_crtc_state(s) \
  		container_of(s, struct rockchip_crtc_state, base)
 diff --git a/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c b/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c
-index a160077a507f2..e4cb229f84a33 100644
+index a160077a507f2346eb0681bd19dbfcf0f49c7dac..e4cb229f84a33ea04c913b446b511a39d63c217b 100644
 --- a/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c
 +++ b/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c
 @@ -17,6 +17,7 @@
@@ -9965,7 +9965,7 @@ index a160077a507f2..e4cb229f84a33 100644
  	if (vop2->irq < 0)
  		return dev_err_probe(drm->dev, vop2->irq, "cannot find irq for vop2\n");
 diff --git a/drivers/gpu/drm/rockchip/rockchip_drm_vop2.h b/drivers/gpu/drm/rockchip/rockchip_drm_vop2.h
-index 37722652844a9..52537278b21f3 100644
+index 37722652844a92121a9341e03d6c5db9bde345b4..52537278b21f3b720216217d17167f2d99931b1a 100644
 --- a/drivers/gpu/drm/rockchip/rockchip_drm_vop2.h
 +++ b/drivers/gpu/drm/rockchip/rockchip_drm_vop2.h
 @@ -165,6 +165,8 @@ enum vop2_win_regs {
@@ -10016,7 +10016,7 @@ index 37722652844a9..52537278b21f3 100644
  
  enum src_factor_mode {
 diff --git a/drivers/gpu/drm/rockchip/rockchip_vop2_reg.c b/drivers/gpu/drm/rockchip/rockchip_vop2_reg.c
-index 17eda592b1833..c44648e1bc0d6 100644
+index 17eda592b1833aff84927d93a093b4d26c5cfb18..c44648e1bc0d6beb6969b96576e628792649655a 100644
 --- a/drivers/gpu/drm/rockchip/rockchip_vop2_reg.c
 +++ b/drivers/gpu/drm/rockchip/rockchip_vop2_reg.c
 @@ -2114,7 +2114,7 @@ static u32 rk3568_vop2_read_layer_cfg(struct vop2 *vop2)
@@ -10128,7 +10128,7 @@ index 17eda592b1833..c44648e1bc0d6 100644
  }
  
 diff --git a/drivers/gpu/drm/sun4i/sun4i_hdmi_enc.c b/drivers/gpu/drm/sun4i/sun4i_hdmi_enc.c
-index 74c7c3720ba82..64afd8a73f313 100644
+index 74c7c3720ba82f883764d066901710f95a21b4ef..64afd8a73f313eebae4b92331eedef63553ece34 100644
 --- a/drivers/gpu/drm/sun4i/sun4i_hdmi_enc.c
 +++ b/drivers/gpu/drm/sun4i/sun4i_hdmi_enc.c
 @@ -189,10 +189,6 @@ sun4i_hdmi_connector_clock_valid(const struct drm_connector *connector,
@@ -10178,7 +10178,7 @@ index 74c7c3720ba82..64afd8a73f313 100644
  		dev_err(dev,
  			"Couldn't initialise the HDMI connector\n");
 diff --git a/drivers/gpu/drm/tests/Makefile b/drivers/gpu/drm/tests/Makefile
-index 3b83e6616fb25..e7193b49cf91f 100644
+index 3b83e6616fb251e13c53d64c7fea49aa1250e0a2..e7193b49cf91f8930b21e78a7d52322d1fdfd16d 100644
 --- a/drivers/gpu/drm/tests/Makefile
 +++ b/drivers/gpu/drm/tests/Makefile
 @@ -24,6 +24,7 @@ obj-$(CONFIG_DRM_KUNIT_TEST) += \
@@ -10191,7 +10191,7 @@ index 3b83e6616fb25..e7193b49cf91f 100644
  
  CFLAGS_drm_mm_test.o := $(DISABLE_STRUCTLEAK_PLUGIN)
 diff --git a/drivers/gpu/drm/tests/drm_bridge_test.c b/drivers/gpu/drm/tests/drm_bridge_test.c
-index 64b665580a885..4b2dd60049e39 100644
+index 64b665580a8852484d21afac4e1f444c05864603..4b2dd60049e391da1ef9143fde3c46457e5eb1c5 100644
 --- a/drivers/gpu/drm/tests/drm_bridge_test.c
 +++ b/drivers/gpu/drm/tests/drm_bridge_test.c
 @@ -2,15 +2,24 @@
@@ -11231,7 +11231,7 @@ index 64b665580a885..4b2dd60049e39 100644
  MODULE_DESCRIPTION("Kunit test for drm_bridge functions");
  MODULE_LICENSE("GPL");
 diff --git a/drivers/gpu/drm/tests/drm_connector_test.c b/drivers/gpu/drm/tests/drm_connector_test.c
-index beb1d50a66464..42f804500de65 100644
+index beb1d50a6646419fed8d1e3b213decefbf18e190..42f804500de6501939e3d1ae603b859f53a38cbb 100644
 --- a/drivers/gpu/drm/tests/drm_connector_test.c
 +++ b/drivers/gpu/drm/tests/drm_connector_test.c
 @@ -23,6 +23,8 @@ struct drm_connector_init_priv {
@@ -12021,7 +12021,7 @@ index beb1d50a66464..42f804500de65 100644
  
  	ret = drm_connector_attach_broadcast_rgb_property(connector);
 diff --git a/drivers/gpu/drm/tests/drm_hdmi_state_helper_test.c b/drivers/gpu/drm/tests/drm_hdmi_state_helper_test.c
-index c9819c3fc635a..d7324da3a63d6 100644
+index c9819c3fc635a7b5cbe6d73f56676694b2619e98..d7324da3a63d6d6d0202a09914c6d1db2952e284 100644
 --- a/drivers/gpu/drm/tests/drm_hdmi_state_helper_test.c
 +++ b/drivers/gpu/drm/tests/drm_hdmi_state_helper_test.c
 @@ -32,6 +32,7 @@ struct drm_atomic_helper_connector_hdmi_priv {
@@ -13514,7 +13514,7 @@ index c9819c3fc635a..d7324da3a63d6 100644
  	KUNIT_ASSERT_NOT_NULL(test, priv);
 diff --git a/drivers/gpu/drm/tests/drm_kunit_edid.c b/drivers/gpu/drm/tests/drm_kunit_edid.c
 new file mode 100644
-index 0000000000000..a6c5e8d6077a6
+index 0000000000000000000000000000000000000000..a6c5e8d6077a6708b9149443820c18912f6f901f
 --- /dev/null
 +++ b/drivers/gpu/drm/tests/drm_kunit_edid.c
 @@ -0,0 +1,1160 @@
@@ -14679,7 +14679,7 @@ index 0000000000000..a6c5e8d6077a6
 +MODULE_DESCRIPTION("EDID Definitions for KUnit tests");
 +MODULE_LICENSE("GPL");
 diff --git a/drivers/gpu/drm/tests/drm_kunit_edid.h b/drivers/gpu/drm/tests/drm_kunit_edid.h
-index f4923157f5bf9..fb5b0295e35e4 100644
+index f4923157f5bf9e14ccfaaffc390fc9ed0a7160a3..fb5b0295e35e400a462850c4ad7866d8b6e84044 100644
 --- a/drivers/gpu/drm/tests/drm_kunit_edid.h
 +++ b/drivers/gpu/drm/tests/drm_kunit_edid.h
 @@ -3,981 +3,15 @@
@@ -15675,7 +15675,7 @@ index f4923157f5bf9..fb5b0295e35e4 100644
  
  #endif // DRM_KUNIT_EDID_H_
 diff --git a/drivers/gpu/drm/vc4/vc4_hdmi.c b/drivers/gpu/drm/vc4/vc4_hdmi.c
-index a161d3b00a255..9c81372f763b9 100644
+index a161d3b00a25516e1a494dfaedc2c49dd84924a2..9c81372f763b985fc00f4ae5fdea1f70dc282d9d 100644
 --- a/drivers/gpu/drm/vc4/vc4_hdmi.c
 +++ b/drivers/gpu/drm/vc4/vc4_hdmi.c
 @@ -35,7 +35,6 @@
@@ -16290,7 +16290,7 @@ index a161d3b00a255..9c81372f763b9 100644
  
  static const struct of_device_id vc4_hdmi_dt_match[] = {
 diff --git a/drivers/gpu/drm/vc4/vc4_hdmi.h b/drivers/gpu/drm/vc4/vc4_hdmi.h
-index 29d461d4ee49f..61486e7b4ba2c 100644
+index 29d461d4ee49fdee29edd6a102e70ded9067a64b..61486e7b4ba2c7a2ab1a01ab0d0f9f3a429fc850 100644
 --- a/drivers/gpu/drm/vc4/vc4_hdmi.h
 +++ b/drivers/gpu/drm/vc4/vc4_hdmi.h
 @@ -29,9 +29,6 @@ struct vc4_hdmi_variant {
@@ -16354,7 +16354,7 @@ index 29d461d4ee49f..61486e7b4ba2c 100644
  	 * @hdmi_jack: Represents the connection state of the HDMI plug, for
  	 * ALSA jack detection.
 diff --git a/drivers/i2c/busses/i2c-rk3x.c b/drivers/i2c/busses/i2c-rk3x.c
-index fcede9f6ed545..2556a3d8b2a13 100644
+index fcede9f6ed545a710488c44bbaf03328577a718c..2556a3d8b2a136e5bdebd6e82029862797656659 100644
 --- a/drivers/i2c/busses/i2c-rk3x.c
 +++ b/drivers/i2c/busses/i2c-rk3x.c
 @@ -36,6 +36,7 @@
@@ -16503,7 +16503,7 @@ index fcede9f6ed545..2556a3d8b2a13 100644
  
  static const struct of_device_id rk3x_i2c_match[] = {
 diff --git a/drivers/media/mc/Makefile b/drivers/media/mc/Makefile
-index 2b7af42ba59c1..1d502fdc52ad2 100644
+index 2b7af42ba59c19670f51a5e726e707e638d3351a..1d502fdc52ad20026b7b87108648f66d8d700fd4 100644
 --- a/drivers/media/mc/Makefile
 +++ b/drivers/media/mc/Makefile
 @@ -1,7 +1,7 @@
@@ -16517,7 +16517,7 @@ index 2b7af42ba59c1..1d502fdc52ad2 100644
  	mc-objs += mc-dev-allocator.o
 diff --git a/drivers/media/mc/mc-shared-graph.c b/drivers/media/mc/mc-shared-graph.c
 new file mode 100644
-index 0000000000000..c00edda603761
+index 0000000000000000000000000000000000000000..c00edda6037619c9b92d18b3ef341b0fad614ac1
 --- /dev/null
 +++ b/drivers/media/mc/mc-shared-graph.c
 @@ -0,0 +1,335 @@
@@ -16857,7 +16857,7 @@ index 0000000000000..c00edda603761
 +}
 +EXPORT_SYMBOL_GPL(media_device_shared_join_link_sink);
 diff --git a/drivers/media/platform/rockchip/Kconfig b/drivers/media/platform/rockchip/Kconfig
-index ba401d32f01ba..b008652cf515d 100644
+index ba401d32f01ba05df075452b89eb0699e0b4c121..b008652cf515ddb36018c6e528bad6d9ad35b873 100644
 --- a/drivers/media/platform/rockchip/Kconfig
 +++ b/drivers/media/platform/rockchip/Kconfig
 @@ -6,3 +6,4 @@ source "drivers/media/platform/rockchip/rga/Kconfig"
@@ -16866,7 +16866,7 @@ index ba401d32f01ba..b008652cf515d 100644
  source "drivers/media/platform/rockchip/rkvdec/Kconfig"
 +source "drivers/media/platform/rockchip/rkisp2/Kconfig"
 diff --git a/drivers/media/platform/rockchip/Makefile b/drivers/media/platform/rockchip/Makefile
-index 0e0b2cbbd4bd2..9e2ac1e51c93a 100644
+index 0e0b2cbbd4bd215e4b1ca53ba578dfc901d157c8..9e2ac1e51c93aed5902814fcf11ee7f123b215ae 100644
 --- a/drivers/media/platform/rockchip/Makefile
 +++ b/drivers/media/platform/rockchip/Makefile
 @@ -3,3 +3,4 @@ obj-y += rga/
@@ -16875,7 +16875,7 @@ index 0e0b2cbbd4bd2..9e2ac1e51c93a 100644
  obj-y += rkvdec/
 +obj-y += rkisp2/
 diff --git a/drivers/media/platform/rockchip/rga/rga-buf.c b/drivers/media/platform/rockchip/rga/rga-buf.c
-index c0ea6003336bf..47a8d5a4500a3 100644
+index c0ea6003336bf5ab65da3c8e26dc0bf51af2faba..47a8d5a4500a3acaa28fad048d1ec0a062dddb51 100644
 --- a/drivers/media/platform/rockchip/rga/rga-buf.c
 +++ b/drivers/media/platform/rockchip/rga/rga-buf.c
 @@ -93,7 +93,7 @@ static int rga_buf_init(struct vb2_buffer *vb)
@@ -16924,7 +16924,7 @@ index c0ea6003336bf..47a8d5a4500a3 100644
  
  const struct vb2_ops rga_qops = {
 diff --git a/drivers/media/platform/rockchip/rga/rga-hw.c b/drivers/media/platform/rockchip/rga/rga-hw.c
-index be1bc8ddbd03b..9a5da4e1716ca 100644
+index be1bc8ddbd03bf10630589bd180e4c795d9c0a36..9a5da4e1716ca6e3efc1843d0e26ca7fd1ca6ad3 100644
 --- a/drivers/media/platform/rockchip/rga/rga-hw.c
 +++ b/drivers/media/platform/rockchip/rga/rga-hw.c
 @@ -417,10 +417,10 @@ static void rga_cmd_set_mode(struct rga_ctx *ctx)
@@ -17012,7 +17012,7 @@ index be1bc8ddbd03b..9a5da4e1716ca 100644
  
  static struct rga_fmt formats[] = {
 diff --git a/drivers/media/platform/rockchip/rga/rga.c b/drivers/media/platform/rockchip/rga/rga.c
-index b3cb6bf8eb863..f00b7f99f2521 100644
+index b3cb6bf8eb8632288cfb97cf894562b47c83695f..f00b7f99f25214f4413024e331867ab85665c454 100644
 --- a/drivers/media/platform/rockchip/rga/rga.c
 +++ b/drivers/media/platform/rockchip/rga/rga.c
 @@ -5,12 +5,15 @@
@@ -17743,7 +17743,7 @@ index b3cb6bf8eb863..f00b7f99f2521 100644
  MODULE_AUTHOR("Jacob Chen <jacob-chen@iotwrt.com>");
  MODULE_DESCRIPTION("Rockchip Raster 2d Graphic Acceleration Unit");
 diff --git a/drivers/media/platform/rockchip/rga/rga.h b/drivers/media/platform/rockchip/rga/rga.h
-index bd431534d0d39..c0dfacdb6f212 100644
+index bd431534d0d39e15a776a6ba5e4f722de607a1aa..c0dfacdb6f212f534f746427993f6b4a3110ca38 100644
 --- a/drivers/media/platform/rockchip/rga/rga.h
 +++ b/drivers/media/platform/rockchip/rga/rga.h
 @@ -14,7 +14,6 @@
@@ -17846,7 +17846,7 @@ index bd431534d0d39..c0dfacdb6f212 100644
  				       struct v4l2_pix_format_mplane *format,
  				       bool is_output);
 diff --git a/drivers/media/platform/rockchip/rga/rga3-hw.c b/drivers/media/platform/rockchip/rga/rga3-hw.c
-index ca1c268303dd4..f7e4bc8c6ff21 100644
+index ca1c268303dd407067dcff21a297bfe470d06a52..f7e4bc8c6ff21c8bf5737b77360977977a4a6880 100644
 --- a/drivers/media/platform/rockchip/rga/rga3-hw.c
 +++ b/drivers/media/platform/rockchip/rga/rga3-hw.c
 @@ -261,52 +261,52 @@ static void rga3_cmd_set_wr_format(struct rga_ctx *ctx)
@@ -17919,7 +17919,7 @@ index ca1c268303dd4..f7e4bc8c6ff21 100644
  
  static struct rga3_fmt rga3_formats[] = {
 diff --git a/drivers/media/platform/rockchip/rkcif/rkcif-capture-dvp.c b/drivers/media/platform/rockchip/rkcif/rkcif-capture-dvp.c
-index dbaf7636aeeb3..6aa1031ac330e 100644
+index dbaf7636aeeb35e008cf573141c00dd3f310933d..6aa1031ac330ea99532bcc8a84ac1c113b2d82f9 100644
 --- a/drivers/media/platform/rockchip/rkcif/rkcif-capture-dvp.c
 +++ b/drivers/media/platform/rockchip/rkcif/rkcif-capture-dvp.c
 @@ -666,7 +666,7 @@ static int rkcif_dvp_start_streaming(struct rkcif_stream *stream)
@@ -17932,7 +17932,7 @@ index dbaf7636aeeb3..6aa1031ac330e 100644
  	if (!source_fmt)
  		goto out;
 diff --git a/drivers/media/platform/rockchip/rkcif/rkcif-capture-mipi.c b/drivers/media/platform/rockchip/rkcif/rkcif-capture-mipi.c
-index bc9518f8db507..50050cfa83b0d 100644
+index bc9518f8db50757390c917f433ae35bdd330927b..50050cfa83b0dfae229508339411b37922207110 100644
 --- a/drivers/media/platform/rockchip/rkcif/rkcif-capture-mipi.c
 +++ b/drivers/media/platform/rockchip/rkcif/rkcif-capture-mipi.c
 @@ -821,6 +821,9 @@ irqreturn_t rkcif_mipi_isr(int irq, void *ctx)
@@ -17946,7 +17946,7 @@ index bc9518f8db507..50050cfa83b0d 100644
  		rkcif_mipi_write(interface, RKCIF_MIPI_INTSTAT, intstat);
  
 diff --git a/drivers/media/platform/rockchip/rkcif/rkcif-common.h b/drivers/media/platform/rockchip/rkcif/rkcif-common.h
-index 4d9211ba9bda8..cf9322cae7a9a 100644
+index 4d9211ba9bda8d8018c99fa3595ff7cac70be3c7..cf9322cae7a9a3df48e5009d46a1915a9dae7477 100644
 --- a/drivers/media/platform/rockchip/rkcif/rkcif-common.h
 +++ b/drivers/media/platform/rockchip/rkcif/rkcif-common.h
 @@ -58,7 +58,8 @@ enum rkcif_interface_index {
@@ -17991,7 +17991,7 @@ index 4d9211ba9bda8..cf9322cae7a9a 100644
 +
  #endif
 diff --git a/drivers/media/platform/rockchip/rkcif/rkcif-dev.c b/drivers/media/platform/rockchip/rkcif/rkcif-dev.c
-index be3a174b9aab0..4c86e3e2f3cd5 100644
+index be3a174b9aab021c81cf98a01c0599b71492149c..4c86e3e2f3cd58ba45231f8971a8821a24adb6f2 100644
 --- a/drivers/media/platform/rockchip/rkcif/rkcif-dev.c
 +++ b/drivers/media/platform/rockchip/rkcif/rkcif-dev.c
 @@ -20,6 +20,7 @@
@@ -18070,7 +18070,7 @@ index be3a174b9aab0..4c86e3e2f3cd5 100644
  }
  
 diff --git a/drivers/media/platform/rockchip/rkcif/rkcif-interface.c b/drivers/media/platform/rockchip/rkcif/rkcif-interface.c
-index 414a9980cf2e5..bda934956fad5 100644
+index 414a9980cf2e55812a9e6298f4a22bc2af5ab49f..bda934956fad5e43dc689c85e9d812a84ffc9c58 100644
 --- a/drivers/media/platform/rockchip/rkcif/rkcif-interface.c
 +++ b/drivers/media/platform/rockchip/rkcif/rkcif-interface.c
 @@ -6,6 +6,9 @@
@@ -18432,7 +18432,7 @@ index 414a9980cf2e5..bda934956fad5 100644
  
  err_subdev_unregister:
 diff --git a/drivers/media/platform/rockchip/rkcif/rkcif-regs.h b/drivers/media/platform/rockchip/rkcif/rkcif-regs.h
-index 3cf7ee19de300..3addd2aac6915 100644
+index 3cf7ee19de300eb2ad683a61ef68652c0f910fb2..3addd2aac69151cac0566df95b96f88e5a039ad1 100644
 --- a/drivers/media/platform/rockchip/rkcif/rkcif-regs.h
 +++ b/drivers/media/platform/rockchip/rkcif/rkcif-regs.h
 @@ -150,4 +150,53 @@ enum rkcif_mipi_id_register_index {
@@ -18490,7 +18490,7 @@ index 3cf7ee19de300..3addd2aac6915 100644
 +
  #endif
 diff --git a/drivers/media/platform/rockchip/rkcif/rkcif-stream.c b/drivers/media/platform/rockchip/rkcif/rkcif-stream.c
-index 3130d420ad559..f173657fd2b48 100644
+index 3130d420ad559f0a6aa7496212997538cff86652..f173657fd2b48c1f9d59fe9415c417286ff31402 100644
 --- a/drivers/media/platform/rockchip/rkcif/rkcif-stream.c
 +++ b/drivers/media/platform/rockchip/rkcif/rkcif-stream.c
 @@ -283,7 +283,7 @@ static int rkcif_stream_start_streaming(struct vb2_queue *queue,
@@ -18522,7 +18522,7 @@ index 3130d420ad559..f173657fd2b48 100644
  		dev_err(rkcif->dev, "failed to link stream media pad: %d\n",
 diff --git a/drivers/media/platform/rockchip/rkisp2/Kconfig b/drivers/media/platform/rockchip/rkisp2/Kconfig
 new file mode 100644
-index 0000000000000..93007308f13d0
+index 0000000000000000000000000000000000000000..93007308f13d0c0df0b62f00bfc8d9e6ab4e8713
 --- /dev/null
 +++ b/drivers/media/platform/rockchip/rkisp2/Kconfig
 @@ -0,0 +1,20 @@
@@ -18548,7 +18548,7 @@ index 0000000000000..93007308f13d0
 +	  will be called rockchip-isp2.
 diff --git a/drivers/media/platform/rockchip/rkisp2/Makefile b/drivers/media/platform/rockchip/rkisp2/Makefile
 new file mode 100644
-index 0000000000000..8e323a560a395
+index 0000000000000000000000000000000000000000..8e323a560a3953d99c22201e80f619c1f1dd9fcb
 --- /dev/null
 +++ b/drivers/media/platform/rockchip/rkisp2/Makefile
 @@ -0,0 +1,13 @@
@@ -18567,7 +18567,7 @@ index 0000000000000..8e323a560a395
 +obj-$(CONFIG_VIDEO_ROCKCHIP_ISP2) += rockchip-isp2.o
 diff --git a/drivers/media/platform/rockchip/rkisp2/rkisp2-capture.c b/drivers/media/platform/rockchip/rkisp2/rkisp2-capture.c
 new file mode 100644
-index 0000000000000..fdae6d3747fff
+index 0000000000000000000000000000000000000000..fdae6d3747fffdfdbd5f99d85a237b75b931fbf3
 --- /dev/null
 +++ b/drivers/media/platform/rockchip/rkisp2/rkisp2-capture.c
 @@ -0,0 +1,1979 @@
@@ -20552,7 +20552,7 @@ index 0000000000000..fdae6d3747fff
 +}
 diff --git a/drivers/media/platform/rockchip/rkisp2/rkisp2-common.c b/drivers/media/platform/rockchip/rkisp2/rkisp2-common.c
 new file mode 100644
-index 0000000000000..c09438c8b7b08
+index 0000000000000000000000000000000000000000..c09438c8b7b0894ba38f65439c18f7ca25c0a5f6
 --- /dev/null
 +++ b/drivers/media/platform/rockchip/rkisp2/rkisp2-common.c
 @@ -0,0 +1,180 @@
@@ -20738,7 +20738,7 @@ index 0000000000000..c09438c8b7b08
 +}
 diff --git a/drivers/media/platform/rockchip/rkisp2/rkisp2-common.h b/drivers/media/platform/rockchip/rkisp2/rkisp2-common.h
 new file mode 100644
-index 0000000000000..ae278bc238921
+index 0000000000000000000000000000000000000000..ae278bc238921bbfe7b47a7bff83a2b837230033
 --- /dev/null
 +++ b/drivers/media/platform/rockchip/rkisp2/rkisp2-common.h
 @@ -0,0 +1,566 @@
@@ -21310,7 +21310,7 @@ index 0000000000000..ae278bc238921
 +#endif /* _RKISP2_COMMON_H */
 diff --git a/drivers/media/platform/rockchip/rkisp2/rkisp2-debug.c b/drivers/media/platform/rockchip/rkisp2/rkisp2-debug.c
 new file mode 100644
-index 0000000000000..92beae3530c4c
+index 0000000000000000000000000000000000000000..92beae3530c4c3397a6b4de06a3f059886529a2b
 --- /dev/null
 +++ b/drivers/media/platform/rockchip/rkisp2/rkisp2-debug.c
 @@ -0,0 +1,236 @@
@@ -21552,7 +21552,7 @@ index 0000000000000..92beae3530c4c
 +}
 diff --git a/drivers/media/platform/rockchip/rkisp2/rkisp2-dev.c b/drivers/media/platform/rockchip/rkisp2/rkisp2-dev.c
 new file mode 100644
-index 0000000000000..2b6b7ee31f1dd
+index 0000000000000000000000000000000000000000..2b6b7ee31f1dd563cbf0821ca004ffb4452d5b20
 --- /dev/null
 +++ b/drivers/media/platform/rockchip/rkisp2/rkisp2-dev.c
 @@ -0,0 +1,380 @@
@@ -21938,7 +21938,7 @@ index 0000000000000..2b6b7ee31f1dd
 +MODULE_LICENSE("Dual MIT/GPL");
 diff --git a/drivers/media/platform/rockchip/rkisp2/rkisp2-dmarx.c b/drivers/media/platform/rockchip/rkisp2/rkisp2-dmarx.c
 new file mode 100644
-index 0000000000000..5db032a88539f
+index 0000000000000000000000000000000000000000..5db032a88539fb9a1bd5501457239cd5886dc0a9
 --- /dev/null
 +++ b/drivers/media/platform/rockchip/rkisp2/rkisp2-dmarx.c
 @@ -0,0 +1,687 @@
@@ -22631,7 +22631,7 @@ index 0000000000000..5db032a88539f
 +}
 diff --git a/drivers/media/platform/rockchip/rkisp2/rkisp2-isp.c b/drivers/media/platform/rockchip/rkisp2/rkisp2-isp.c
 new file mode 100644
-index 0000000000000..2d4316471de14
+index 0000000000000000000000000000000000000000..2d4316471de1433df96dc226a1041e6637d3342e
 --- /dev/null
 +++ b/drivers/media/platform/rockchip/rkisp2/rkisp2-isp.c
 @@ -0,0 +1,1000 @@
@@ -23637,7 +23637,7 @@ index 0000000000000..2d4316471de14
 +}
 diff --git a/drivers/media/platform/rockchip/rkisp2/rkisp2-params.c b/drivers/media/platform/rockchip/rkisp2/rkisp2-params.c
 new file mode 100644
-index 0000000000000..a5713dded0523
+index 0000000000000000000000000000000000000000..a5713dded05236424e225a6a5adeabe095e6487f
 --- /dev/null
 +++ b/drivers/media/platform/rockchip/rkisp2/rkisp2-params.c
 @@ -0,0 +1,1013 @@
@@ -24656,7 +24656,7 @@ index 0000000000000..a5713dded0523
 +}
 diff --git a/drivers/media/platform/rockchip/rkisp2/rkisp2-regs-v2x.h b/drivers/media/platform/rockchip/rkisp2/rkisp2-regs-v2x.h
 new file mode 100644
-index 0000000000000..26deacb0b63d7
+index 0000000000000000000000000000000000000000..26deacb0b63d79ca50848075f091d6ee09468f57
 --- /dev/null
 +++ b/drivers/media/platform/rockchip/rkisp2/rkisp2-regs-v2x.h
 @@ -0,0 +1,2625 @@
@@ -27287,7 +27287,7 @@ index 0000000000000..26deacb0b63d7
 +#endif /* _RKISP_REGS_V2X_H */
 diff --git a/drivers/media/platform/rockchip/rkisp2/rkisp2-regs-v3x.h b/drivers/media/platform/rockchip/rkisp2/rkisp2-regs-v3x.h
 new file mode 100644
-index 0000000000000..73dc3b22873c6
+index 0000000000000000000000000000000000000000..73dc3b22873c6e2d260da802459c9c6ff28bc7e1
 --- /dev/null
 +++ b/drivers/media/platform/rockchip/rkisp2/rkisp2-regs-v3x.h
 @@ -0,0 +1,3427 @@
@@ -30720,7 +30720,7 @@ index 0000000000000..73dc3b22873c6
 +#endif /* _RKISP2_REGS_V3X_H */
 diff --git a/drivers/media/platform/rockchip/rkisp2/rkisp2-regs.h b/drivers/media/platform/rockchip/rkisp2/rkisp2-regs.h
 new file mode 100644
-index 0000000000000..6848f55397347
+index 0000000000000000000000000000000000000000..6848f553973479bb9cfe6838446380289049a755
 --- /dev/null
 +++ b/drivers/media/platform/rockchip/rkisp2/rkisp2-regs.h
 @@ -0,0 +1,1736 @@
@@ -32462,7 +32462,7 @@ index 0000000000000..6848f55397347
 +#endif /* _RKISP2_REGS_H */
 diff --git a/drivers/media/platform/rockchip/rkisp2/rkisp2-stats.c b/drivers/media/platform/rockchip/rkisp2/rkisp2-stats.c
 new file mode 100644
-index 0000000000000..f9dbe05bf218a
+index 0000000000000000000000000000000000000000..f9dbe05bf218ad793a28d532249b83a3a4bd8d89
 --- /dev/null
 +++ b/drivers/media/platform/rockchip/rkisp2/rkisp2-stats.c
 @@ -0,0 +1,482 @@
@@ -32949,7 +32949,7 @@ index 0000000000000..f9dbe05bf218a
 +	mutex_destroy(&node->vlock);
 +}
 diff --git a/drivers/media/platform/rockchip/rkvdec/Makefile b/drivers/media/platform/rockchip/rkvdec/Makefile
-index e629d571e4d89..5eae59e87fce4 100644
+index e629d571e4d8933259e1d7853ab5fdb9f6f60ba3..5eae59e87fce4b7707db03695605ef620800630b 100644
 --- a/drivers/media/platform/rockchip/rkvdec/Makefile
 +++ b/drivers/media/platform/rockchip/rkvdec/Makefile
 @@ -10,6 +10,8 @@ rockchip-vdec-y += \
@@ -32962,7 +32962,7 @@ index e629d571e4d89..5eae59e87fce4 100644
 +		   rkvdec-vp9-common.o \
  		   rkvdec-vp9.o
 diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-h264.c b/drivers/media/platform/rockchip/rkvdec/rkvdec-h264.c
-index ffa6060381929..d3841dc84d352 100644
+index ffa60603819299f4dbd15bbda05daf4fcb5de911..d3841dc84d35248283773ed771c1b5e40c743dd1 100644
 --- a/drivers/media/platform/rockchip/rkvdec/rkvdec-h264.c
 +++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-h264.c
 @@ -227,6 +227,7 @@ static void set_poc_reg(struct rkvdec_regs *regs, uint32_t poc, int id, bool bot
@@ -33030,7 +33030,7 @@ index ffa6060381929..d3841dc84d352 100644
  	return 0;
  }
 diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-hevc-common.c b/drivers/media/platform/rockchip/rkvdec/rkvdec-hevc-common.c
-index f89602075121b..9c4a6093af324 100644
+index f89602075121b4fc1c5c636d736227e4bf82115c..9c4a6093af324c8ed4fc4cab23ffae23087a1771 100644
 --- a/drivers/media/platform/rockchip/rkvdec/rkvdec-hevc-common.c
 +++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-hevc-common.c
 @@ -209,6 +209,9 @@ static void st_ref_pic_set_prediction(struct rkvdec_hevc_run *run, int idx,
@@ -33044,7 +33044,7 @@ index f89602075121b..9c4a6093af324 100644
  	delta_rps = (1 - 2 * rps_data->delta_rps_sign) *
  		   (rps_data->abs_delta_rps_minus1 + 1); /* 7-60 */
 diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-hevc.c b/drivers/media/platform/rockchip/rkvdec/rkvdec-hevc.c
-index 87abf93dfd5e2..c9d0913e90eef 100644
+index 87abf93dfd5e2247eb8f2109b2d5458cd591a2cc..c9d0913e90eef551ce3dc580b5ece363d5436023 100644
 --- a/drivers/media/platform/rockchip/rkvdec/rkvdec-hevc.c
 +++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-hevc.c
 @@ -381,6 +381,7 @@ static void assemble_sw_rps(struct rkvdec_ctx *ctx,
@@ -33113,7 +33113,7 @@ index 87abf93dfd5e2..c9d0913e90eef 100644
  	return 0;
  }
 diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-rcb.c b/drivers/media/platform/rockchip/rkvdec/rkvdec-rcb.c
-index fdcf1f1773797..977e37cf209b6 100644
+index fdcf1f1773797ef19761b18af9ecb010ddcbbec4..977e37cf209b6bd94578f3e8ee7d9703c10955f1 100644
 --- a/drivers/media/platform/rockchip/rkvdec/rkvdec-rcb.c
 +++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-rcb.c
 @@ -17,6 +17,8 @@
@@ -33290,7 +33290,7 @@ index fdcf1f1773797..977e37cf209b6 100644
  	return ret;
  }
 diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-rcb.h b/drivers/media/platform/rockchip/rkvdec/rkvdec-rcb.h
-index 30e8002555c8a..d1149afe7fdae 100644
+index 30e8002555c8a9cfa1420db0ea60efad0a3bc5c0..d1149afe7fdae80e98e96ca11fbc98b747da859d 100644
 --- a/drivers/media/platform/rockchip/rkvdec/rkvdec-rcb.h
 +++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-rcb.h
 @@ -8,7 +8,9 @@
@@ -33319,7 +33319,7 @@ index 30e8002555c8a..d1149afe7fdae 100644
 +bool rkvdec_rcb_buf_validate_size(struct rkvdec_ctx *ctx);
 +void rkvdec_free_rcb(struct rkvdec_dev *rkvdec, struct rkvdec_core *core);
 diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-h264.c b/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-h264.c
-index b961fddc8583a..667c5d36f3eaa 100644
+index b961fddc8583a118bf8598dac3de7a712d78e4e5..667c5d36f3eaa346ccc7e87314eb084566e17a86 100644
 --- a/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-h264.c
 +++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-h264.c
 @@ -185,22 +185,22 @@ static void assemble_hw_pps(struct rkvdec_ctx *ctx,
@@ -33402,7 +33402,7 @@ index b961fddc8583a..667c5d36f3eaa 100644
  	return 0;
  }
 diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-hevc.c b/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-hevc.c
-index fe6414a175510..bd68120b74c65 100644
+index fe6414a175510c30cb7c8d170ec4888eadd7be05..bd68120b74c65a24dafea6b00f98b4fdb57c4395 100644
 --- a/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-hevc.c
 +++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-hevc.c
 @@ -356,22 +356,22 @@ static void set_ref_valid(struct rkvdec_vdpu381_regs_hevc *regs, int id, u32 val
@@ -33483,7 +33483,7 @@ index fe6414a175510..bd68120b74c65 100644
  	return 0;
  }
 diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-regs.h b/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-regs.h
-index 6da36031df2dc..7b92ac38681c6 100644
+index 6da36031df2dc5da596990d85392b7e96d155e07..7b92ac38681c607fd7346203d5bf8a55ed367bda 100644
 --- a/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-regs.h
 +++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-regs.h
 @@ -4,6 +4,8 @@
@@ -33748,7 +33748,7 @@ index 6da36031df2dc..7b92ac38681c6 100644
  #endif /* __RKVDEC_REGS_H__ */
 diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-vp9.c b/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-vp9.c
 new file mode 100644
-index 0000000000000..2cdcac01e62e5
+index 0000000000000000000000000000000000000000..2cdcac01e62e5b78f1e40b902704d869d351d14f
 --- /dev/null
 +++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-vp9.c
 @@ -0,0 +1,1058 @@
@@ -34811,7 +34811,7 @@ index 0000000000000..2cdcac01e62e5
 +	.get_image_fmt = rkvdec_vp9_get_image_fmt,
 +};
 diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu383-h264.c b/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu383-h264.c
-index 5ec7557339162..a737a7799b715 100644
+index 5ec75573391623250030eb7dce831ae959649191..a737a7799b715e6134aee04ba501277bd226326f 100644
 --- a/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu383-h264.c
 +++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu383-h264.c
 @@ -216,19 +216,19 @@ static void assemble_hw_pps(struct rkvdec_ctx *ctx,
@@ -34884,7 +34884,7 @@ index 5ec7557339162..a737a7799b715 100644
  	return 0;
  }
 diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu383-hevc.c b/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu383-hevc.c
-index 3575338a531a4..2862231b17f2c 100644
+index 3575338a531a43a544f424f9f5bdf5a8d8c31950..2862231b17f2c359958fdd3f637d152a8237912b 100644
 --- a/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu383-hevc.c
 +++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu383-hevc.c
 @@ -323,19 +323,19 @@ static void assemble_hw_pps(struct rkvdec_ctx *ctx,
@@ -34966,7 +34966,7 @@ index 3575338a531a4..2862231b17f2c 100644
  }
 diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-vp9-common.c b/drivers/media/platform/rockchip/rkvdec/rkvdec-vp9-common.c
 new file mode 100644
-index 0000000000000..a802f0acd27bd
+index 0000000000000000000000000000000000000000..a802f0acd27bdedabcdf56323d7e212f1a1919ac
 --- /dev/null
 +++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-vp9-common.c
 @@ -0,0 +1,65 @@
@@ -35037,7 +35037,7 @@ index 0000000000000..a802f0acd27bd
 +}
 diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-vp9-common.h b/drivers/media/platform/rockchip/rkvdec/rkvdec-vp9-common.h
 new file mode 100644
-index 0000000000000..0d042215fad2f
+index 0000000000000000000000000000000000000000..0d042215fad2fb60d32815d6f238ee813a1a2a8a
 --- /dev/null
 +++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-vp9-common.h
 @@ -0,0 +1,92 @@
@@ -35134,7 +35134,7 @@ index 0000000000000..0d042215fad2f
 +void update_dec_buf_info(struct rkvdec_decoded_buffer *buf,
 +			 const struct v4l2_ctrl_vp9_frame *dec_params);
 diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-vp9.c b/drivers/media/platform/rockchip/rkvdec/rkvdec-vp9.c
-index 2751f5396ee80..a3f40607f11e5 100644
+index 2751f5396ee8017e53645c5fe9b03c52ffb37b1b..a3f40607f11e57fc4c6511f8060ea1de753d92d2 100644
 --- a/drivers/media/platform/rockchip/rkvdec/rkvdec-vp9.c
 +++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-vp9.c
 @@ -23,71 +23,12 @@
@@ -35417,7 +35417,7 @@ index 2751f5396ee80..a3f40607f11e5 100644
  	kfree(vp9_ctx);
  }
 diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec.c b/drivers/media/platform/rockchip/rkvdec/rkvdec.c
-index 1d1e9bfef8e96..2c8f3051d1550 100644
+index 1d1e9bfef8e96e2661758774aae7b2d8715348e5..2c8f3051d155051b6bcc1a33f0d2453b22b5b208 100644
 --- a/drivers/media/platform/rockchip/rkvdec/rkvdec.c
 +++ b/drivers/media/platform/rockchip/rkvdec/rkvdec.c
 @@ -17,6 +17,7 @@
@@ -36342,7 +36342,7 @@ index 1d1e9bfef8e96..2c8f3051d1550 100644
  }
  #endif
 diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec.h b/drivers/media/platform/rockchip/rkvdec/rkvdec.h
-index a24be6638b6b7..e90c86576b93d 100644
+index a24be6638b6b7a88c59371cbbef62bb7dc6a036f..e90c86576b93d11b9064639c6e4aea1a5f6bee69 100644
 --- a/drivers/media/platform/rockchip/rkvdec/rkvdec.h
 +++ b/drivers/media/platform/rockchip/rkvdec/rkvdec.h
 @@ -15,6 +15,7 @@
@@ -36428,7 +36428,7 @@ index a24be6638b6b7..e90c86576b93d 100644
  /* VDPU383 ops */
  extern const struct rkvdec_coded_fmt_ops rkvdec_vdpu383_h264_fmt_ops;
 diff --git a/drivers/media/platform/synopsys/hdmirx/snps_hdmirx.c b/drivers/media/platform/synopsys/hdmirx/snps_hdmirx.c
-index 25f8ca0d6d946..1b4a7fda9e195 100644
+index 25f8ca0d6d9465144f557ee6e26d4ef29c122a82..1b4a7fda9e1953156c7d6904642e0f65693da61d 100644
 --- a/drivers/media/platform/synopsys/hdmirx/snps_hdmirx.c
 +++ b/drivers/media/platform/synopsys/hdmirx/snps_hdmirx.c
 @@ -41,6 +41,8 @@
@@ -36805,7 +36805,7 @@ index 25f8ca0d6d946..1b4a7fda9e195 100644
  	debugfs_remove_recursive(hdmirx_dev->debugfs_dir);
  
 diff --git a/drivers/media/platform/synopsys/hdmirx/snps_hdmirx.h b/drivers/media/platform/synopsys/hdmirx/snps_hdmirx.h
-index 31b887e94e871..a99f54fd1744c 100644
+index 31b887e94e871e216c61461ce62799e542bdd9e9..a99f54fd1744c05e8af6cbedd54cff39343838dc 100644
 --- a/drivers/media/platform/synopsys/hdmirx/snps_hdmirx.h
 +++ b/drivers/media/platform/synopsys/hdmirx/snps_hdmirx.h
 @@ -81,6 +81,7 @@
@@ -36845,7 +36845,7 @@ index 31b887e94e871..a99f54fd1744c 100644
  #define I2S_BPCUV_EN				BIT(4)
  #define SPDIF_EN				BIT(2)
 diff --git a/drivers/media/platform/verisilicon/hantro.h b/drivers/media/platform/verisilicon/hantro.h
-index 0353de154a1ec..52db3f5ec3305 100644
+index 0353de154a1ecbfd9f2d2ce8fc59a4d67ee2de02..52db3f5ec3305b12a5d18fd7ed41782c5602b5c6 100644
 --- a/drivers/media/platform/verisilicon/hantro.h
 +++ b/drivers/media/platform/verisilicon/hantro.h
 @@ -16,6 +16,7 @@
@@ -36874,7 +36874,7 @@ index 0353de154a1ec..52db3f5ec3305 100644
  	union {
  		struct hantro_h264_dec_hw_ctx h264_dec;
 diff --git a/drivers/media/platform/verisilicon/hantro_drv.c b/drivers/media/platform/verisilicon/hantro_drv.c
-index 2e81877f640fb..bce447e1a034d 100644
+index 2e81877f640fb429b18d2f4fd64bc0c392cf600e..bce447e1a034db7e93d9869a0786f0cdf897cf3a 100644
 --- a/drivers/media/platform/verisilicon/hantro_drv.c
 +++ b/drivers/media/platform/verisilicon/hantro_drv.c
 @@ -21,10 +21,13 @@
@@ -36967,7 +36967,7 @@ index 2e81877f640fb..bce447e1a034d 100644
  	.unlocked_ioctl = video_ioctl2,
  	.mmap = v4l2_m2m_fop_mmap,
 diff --git a/drivers/media/platform/verisilicon/hantro_hw.h b/drivers/media/platform/verisilicon/hantro_hw.h
-index 13e573f1f19de..7259ea89adcce 100644
+index 13e573f1f19de10ef666e6d0f2df376f07167e2d..7259ea89adcce48c3e4b72db3de23f35d61c3ac6 100644
 --- a/drivers/media/platform/verisilicon/hantro_hw.h
 +++ b/drivers/media/platform/verisilicon/hantro_hw.h
 @@ -28,6 +28,7 @@
@@ -36979,7 +36979,7 @@ index 13e573f1f19de..7259ea89adcce 100644
  #define FMT_FHD_WIDTH		1920
  #define FMT_FHD_HEIGHT		1088
 diff --git a/drivers/media/platform/verisilicon/rockchip_vpu981_regs.h b/drivers/media/platform/verisilicon/rockchip_vpu981_regs.h
-index e4008da64f19b..96b85470208b4 100644
+index e4008da64f19b8408302b773d8e37fd3e5441375..96b85470208b44cd73486f6f8cb67f45b861fbd4 100644
 --- a/drivers/media/platform/verisilicon/rockchip_vpu981_regs.h
 +++ b/drivers/media/platform/verisilicon/rockchip_vpu981_regs.h
 @@ -451,6 +451,7 @@
@@ -36991,7 +36991,7 @@ index e4008da64f19b..96b85470208b4 100644
  #define AV1_REFERENCE_Y(i)		(AV1_SWREG(67) + ((i) * 0x8))
  #define AV1_SEGMENTATION		(AV1_SWREG(81))
 diff --git a/drivers/media/platform/verisilicon/rockchip_vpu_hw.c b/drivers/media/platform/verisilicon/rockchip_vpu_hw.c
-index 02673be9878e1..01b36c110539c 100644
+index 02673be9878e1e6ca007404a4b7c20ae065d20ce..01b36c110539c0009153c98fa57c2b8fd6605ae0 100644
 --- a/drivers/media/platform/verisilicon/rockchip_vpu_hw.c
 +++ b/drivers/media/platform/verisilicon/rockchip_vpu_hw.c
 @@ -423,16 +423,24 @@ static irqreturn_t rockchip_vpu2_vepu_irq(int irq, void *dev_id)
@@ -37020,7 +37020,7 @@ index 02673be9878e1..01b36c110539c 100644
  
  	return IRQ_HANDLED;
 diff --git a/drivers/media/test-drivers/visl/Makefile b/drivers/media/test-drivers/visl/Makefile
-index fb4d5ae1b17fd..a5049e2af8443 100644
+index fb4d5ae1b17fd139761ca2d6a2aa75dba8d23711..a5049e2af844327b0d2a0a113e9d56a28886ad81 100644
 --- a/drivers/media/test-drivers/visl/Makefile
 +++ b/drivers/media/test-drivers/visl/Makefile
 @@ -1,5 +1,5 @@
@@ -37031,7 +37031,7 @@ index fb4d5ae1b17fd..a5049e2af8443 100644
  ifeq ($(CONFIG_VISL_DEBUGFS),y)
    visl-y += visl-debugfs.o
 diff --git a/drivers/media/test-drivers/visl/visl-dec.c b/drivers/media/test-drivers/visl/visl-dec.c
-index 6bbf937570478..9517830fb3e8e 100644
+index 6bbf9375704789ae0b0dd2d4d493af7b99971a04..9517830fb3e8ec6e20a8769f4cdf3f4d03b1961b 100644
 --- a/drivers/media/test-drivers/visl/visl-dec.c
 +++ b/drivers/media/test-drivers/visl/visl-dec.c
 @@ -7,13 +7,6 @@
@@ -37133,7 +37133,7 @@ index 6bbf937570478..9517830fb3e8e 100644
  	    run.dst->sequence >= bitstream_trace_frame_start &&
 diff --git a/drivers/media/test-drivers/visl/visl-trace-av1.h b/drivers/media/test-drivers/visl/visl-trace-av1.h
 deleted file mode 100644
-index 09f205de53df3..0000000000000
+index 09f205de53df3b8eeb957483490e346fade0b35f..0000000000000000000000000000000000000000
 --- a/drivers/media/test-drivers/visl/visl-trace-av1.h
 +++ /dev/null
 @@ -1,314 +0,0 @@
@@ -37453,7 +37453,7 @@ index 09f205de53df3..0000000000000
 -#include <trace/define_trace.h>
 diff --git a/drivers/media/test-drivers/visl/visl-trace-fwht.h b/drivers/media/test-drivers/visl/visl-trace-fwht.h
 deleted file mode 100644
-index 54b119359ff59..0000000000000
+index 54b119359ff59226d52e45f7757c43c6863f4180..0000000000000000000000000000000000000000
 --- a/drivers/media/test-drivers/visl/visl-trace-fwht.h
 +++ /dev/null
 @@ -1,66 +0,0 @@
@@ -37525,7 +37525,7 @@ index 54b119359ff59..0000000000000
 -#include <trace/define_trace.h>
 diff --git a/drivers/media/test-drivers/visl/visl-trace-h264.h b/drivers/media/test-drivers/visl/visl-trace-h264.h
 deleted file mode 100644
-index d84296a01deb5..0000000000000
+index d84296a01deb5715aeae056b0304459b430541c2..0000000000000000000000000000000000000000
 --- a/drivers/media/test-drivers/visl/visl-trace-h264.h
 +++ /dev/null
 @@ -1,349 +0,0 @@
@@ -37880,7 +37880,7 @@ index d84296a01deb5..0000000000000
 -#include <trace/define_trace.h>
 diff --git a/drivers/media/test-drivers/visl/visl-trace-hevc.h b/drivers/media/test-drivers/visl/visl-trace-hevc.h
 deleted file mode 100644
-index 963914c463dbc..0000000000000
+index 963914c463dbcfc10e88062594fdbc69ee2cb890..0000000000000000000000000000000000000000
 --- a/drivers/media/test-drivers/visl/visl-trace-hevc.h
 +++ /dev/null
 @@ -1,464 +0,0 @@
@@ -38350,7 +38350,7 @@ index 963914c463dbc..0000000000000
 -#include <trace/define_trace.h>
 diff --git a/drivers/media/test-drivers/visl/visl-trace-mpeg2.h b/drivers/media/test-drivers/visl/visl-trace-mpeg2.h
 deleted file mode 100644
-index ba6c65481194c..0000000000000
+index ba6c65481194cbe4b3f5f1847347739a47091b9e..0000000000000000000000000000000000000000
 --- a/drivers/media/test-drivers/visl/visl-trace-mpeg2.h
 +++ /dev/null
 @@ -1,99 +0,0 @@
@@ -38455,7 +38455,7 @@ index ba6c65481194c..0000000000000
 -#include <trace/define_trace.h>
 diff --git a/drivers/media/test-drivers/visl/visl-trace-points.c b/drivers/media/test-drivers/visl/visl-trace-points.c
 deleted file mode 100644
-index 321ff732c6824..0000000000000
+index 321ff732c68246a303e8f11f86e92c3e091a095c..0000000000000000000000000000000000000000
 --- a/drivers/media/test-drivers/visl/visl-trace-points.c
 +++ /dev/null
 @@ -1,11 +0,0 @@
@@ -38472,7 +38472,7 @@ index 321ff732c6824..0000000000000
 -#include "visl-trace-av1.h"
 diff --git a/drivers/media/test-drivers/visl/visl-trace-vp8.h b/drivers/media/test-drivers/visl/visl-trace-vp8.h
 deleted file mode 100644
-index dabe17d69ddc8..0000000000000
+index dabe17d69ddc82c7ba469282770e1cfc9e312cb3..0000000000000000000000000000000000000000
 --- a/drivers/media/test-drivers/visl/visl-trace-vp8.h
 +++ /dev/null
 @@ -1,156 +0,0 @@
@@ -38634,7 +38634,7 @@ index dabe17d69ddc8..0000000000000
 -#include <trace/define_trace.h>
 diff --git a/drivers/media/test-drivers/visl/visl-trace-vp9.h b/drivers/media/test-drivers/visl/visl-trace-vp9.h
 deleted file mode 100644
-index 362b92b07f935..0000000000000
+index 362b92b07f93547007eed761d459cffc4d6ebf28..0000000000000000000000000000000000000000
 --- a/drivers/media/test-drivers/visl/visl-trace-vp9.h
 +++ /dev/null
 @@ -1,292 +0,0 @@
@@ -38931,7 +38931,7 @@ index 362b92b07f935..0000000000000
 -#define TRACE_INCLUDE_FILE visl-trace-vp9
 -#include <trace/define_trace.h>
 diff --git a/drivers/media/v4l2-core/Makefile b/drivers/media/v4l2-core/Makefile
-index 329f0eadce994..4bfd4e19dff8a 100644
+index 329f0eadce994cc1c8580beb435f68fa7e2a7aeb..4bfd4e19dff8a9fa6b2428cca56f9cd2860df5d2 100644
 --- a/drivers/media/v4l2-core/Makefile
 +++ b/drivers/media/v4l2-core/Makefile
 @@ -9,7 +9,7 @@ ccflags-y += -I$(srctree)/drivers/media/tuners
@@ -38944,7 +38944,7 @@ index 329f0eadce994..4bfd4e19dff8a 100644
  			v4l2-ctrls-request.o v4l2-ctrls-defs.o
  
 diff --git a/drivers/media/v4l2-core/v4l2-ctrls-api.c b/drivers/media/v4l2-core/v4l2-ctrls-api.c
-index 93d8d4012d0f4..c44578828b212 100644
+index 93d8d4012d0f4fef004e417d0aee2ae44b1b30bd..c44578828b212048811cf006fd1c35d65913c112 100644
 --- a/drivers/media/v4l2-core/v4l2-ctrls-api.c
 +++ b/drivers/media/v4l2-core/v4l2-ctrls-api.c
 @@ -523,6 +523,12 @@ int v4l2_g_ext_ctrls(struct v4l2_ctrl_handler *hdl, struct video_device *vdev,
@@ -38972,7 +38972,7 @@ index 93d8d4012d0f4..c44578828b212 100644
  	}
  
 diff --git a/drivers/media/v4l2-core/v4l2-ctrls-core.c b/drivers/media/v4l2-core/v4l2-ctrls-core.c
-index ba047d7d86010..6e48e4f7d8e13 100644
+index ba047d7d86010bf0cf8f8fbf2dc343883d6bdae0..6e48e4f7d8e13532a606b592b0b1d082fdd0366f 100644
 --- a/drivers/media/v4l2-core/v4l2-ctrls-core.c
 +++ b/drivers/media/v4l2-core/v4l2-ctrls-core.c
 @@ -10,12 +10,18 @@
@@ -39152,7 +39152,7 @@ index ba047d7d86010..6e48e4f7d8e13 100644
  };
  
 diff --git a/drivers/media/v4l2-core/v4l2-dev.c b/drivers/media/v4l2-core/v4l2-dev.c
-index 5516b2bbb08f0..b7cd77397aad0 100644
+index 5516b2bbb08f094d72b2f08fc49802a49f0b7eb3..b7cd77397aad0e26d86155734751799641423c38 100644
 --- a/drivers/media/v4l2-core/v4l2-dev.c
 +++ b/drivers/media/v4l2-core/v4l2-dev.c
 @@ -481,6 +481,17 @@ static int v4l2_release(struct inode *inode, struct file *filp)
@@ -39182,7 +39182,7 @@ index 5516b2bbb08f0..b7cd77397aad0 100644
  
  /**
 diff --git a/drivers/media/v4l2-core/v4l2-fh.c b/drivers/media/v4l2-core/v4l2-fh.c
-index b184bed8aca95..5a182f9d6cd87 100644
+index b184bed8aca9583d3e6da79f45259e53ecb2540d..5a182f9d6cd872c19501ebcfd891d8e733367559 100644
 --- a/drivers/media/v4l2-core/v4l2-fh.c
 +++ b/drivers/media/v4l2-core/v4l2-fh.c
 @@ -17,6 +17,7 @@
@@ -39212,7 +39212,7 @@ index b184bed8aca95..5a182f9d6cd87 100644
  EXPORT_SYMBOL_GPL(v4l2_fh_exit);
  
 diff --git a/drivers/media/v4l2-core/v4l2-ioctl.c b/drivers/media/v4l2-core/v4l2-ioctl.c
-index a2b650f4ec3c3..6b5d9d9f95531 100644
+index a2b650f4ec3c32a4883521f34fb51eed13c71d76..6b5d9d9f955317aa04c53dab2c4fb281c10a22d4 100644
 --- a/drivers/media/v4l2-core/v4l2-ioctl.c
 +++ b/drivers/media/v4l2-core/v4l2-ioctl.c
 @@ -9,6 +9,7 @@
@@ -39295,7 +39295,7 @@ index a2b650f4ec3c3..6b5d9d9f95531 100644
  	 * We need to serialize streamon/off/reqbufs with queueing new requests.
  	 * These ioctls may trigger the cancellation of a streaming
 diff --git a/drivers/media/v4l2-core/v4l2-mem2mem.c b/drivers/media/v4l2-core/v4l2-mem2mem.c
-index a65cbb124cfe0..d09882aa98a89 100644
+index a65cbb124cfe0702b65e6913d4984307bab8ed2b..d09882aa98a8925471a689927731f123995070fa 100644
 --- a/drivers/media/v4l2-core/v4l2-mem2mem.c
 +++ b/drivers/media/v4l2-core/v4l2-mem2mem.c
 @@ -84,16 +84,15 @@ static const char * const m2m_entity_name[] = {
@@ -39554,7 +39554,7 @@ index a65cbb124cfe0..d09882aa98a89 100644
 -
 diff --git a/drivers/media/v4l2-core/v4l2-metrics.c b/drivers/media/v4l2-core/v4l2-metrics.c
 new file mode 100644
-index 0000000000000..5de68c0f39692
+index 0000000000000000000000000000000000000000..5de68c0f39692e2b0db94fd792c44a7f915cc93a
 --- /dev/null
 +++ b/drivers/media/v4l2-core/v4l2-metrics.c
 @@ -0,0 +1,78 @@
@@ -39637,7 +39637,7 @@ index 0000000000000..5de68c0f39692
 +}
 +EXPORT_SYMBOL_GPL(v4l2_metrics_show_clock);
 diff --git a/drivers/media/v4l2-core/v4l2-trace.c b/drivers/media/v4l2-core/v4l2-trace.c
-index 95f3b02e1f849..59cf6f8807ac3 100644
+index 95f3b02e1f849afc597eedde490c0d2666c28608..59cf6f8807ac35dd2de12d87f39e1af6c746fcb1 100644
 --- a/drivers/media/v4l2-core/v4l2-trace.c
 +++ b/drivers/media/v4l2-core/v4l2-trace.c
 @@ -5,8 +5,56 @@
@@ -39698,7 +39698,7 @@ index 95f3b02e1f849..59cf6f8807ac3 100644
 +EXPORT_TRACEPOINT_SYMBOL_GPL(v4l2_ctrl_vp9_compressed_coeff);
 +EXPORT_TRACEPOINT_SYMBOL_GPL(v4l2_vp9_mv_probs);
 diff --git a/drivers/misc/pci_endpoint_test.c b/drivers/misc/pci_endpoint_test.c
-index 3635741c3e7a7..bf724f17d5357 100644
+index 3635741c3e7a7194feddb1c2d8d598704a58695e..bf724f17d53570ec265cf412bead70e536fa9b70 100644
 --- a/drivers/misc/pci_endpoint_test.c
 +++ b/drivers/misc/pci_endpoint_test.c
 @@ -1331,6 +1331,8 @@ static int pci_endpoint_test_probe(struct pci_dev *pdev,
@@ -39745,7 +39745,7 @@ index 3635741c3e7a7..bf724f17d5357 100644
  module_pci_driver(pci_endpoint_test_driver);
  
 diff --git a/drivers/net/can/rockchip/rockchip_canfd-core.c b/drivers/net/can/rockchip/rockchip_canfd-core.c
-index 29de0c01e4edc..37c1c22c40c9f 100644
+index 29de0c01e4edcf1a725a27dd47b5b61c0807b0be..37c1c22c40c9ff1cd559c08680e7b1f5be0d1af2 100644
 --- a/drivers/net/can/rockchip/rockchip_canfd-core.c
 +++ b/drivers/net/can/rockchip/rockchip_canfd-core.c
 @@ -50,6 +50,12 @@ static const struct rkcanfd_devtype_data rkcanfd_devtype_data_rk3568v3 = {
@@ -39794,7 +39794,7 @@ index 29de0c01e4edc..37c1c22c40c9f 100644
  		/* sentinel */
  	},
 diff --git a/drivers/net/can/rockchip/rockchip_canfd-rx.c b/drivers/net/can/rockchip/rockchip_canfd-rx.c
-index 475c0409e215a..24e87daa1df00 100644
+index 475c0409e215a88023df3b72e11dbbe3ea7f893c..24e87daa1df00063224c5976de15ad41787bab20 100644
 --- a/drivers/net/can/rockchip/rockchip_canfd-rx.c
 +++ b/drivers/net/can/rockchip/rockchip_canfd-rx.c
 @@ -281,7 +281,10 @@ rkcanfd_rx_fifo_get_len(const struct rkcanfd_priv *priv)
@@ -39810,7 +39810,7 @@ index 475c0409e215a..24e87daa1df00 100644
  
  int rkcanfd_handle_rx_int(struct rkcanfd_priv *priv)
 diff --git a/drivers/net/can/rockchip/rockchip_canfd.h b/drivers/net/can/rockchip/rockchip_canfd.h
-index 93131c7d7f54d..95bea9bfd8a2f 100644
+index 93131c7d7f54d036727356ca9a2d36dcf24d702b..95bea9bfd8a2f9b3652177b2dae77fd7875779fa 100644
 --- a/drivers/net/can/rockchip/rockchip_canfd.h
 +++ b/drivers/net/can/rockchip/rockchip_canfd.h
 @@ -214,7 +214,8 @@
@@ -39863,7 +39863,7 @@ index 93131c7d7f54d..95bea9bfd8a2f 100644
  
  struct rkcanfd_devtype_data {
 diff --git a/drivers/pci/controller/dwc/pcie-designware-ep.c b/drivers/pci/controller/dwc/pcie-designware-ep.c
-index 7d2794945704e..31402ae218c79 100644
+index 7d2794945704e1f55eee976c17000dff2cf41e6a..31402ae218c7903004121122a285de5c8c825a3d 100644
 --- a/drivers/pci/controller/dwc/pcie-designware-ep.c
 +++ b/drivers/pci/controller/dwc/pcie-designware-ep.c
 @@ -1153,6 +1153,11 @@ void dw_pcie_ep_cleanup(struct dw_pcie_ep *ep)
@@ -39879,7 +39879,7 @@ index 7d2794945704e..31402ae218c79 100644
  	dw_pcie_edma_remove(pci);
  }
 diff --git a/drivers/pci/controller/dwc/pcie-dw-rockchip.c b/drivers/pci/controller/dwc/pcie-dw-rockchip.c
-index 731d93663ccae..c2311a068698e 100644
+index 731d93663ccae5b2d2a01ffd86ae41f2f2fae4ce..c2311a068698e26f750e0d4295a5fa603865ba35 100644
 --- a/drivers/pci/controller/dwc/pcie-dw-rockchip.c
 +++ b/drivers/pci/controller/dwc/pcie-dw-rockchip.c
 @@ -44,6 +44,7 @@
@@ -40242,7 +40242,7 @@ index 731d93663ccae..c2311a068698e 100644
  	.probe = rockchip_pcie_probe,
  };
 diff --git a/drivers/pci/controller/dwc/pcie-qcom.c b/drivers/pci/controller/dwc/pcie-qcom.c
-index d8eb52857f69c..321e73fd6a94e 100644
+index d8eb52857f69c05c074380cf5c50a26a818bba02..321e73fd6a94ed8d5d6fb8c7330415a5e45d8d55 100644
 --- a/drivers/pci/controller/dwc/pcie-qcom.c
 +++ b/drivers/pci/controller/dwc/pcie-qcom.c
 @@ -56,6 +56,10 @@
@@ -40471,7 +40471,7 @@ index d8eb52857f69c..321e73fd6a94e 100644
  	list_for_each_entry_safe(port, tmp_port, &pcie->ports, list) {
  		list_for_each_entry_safe(perst, tmp_perst, &port->perst, list)
 diff --git a/drivers/pci/controller/pci-host-common.c b/drivers/pci/controller/pci-host-common.c
-index 2ce6f4b661334..45da82790fe4e 100644
+index 2ce6f4b6613348b65f09486832dadc26c572df66..45da82790fe4ea23fe1ed95abd18b1a61fc45190 100644
 --- a/drivers/pci/controller/pci-host-common.c
 +++ b/drivers/pci/controller/pci-host-common.c
 @@ -13,6 +13,7 @@
@@ -40522,7 +40522,7 @@ index 2ce6f4b661334..45da82790fe4e 100644
  MODULE_DESCRIPTION("Common library for PCI host controller drivers");
  MODULE_LICENSE("GPL v2");
 diff --git a/drivers/pci/controller/pci-host-common.h b/drivers/pci/controller/pci-host-common.h
-index 9f0f36a322214..51afd65d3c4a6 100644
+index 9f0f36a322214885f11a9b7ac91c83b2b42fcb00..51afd65d3c4a6c459488ed196de17bb60b2f658b 100644
 --- a/drivers/pci/controller/pci-host-common.h
 +++ b/drivers/pci/controller/pci-host-common.h
 @@ -48,6 +48,7 @@ int pci_host_common_init(struct platform_device *pdev,
@@ -40534,7 +40534,7 @@ index 9f0f36a322214..51afd65d3c4a6 100644
  struct pci_config_window *pci_host_common_ecam_create(struct device *dev,
  	struct pci_host_bridge *bridge, const struct pci_ecam_ops *ops);
 diff --git a/drivers/pci/of.c b/drivers/pci/of.c
-index 8b18c4ba845cf..5df6b11cdf9f9 100644
+index 8b18c4ba845cfdc57cc64aa4d5c578bb151dd9ba..5df6b11cdf9f93b28b8390579e5341e770acd19a 100644
 --- a/drivers/pci/of.c
 +++ b/drivers/pci/of.c
 @@ -7,6 +7,7 @@
@@ -40637,7 +40637,7 @@ index 8b18c4ba845cf..5df6b11cdf9f9 100644
  
  static int pci_parse_request_of_pci_ranges(struct device *dev,
 diff --git a/drivers/pci/pci.c b/drivers/pci/pci.c
-index 77b17b13ee615..27400dd711f60 100644
+index 77b17b13ee61548a5b9d703fd5c3cbacc82a59c5..27400dd711f60d11af69b6717945d5533f1768ae 100644
 --- a/drivers/pci/pci.c
 +++ b/drivers/pci/pci.c
 @@ -17,6 +17,7 @@
@@ -40694,7 +40694,7 @@ index 77b17b13ee615..27400dd711f60 100644
  int pci_try_reset_bridge(struct pci_dev *bridge)
  {
 diff --git a/drivers/pci/pci.h b/drivers/pci/pci.h
-index 4469e1a77f3c1..17d392dfda516 100644
+index 4469e1a77f3c13fc0c2ec7b1690a1f38b1e76c15..17d392dfda5163625ebfb73ec6e31027f857351f 100644
 --- a/drivers/pci/pci.h
 +++ b/drivers/pci/pci.h
 @@ -285,6 +285,8 @@ void pci_msix_init(struct pci_dev *dev);
@@ -40707,7 +40707,7 @@ index 4469e1a77f3c1..17d392dfda516 100644
  static inline bool pci_bus_rrs_vendor_id(u32 l)
  {
 diff --git a/drivers/pci/pcie/err.c b/drivers/pci/pcie/err.c
-index bebe4bc111d75..d77403d8855bd 100644
+index bebe4bc111d756ded0ad8fabbef54ffde12156f5..d77403d8855bdc4d983546c6c683bdeaab583729 100644
 --- a/drivers/pci/pcie/err.c
 +++ b/drivers/pci/pcie/err.c
 @@ -256,11 +256,6 @@ pci_ers_result_t pcie_do_recovery(struct pci_dev *dev,
@@ -40728,7 +40728,7 @@ index bebe4bc111d75..d77403d8855bd 100644
  }
 +EXPORT_SYMBOL_GPL(pcie_do_recovery);
 diff --git a/drivers/pci/probe.c b/drivers/pci/probe.c
-index dd0abbc63e18d..27008e2ea5afc 100644
+index dd0abbc63e18d177e2ebb2b13045fec14ff54627..27008e2ea5afc7dd522b31bff55aed12a252cc4d 100644
 --- a/drivers/pci/probe.c
 +++ b/drivers/pci/probe.c
 @@ -2749,6 +2749,8 @@ void pci_device_add(struct pci_dev *dev, struct pci_bus *bus)
@@ -40741,7 +40741,7 @@ index dd0abbc63e18d..27008e2ea5afc 100644
  	 * Add the device to our list of discovered devices
  	 * and the bus list for fixup functions, etc.
 diff --git a/drivers/pci/remove.c b/drivers/pci/remove.c
-index d8bffa21498a9..e711ac1d4e38a 100644
+index d8bffa21498a9a1ec62b9cbfc57bd4a9676ea546..e711ac1d4e38ae1b0954fc3ba80fb45485528543 100644
 --- a/drivers/pci/remove.c
 +++ b/drivers/pci/remove.c
 @@ -34,6 +34,7 @@ static void pci_destroy_dev(struct pci_dev *dev)
@@ -40753,7 +40753,7 @@ index d8bffa21498a9..e711ac1d4e38a 100644
  	pci_npem_remove(dev);
  
 diff --git a/drivers/phy/phy-core.c b/drivers/phy/phy-core.c
-index 21aaf2f76e53e..51d261daae7a9 100644
+index 21aaf2f76e53eb1c63f1ffd2217f767c2dab5c3a..51d261daae7a9b3a034dcc90ac53c6319514e130 100644
 --- a/drivers/phy/phy-core.c
 +++ b/drivers/phy/phy-core.c
 @@ -542,6 +542,70 @@ int phy_notify_state(struct phy *phy, union phy_notify state)
@@ -40836,7 +40836,7 @@ index 21aaf2f76e53e..51d261daae7a9 100644
  	phy->dev.class = &phy_class;
  	phy->dev.parent = dev;
 diff --git a/drivers/phy/rockchip/Kconfig b/drivers/phy/rockchip/Kconfig
-index 14698571b6075..39759bb2fa1d1 100644
+index 14698571b607590dc0e7a29f3b39eb9a5d4e3d25..39759bb2fa1d10ca275fa9e449199f0a43d3e82f 100644
 --- a/drivers/phy/rockchip/Kconfig
 +++ b/drivers/phy/rockchip/Kconfig
 @@ -136,8 +136,10 @@ config PHY_ROCKCHIP_USBDP
@@ -40851,7 +40851,7 @@ index 14698571b6075..39759bb2fa1d1 100644
  	  Enable this to support the Rockchip USB3.0/DP combo PHY with
  	  Samsung IP block. This is required for USB3 support on RK3588.
 diff --git a/drivers/phy/rockchip/phy-rockchip-inno-csidphy.c b/drivers/phy/rockchip/phy-rockchip-inno-csidphy.c
-index c79fb53d8ee5c..3a15840e86cad 100644
+index c79fb53d8ee5c5b2049f3d152531cbd710620924..3a15840e86cad8df37274d2bdabf4cec40cd0c5a 100644
 --- a/drivers/phy/rockchip/phy-rockchip-inno-csidphy.c
 +++ b/drivers/phy/rockchip/phy-rockchip-inno-csidphy.c
 @@ -69,6 +69,10 @@
@@ -40924,7 +40924,7 @@ index c79fb53d8ee5c..3a15840e86cad 100644
  						    "rockchip,grf");
  	if (IS_ERR(priv->grf)) {
 diff --git a/drivers/phy/rockchip/phy-rockchip-naneng-combphy.c b/drivers/phy/rockchip/phy-rockchip-naneng-combphy.c
-index 7843356a4dd47..3102a99128f62 100644
+index 7843356a4dd472bb4c6deb63c32dae0aebc77ad5..3102a99128f62c18daa4f4f56ca160957b6d1a69 100644
 --- a/drivers/phy/rockchip/phy-rockchip-naneng-combphy.c
 +++ b/drivers/phy/rockchip/phy-rockchip-naneng-combphy.c
 @@ -106,6 +106,9 @@
@@ -40996,7 +40996,7 @@ index 7843356a4dd47..3102a99128f62 100644
  
  static const struct of_device_id rockchip_combphy_of_match[] = {
 diff --git a/drivers/phy/rockchip/phy-rockchip-samsung-dcphy.c b/drivers/phy/rockchip/phy-rockchip-samsung-dcphy.c
-index cbd780556da8f..f6d112935c016 100644
+index cbd780556da8fd17b31e7413147a3281ecc2e23a..f6d112935c01646941d4149282bd15393dce7b53 100644
 --- a/drivers/phy/rockchip/phy-rockchip-samsung-dcphy.c
 +++ b/drivers/phy/rockchip/phy-rockchip-samsung-dcphy.c
 @@ -5,6 +5,7 @@
@@ -41630,7 +41630,7 @@ index cbd780556da8f..f6d112935c016 100644
  	ret = devm_pm_runtime_enable(dev);
  	if (ret)
 diff --git a/drivers/phy/rockchip/phy-rockchip-samsung-hdptx.c b/drivers/phy/rockchip/phy-rockchip-samsung-hdptx.c
-index 2d973bc37f076..aa0e362603810 100644
+index 2d973bc37f076fff11aacaf9b0d2089806150af1..aa0e362603810e8b55faebf3e546b97679258f6b 100644
 --- a/drivers/phy/rockchip/phy-rockchip-samsung-hdptx.c
 +++ b/drivers/phy/rockchip/phy-rockchip-samsung-hdptx.c
 @@ -1,7 +1,7 @@
@@ -42180,7 +42180,7 @@ index 2d973bc37f076..aa0e362603810 100644
  	/*
  	 * The link rate would be normally programmed in HW during
 diff --git a/drivers/phy/rockchip/phy-rockchip-usbdp.c b/drivers/phy/rockchip/phy-rockchip-usbdp.c
-index f68de14366dba..998e8daf0b4de 100644
+index f68de14366dbaeac5bf505ec50381d11375820d4..998e8daf0b4de8c869a1d5567bcd7134592239f8 100644
 --- a/drivers/phy/rockchip/phy-rockchip-usbdp.c
 +++ b/drivers/phy/rockchip/phy-rockchip-usbdp.c
 @@ -6,12 +6,15 @@
@@ -43195,7 +43195,7 @@ index f68de14366dba..998e8daf0b4de 100644
  };
  module_platform_driver(rk_udphy_driver);
 diff --git a/drivers/usb/dwc3/core.c b/drivers/usb/dwc3/core.c
-index ceb49f2f80041..a9f2008044eea 100644
+index ceb49f2f8004188ca30008ae5b7596226485052d..a9f2008044eeace14ff5f907ecd100e161b93a65 100644
 --- a/drivers/usb/dwc3/core.c
 +++ b/drivers/usb/dwc3/core.c
 @@ -30,6 +30,7 @@
@@ -43335,7 +43335,7 @@ index ceb49f2f80041..a9f2008044eea 100644
  	dwc3_core_exit(dwc);
  	dwc3_ulpi_exit(dwc);
 diff --git a/drivers/usb/dwc3/core.h b/drivers/usb/dwc3/core.h
-index e0dee9d287401..4e1791ecb591a 100644
+index e0dee9d2874010f02129644877591682f798587b..4e1791ecb591aeb6a054f1aaff0ee934fe09dacf 100644
 --- a/drivers/usb/dwc3/core.h
 +++ b/drivers/usb/dwc3/core.h
 @@ -11,6 +11,7 @@
@@ -43385,7 +43385,7 @@ index e0dee9d287401..4e1791ecb591a 100644
  	u8			num_usb2_ports;
  	u8			num_usb3_ports;
 diff --git a/drivers/usb/typec/tcpm/tcpm.c b/drivers/usb/typec/tcpm/tcpm.c
-index 89eec20a2064c..3aa971511795d 100644
+index 89eec20a2064ce921ff404489676589f78653295..3aa971511795da45d88e02b42f48c46a272442d8 100644
 --- a/drivers/usb/typec/tcpm/tcpm.c
 +++ b/drivers/usb/typec/tcpm/tcpm.c
 @@ -212,6 +212,24 @@ static const char * const tcpm_ams_str[] = {
@@ -44168,7 +44168,7 @@ index 89eec20a2064c..3aa971511795d 100644
  	hrtimer_cancel(&port->vdm_state_machine_timer);
  	hrtimer_cancel(&port->state_machine_timer);
 diff --git a/include/drm/bridge/dw_dp.h b/include/drm/bridge/dw_dp.h
-index 25363541e69d5..1e23180b565e4 100644
+index 25363541e69d51c86aea1fac10aa8d2941c67b34..1e23180b565e45240c0889d421db859ff90ff873 100644
 --- a/include/drm/bridge/dw_dp.h
 +++ b/include/drm/bridge/dw_dp.h
 @@ -18,10 +18,20 @@ enum {
@@ -44195,7 +44195,7 @@ index 25363541e69d5..1e23180b565e4 100644
 +int dw_dp_runtime_resume(struct dw_dp *dp);
  #endif /* __DW_DP__ */
 diff --git a/include/drm/bridge/dw_hdmi_qp.h b/include/drm/bridge/dw_hdmi_qp.h
-index 6ea9c561cfef6..ad33f9cafdebd 100644
+index 6ea9c561cfef6d74f396666e1567b2ee5c0b68df..ad33f9cafdebd9ad8418afca33d4288191024cc6 100644
 --- a/include/drm/bridge/dw_hdmi_qp.h
 +++ b/include/drm/bridge/dw_hdmi_qp.h
 @@ -16,7 +16,8 @@ struct dw_hdmi_qp_phy_ops {
@@ -44217,7 +44217,7 @@ index 6ea9c561cfef6..ad33f9cafdebd 100644
  void dw_hdmi_qp_resume(struct device *dev, struct dw_hdmi_qp *hdmi);
  #endif /* __DW_HDMI_QP__ */
 diff --git a/include/drm/display/drm_hdmi_helper.h b/include/drm/display/drm_hdmi_helper.h
-index 9c31ed90516b8..2cdd6e3bc090b 100644
+index 9c31ed90516b850555598eee351b205bf4bb8a94..2cdd6e3bc090b56d23215ef39b704ed38ea0ef68 100644
 --- a/include/drm/display/drm_hdmi_helper.h
 +++ b/include/drm/display/drm_hdmi_helper.h
 @@ -8,6 +8,7 @@
@@ -44248,7 +44248,7 @@ index 9c31ed90516b8..2cdd6e3bc090b 100644
 +
  #endif
 diff --git a/include/drm/display/drm_hdmi_state_helper.h b/include/drm/display/drm_hdmi_state_helper.h
-index 0adc30c55ec91..bc6eb942d193f 100644
+index 0adc30c55ec91aeed627827f4472e327fc1b23ae..bc6eb942d193f74810dd001194bb5d7bd5f584b0 100644
 --- a/include/drm/display/drm_hdmi_state_helper.h
 +++ b/include/drm/display/drm_hdmi_state_helper.h
 @@ -3,10 +3,12 @@
@@ -44285,7 +44285,7 @@ index 0adc30c55ec91..bc6eb942d193f 100644
  
  #endif // DRM_HDMI_STATE_HELPER_H_
 diff --git a/include/drm/display/drm_scdc.h b/include/drm/display/drm_scdc.h
-index 3d58f37e8ed8e..7f0b05b2f2800 100644
+index 3d58f37e8ed8ed5c060fcf1abf1b8459e60b8377..7f0b05b2f2800678dfdc49600de990ec14ffa07e 100644
 --- a/include/drm/display/drm_scdc.h
 +++ b/include/drm/display/drm_scdc.h
 @@ -29,6 +29,8 @@
@@ -44338,7 +44338,7 @@ index 3d58f37e8ed8e..7f0b05b2f2800 100644
  #define  SCDC_TEST_READ_REQUEST (1 << 7)
  #define  SCDC_TEST_READ_REQUEST_DELAY(x) ((x) & 0x7f)
 diff --git a/include/drm/display/drm_scdc_helper.h b/include/drm/display/drm_scdc_helper.h
-index 34600476a1b9c..7ce4b8af893d4 100644
+index 34600476a1b9c9aae25cd3deeff7af84bd1bfd55..7ce4b8af893d4f43a78e6bd70542da9db42b5dd8 100644
 --- a/include/drm/display/drm_scdc_helper.h
 +++ b/include/drm/display/drm_scdc_helper.h
 @@ -24,17 +24,108 @@
@@ -44465,7 +44465,7 @@ index 34600476a1b9c..7ce4b8af893d4 100644
 +
  #endif
 diff --git a/include/drm/drm_atomic_helper.h b/include/drm/drm_atomic_helper.h
-index b84152810abb9..4cfeec70d648a 100644
+index b84152810abb9a4b53c05b6bfd5b77ce5ab5be89..4cfeec70d648a4d0b5b9de1687750952be3182e4 100644
 --- a/include/drm/drm_atomic_helper.h
 +++ b/include/drm/drm_atomic_helper.h
 @@ -295,4 +295,11 @@ drm_atomic_helper_bridge_propagate_bus_fmt(struct drm_bridge *bridge,
@@ -44481,7 +44481,7 @@ index b84152810abb9..4cfeec70d648a 100644
 +
  #endif /* DRM_ATOMIC_HELPER_H_ */
 diff --git a/include/drm/drm_bridge.h b/include/drm/drm_bridge.h
-index 4ba3a5deef9a6..ef402a875862e 100644
+index 4ba3a5deef9a60b31c261a46bc44d6f771eaabdb..ef402a875862eb5a7309d4f1e32ef729ea1c0cfa 100644
 --- a/include/drm/drm_bridge.h
 +++ b/include/drm/drm_bridge.h
 @@ -646,6 +646,20 @@ struct drm_bridge_funcs {
@@ -44576,7 +44576,7 @@ index 4ba3a5deef9a6..ef402a875862e 100644
  	 * @max_bpc: Maximum bits per char the HDMI bridge supports. Allowed
  	 * values are 8, 10 and 12. This is only relevant if
 diff --git a/include/drm/drm_connector.h b/include/drm/drm_connector.h
-index 5f5ca023cd654..09be9288b2c08 100644
+index 5f5ca023cd654db2baf3b158a44411641d7bfd3d..09be9288b2c084fc5588691a64bc170e479eb214 100644
 --- a/include/drm/drm_connector.h
 +++ b/include/drm/drm_connector.h
 @@ -28,6 +28,7 @@
@@ -44954,7 +44954,7 @@ index 5f5ca023cd654..09be9288b2c08 100644
   * drm_for_each_connector_iter - connector_list iterator macro
   * @connector: &struct drm_connector pointer used as cursor
 diff --git a/include/drm/drm_modeset_helper_vtables.h b/include/drm/drm_modeset_helper_vtables.h
-index ca6268945c28d..cf5fe5ba2b18d 100644
+index ca6268945c28d383b447d4b453ecca4f4af42ffb..cf5fe5ba2b18d86d006cf47416866bb2c10cbdbc 100644
 --- a/include/drm/drm_modeset_helper_vtables.h
 +++ b/include/drm/drm_modeset_helper_vtables.h
 @@ -921,6 +921,34 @@ struct drm_connector_helper_funcs {
@@ -44994,7 +44994,7 @@ index ca6268945c28d..cf5fe5ba2b18d 100644
  	 *
 diff --git a/include/dt-bindings/phy/rockchip,rk3588-mipi-dcphy.h b/include/dt-bindings/phy/rockchip,rk3588-mipi-dcphy.h
 new file mode 100644
-index 0000000000000..5029838fa275b
+index 0000000000000000000000000000000000000000..5029838fa275b1c79b2a73624ff6ec8acfa32b07
 --- /dev/null
 +++ b/include/dt-bindings/phy/rockchip,rk3588-mipi-dcphy.h
 @@ -0,0 +1,13 @@
@@ -45012,7 +45012,7 @@ index 0000000000000..5029838fa275b
 +
 +#endif /* _DT_BINDINGS_PHY_ROCKCHIP_RK3588_MIPI_DCPHY_H */
 diff --git a/include/linux/hdmi.h b/include/linux/hdmi.h
-index 8dab78e1f61bd..b80a5ee63bb23 100644
+index 8dab78e1f61bd9f8688f8b6236865177f4d8ab54..b80a5ee63bb234b223d2cf0c025f6ed2cb6f5a7d 100644
 --- a/include/linux/hdmi.h
 +++ b/include/linux/hdmi.h
 @@ -27,6 +27,18 @@
@@ -45035,7 +45035,7 @@ index 8dab78e1f61bd..b80a5ee63bb23 100644
  	HDMI_PACKET_TYPE_NULL = 0x00,
  	HDMI_PACKET_TYPE_AUDIO_CLOCK_REGEN = 0x01,
 diff --git a/include/linux/of_pci.h b/include/linux/of_pci.h
-index 29658c0ee71ff..649fe8eafcfa4 100644
+index 29658c0ee71ff10122760214d04ee2bab01709fd..649fe8eafcfa496eb2c9bb403354033744e6a020 100644
 --- a/include/linux/of_pci.h
 +++ b/include/linux/of_pci.h
 @@ -30,12 +30,18 @@ static inline void of_pci_check_probe_only(void) { }
@@ -45058,7 +45058,7 @@ index 29658c0ee71ff..649fe8eafcfa4 100644
  
  #endif
 diff --git a/include/linux/pci.h b/include/linux/pci.h
-index 64b308b6e61c1..c2f2e33894bbb 100644
+index 64b308b6e61c195583d17606f173490a3ccf180d..c2f2e33894bbb57db4dfd89fe74e8f915ed6ac68 100644
 --- a/include/linux/pci.h
 +++ b/include/linux/pci.h
 @@ -587,6 +587,8 @@ struct pci_dev {
@@ -45079,7 +45079,7 @@ index 64b308b6e61c1..c2f2e33894bbb 100644
  	unsigned int	ignore_reset_delay:1;	/* For entire hierarchy */
  	unsigned int	no_ext_tags:1;		/* No Extended Tags */
 diff --git a/include/linux/phy/phy.h b/include/linux/phy/phy.h
-index ea47975e288ae..3779a4d0a02c3 100644
+index ea47975e288aeadb2fa75af6db2984c9bc704472..3779a4d0a02c3b4ae1d04aa22737717ce2561410 100644
 --- a/include/linux/phy/phy.h
 +++ b/include/linux/phy/phy.h
 @@ -11,6 +11,7 @@
@@ -45166,7 +45166,7 @@ index ea47975e288ae..3779a4d0a02c3 100644
  {
 diff --git a/include/media/mc-shared-graph.h b/include/media/mc-shared-graph.h
 new file mode 100644
-index 0000000000000..487325163f84c
+index 0000000000000000000000000000000000000000..487325163f84c80d2c634b26943a77bd96623583
 --- /dev/null
 +++ b/include/media/mc-shared-graph.h
 @@ -0,0 +1,92 @@
@@ -45263,7 +45263,7 @@ index 0000000000000..487325163f84c
 +#endif /* CONFIG_MEDIA_CONTROLLER */
 +#endif /* _MEDIA_DEV_SHARED_GRAPH_H */
 diff --git a/include/media/v4l2-ctrls.h b/include/media/v4l2-ctrls.h
-index 327976b14d50b..57c4bb999b7b4 100644
+index 327976b14d50b73a631e4d2ed95d9f4d146c45ab..57c4bb999b7b4ae3493ba5e5a16b1a1b9a12e6a2 100644
 --- a/include/media/v4l2-ctrls.h
 +++ b/include/media/v4l2-ctrls.h
 @@ -49,6 +49,8 @@ struct video_device;
@@ -45321,7 +45321,7 @@ index 327976b14d50b..57c4bb999b7b4 100644
   * v4l2_ctrl_type_op_validate - Default v4l2_ctrl_type_ops validate callback.
   *
 diff --git a/include/media/v4l2-dev.h b/include/media/v4l2-dev.h
-index 2e0f6d2e6a786..1635ab186f213 100644
+index 2e0f6d2e6a786e99231ebaafacf8ade2ee626b36..1635ab186f213970bdac09b970c8bb865c8123f2 100644
 --- a/include/media/v4l2-dev.h
 +++ b/include/media/v4l2-dev.h
 @@ -212,6 +212,7 @@ struct v4l2_file_operations {
@@ -45333,7 +45333,7 @@ index 2e0f6d2e6a786..1635ab186f213 100644
  
  /*
 diff --git a/include/media/v4l2-fh.h b/include/media/v4l2-fh.h
-index aad4b3689d7ea..7e28d38ac12a0 100644
+index aad4b3689d7ea191978f24ce24d24cd2e73636b6..7e28d38ac12a090afe827b5acbb2b2a378981274 100644
 --- a/include/media/v4l2-fh.h
 +++ b/include/media/v4l2-fh.h
 @@ -17,6 +17,7 @@
@@ -45365,7 +45365,7 @@ index aad4b3689d7ea..7e28d38ac12a0 100644
  	/* Events */
  	wait_queue_head_t	wait;
 diff --git a/include/media/v4l2-mem2mem.h b/include/media/v4l2-mem2mem.h
-index 31de25d792b98..0cc75a7ab9267 100644
+index 31de25d792b98fda1794a1ccab862d64d5c272cd..0cc75a7ab9267eb7eafbf5861de658b586c84069 100644
 --- a/include/media/v4l2-mem2mem.h
 +++ b/include/media/v4l2-mem2mem.h
 @@ -227,6 +227,26 @@ void v4l2_m2m_buf_done_and_job_finish(struct v4l2_m2m_dev *m2m_dev,
@@ -45407,7 +45407,7 @@ index 31de25d792b98..0cc75a7ab9267 100644
   *
 diff --git a/include/media/v4l2-metrics.h b/include/media/v4l2-metrics.h
 new file mode 100644
-index 0000000000000..fc493b65f1175
+index 0000000000000000000000000000000000000000..fc493b65f1175187d39fa303a32af73323b9ee58
 --- /dev/null
 +++ b/include/media/v4l2-metrics.h
 @@ -0,0 +1,47 @@
@@ -45459,7 +45459,7 @@ index 0000000000000..fc493b65f1175
 +
 +#endif /* V4L2_METRICS_H */
 diff --git a/include/trace/events/v4l2.h b/include/trace/events/v4l2.h
-index 248bc09bfc993..6f1bbb085cb08 100644
+index 248bc09bfc993b172ee4f3c3d9cf71289ebbd483..6f1bbb085cb08a285ab428987c34b33605bdd09f 100644
 --- a/include/trace/events/v4l2.h
 +++ b/include/trace/events/v4l2.h
 @@ -262,6 +262,83 @@ DEFINE_EVENT(vb2_v4l2_event_class, vb2_v4l2_qbuf,
@@ -45548,7 +45548,7 @@ index 248bc09bfc993..6f1bbb085cb08 100644
  /* This part must be outside protection */
 diff --git a/include/trace/events/v4l2_controls.h b/include/trace/events/v4l2_controls.h
 new file mode 100644
-index 0000000000000..a7c61c36a0256
+index 0000000000000000000000000000000000000000..a7c61c36a0256719e7adb7d0edf2b663a98ffd87
 --- /dev/null
 +++ b/include/trace/events/v4l2_controls.h
 @@ -0,0 +1,2708 @@
@@ -48261,7 +48261,7 @@ index 0000000000000..a7c61c36a0256
 +
 +#include <trace/define_trace.h>
 diff --git a/include/uapi/drm/rocket_accel.h b/include/uapi/drm/rocket_accel.h
-index d0685e372b792..ae0d8e48afcd4 100644
+index d0685e372b79247361e2420f8d833b104e614b56..ae0d8e48afcd435934e795ede8d39d355dfb6fd3 100644
 --- a/include/uapi/drm/rocket_accel.h
 +++ b/include/uapi/drm/rocket_accel.h
 @@ -90,6 +90,11 @@ struct drm_rocket_fini_bo {
@@ -48304,7 +48304,7 @@ index d0685e372b792..ae0d8e48afcd4 100644
  
  /**
 diff --git a/include/uapi/linux/rkisp1-config.h b/include/uapi/linux/rkisp1-config.h
-index d97384abc1575..e571ea851508b 100644
+index d97384abc1575ca2019c7d5f7ac6c66112f2e090..e571ea851508b4257e1662ecfb35f94f110d7710 100644
 --- a/include/uapi/linux/rkisp1-config.h
 +++ b/include/uapi/linux/rkisp1-config.h
 @@ -207,6 +207,7 @@ enum rkisp1_cif_isp_version {
@@ -48317,7 +48317,7 @@ index d97384abc1575..e571ea851508b 100644
  enum rkisp1_cif_isp_histogram_mode {
 diff --git a/include/uapi/linux/rkisp2-config.h b/include/uapi/linux/rkisp2-config.h
 new file mode 100644
-index 0000000000000..a45fe79a77164
+index 0000000000000000000000000000000000000000..a45fe79a77164fd97a8406b4f7ea82586ea827bd
 --- /dev/null
 +++ b/include/uapi/linux/rkisp2-config.h
 @@ -0,0 +1,565 @@
@@ -48887,7 +48887,7 @@ index 0000000000000..a45fe79a77164
 +
 +#endif /* _UAPI_RKISP2_CONFIG_H */
 diff --git a/include/uapi/linux/videodev2.h b/include/uapi/linux/videodev2.h
-index eda4492e40dc1..399f4d73af157 100644
+index eda4492e40dc14a90a230601d8e23b0e13845d34..399f4d73af15771fa671f2a947b34e71bfc3294b 100644
 --- a/include/uapi/linux/videodev2.h
 +++ b/include/uapi/linux/videodev2.h
 @@ -876,6 +876,10 @@ struct v4l2_pix_format {
