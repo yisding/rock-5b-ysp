@@ -24,6 +24,9 @@ profiles:
     release: 7.2.0-ysp-maxline-wip-rockchip64
     package_version: 7.2.0+git20260823+rk3588maxlinewip-0ubuntu1
 linux_next_validation:
+  # Historical snapshot from the 2026-08-02 refresh. The packaged profiles now
+  # target shipped v7.2; these refs were not replayed during the release-base
+  # rebase and describe superseded validation branches only.
   ref: next-20260731
   commit: 415606a7be939835db9b0d6b711887586646346d
   source: https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git
