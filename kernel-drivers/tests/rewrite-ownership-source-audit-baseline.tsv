@@ -1,6 +1,6 @@
 # Rewrite ownership inventory; new signals fail, resolved signals are allowed.
-# source-head	31b1a3e53ccf519aba779aa23764811a98247a75
-# source-head	5c04c8f8e51063bd609e37488c3832e3b9b2b279
+# source-head	9030386c8bcca6d2970c0886ec3f1b3dd8dca36b
+# source-head	a7a308ab63454108ca8c6f4987580c73af71543e
 # category	source	function	ordinal	normalized source signal
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	enum rk_mpp_debug_event_type { RK_MPP_DEBUG_REQUEST_FAIL, RK_MPP_DEBUG_SELECT_FAIL, RK_MPP_DEBUG_TRANSLATE_FAIL, RK_MPP_DEBUG_RCB_FAIL, RK_MPP_DEBUG_SUBMIT_FAIL, RK_MPP_DEBUG_POLL_FAIL, RK_MPP_DEBUG_QUEUED, RK_MPP_DEBUG_DISPATCH, RK_MPP_DEBUG_STARTED, RK_MPP_DEBUG_IRQ, RK_MPP_DEBUG_DONE, RK_MPP_DEBUG_TIMEOUT, RK_MPP_DEBUG_IOMMU_FAULT, RK_MPP_DEBUG_ABORT, RK_MPP_DEBUG_SPURIOUS_IRQ, };
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	struct rk_mpp_debug_event { u64 seq; u64 timestamp_ns; u64 data; u32 session_id; u32 job_id; u32 client_type; u32 irq_status; s32 core_id; s32 result; u8 type; char hw_name[20]; char dev_name[32]; };
@@ -2160,7 +2160,6 @@ rga-activation-timing-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_
 rga-activation-timing-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga2_execution_publish_and_start	1	exec->hw_start_ns = ktime_get_ns();
 rga-activation-timing-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_execution_publish_and_start	1	exec->hw_start_ns = ktime_get_ns();
 rga-activation-timing-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga3_execution_publish_and_start	1	if (ret) { exec->hw_start_ns = 0;
-rga-activation-timing-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_task_exec_note_hw_done	1	exec->hw_elapsed_ns += elapsed;
 rga-activation-timing-write	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_task_exec_note_hw_done	1	exec->hw_start_ns = 0;
 rga-active-slot-access	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_active_exec_locked	1	return hw->active_ref.exec;
 rga-active-slot-access	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_hw_active_generation_locked	1	return hw->active_ref.generation;

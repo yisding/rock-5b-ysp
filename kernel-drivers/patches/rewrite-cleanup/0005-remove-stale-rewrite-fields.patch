@@ -1,0 +1,40 @@
+diff --git a/drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c b/drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c
+index 49a6bb61e395e..0519e060520a8 100644
+--- a/drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c
++++ b/drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c
+@@ -799,7 +799,6 @@ struct rk_mpp_hw {
+ 	u32 rcb_count;
+ 	void *rkvdec_link_vaddr;
+ 	dma_addr_t rkvdec_link_iova;
+-	size_t rkvdec_link_size;
+ 	unsigned long *rkvdec_link_used;
+ 	u32 rkvdec_link_node_size;
+ 	u32 rkvdec_link_capacity;
+@@ -24755,7 +24754,6 @@ static int rk_mpp_hw_alloc_rkvdec_link(struct rk_mpp_hw *hw)
+ 	if (!hw->rkvdec_link_used)
+ 		return -ENOMEM;
+ 
+-	hw->rkvdec_link_size = size;
+ 	hw->rkvdec_link_node_size = node_size;
+ 	hw->rkvdec_link_capacity = capacity;
+ 
+diff --git a/drivers/video/rockchip/rga-rewrite/rga_rewrite.c b/drivers/video/rockchip/rga-rewrite/rga_rewrite.c
+index e23f86b7c87f8..c57cd9d8c5fc1 100644
+--- a/drivers/video/rockchip/rga-rewrite/rga_rewrite.c
++++ b/drivers/video/rockchip/rga-rewrite/rga_rewrite.c
+@@ -1291,7 +1291,6 @@ struct rk_rga_task_exec {
+ 	refcount_t refs;
+ 	u64 generation;
+ 	u64 hw_start_ns;
+-	u64 hw_elapsed_ns;
+ 	u32 task_index;
+ 	u32 mapping_count;
+ 	u32 intr_status;
+@@ -2083,7 +2082,6 @@ static void rk_rga_task_exec_note_hw_done(struct rk_rga_task_exec *exec)
+ 		return;
+ 
+ 	elapsed = ktime_get_ns() - start;
+-	exec->hw_elapsed_ns += elapsed;
+ 	exec->hw_start_ns = 0;
+ 	job->total_hw_elapsed_ns += elapsed;
+ 	if (!rga)

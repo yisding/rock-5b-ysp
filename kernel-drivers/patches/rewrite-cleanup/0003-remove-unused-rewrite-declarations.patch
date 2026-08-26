@@ -1,0 +1,37 @@
+diff --git a/drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c b/drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c
+index e126ca97821d3..1d5894bf0fa5f 100644
+--- a/drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c
++++ b/drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c
+@@ -2055,7 +2055,6 @@ static struct rk_mpp_service rk_mpp_srv;
+ static struct rk_mpp_debug_event
+ 	rk_mpp_debug_events[RK_MPP_DEBUG_EVENT_COUNT];
+ static bool rk_mpp_runtime_registered;
+-static int rk_mpp_runtime_register(void);
+ static void rk_mpp_runtime_unregister(void);
+ 
+ static void rk_mpp_service_state_init(struct rk_mpp_service *srv)
+diff --git a/drivers/video/rockchip/rga-rewrite/rga_rewrite.c b/drivers/video/rockchip/rga-rewrite/rga_rewrite.c
+index 9075a3d608d14..e23f86b7c87f8 100644
+--- a/drivers/video/rockchip/rga-rewrite/rga_rewrite.c
++++ b/drivers/video/rockchip/rga-rewrite/rga_rewrite.c
+@@ -24611,20 +24611,6 @@ static int rk_rga_task_hw_type_mask(struct rk_rga_job *job, u32 task_index,
+ 	}
+ }
+ 
+-static int __maybe_unused rk_rga_task_hw_type(struct rk_rga_job *job,
+-					      u32 task_index,
+-					      enum rk_rga_hw_type *type)
+-{
+-	u32 type_mask;
+-	int ret;
+-
+-	ret = rk_rga_task_hw_type_mask(job, task_index, &type_mask);
+-	if (ret)
+-		return ret;
+-
+-	return rk_rga_select_default_hw_type(type_mask, type);
+-}
+-
+ static int rk_rga_job_validate_tasks(struct rk_rga_job *job)
+ {
+ 	u32 type_mask;
