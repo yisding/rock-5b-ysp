@@ -140,6 +140,7 @@ Read in this order when changing or reviewing kernel behavior:
 | How do we resync to a new kernel or BSP? | [`docs/resyncing.md`](docs/resyncing.md) |
 | How do we validate the rewrite drivers to production readiness? | [`docs/rewrite-validation-plan.md`](docs/rewrite-validation-plan.md) |
 | How do we refactor the existing rewrite around explicit ownership objects? | [`docs/rewrite-ownership-refactor-plan.md`](docs/rewrite-ownership-refactor-plan.md) |
+| How do we add defense-in-depth (typed handles, stronger guards, simulated hardware edges, runtime self-checks) beyond the ownership refactor? | [`docs/rewrite-bug-resistance-plan.md`](docs/rewrite-bug-resistance-plan.md) |
 | Which proof gaps did the 2026-07-17 conformance audit identify? | Frozen [`docs/rewrite-conformance-gap-audit.md`](docs/rewrite-conformance-gap-audit.md); use the validation plan for current disposition. |
 
 ## Shared files
@@ -168,6 +169,7 @@ each sub-project's `README.md`).
 | [`docs/rewrite-minimal-hard-irq-plan.md`](docs/rewrite-minimal-hard-irq-plan.md) | Staged plan to reduce every hard IRQ handler to claim/ack/stage, move slice/fence/wake work to threads, and re-enable PROVE_RAW_LOCK_NESTING as the per-boot enforcement. |
 | [`docs/rewrite-ownership-refactor-plan.md`](docs/rewrite-ownership-refactor-plan.md) | Object-first migration plan for shared MPP hardware, reset/IOMMU recovery, active lifetimes, RGA per-task execution, mapping ownership, and singular retirement paths. |
 | [`docs/rewrite-validation-plan.md`](docs/rewrite-validation-plan.md) | What it would take to make the rewrite drivers production-ready. |
+| [`docs/rewrite-bug-resistance-plan.md`](docs/rewrite-bug-resistance-plan.md) | Proposed defense-in-depth plan layered on the source-complete ownership-refactor checkpoints (boot qualification still owned by status track 4): type-carried invariants, semantic source guards, device-free hardware-edge simulation, board-runtime self-verification, sanitizer/config additions, and stateful/differential fuzzing. |
 | [`docs/rewrite-conformance-gap-audit.md`](docs/rewrite-conformance-gap-audit.md) | Frozen 2026-07-17 audit, with bounded 2026-07-22/23 dispositions, explaining the origin of ABI/codec, booted-evidence, counter, and lifetime gates. |
 | [`docs/rewrite-driver-adversarial-review-2026-08-02.md`](docs/rewrite-driver-adversarial-review-2026-08-02.md) | Complete MPP/RGA rewrite review: multi-SG comparison, repaired defects, open policy decisions, and hardware validation gaps. |
 | [`docs/debug-kernel.md`](docs/debug-kernel.md) | Capture a crash / run the KASAN debug kernel. |

@@ -67,6 +67,7 @@ Environment:
                     test-disabled: same targets with both rewrite KUnit suites off
                     memory: KASAN/fault-injection provider/rewrite/DTB build
                             with the package's 2048-byte frame-warning ceiling
+                            and the debug-object lifecycle family
                     race: KCSAN/lockdep provider/rewrite/DTB build
   REWRITE_BUILD_TMP_ROOT
                     scratch-directory parent (default: ../tmp beside this repo)
@@ -108,6 +109,10 @@ audit_kunit_source() {
 
 audit_ownership_source() {
   python3 "$TEST_DIR/rewrite-ownership-source-audit.py" "$@"
+}
+
+audit_writer_inventory() {
+  python3 "$TEST_DIR/rewrite-writer-inventory.py" "$@"
 }
 
 check_cross_tree_identity() {
@@ -185,6 +190,11 @@ set_profile_config() {
       -e FAIL_PAGE_ALLOC \
       -e FAULT_INJECTION_USERCOPY \
       -e FUNCTION_ERROR_INJECTION \
+      -e DEBUG_OBJECTS \
+      -e DEBUG_OBJECTS_FREE \
+      -e DEBUG_OBJECTS_TIMERS \
+      -e DEBUG_OBJECTS_WORK \
+      -e DEBUG_OBJECTS_RCU_HEAD \
       --set-val FRAME_WARN 2048
     ;;
   race)
@@ -210,7 +220,7 @@ require_config() {
   if ! grep -qx "CONFIG_${symbol}=y" "$out/.config"; then
     echo "required config did not resolve to y: CONFIG_${symbol}" >&2
     echo "Relevant config lines:" >&2
-    grep -E "CONFIG_(ARCH_ROCKCHIP|VSI_IOMMU|ROCKCHIP_(IOMMU|.*REWRITE)|ROCKCHIP_MPP_SERVICE|ROCKCHIP_MULTI_RGA|VIDEO_ROCKCHIP_RGA|KUNIT|KASAN|KCSAN|FAULT_INJECTION|FAILSLAB|FAIL_PAGE_ALLOC|PROVE_LOCKING|DEBUG_KERNEL|EXPERT)" "$out/.config" >&2 || true
+    grep -E "CONFIG_(ARCH_ROCKCHIP|VSI_IOMMU|ROCKCHIP_(IOMMU|.*REWRITE)|ROCKCHIP_MPP_SERVICE|ROCKCHIP_MULTI_RGA|VIDEO_ROCKCHIP_RGA|KUNIT|KASAN|KCSAN|FAULT_INJECTION|FAILSLAB|FAIL_PAGE_ALLOC|PROVE_LOCKING|DEBUG_KERNEL|EXPERT|DEBUG_OBJECTS)" "$out/.config" >&2 || true
     exit 1
   fi
 }
@@ -301,6 +311,11 @@ configure_tree() {
     require_config "$out" FAILSLAB
     require_config "$out" FAIL_PAGE_ALLOC
     require_config "$out" FAULT_INJECTION_USERCOPY
+    require_config "$out" DEBUG_OBJECTS
+    require_config "$out" DEBUG_OBJECTS_FREE
+    require_config "$out" DEBUG_OBJECTS_TIMERS
+    require_config "$out" DEBUG_OBJECTS_WORK
+    require_config "$out" DEBUG_OBJECTS_RCU_HEAD
     ;;
   race)
     require_config "$out" ROCKCHIP_MPP_REWRITE_KUNIT_TEST
@@ -420,6 +435,7 @@ main() {
     check_clean_tree "$KERNEL_MAINLINE"
     audit_ownership_source "$KERNEL_6_18" "$KERNEL_MAINLINE"
     audit_kunit_source "$KERNEL_6_18" "$KERNEL_MAINLINE"
+    audit_writer_inventory "$KERNEL_6_18" "$KERNEL_MAINLINE"
     check_cross_tree_identity
     check_kunit_manifest "$KERNEL_6_18"
     check_kunit_manifest "$KERNEL_MAINLINE"
@@ -428,6 +444,7 @@ main() {
     check_clean_tree "$KERNEL_6_18"
     audit_ownership_source "$KERNEL_6_18"
     audit_kunit_source "$KERNEL_6_18"
+    audit_writer_inventory "$KERNEL_6_18"
     check_kunit_manifest "$KERNEL_6_18"
     build_one "6.18" "$KERNEL_6_18"
     ;;
@@ -435,6 +452,7 @@ main() {
     check_clean_tree "$KERNEL_MAINLINE"
     audit_ownership_source "$KERNEL_MAINLINE"
     audit_kunit_source "$KERNEL_MAINLINE"
+    audit_writer_inventory "$KERNEL_MAINLINE"
     check_kunit_manifest "$KERNEL_MAINLINE"
     build_one "mainline" "$KERNEL_MAINLINE"
     ;;
@@ -443,6 +461,7 @@ main() {
     check_clean_tree "$KERNEL_MAINLINE"
     audit_ownership_source "$KERNEL_6_18" "$KERNEL_MAINLINE"
     audit_kunit_source "$KERNEL_6_18" "$KERNEL_MAINLINE"
+    audit_writer_inventory "$KERNEL_6_18" "$KERNEL_MAINLINE"
     check_cross_tree_identity
     check_kunit_manifest "$KERNEL_6_18"
     check_kunit_manifest "$KERNEL_MAINLINE"

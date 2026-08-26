@@ -70,7 +70,7 @@ if ((check_all == 0)); then
 fi
 
 # Paths whose change can alter a source-audit or conformance-harness verdict.
-SOURCE_AUDIT_TRIGGER='^(kernel-drivers/tests/rewrite-(ownership|kunit)-source-audit|kernel-drivers/tests/conformance/|scripts/tests/test_repo_checks\.py)'
+SOURCE_AUDIT_TRIGGER='^(kernel-drivers/tests/(rewrite-(ownership|kunit|writer-inventory|coccinelle|sparse)|coccinelle/|mpp-activation-precedence|rewrite-invariant)|kernel-drivers/tests/conformance/|scripts/tests/test_repo_checks\.py)'
 
 if ((check_all == 1)) || grep -Eq "$SOURCE_AUDIT_TRIGGER" <<<"$changed"; then
 	export REPO_CHECK_SOURCE_AUDIT=1

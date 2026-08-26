@@ -94,6 +94,7 @@ philosophy as [Armbian packaging guide](../../packaging/docs/armbian-packaging.m
 | Fail loudly, stay up | `SOFTLOCKUP_DETECTOR`, `HARDLOCKUP_DETECTOR`, `DETECT_HUNG_TASK` (timeout 60 s), `WQ_WATCHDOG`, `RCU_CPU_STALL_TIMEOUT=21` — **`PANIC_ON_OOPS` deliberately OFF** (`opts_n`) | detectors log stalls/wedges; with `panic_on_oops=0` a process-context oops prints its full trace and the board stays up for journald and pstore to capture it without ending the repro session |
 | Readable traces | `KALLSYMS_ALL`, `STACKTRACE`, `FRAME_POINTER`, `GDB_SCRIPTS` | symbolized stacks in the pstore dump |
 | Memory sanitizers | `KASAN` (`GENERIC`, `INLINE`, `VMALLOC`), `PAGE_OWNER`, `PAGE_POISONING`, `DEBUG_PAGEALLOC`, `PAGE_TABLE_CHECK`, `DMA_API_DEBUG(_SG)`, `DEBUG_SG`, `DEBUG_LIST`, `DEBUG_PLIST`, `DEBUG_NOTIFIERS` | UAF/OOB (the bsp-audit.md HIGH class), DMA mapping misuse (dma-buf import paths, how-the-drivers-work.md §6), corrupted lists |
+| Object lifecycle | `DEBUG_OBJECTS`, `DEBUG_OBJECTS_FREE`, `DEBUG_OBJECTS_TIMERS`, `DEBUG_OBJECTS_WORK`, `DEBUG_OBJECTS_RCU_HEAD` | debug-object init/activate/free state checking on the async MPP worker tasks, workqueue items, timers, and RCU callbacks the rewrite recovery paths lean on — catches free-while-active and double-init that KASAN only sees after reuse |
 | Fault injection | `FAULT_INJECTION`, `FAULT_INJECTION_DEBUG_FS`, `FAILSLAB`, `FAIL_PAGE_ALLOC`, `FAULT_INJECTION_USERCOPY`, `FUNCTION_ERROR_INJECTION` | scoped allocation/usercopy failure tests for rewrite parser/import/control unwind paths via `ioctl-fuzz-smoke.sh` `IOCTL_FUZZ_FAIL_NTH_MAX`, plus the broader recovery-matrix work in `rewrite-validation-plan.md` §4 |
 | Locking diagnostics | `PROVE_LOCKING`, `LOCK_STAT`, `DEBUG_ATOMIC_SLEEP`, `DEBUG_PREEMPT`, `DEBUG_{SPINLOCK,MUTEXES,RT_MUTEXES,RWSEMS,IRQFLAGS}`, `DEBUG_WW_MUTEX_SLOWPATH` | lock-order inversions, sleep-in-atomic |
 | DRM/GPU | `DRM_DEBUG_MM`, `DRM_DEBUG_MODESET_LOCK`, `DRM_PANIC` | Panthor/display path corruption |
@@ -101,7 +102,8 @@ philosophy as [Armbian packaging guide](../../packaging/docs/armbian-packaging.m
 
 For a device-free preflight before building/installing this kernel,
 [`../tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) now has
-`REWRITE_BUILD_PROFILES=memory` for KASAN/fault-injection object coverage and
+`REWRITE_BUILD_PROFILES=memory` for KASAN/fault-injection/debug-object object
+coverage and
 `REWRITE_BUILD_PROFILES=race` for the separate KCSAN/lockdep object coverage.
 Those profiles only prove the rewrite objects compile with the instrumentation;
 booted runtime evidence still comes from this debug kernel plus the separate
@@ -271,3 +273,23 @@ H.264 / ~297 fps H.265, transcode 17–42× realtime,
 **non-debug combined kernel** ([kernel status](./forward-port-status.md)). The config's
 own comment says it: this kernel is for reproducing the crash, not for daily
 use. Capture the bug here; measure performance there.
+
+## 9. Production/soak kernel notes — KFENCE, stale-memory hardening, perf comparability (W5 remaining)
+
+The heavy debug kernel above is deliberately **not** where soak-only hardening
+belongs. Two related but separate production/soak concerns are tracked here so
+they are not lost when the debug kernel's config is copied:
+
+| Concern | Where it belongs | Concrete options | Why not in the debug kernel |
+|---|---|---|---|
+| Low-rate UAF tripwire | **Production/soak kernel C** (the non-debug `rewrite` flavor when used for soak) | `KFENCE` (sampled, low overhead; interval tunable via `kfence.sample_interval`) | Conflicts with KASAN's shadow-memory instrumentation — §3 explicitly keeps `KFENCE` off beside `KASAN`. KFENCE supplements, not replaces, dedicated sanitizer passes; its sampled pool gives low detection probability per fault. |
+| Stale-memory / usercopy hardening | **Soak kernel** (either a dedicated soak flavor or kernel C when soaking) | `INIT_ON_ALLOC_DEFAULT_ON=y`, `INIT_ON_FREE_DEFAULT_ON=y`, `HARDENED_USERCOPY=y` / `HARDENED_USERCOPY_DEFAULT_ON=y` | At review time (2026-08-25) the 6.18 worktree already had `INIT_ON_ALLOC_DEFAULT_ON=y` and `HARDENED_USERCOPY=y` / `HARDENED_USERCOPY_DEFAULT_ON=y`; only `INIT_ON_FREE_DEFAULT_ON` was unset. Verify the flavor's effective provenance before enabling — stock-Armbian-seeded configs may differ per flavor. |
+| Perf comparability | **Gate, not a config** | If soak and performance share kernel C, any `INIT_ON_*` option added for soak **requires re-measured paired forward-port baselines under identical options**, or soak and perf split into separate kernels. The forward-port perf-ratio gate is meaningless across differing hardening options. | — |
+
+Operator action at the next soak/production build is to verify the flavor's
+effective `.config` provenance, enable the missing `INIT_ON_FREE_DEFAULT_ON`
+(and `KFENCE` for soak) via the same `custom_kernel_config__…` hook or flavor
+config that the debug kernel uses, and record the changed configs beside the
+boot/validation results. The `rewrite-build-gate.sh` memory profile is **not**
+where soak hardening belongs — it mirrors the debug kernel's object-lifecycle
+family, not production/soak hardening.
