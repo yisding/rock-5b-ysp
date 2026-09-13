@@ -44,10 +44,12 @@ gates. `dput` then transferred all five source artifacts to
 `fc24fea83b9931c8c7bd73b62ca5f5126967cfe0147924bac3f5feedc83dd072`).
 A Launchpad API query then returned exact source publication
 [`18730790`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18730790)
-in `Published` state with arm64 build
+in `Published` state. arm64 build
 [`33593313`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33593313)
-`Currently building`. Binary publication, installation, boot, and runtime
-behavior are all unverified.
+completed `Successfully built` at 14:22 UTC, and `linux-image-ysp-rockchip64`,
+`linux-dtb-ysp-rockchip64`, and `linux-headers-ysp-rockchip64` are all
+`Published` at this exact version, so it is now the normal PPA's install
+candidate. Installation, boot, and runtime behavior are unverified.
 
 The same query settled the open question from the entry below: the `20260811`
 source did publish and its arm64 build

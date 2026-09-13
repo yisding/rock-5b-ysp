@@ -151,7 +151,7 @@ commit before signing:
 
 | Package | Version | Archive | State |
 | --- | --- | --- | --- |
-| `linux-rockchip64-ysp` | `6.18.51+rk3588av1fwport20260913-0ubuntu1~rk1` | `ubuntu-rock-5b` | Published, arm64 build `33593313` running |
+| `linux-rockchip64-ysp` | `6.18.51+rk3588av1fwport20260913-0ubuntu1~rk1` | `ubuntu-rock-5b` | Published; arm64 build `33593313` succeeded and all three binaries are Published, so it is the archive's install candidate |
 | `linux-rockchip64-ysp-alpha-7.3-rc2` | `7.3.0~rc2+rk3588rewritealpha20260913-0ubuntu1` | `rock5b-kernel72rc2-rewrite` | Published |
 | `linux-rockchip64-ysp-alpha-6.18` | `6.18.51+rk3588rewritealpha20260913-0ubuntu1` | `rock5b-kernel618-rewrite` | Pending |
 | `linux-rockchip64-ysp-maxline-public` | `7.3.0~rc2+git20260913+rk3588maxlinepublic-0ubuntu1` | `ubuntu-rock-5b-experimental` | Pending |
