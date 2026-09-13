@@ -1,3 +1,22 @@
+linux-rockchip64-ysp-alpha-6.18 (6.18.51+rk3588rewritealpha20260913-0ubuntu1) resolute; urgency=medium
+
+  * Re-layer the rewrite composite onto Linux 6.18.51 (f6388029ea9e2). The
+    Armbian rockchip64-current patch layer was regenerated for 6.18.51 from
+    build checkout 2a53f158 (`./compile.sh kernel-patches-to-git
+    BOARD=rock-5b BRANCH=current KERNELBRANCH=tag:v6.18.51`, with the two
+    colliding media patches disabled as the forward-port lane does),
+    producing snapshot commit 5288609495adb; all 445 commits of the rewrite
+    series then replayed onto it without a single conflict.
+  * The rewrite payload is byte-identical to rk3588-rewrite-6.18 at
+    7c38fc4ffaba7, itself the maintained 6.18 tip rebased from v6.18.42 to
+    v6.18.51 with no conflict at any step.
+  * Replaces the 6.18.38 package pin, which predates the ownership-refactor
+    phases, the boundary hardening, and the current 109 MPP + 152 RGA KUnit
+    manifest.
+  * No boot, hardware, or KUnit runtime evidence exists for this composite.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Sun, 13 Sep 2026 08:40:00 -0700
+
 linux-rockchip64-ysp-alpha-6.18 (6.18.38+rk3588rewritealpha20260715-0ubuntu1) resolute; urgency=medium
 
   * Rebase the rewrite package on the Armbian rockchip64-current 6.18.38
@@ -5,14 +24,14 @@ linux-rockchip64-ysp-alpha-6.18 (6.18.38+rk3588rewritealpha20260715-0ubuntu1) re
   * Apply the hardened clean-room rewrite driver series after the Armbian and
     forward-port patch layers.
 
- -- Yi Ding <yi@example.com>  Wed, 15 Jul 2026 21:09:05 -0700
+ -- Yi Ding <yi.s.ding@gmail.com>  Wed, 15 Jul 2026 21:09:05 -0700
 
 linux-rockchip64-ysp-alpha-6.18 (6.18.0+rk3588rewritealpha20260710-0ubuntu1~rk2) resolute; urgency=medium
 
   * Add u-boot-tools to Build-Depends so Launchpad provides mkimage
     when generating Rockchip overlay fixup scripts.
 
- -- Yi Ding <yi@example.com>  Fri, 10 Jul 2026 23:45:00 -0700
+ -- Yi Ding <yi.s.ding@gmail.com>  Fri, 10 Jul 2026 23:45:00 -0700
 
 linux-rockchip64-ysp-alpha-6.18 (6.18.0+rk3588rewritealpha20260710-0ubuntu1~rk1) resolute; urgency=medium
 
@@ -20,4 +39,4 @@ linux-rockchip64-ysp-alpha-6.18 (6.18.0+rk3588rewritealpha20260710-0ubuntu1~rk1)
   * Build co-installable image, DTB, and headers packages from local branch
     rk3588-rewrite-6.18 at d1d15a3d052a.
 
- -- Yi Ding <yi@example.com>  Fri, 10 Jul 2026 12:00:00 -0700
+ -- Yi Ding <yi.s.ding@gmail.com>  Fri, 10 Jul 2026 12:00:00 -0700

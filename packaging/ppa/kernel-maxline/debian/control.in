@@ -2,7 +2,7 @@ Source: linux-rockchip64-ysp-maxline-@PROFILE@
 Section: kernel
 Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
-XSBC-Original-Maintainer: Yi Ding <yi@example.com>
+XSBC-Original-Maintainer: Yi Ding <yi.s.ding@gmail.com>
 Build-Depends:
  bc,
  bison,

@@ -1,7 +1,17 @@
 linux-rockchip64-ysp-maxline-@PROFILE@ (@VERSION@) resolute; urgency=medium
 
   * Build the @PROFILE@ maximum-mainline RK3588 integration profile from the
-    pinned 2026-08-02 Torvalds master commit and exported integration delta.
-  * Package a unique kernel release, DTB tree, and headers for Armbian.
+    pinned Linux v7.3-rc2 base commit df2908090cda3 and the exported
+    integration delta in kernel-versions/maxline/patches/.
+  * Rebased from the 2026-08-23 shipped-v7.2 pin. 55 of the 299 public
+    commits are now redundant against v7.3-rc2 and were dropped, including
+    ten complete proposal series that reached Linus.
+  * Refreshed five proposal series to their current public revisions:
+    Synopsys DW-DP v8 to v11, Rockchip usbdp cleanup v13 to v14, rkisp2 v1
+    to v3, Samsung MIPI DC-PHY v2 to v4, and RK3588 crypto v2 to v3.
+  * Package a unique kernel release, DTB tree, and headers for Armbian,
+    co-installable beside every other kernel slot.
+  * Compile-verified only. No maxline profile has been installed or booted
+    on a ROCK 5B; a successful build is not a hardware result.
 
- -- Yi Ding <yi@example.com>  Sun, 02 Aug 2026 12:00:00 -0700
+ -- Yi Ding <yi.s.ding@gmail.com>  Sun, 13 Sep 2026 07:45:00 -0700

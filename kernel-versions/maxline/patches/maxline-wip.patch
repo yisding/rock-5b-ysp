@@ -1,5 +1,5 @@
 diff --git a/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.c b/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.c
-index 4698933a30ebc7d81c8755a0508b77da56a2e6f7..68164f6e74fc84d2586a4a5d0695a6e02957c74e 100644
+index 8b11de5e8d3b6..9ea94148606cc 100644
 --- a/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.c
 +++ b/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.c
 @@ -16,14 +16,17 @@
@@ -805,7 +805,7 @@ index 4698933a30ebc7d81c8755a0508b77da56a2e6f7..68164f6e74fc84d2586a4a5d0695a6e0
  	return 0;
  }
 @@ -1033,12 +1687,13 @@ static const struct drm_bridge_funcs dw_hdmi_qp_bridge_funcs = {
- 	.atomic_reset = drm_atomic_helper_bridge_reset,
+ 	.atomic_create_state = drm_atomic_helper_bridge_create_state,
  	.atomic_enable = dw_hdmi_qp_bridge_atomic_enable,
  	.atomic_disable = dw_hdmi_qp_bridge_atomic_disable,
 -	.detect = dw_hdmi_qp_bridge_detect,
@@ -839,7 +839,7 @@ index 4698933a30ebc7d81c8755a0508b77da56a2e6f7..68164f6e74fc84d2586a4a5d0695a6e0
  
  	regs = devm_platform_ioremap_resource(pdev, 0);
 diff --git a/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.h b/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.h
-index c07847e8d7dd094cad94e89ac110515186c6d54f..dfb8cb6614ad7d038e59266a89b5689a964bb373 100644
+index c07847e8d7dd0..dfb8cb6614ad7 100644
 --- a/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.h
 +++ b/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.h
 @@ -23,6 +23,7 @@
@@ -860,10 +860,10 @@ index c07847e8d7dd094cad94e89ac110515186c6d54f..dfb8cb6614ad7d038e59266a89b5689a
  #define PKTSCHED_PKT_STATUS0				0xab4
  #define PKTSCHED_PKT_STATUS1				0xab8
 diff --git a/drivers/gpu/drm/display/drm_bridge_connector.c b/drivers/gpu/drm/display/drm_bridge_connector.c
-index a39a1902b1bcf308e2aab05cf2534545cf6e9e3b..42b86cd867e4cb4b0e7ceb678504dde9cf670563 100644
+index b98bb47f748ff..a80c6c69d8f30 100644
 --- a/drivers/gpu/drm/display/drm_bridge_connector.c
 +++ b/drivers/gpu/drm/display/drm_bridge_connector.c
-@@ -291,8 +291,11 @@ static int drm_bridge_connector_detect_ctx(struct drm_connector *connector,
+@@ -298,8 +298,11 @@ static int drm_bridge_connector_detect_ctx(struct drm_connector *connector,
  	int ret;
  
  	if (detect) {
@@ -876,7 +876,7 @@ index a39a1902b1bcf308e2aab05cf2534545cf6e9e3b..42b86cd867e4cb4b0e7ceb678504dde9
  		if (hdmi) {
  			ret = drm_atomic_helper_connector_hdmi_hotplug(connector, ctx, status);
  			if (ret == -EDEADLK)
-@@ -448,6 +451,27 @@ drm_bridge_connector_tmds_char_rate_valid(const struct drm_connector *connector,
+@@ -455,6 +458,27 @@ drm_bridge_connector_tmds_char_rate_valid(const struct drm_connector *connector,
  		return MODE_OK;
  }
  
@@ -904,7 +904,7 @@ index a39a1902b1bcf308e2aab05cf2534545cf6e9e3b..42b86cd867e4cb4b0e7ceb678504dde9
  static int drm_bridge_connector_clear_avi_infoframe(struct drm_connector *connector)
  {
  	struct drm_bridge_connector *bridge_connector =
-@@ -627,6 +651,7 @@ static const struct drm_connector_hdmi_funcs drm_bridge_connector_hdmi_funcs = {
+@@ -634,6 +658,7 @@ static const struct drm_connector_hdmi_funcs drm_bridge_connector_hdmi_funcs = {
  	.supported_formats = BIT(DRM_OUTPUT_COLOR_FORMAT_RGB444),
  	.max_bpc = 8,
  	.tmds_char_rate_valid = drm_bridge_connector_tmds_char_rate_valid,
@@ -913,10 +913,10 @@ index a39a1902b1bcf308e2aab05cf2534545cf6e9e3b..42b86cd867e4cb4b0e7ceb678504dde9
  	.avi = {
  		.clear_infoframe = drm_bridge_connector_clear_avi_infoframe,
 diff --git a/drivers/gpu/drm/display/drm_hdmi_state_helper.c b/drivers/gpu/drm/display/drm_hdmi_state_helper.c
-index 9365f4b6cfc3ec4ebeaac00b1fb848e8f872f3cd..b02dce66c447e784738d6a54d94b70521327b17a 100644
+index 80f950abb7960..be08d5781e283 100644
 --- a/drivers/gpu/drm/display/drm_hdmi_state_helper.c
 +++ b/drivers/gpu/drm/display/drm_hdmi_state_helper.c
-@@ -559,8 +559,30 @@ hdmi_clock_valid(const struct drm_connector *connector,
+@@ -560,8 +560,30 @@ hdmi_clock_valid(const struct drm_connector *connector,
  	const struct drm_connector_hdmi_funcs *funcs = connector->hdmi.funcs;
  	const struct drm_display_info *info = &connector->display_info;
  
@@ -950,7 +950,7 @@ index 9365f4b6cfc3ec4ebeaac00b1fb848e8f872f3cd..b02dce66c447e784738d6a54d94b7052
  	if (connector->hdmi.max_tmds_char_rate &&
  	    clock > connector->hdmi.max_tmds_char_rate)
 diff --git a/drivers/gpu/drm/display/drm_scdc_helper.c b/drivers/gpu/drm/display/drm_scdc_helper.c
-index 74388481fc556b0d51f16626343e08cdad47b1f2..7e137828c4faedd4f287f03ae208a26536eee194 100644
+index 74388481fc556..7e137828c4fae 100644
 --- a/drivers/gpu/drm/display/drm_scdc_helper.c
 +++ b/drivers/gpu/drm/display/drm_scdc_helper.c
 @@ -595,3 +595,188 @@ void drm_scdc_debugfs_init(struct drm_connector *connector, struct dentry *root)
@@ -1143,10 +1143,10 @@ index 74388481fc556b0d51f16626343e08cdad47b1f2..7e137828c4faedd4f287f03ae208a265
 +}
 +EXPORT_SYMBOL(drm_scdc_get_frl_ltp_request);
 diff --git a/drivers/gpu/drm/drm_bridge.c b/drivers/gpu/drm/drm_bridge.c
-index 3bfa0e911b09c679ebb04ba3d7472609b2be92bd..a46302f446d7eca45466928524421b3e9a6752e3 100644
+index 9a658decad2ab..1b63c94409a95 100644
 --- a/drivers/gpu/drm/drm_bridge.c
 +++ b/drivers/gpu/drm/drm_bridge.c
-@@ -1472,9 +1472,9 @@ EXPORT_SYMBOL(drm_atomic_bridge_chain_check);
+@@ -1453,9 +1453,9 @@ EXPORT_SYMBOL(drm_atomic_bridge_chain_check);
   * @connector: attached connector
   *
   * If the bridge supports output detection, as reported by the
@@ -1159,7 +1159,7 @@ index 3bfa0e911b09c679ebb04ba3d7472609b2be92bd..a46302f446d7eca45466928524421b3e
   *
   * RETURNS:
   * The detection status on success, or connector_status_unknown if the bridge
-@@ -1483,12 +1483,68 @@ EXPORT_SYMBOL(drm_atomic_bridge_chain_check);
+@@ -1464,12 +1464,68 @@ EXPORT_SYMBOL(drm_atomic_bridge_chain_check);
  enum drm_connector_status
  drm_bridge_detect(struct drm_bridge *bridge, struct drm_connector *connector)
  {
@@ -1231,7 +1231,7 @@ index 3bfa0e911b09c679ebb04ba3d7472609b2be92bd..a46302f446d7eca45466928524421b3e
  /**
   * drm_bridge_get_modes - fill all modes currently valid for the sink into the
 diff --git a/drivers/gpu/drm/rockchip/Kconfig b/drivers/gpu/drm/rockchip/Kconfig
-index e7f49fe845eaeca0753fa61f0fc2c05ed3ec26a8..12188ad1fb4aa02529ad297e3dae8284d37ece53 100644
+index e7f49fe845eae..12188ad1fb4aa 100644
 --- a/drivers/gpu/drm/rockchip/Kconfig
 +++ b/drivers/gpu/drm/rockchip/Kconfig
 @@ -20,7 +20,7 @@ config DRM_ROCKCHIP
@@ -1244,7 +1244,7 @@ index e7f49fe845eaeca0753fa61f0fc2c05ed3ec26a8..12188ad1fb4aa02529ad297e3dae8284
  	  Choose this option if you have a Rockchip soc chipset.
  	  This driver provides kernel mode setting and buffer
 diff --git a/drivers/gpu/drm/rockchip/dw_hdmi_qp-rockchip.c b/drivers/gpu/drm/rockchip/dw_hdmi_qp-rockchip.c
-index 8b0a71a3709f4c22681d59d36f9717b7ed68bdca..431658f89d81297f73ac93d780757b761f6b6c51 100644
+index 8b0a71a3709f4..431658f89d812 100644
 --- a/drivers/gpu/drm/rockchip/dw_hdmi_qp-rockchip.c
 +++ b/drivers/gpu/drm/rockchip/dw_hdmi_qp-rockchip.c
 @@ -1,7 +1,7 @@
@@ -1622,7 +1622,7 @@ index 8b0a71a3709f4c22681d59d36f9717b7ed68bdca..431658f89d81297f73ac93d780757b76
  
  	INIT_DELAYED_WORK(&hdmi->hpd_work, dw_hdmi_qp_rk3588_hpd_work);
 diff --git a/drivers/gpu/drm/rockchip/rockchip_drm_drv.h b/drivers/gpu/drm/rockchip/rockchip_drm_drv.h
-index d57620c66f16d978c130ffe880884c58f8bda317..923345777a2fdcd7258c65f183a5e7ec9dd4d07a 100644
+index d57620c66f16d..923345777a2fd 100644
 --- a/drivers/gpu/drm/rockchip/rockchip_drm_drv.h
 +++ b/drivers/gpu/drm/rockchip/rockchip_drm_drv.h
 @@ -59,6 +59,7 @@ struct rockchip_crtc_state {
@@ -1634,7 +1634,7 @@ index d57620c66f16d978c130ffe880884c58f8bda317..923345777a2fdcd7258c65f183a5e7ec
  #define to_rockchip_crtc_state(s) \
  		container_of(s, struct rockchip_crtc_state, base)
 diff --git a/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c b/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c
-index e4cb229f84a33ea04c913b446b511a39d63c217b..f5d2f47c5dbf0660fbb7d51c1a6c22acee34cb4c 100644
+index e4cb229f84a33..f5d2f47c5dbf0 100644
 --- a/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c
 +++ b/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c
 @@ -104,6 +104,8 @@ enum vop2_afbc_format {
@@ -1679,7 +1679,7 @@ index e4cb229f84a33ea04c913b446b511a39d63c217b..f5d2f47c5dbf0660fbb7d51c1a6c22ac
  
  	vop2_crtc_enable_irq(vp, VP_INT_POST_BUF_EMPTY);
 diff --git a/drivers/gpu/drm/rockchip/rockchip_drm_vop2.h b/drivers/gpu/drm/rockchip/rockchip_drm_vop2.h
-index 52537278b21f3b720216217d17167f2d99931b1a..f4fd0ea66bc9521b72e80a71d7c0b196eac4175b 100644
+index 52537278b21f3..f4fd0ea66bc95 100644
 --- a/drivers/gpu/drm/rockchip/rockchip_drm_vop2.h
 +++ b/drivers/gpu/drm/rockchip/rockchip_drm_vop2.h
 @@ -333,6 +333,7 @@ struct vop2 {
@@ -1691,7 +1691,7 @@ index 52537278b21f3b720216217d17167f2d99931b1a..f4fd0ea66bc9521b72e80a71d7c0b196
  	struct clk *aclk;
  	struct clk *pclk;
 diff --git a/drivers/phy/rockchip/phy-rockchip-samsung-hdptx.c b/drivers/phy/rockchip/phy-rockchip-samsung-hdptx.c
-index aa0e362603810e8b55faebf3e546b97679258f6b..f03adeb8d0d668701e1ec5ba544da6a5208953c9 100644
+index 24ed0d7eb6f8d..6879eecc5a9fd 100644
 --- a/drivers/phy/rockchip/phy-rockchip-samsung-hdptx.c
 +++ b/drivers/phy/rockchip/phy-rockchip-samsung-hdptx.c
 @@ -333,6 +333,7 @@
@@ -1803,7 +1803,7 @@ index aa0e362603810e8b55faebf3e546b97679258f6b..f03adeb8d0d668701e1ec5ba544da6a5
  		}
  
  		return ret;
-@@ -2337,14 +2401,16 @@ static int rk_hdptx_phy_clk_determine_rate(struct clk_hw *hw,
+@@ -2346,14 +2410,16 @@ static int rk_hdptx_phy_clk_determine_rate(struct clk_hw *hw,
  	 * to ensure rk_hdptx_phy_clk_set_rate() will be always invoked.
  	 * Otherwise, restrict the rate according to the PHY link setup.
  	 */
@@ -1824,7 +1824,7 @@ index aa0e362603810e8b55faebf3e546b97679258f6b..f03adeb8d0d668701e1ec5ba544da6a5
  }
  
 diff --git a/include/drm/bridge/dw_hdmi_qp.h b/include/drm/bridge/dw_hdmi_qp.h
-index ad33f9cafdebd9ad8418afca33d4288191024cc6..87d473a0051a9b899bb1e8d417e97fad72405c21 100644
+index ad33f9cafdebd..87d473a0051a9 100644
 --- a/include/drm/bridge/dw_hdmi_qp.h
 +++ b/include/drm/bridge/dw_hdmi_qp.h
 @@ -1,23 +1,41 @@
@@ -1871,7 +1871,7 @@ index ad33f9cafdebd9ad8418afca33d4288191024cc6..87d473a0051a9b899bb1e8d417e97fad
  
  struct dw_hdmi_qp_plat_data {
 diff --git a/include/drm/display/drm_scdc.h b/include/drm/display/drm_scdc.h
-index 7f0b05b2f2800678dfdc49600de990ec14ffa07e..8d6d074743bf1d210d1fd87a355061b763489cf5 100644
+index 7f0b05b2f2800..8d6d074743bf1 100644
 --- a/include/drm/display/drm_scdc.h
 +++ b/include/drm/display/drm_scdc.h
 @@ -31,6 +31,8 @@
@@ -1925,7 +1925,7 @@ index 7f0b05b2f2800678dfdc49600de990ec14ffa07e..8d6d074743bf1d210d1fd87a355061b7
  #define SCDC_ERR_DET_0_L 0x50
  #define SCDC_ERR_DET_0_H 0x51
 diff --git a/include/drm/display/drm_scdc_helper.h b/include/drm/display/drm_scdc_helper.h
-index 7ce4b8af893d4f43a78e6bd70542da9db42b5dd8..171c8d4e57aeddc6ca0e900959c16946cfcdb5e1 100644
+index 7ce4b8af893d4..171c8d4e57aed 100644
 --- a/include/drm/display/drm_scdc_helper.h
 +++ b/include/drm/display/drm_scdc_helper.h
 @@ -173,4 +173,10 @@ int drm_scdc_read_state(struct drm_connector *connector,
@@ -1940,10 +1940,10 @@ index 7ce4b8af893d4f43a78e6bd70542da9db42b5dd8..171c8d4e57aeddc6ca0e900959c16946
 +				  u8 *ln0, u8 *ln1, u8 *ln2, u8 *ln3);
  #endif
 diff --git a/include/drm/drm_bridge.h b/include/drm/drm_bridge.h
-index ef402a875862eb5a7309d4f1e32ef729ea1c0cfa..7761660a0e6a5bd983e39ca1980d858d1c252b7c 100644
+index 61165c68e347d..08262e84bfae6 100644
 --- a/include/drm/drm_bridge.h
 +++ b/include/drm/drm_bridge.h
-@@ -535,10 +535,12 @@ struct drm_bridge_funcs {
+@@ -429,10 +429,12 @@ struct drm_bridge_funcs {
  	 *
  	 * Check if anything is attached to the bridge output.
  	 *
@@ -1960,7 +1960,7 @@ index ef402a875862eb5a7309d4f1e32ef729ea1c0cfa..7761660a0e6a5bd983e39ca1980d858d
  	 *
  	 * RETURNS:
  	 *
-@@ -547,6 +549,32 @@ struct drm_bridge_funcs {
+@@ -441,6 +443,32 @@ struct drm_bridge_funcs {
  	enum drm_connector_status (*detect)(struct drm_bridge *bridge,
  					    struct drm_connector *connector);
  
@@ -1993,7 +1993,7 @@ index ef402a875862eb5a7309d4f1e32ef729ea1c0cfa..7761660a0e6a5bd983e39ca1980d858d
  	/**
  	 * @get_modes:
  	 *
-@@ -716,6 +744,29 @@ struct drm_bridge_funcs {
+@@ -610,6 +638,29 @@ struct drm_bridge_funcs {
  	 */
  	int (*hdmi_scrambler_disable)(struct drm_bridge *bridge);
  
@@ -2023,7 +2023,7 @@ index ef402a875862eb5a7309d4f1e32ef729ea1c0cfa..7761660a0e6a5bd983e39ca1980d858d
  	/**
  	 * @hdmi_clear_avi_infoframe:
  	 *
-@@ -1051,8 +1102,8 @@ struct drm_bridge_timings {
+@@ -945,8 +996,8 @@ struct drm_bridge_timings {
  enum drm_bridge_ops {
  	/**
  	 * @DRM_BRIDGE_OP_DETECT: The bridge can detect displays connected to
@@ -2034,7 +2034,7 @@ index ef402a875862eb5a7309d4f1e32ef729ea1c0cfa..7761660a0e6a5bd983e39ca1980d858d
  	 */
  	DRM_BRIDGE_OP_DETECT = BIT(0),
  	/**
-@@ -1635,6 +1686,9 @@ drm_atomic_helper_bridge_propagate_bus_fmt(struct drm_bridge *bridge,
+@@ -1524,6 +1575,9 @@ drm_atomic_helper_bridge_propagate_bus_fmt(struct drm_bridge *bridge,
  
  enum drm_connector_status
  drm_bridge_detect(struct drm_bridge *bridge, struct drm_connector *connector);
@@ -2045,10 +2045,10 @@ index ef402a875862eb5a7309d4f1e32ef729ea1c0cfa..7761660a0e6a5bd983e39ca1980d858d
  			 struct drm_connector *connector);
  const struct drm_edid *drm_bridge_edid_read(struct drm_bridge *bridge,
 diff --git a/include/drm/drm_connector.h b/include/drm/drm_connector.h
-index 09be9288b2c084fc5588691a64bc170e479eb214..8fb3109eab84cfebba2a3f7411c81bb1e183c850 100644
+index 5e0d65adb2443..7f26219415b31 100644
 --- a/include/drm/drm_connector.h
 +++ b/include/drm/drm_connector.h
-@@ -1474,6 +1474,28 @@ struct drm_connector_hdmi_funcs {
+@@ -1480,6 +1480,28 @@ struct drm_connector_hdmi_funcs {
  				const struct drm_display_mode *mode,
  				unsigned long long tmds_rate);
  
@@ -2078,7 +2078,7 @@ index 09be9288b2c084fc5588691a64bc170e479eb214..8fb3109eab84cfebba2a3f7411c81bb1
  	 * @read_edid:
  	 *
 diff --git a/include/linux/phy/phy-hdmi.h b/include/linux/phy/phy-hdmi.h
-index d4cf4430ee8f3bf0f18a109c5a7640293a4293b1..1d4b6247507979d557b4a0440df13bb8e8d94507 100644
+index d4cf4430ee8f3..1d4b624750797 100644
 --- a/include/linux/phy/phy-hdmi.h
 +++ b/include/linux/phy/phy-hdmi.h
 @@ -19,6 +19,10 @@ enum phy_hdmi_mode {

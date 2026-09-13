@@ -38,7 +38,7 @@ even after deletion.
 | `ppa:yi-ding/rock5b-ffmpeg81-rockchip` | Isolated ABI-changing FFmpeg 8.1 Rockchip forward port; depends on the normal PPA for MPP/RGA |
 | `ppa:yi-ding/rock5b-kernel618-rewrite` | Co-installable experimental Linux 6.18 rewrite package |
 | `ppa:yi-ding/rock5b-kernel72rc2-rewrite` | Co-installable experimental 7.2-rc rewrite package; archive name is historical |
-| `ppa:yi-ding/ubuntu-rock-5b-experimental` | Isolated diagnostic/recovery candidates and migration holding copies |
+| `ppa:yi-ding/ubuntu-rock-5b-experimental` | Isolated diagnostic/recovery candidates, migration holding copies, and the co-installable maximum-mainline `public`/`wip` kernels |
 
 The normal PPA targets Ubuntu 26.04 Resolute on arm64. Architecture-independent
 packages build on arm64 and publish as `Architecture: all`. Dedicated archives
@@ -107,7 +107,8 @@ verdicts.
 | [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Package the co-installable 6.18 rewrite experiment. |
 | [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md) | Package the co-installable 7.2-rc3 rewrite experiment. |
 | [`kernel-rewrite-alpha-7.2-rc5/`](kernel-rewrite-alpha-7.2-rc5/README.md) | Preserve the deferred 7.2-rc5 rewrite package definition. |
-| [`kernel-maxline/`](kernel-maxline/README.md) | Package maximum-mainline profiles owned by [`kernel-versions/maxline/`](../../kernel-versions/maxline/README.md). |
+| [`kernel-rewrite-alpha-7.3-rc2/`](kernel-rewrite-alpha-7.3-rc2/README.md) | Package the co-installable 7.3-rc2 rewrite experiment, the current mainline rewrite package line. |
+| [`kernel-maxline/`](kernel-maxline/README.md) | Package maximum-mainline profiles owned by [`kernel-versions/maxline/`](../../kernel-versions/maxline/README.md); its source packages go to `ubuntu-rock-5b-experimental`. |
 | [`kernel-sgguard/`](kernel-sgguard/README.md) | Preserve the focused sg-guard diagnostic package definition. |
 
 Generated `.dsc`, `.changes`, `.buildinfo`, orig tarballs, binary packages, and

@@ -1,0 +1,19 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Linux
+Source: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
+
+Files: *
+Copyright: 1991-2026 Linus Torvalds and Linux kernel contributors
+License: GPL-2
+
+Files: debian/*
+Copyright: 2026 Yi Ding
+License: GPL-2
+
+License: GPL-2
+ This program is free software; you can redistribute it and/or modify it under
+ the terms of the GNU General Public License as published by the Free Software
+ Foundation; version 2 dated June, 1991.
+ .
+ On Debian and Ubuntu systems, the complete text of the GNU General Public
+ License version 2 can be found in /usr/share/common-licenses/GPL-2.

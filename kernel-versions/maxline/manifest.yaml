@@ -1,32 +1,40 @@
 format: 2
-generated: 2026-08-23
+generated: 2026-09-13
 base:
-  ref: v7.2
-  fetched: 2026-08-23
-  kernel_version: 7.2.0
-  commit: 8d3ae59288f1e7d58d76558a6ee96d533bc5019f
+  ref: v7.3-rc2
+  fetched: 2026-09-13
+  kernel_version: 7.3.0-rc2
+  commit: df2908090cda368b01ff43709f51890076c56157
   source: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
 profiles:
   public:
-    integration_branch: rk3588-maxline-public
-    integration_commit: a52ffff8cb35f2c2bd99450ca22f5d1e268cc18a
-    commits_after_base: 299
+    integration_branch: maxline-public-20260913
+    integration_commit: 1e66ae0b4633f6a3de00b7bd705b10c45f44ff8a
+    commits_after_base: 248
     patch: patches/maxline-public.patch
-    patch_sha256: b88379e540e862de6e617800bf7f3159b4f3a86e2688fb8d693aeda3a57f760c
-    release: 7.2.0-ysp-maxline-public-rockchip64
-    package_version: 7.2.0+git20260823+rk3588maxlinepublic-0ubuntu1
+    patch_sha256: 6ba6bd663c07ec593f881a6e65faab4d45b06698d220d7129ff0ee5a63d3c9a2
+    release: 7.3.0-rc2-ysp-maxline-public-rockchip64
+    package_version: 7.3.0~rc2+git20260913+rk3588maxlinepublic-0ubuntu1
   wip:
-    integration_branch: rk3588-maxline-wip
-    integration_commit: 5466810e49f94d670a65b97db745c8bdc6596f08
+    integration_branch: maxline-wip-20260913
+    integration_commit: 7306d4ede54c9a78cebd3ed31156bdeecc57dc2d
     commits_after_public: 19
     patch: patches/maxline-wip.patch
-    patch_sha256: 7e0cd7307e095d4760bd076872f8a2bbfc2a7fdd31e89750717413659aac96ad
-    release: 7.2.0-ysp-maxline-wip-rockchip64
-    package_version: 7.2.0+git20260823+rk3588maxlinewip-0ubuntu1
+    patch_sha256: d980213908315a7b37dcfe7d91be7f0a0e2fc5d237d688e5982f6fafaa9d4ad0
+    release: 7.3.0-rc2-ysp-maxline-wip-rockchip64
+    package_version: 7.3.0~rc2+git20260913+rk3588maxlinewip-0ubuntu1
+predecessor:
+  # The 2026-08-23 shipped-v7.2 pin this refresh replaces.
+  base_ref: v7.2
+  base_commit: 8d3ae59288f1e7d58d76558a6ee96d533bc5019f
+  public_commit: a52ffff8cb35f2c2bd99450ca22f5d1e268cc18a
+  wip_commit: 5466810e49f94d670a65b97db745c8bdc6596f08
+  commits_after_base: 299
 linux_next_validation:
-  # Historical snapshot from the 2026-08-02 refresh. The packaged profiles now
-  # target shipped v7.2; these refs were not replayed during the release-base
-  # rebase and describe superseded validation branches only.
+  # Historical snapshot from the 2026-08-02 refresh. The packaged profiles
+  # target v7.3-rc2; these refs were not replayed during either the
+  # release-base rebase or this one, and describe superseded validation
+  # branches only.
   ref: next-20260731
   commit: 415606a7be939835db9b0d6b711887586646346d
   source: https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git
@@ -37,21 +45,63 @@ linux_next_validation:
   wip_commit: 15a5179dc3b2318e6c56d300e2f4c74ef0a3fb7b
   commits_after_public: 19
 subsystem_next_refs:
+  # Historical; not re-read for the 2026-09-13 refresh, which audited public
+  # proposal revisions through the patchwork API instead.
   drm_misc_for_linux_next: bc47d5937f21c5fc94504f03e18f1adb56d97634
   media_pending_next: 31152f5b0f8719f92063b8c6196cd5e34106c73d
   phy_next: ee6aa0f01d4e8eddf1c7fda49d65c7ef12444e78
   usb_next: 5d5fd841c34649f1b09220fe58e59dffd61c447d
+series_refresh_20260913:
+  # Public revisions replaced in this pass, resolved through
+  # https://patchwork.kernel.org/api/1.2/ because lore.kernel.org now serves an
+  # anti-bot challenge to non-browser clients.
+  dw-dp-improvements:
+    from: v8
+    to: v11
+    patchwork_series: 1141654
+    mbox_sha256: 7e6aa0bda0001de52cfd8ed9488802649b7c14914220db9ec4452a6c1a9d6bf3
+  usbdp-cleanup:
+    from: v13
+    to: v14
+    patchwork_series: 1145712
+    mbox_sha256: 08ede8fc6c2994a0eddf01f23b861857b100e1a7566ac9c96b3cd60ef8e46faf
+  rkisp2:
+    from: v1
+    to: v3
+    patchwork_series: 1152590
+    mbox_sha256: e20cf6aaf430e69921be69971f1c7303acf75482cbcd08c51db5d709275c3cb0
+  samsung-csi-dcphy:
+    from: v2
+    to: v4
+    patchwork_series: 1149752
+    mbox_sha256: 6faadae5a34d611380fa26feff78e8900f619d498366de4e090d5cfc1b7ec9e6
+  rk3588-crypto:
+    from: v2
+    to: v3
+    patchwork_series: 1146829
+    mbox_sha256: e769c48f13d7072e3f8fcdc95defdcd7fd4939deff02244c8743b63aa0194791
+series_deferred_20260913:
+  rocket-dvfs:
+    patchwork_series: 1158085
+    version: v1
+    patches: 7
+    reason: >-
+      Requires struct rocket_device::max_cores and the multi-core slot rework
+      from the unmerged "accel/rocket: RK3576 NPU (RKNN) enablement" v12
+      series, which maxline does not carry. Patches 1-3 apply; patch 4 cannot
+      build a base tree. Taking DVFS means taking RK3576 enablement first.
 config:
   path: config/arm64-rockchip64.config
   sha256: a571b504f7bdf7aa3db37c7097390a9a2781561852af4587d0476b5ed9cf2450
 public_series_ledger: public-series.tsv
 wip_donor_ledger: wip-donors.tsv
 verification:
-  date: 2026-08-23
+  date: 2026-09-13
   report: verification.md
   architecture: arm64
   compile_gate: Image modules dtbs
-  release_base_public: not_run
-  linux_next_wip: interrupted_by_user
-  package_build_for_refresh: not_run
+  public_compile: pass
+  wip_compile: focused_pass
+  source_package_build: pass
+  uploaded_to: ppa:yi-ding/ubuntu-rock-5b-experimental
   booted_on_rock_5b: false

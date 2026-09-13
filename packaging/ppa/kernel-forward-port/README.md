@@ -3,6 +3,58 @@
 This directory owns the source-package path for the co-installable ROCK 5B
 forward-port kernel.
 
+**Published 2026-09-13:**
+`6.18.51+rk3588av1fwport20260913-0ubuntu1~rk1` — the unchanged complete
+`0001`–`0097` production forward-port tip `e7ff978398825`, re-cut onto the
+current stable base. The dedicated PPA lane used Armbian build input
+`2a53f158`, which selected Linux 6.18.51 commit `f6388029ea9e2` from the
+`linux-6.18.y` branch, and applied all 97 patches with no reject and no
+adjustment. The staged lane matched the maintained forward-port IOMMU
+implementation, kept its required synchronous fault handler, and contained
+zero `*-rewrite` paths.
+
+Both forward-compat hazards the
+[resync guide](../../../kernel-drivers/docs/resyncing.md) ranks highest were
+re-checked against this base and are clear: `struct iommu_dma_cookie` in
+`drivers/iommu/dma-iommu.c` is byte-for-byte the 6.18.44 layout with `iovad`
+still the first member, and `IOMMU_COOKIE_NONE` still exists.
+
+The generated `.dsc` passed `dscverify --nosigcheck` and extracted cleanly.
+The extracted source reports Linux 6.18.51; `rga_mm.c`, `rga_drv.c`,
+`mpp_common.c`, `mpp_iommu.c`, `rockchip-iommu.c`, and `vsi-iommu.c` are all
+byte-identical to `e7ff978398825`; and the packaged config keeps
+`CONFIG_ROCKCHIP_MPP_SERVICE=y` and `CONFIG_ROCKCHIP_MULTI_RGA=y` while leaving
+the rewrite drivers, KASAN, KCSAN, `PROVE_LOCKING`, and `DMABUF_DEBUG` off.
+Direct GPG verification reports good signatures on the `.dsc`, `.buildinfo`,
+and source `.changes` from
+`0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`. Final signed-artifact SHA-256
+values are:
+
+- orig: `dcf7953f4d7cc90f7ca22930fb62eba0d1bb20b60c6b8c7fd02b57d8fcb6ee55`;
+- Debian tar: `29cdb073b84fcbe376a58d3769f5c9fcb3d7d1f8ea090b27339c5190f071215c`;
+- `.dsc`: `871aead5a6895302faa139727e97b24e36623720ed3ade1ce735aca3b03289db`;
+- `.buildinfo`: `fcf06fa4c50a9791d8f6945b77a214b868831e3ee299f5a64f0531eaac42f09c`;
+- source `.changes`: `a1bea055a4e7af474edfa2a983f75a14976efa382d2d8da24aaa6ff7135b318f`.
+
+`dput --check-only` passed its suite, source-only, field, checksum, and GPG
+gates. `dput` then transferred all five source artifacts to
+`ppa:yi-ding/ubuntu-rock-5b` and wrote
+`linux-rockchip64-ysp_6.18.51+rk3588av1fwport20260913-0ubuntu1~rk1_source.ppa.upload`
+(SHA-256
+`fc24fea83b9931c8c7bd73b62ca5f5126967cfe0147924bac3f5feedc83dd072`).
+A Launchpad API query then returned exact source publication
+[`18730790`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18730790)
+in `Published` state with arm64 build
+[`33593313`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33593313)
+`Currently building`. Binary publication, installation, boot, and runtime
+behavior are all unverified.
+
+The same query settled the open question from the entry below: the `20260811`
+source did publish and its arm64 build
+[`33490065`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33490065)
+completed successfully. It was never installed, so patch `0097` still has no
+runtime evidence of any kind.
+
 **Accepted 2026-08-11 (source publication pending):**
 `6.18.44+rk3588av1fwport20260811-0ubuntu1~rk1` — the complete
 `0001`–`0097` production forward-port tip `e7ff978398825`. The canonical

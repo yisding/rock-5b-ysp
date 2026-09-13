@@ -56,8 +56,8 @@ KERNEL_SGGUARD_UPSTREAM_VERSION="${KERNEL_SGGUARD_UPSTREAM_VERSION:-6.18.40+rk35
 
 KERNEL_ALPHA_618_SOURCE="${KERNEL_ALPHA_618_SOURCE:-linux-rockchip64-ysp-alpha-6.18}"
 KERNEL_ALPHA_618_REPO="${KERNEL_ALPHA_618_REPO:-$WORKSPACE_ROOT/kernel/linux-6.18-rkvenc}"
-KERNEL_ALPHA_618_COMMIT="${KERNEL_ALPHA_618_COMMIT:-8daf5e9513b8aa9de018dad7754b6efacfd0fd49}"
-KERNEL_ALPHA_618_UPSTREAM_VERSION="${KERNEL_ALPHA_618_UPSTREAM_VERSION:-6.18.38+rk3588rewritealpha20260715}"
+KERNEL_ALPHA_618_COMMIT="${KERNEL_ALPHA_618_COMMIT:-a498b9bfc93b00d644cd47d44f4e1e876d6d876d}"
+KERNEL_ALPHA_618_UPSTREAM_VERSION="${KERNEL_ALPHA_618_UPSTREAM_VERSION:-6.18.51+rk3588rewritealpha20260913}"
 
 KERNEL_ALPHA_72RC3_SOURCE="${KERNEL_ALPHA_72RC3_SOURCE:-linux-rockchip64-ysp-alpha-7.2-rc3}"
 KERNEL_ALPHA_72RC3_REPO="${KERNEL_ALPHA_72RC3_REPO:-$WORKSPACE_ROOT/kernel/linux}"
@@ -69,6 +69,11 @@ KERNEL_ALPHA_72RC5_REPO="${KERNEL_ALPHA_72RC5_REPO:-$WORKSPACE_ROOT/kernel/linux
 KERNEL_ALPHA_72RC5_COMMIT="${KERNEL_ALPHA_72RC5_COMMIT:-876f5583d65754b28beff1b364e305746c107a6e}"
 KERNEL_ALPHA_72RC5_UPSTREAM_VERSION="${KERNEL_ALPHA_72RC5_UPSTREAM_VERSION:-7.2.0~rc5+rk3588rewritealpha20260729}"
 
+KERNEL_ALPHA_73RC2_SOURCE="${KERNEL_ALPHA_73RC2_SOURCE:-linux-rockchip64-ysp-alpha-7.3-rc2}"
+KERNEL_ALPHA_73RC2_REPO="${KERNEL_ALPHA_73RC2_REPO:-$WORKSPACE_ROOT/kernel/linux}"
+KERNEL_ALPHA_73RC2_COMMIT="${KERNEL_ALPHA_73RC2_COMMIT:-23383677d98095a839fd9e0233f751b00f82ba90}"
+KERNEL_ALPHA_73RC2_UPSTREAM_VERSION="${KERNEL_ALPHA_73RC2_UPSTREAM_VERSION:-7.3.0~rc2+rk3588rewritealpha20260913}"
+
 GDM_HWENC_SOURCE="${GDM_HWENC_SOURCE:-gnome-remote-desktop-gdm-hwenc}"
 GDM_HWENC_VERSION="${GDM_HWENC_VERSION:-1.0}"
 GDM_HWENC_RULE="${GDM_HWENC_RULE:-$ROOT/packaging/gdm-hwenc/root/usr/lib/udev/rules.d/70-gnome-remote-desktop-gdm-hwenc.rules}"
@@ -79,7 +84,7 @@ CODEC_UDEV_RULE="${CODEC_UDEV_RULE:-$ROOT/kernel-drivers/scripts/99-rockchip-cod
 
 usage() {
     cat <<'USAGE'
-Usage: build-source-packages.sh [mpp] [librga] [ffmpeg] [ffmpeg-rockchip] [gnome-remote-desktop|grd] [plymouth] [codec-udev] [gdm-hwenc] [kernel] [kernel-sgguard] [kernel-alpha-6.18] [kernel-alpha-7.2-rc3] [kernel-alpha-7.2-rc5]
+Usage: build-source-packages.sh [mpp] [librga] [ffmpeg] [ffmpeg-rockchip] [gnome-remote-desktop|grd] [plymouth] [codec-udev] [gdm-hwenc] [kernel] [kernel-sgguard] [kernel-alpha-6.18] [kernel-alpha-7.2-rc3] [kernel-alpha-7.2-rc5] [kernel-alpha-7.3-rc2]
 
 Build unsigned source packages for the Rock 5B PPAs.
 Artifacts are written under packaging/ppa/out/artifacts by default.
@@ -526,6 +531,15 @@ build_kernel_alpha_72rc5() {
         "packaging/ppa/kernel-rewrite-alpha-7.2-rc5"
 }
 
+build_kernel_alpha_73rc2() {
+    prepare_source \
+        "$KERNEL_ALPHA_73RC2_SOURCE" \
+        "$KERNEL_ALPHA_73RC2_REPO" \
+        "$KERNEL_ALPHA_73RC2_COMMIT" \
+        "$KERNEL_ALPHA_73RC2_UPSTREAM_VERSION" \
+        "packaging/ppa/kernel-rewrite-alpha-7.3-rc2"
+}
+
 build_gdm_hwenc() {
     prepare_native_source \
         "$GDM_HWENC_SOURCE" \
@@ -574,6 +588,7 @@ for package in "$@"; do
         kernel-alpha-6.18|rewrite-alpha-6.18|linux-rockchip64-ysp-alpha-6.18) build_kernel_alpha_618 ;;
         kernel-alpha-7.2-rc3|rewrite-alpha-7.2-rc3|linux-rockchip64-ysp-alpha-7.2-rc3) build_kernel_alpha_72rc3 ;;
         kernel-alpha-7.2-rc|kernel-alpha-7.2-rc5|rewrite-alpha-7.2-rc|rewrite-alpha-7.2-rc5|linux-rockchip64-ysp-alpha-7.2-rc5) build_kernel_alpha_72rc5 ;;
+        kernel-alpha-7.3-rc|kernel-alpha-7.3-rc2|rewrite-alpha-7.3-rc|rewrite-alpha-7.3-rc2|linux-rockchip64-ysp-alpha-7.3-rc2) build_kernel_alpha_73rc2 ;;
         *) echo "unknown package: $package" >&2; usage >&2; exit 2 ;;
     esac
 done

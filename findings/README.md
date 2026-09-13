@@ -299,10 +299,11 @@ userspace field selection.
 - [`2026-08-04`](2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md) — IEP2 field parity settled: the mode suffix selects the field and `dil_order` does nothing, so MPP's hardcoded I1O1T is wrong for BFF streams
 - [`2026-08-03`](2026-08-03-rk3588-iep2-nondeterministic-output.md) — RK3588 IEP2 runs clean under KASAN; its output non-determinism is a missing dma-buf cache sync in Rockchip's test harness, not the driver
 
-### Mainline and maximum-mainline (6)
+### Mainline and maximum-mainline (7)
 
 Where upstream already is, what it is missing, and where our port will collide with it.
 
+- [`2026-09-13`](2026-09-13-kernel-lines-updated-to-latest-upstreams.md) — All four ROCK 5B kernel lines updated to their latest upstreams
 - [`2026-08-02`](2026-08-02-vsi-iommu-mainline-convergence-and-resync-collision.md) — Mainline absorbed the VSI IOMMU driver and its RK3588 DT node in v7.2-rc1, and our forward port will collide with both
 - [`2026-08-02`](2026-08-02-rk3588-maxline-proposal-refresh.md) — RK3588 maxline refreshed to current proposals, Linus master, and linux-next
 - [`2026-08-02`](2026-08-02-mainline-tool-assisted-contribution-policy.md) — Mainline now has a written tool-assisted contribution policy, and its trailer is not the one this repo uses
@@ -366,6 +367,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-09-13-kernel-lines-updated-to-latest-upstreams.md`](2026-09-13-kernel-lines-updated-to-latest-upstreams.md) — All four ROCK 5B kernel lines updated to their latest upstreams
 - [`2026-08-25-rewrite-hardware-sim-seams-and-arbitration-inventory.md`](2026-08-25-rewrite-hardware-sim-seams-and-arbitration-inventory.md) — Rewrite hardware-simulation seams and arbitration-case inventory
 - [`2026-08-16-forward-port-rkvenc-intermittent-encode-corruption.md`](2026-08-16-forward-port-rkvenc-intermittent-encode-corruption.md) — Forward-port RKVENC emits intermittently corrupt H.264/HEVC frames with clean kernel logs
 - [`2026-08-11-rewrite-phases-4-5-task-execution-and-sealed-emission.md`](2026-08-11-rewrite-phases-4-5-task-execution-and-sealed-emission.md) — Rewrite Phases 4 and 5 complete task-execution ownership and sealed emission

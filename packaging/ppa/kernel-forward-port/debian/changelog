@@ -1,3 +1,20 @@
+linux-rockchip64-ysp (6.18.51+rk3588av1fwport20260913-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Rebase the package from Linux 6.18.44 to stable Linux 6.18.51 commit
+    f6388029ea9e2, selected by Armbian build input 2a53f158 from the
+    linux-6.18.y stable branch.
+  * The maintained forward-port series is unchanged at 0001-0097, tip
+    e7ff978398825. All 97 patches applied to 6.18.51 without conflict or
+    adjustment; the staged lane keeps the maintained forward-port IOMMU
+    implementation, retains its synchronous fault handler, and contains zero
+    *-rewrite paths.
+  * Runtime basis is unchanged and does not advance: the exact 0001-0096
+    package on 6.18.43 remains the last Published, installed, and booted
+    artifact. The 0097 admission/MMU/address fix and this 6.18.51 rebase are
+    source- and package-verified only; neither is booted or runtime-verified.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Sun, 13 Sep 2026 01:20:00 -0700
+
 linux-rockchip64-ysp (6.18.44+rk3588av1fwport20260811-0ubuntu1~rk1) resolute; urgency=high
 
   * Rebase the package from Linux 6.18.43 to stable Linux 6.18.44 commit
