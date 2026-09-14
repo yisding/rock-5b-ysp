@@ -101,7 +101,11 @@ verification:
   architecture: arm64
   compile_gate: Image modules dtbs
   public_compile: pass
-  wip_compile: focused_pass
+  wip_compile: focused_pass_locally_full_pass_on_launchpad
   source_package_build: pass
   uploaded_to: ppa:yi-ding/ubuntu-rock-5b-experimental
+  launchpad_build_public: pass
+  launchpad_build_wip: pass
+  launchpad_build_public_id: 33593389
+  launchpad_build_wip_id: 33593390
   booted_on_rock_5b: false

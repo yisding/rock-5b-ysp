@@ -44,6 +44,13 @@ Sign and upload with the [publication runbook](../docs/publishing.md). A
 successful upload proves transfer only; the kernel-version project owns the
 compile and hardware boundary, and no maxline profile has been booted.
 
-First upload: 2026-09-13, `7.3.0~rc2+git20260913+rk3588maxline{public,wip}-0ubuntu1`,
-both accepted as `Pending` source publications with no arm64 build result yet.
-[W05](../../../status.md#watch-w05) owns the live archive record.
+First upload: 2026-09-13, `7.3.0~rc2+git20260913+rk3588maxline{public,wip}-0ubuntu1`.
+Both are **Published** as source publications, both built successfully on
+Launchpad's arm64 builders (`public` build
+[`33593389`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33593389),
+`wip` build
+[`33593390`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33593390)),
+and both have Published binaries. This is `wip`'s first full-tree compile of
+any kind — the local gate before this was a focused directory subset, not a
+whole-package build. [W05](../../../status.md#watch-w05) owns the live archive
+record.

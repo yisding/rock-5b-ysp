@@ -4,12 +4,11 @@ This directory defines the co-installable ROCK 5B 6.18 rewrite kernel package.
 The replacement package now uses the exact Armbian current/forward-port source
 line first, then applies the clean-room rewrite series.
 
-> **Source-only boundary (2026-09-13):** the current pin is a source-package and
-> upload record. It has not been compiled as a full kernel, installed, or
-> booted, and no KUnit, conformance, or hardware result belongs to it. The
-> superseded 6.18.38 pin below is the last one with Published binaries, and it
-> predates the ownership-refactor phases, the boundary hardening, and the
-> current 109+152 KUnit manifest.
+> **Build-verified, not runtime-verified (2026-09-13):** the current pin built
+> successfully on Launchpad's arm64 builders and has Published binaries, but
+> it has not been installed or booted, and no KUnit, conformance, or hardware
+> result belongs to it. It predates a dedicated local focused clean-archive
+> build gate for this exact composite.
 
 ## Package shape
 
@@ -20,7 +19,7 @@ line first, then applies the clean-room rewrite series.
 | Binary packages | `linux-image-ysp-alpha-6.18-rockchip64`, `linux-dtb-ysp-alpha-6.18-rockchip64`, `linux-headers-ysp-alpha-6.18-rockchip64` |
 | Kernel release | `6.18.51-ysp-alpha-6.18-rockchip64` |
 | Debian version | `6.18.51+rk3588rewritealpha20260913-0ubuntu1` |
-| Publication state | Uploaded 2026-09-13 and accepted as a `Pending` source publication; no arm64 build result yet. [W05](../../../status.md#watch-w05) owns the live archive record. The superseded `6.18.38+rk3588rewritealpha20260715-0ubuntu1` remains the last version with Published binaries: source publication [`18623665`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18623665), arm64 build [`33406491`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+build/33406491). |
+| Publication state | Uploaded 2026-09-13; source publication [`18730846`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18730846/+listing-archive-extra) is **Published**, arm64 build [`33593384`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+build/33593384) `Successfully built`, and all three binaries (`linux-image`/`linux-dtb`/`linux-headers`-`ysp-alpha-6.18-rockchip64`) are Published — the first time this package line has built since 6.18.38. [W05](../../../status.md#watch-w05) owns the live archive record. |
 
 ## Source inputs
 

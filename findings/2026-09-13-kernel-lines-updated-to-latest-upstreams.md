@@ -151,11 +151,16 @@ commit before signing:
 
 | Package | Version | Archive | State |
 | --- | --- | --- | --- |
-| `linux-rockchip64-ysp` | `6.18.51+rk3588av1fwport20260913-0ubuntu1~rk1` | `ubuntu-rock-5b` | Published; arm64 build `33593313` succeeded and all three binaries are Published, so it is the archive's install candidate |
-| `linux-rockchip64-ysp-alpha-7.3-rc2` | `7.3.0~rc2+rk3588rewritealpha20260913-0ubuntu1` | `rock5b-kernel72rc2-rewrite` | Published |
-| `linux-rockchip64-ysp-alpha-6.18` | `6.18.51+rk3588rewritealpha20260913-0ubuntu1` | `rock5b-kernel618-rewrite` | Pending |
-| `linux-rockchip64-ysp-maxline-public` | `7.3.0~rc2+git20260913+rk3588maxlinepublic-0ubuntu1` | `ubuntu-rock-5b-experimental` | Pending |
-| `linux-rockchip64-ysp-maxline-wip` | `7.3.0~rc2+git20260913+rk3588maxlinewip-0ubuntu1` | `ubuntu-rock-5b-experimental` | Pending |
+| `linux-rockchip64-ysp` | `6.18.51+rk3588av1fwport20260913-0ubuntu1~rk1` | `ubuntu-rock-5b` | Published; arm64 build [`33593313`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33593313) succeeded and all three binaries are Published, so it is the archive's install candidate |
+| `linux-rockchip64-ysp-alpha-7.3-rc2` | `7.3.0~rc2+rk3588rewritealpha20260913-0ubuntu1` | `rock5b-kernel72rc2-rewrite` | Published; arm64 build [`33593381`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+build/33593381) succeeded, binaries Published |
+| `linux-rockchip64-ysp-alpha-6.18` | `6.18.51+rk3588rewritealpha20260913-0ubuntu1` | `rock5b-kernel618-rewrite` | Published; arm64 build [`33593384`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+build/33593384) succeeded, binaries Published |
+| `linux-rockchip64-ysp-maxline-public` | `7.3.0~rc2+git20260913+rk3588maxlinepublic-0ubuntu1` | `ubuntu-rock-5b-experimental` | Published; arm64 build [`33593389`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33593389) succeeded, binaries Published |
+| `linux-rockchip64-ysp-maxline-wip` | `7.3.0~rc2+git20260913+rk3588maxlinewip-0ubuntu1` | `ubuntu-rock-5b-experimental` | Published; arm64 build [`33593390`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33593390) succeeded, binaries Published |
+
+All five arm64 builds completed within about six hours of upload (checked
+2026-09-13 17:16 PDT), turning every source-only claim in this finding's
+original boundary section into a build-verified one. None is installed or
+booted.
 
 The maxline profiles had never been uploaded because the builder only emitted
 binary packages. It now takes `MAXLINE_SOURCE_PACKAGE=1`. Two bugs surfaced
@@ -175,10 +180,13 @@ composite carries an explicit commit removing them.
 - The maxline `public` profile passes a full native arm64
   `Image modules dtbs` build: `7.3.0-rc2+`, 3,484 modules, 39,578,112-byte
   `Image`, 198,330-byte ROCK 5B DTB, with `rockchip-vdec.ko` still exporting
-  `rkvdec_vdpu381_vp9_fmt_ops`. `wip` passes only a focused compile over the
-  directories its tail touches, with the FRL objects genuinely built.
-- Neither rewrite composite has been compiled at all, and the forward-port was
-  not built locally; its arm64 build is Launchpad's.
+  `rkvdec_vdpu381_vp9_fmt_ops`. `wip` got only a focused local compile over
+  the directories its tail touches, with the FRL objects genuinely built —
+  but its Launchpad source-package build is a real full-tree compile, and it
+  also succeeded.
+- Neither rewrite composite was compiled locally, and none of the five
+  packages was built locally in the sense of a full local kernel build; all
+  five arm64 builds are Launchpad's, and all five succeeded.
 - The maxline pinned configuration survived `olddefconfig` on 7.3-rc2 with
   every listed RK3588 feature retained, and picked up `CONFIG_V4L2_ISP=m` and
   `CONFIG_USB_DWC3_ROCKCHIP=y` from the refreshed series.

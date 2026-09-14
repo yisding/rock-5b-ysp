@@ -200,7 +200,13 @@ genuinely built rather than skipped: `dw-hdmi-qp.o` (581,040 bytes),
 `dw_hdmi_qp-rockchip.o` (431,784), `rockchip_drm_vop2.o` (700,728),
 `drm_scdc_helper.o` (380,504), and `phy-rockchip-samsung-hdptx.o` (641,064),
 with FRL symbols present in the SCDC helper and the dw-hdmi-qp bridge. A
-focused gate is not a full-tree build; `wip` still owes one.
+focused gate is not a full-tree build, but `wip` got one anyway the same
+day: its `MAXLINE_SOURCE_PACKAGE=1` source package built successfully on
+Launchpad's arm64 builders
+([`33593390`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33593390)),
+which builds the real binary packages rather than a directory subset. That is
+`wip`'s first full-tree compile on record, on gcc 15.2 rather than this host's
+toolchain.
 
 ### Superseded 2026-08-02 environment
 
@@ -442,11 +448,11 @@ future revision of the RK3588 crypto series.
 
 ## Explicit boundary and next action
 
-`public` passes its full native arm64 compile on `v7.3-rc2`, `wip` passes a
-focused compile over the directories its tail touches, and both profiles have
-signed source packages uploaded to `ppa:yi-ding/ubuntu-rock-5b-experimental`.
-**No maxline package has been installed or booted.** `wip` still owes a
-full-tree build. There is no claim for NVMe/root survival,
+`public` passes its full native arm64 compile on `v7.3-rc2`, and both profiles
+now have a full-tree build result: `public` locally, `wip` via its
+successfully built and binary-Published Launchpad source package in
+`ppa:yi-ding/ubuntu-rock-5b-experimental`. **No maxline package has been
+installed or booted.** There is no claim for NVMe/root survival,
 Ethernet, USB, PCIe, suspend, display, audio, camera, codec, NPU, crypto, CAN,
 HDMI-RX, FRL, or VP9 runtime behavior.
 
@@ -454,11 +460,10 @@ Two defects in this refresh were invisible to `git rebase` and `git am` and
 surfaced only at compile time — a maxline port that upstream had inverted, and
 a duplicate function definition from a commit upstream had taken verbatim.
 Treat a clean replay across a release boundary as unproven until the affected
-objects compile; run the `wip` compile before trusting its Launchpad build.
+objects compile; the Launchpad build of `wip` closing without error is that
+proof for its own tail.
 
-Run the `wip` full-tree compile, confirm the Launchpad builds of both
-profiles, then install public first while retaining the 6.18 packages and
-recovery access.
+Install public first while retaining the 6.18 packages and recovery access.
 Keep the existing `snd_soc_hdmi_codec` blacklist for the survival boot, then
 test the public platform/display/DP/media gates in the order documented in the
 main finding. Test public VP9 after the platform gates. Install `wip` only after

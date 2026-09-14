@@ -5,12 +5,12 @@ package. It applies Armbian's `rockchip64-bleedingedge` patch layer to official
 `v7.3-rc2`, then applies the clean-room rewrite series. It supersedes
 [`kernel-rewrite-alpha-7.2-rc5/`](../kernel-rewrite-alpha-7.2-rc5/README.md),
 which was defined but never uploaded, and
-[`kernel-rewrite-alpha-7.2-rc3/`](../kernel-rewrite-alpha-7.2-rc3/README.md),
-which remains the last one with Published binaries.
+[`kernel-rewrite-alpha-7.2-rc3/`](../kernel-rewrite-alpha-7.2-rc3/README.md).
 
-> **Source-only boundary (2026-09-13):** this package is a source-package and
-> upload record. Nothing here has been compiled as a full kernel, installed, or
-> booted, and no KUnit, conformance, or hardware result belongs to it.
+> **Build-verified, not runtime-verified (2026-09-13):** this package built
+> successfully on Launchpad's arm64 builders and has Published binaries, but
+> it has not been installed or booted, and no KUnit, conformance, or hardware
+> result belongs to it.
 
 ## Package shape
 
@@ -21,7 +21,7 @@ which remains the last one with Published binaries.
 | Binary packages | `linux-image-ysp-alpha-7.3-rc2-rockchip64`, `linux-dtb-ysp-alpha-7.3-rc2-rockchip64`, `linux-headers-ysp-alpha-7.3-rc2-rockchip64` |
 | Kernel release | `7.3.0-rc2-ysp-alpha-7.3-rc2-rockchip64` |
 | Debian version | `7.3.0~rc2+rk3588rewritealpha20260913-0ubuntu1` |
-| Publication state | Uploaded 2026-09-13 and **Published** as a source publication; no arm64 build result yet. [W05](../../../status.md#watch-w05) owns the live archive record. |
+| Publication state | Uploaded 2026-09-13; source publication [`18730831`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+sourcepub/18730831/+listing-archive-extra) is **Published**, arm64 build [`33593381`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+build/33593381) `Successfully built`, and all three binaries are Published. [W05](../../../status.md#watch-w05) owns the live archive record. |
 
 ## Source inputs
 

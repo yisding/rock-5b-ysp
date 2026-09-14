@@ -19,7 +19,7 @@ maxline adds for the ROCK 5B](board-support.md).
 | Developer focus | Reproduce the pinned proposal integration, review conflict resolutions and profile boundaries, build co-installable packages, and advance them through explicit boot and hardware gates. |
 | Owns | The manifest, public/WIP ledgers, exported integration patches, pinned config, build helper, board comparison, historical design record, and measured verification record in this directory. The Debian packaging overlay remains under [`packaging/ppa/kernel-maxline/`](../../packaging/ppa/kernel-maxline/README.md). |
 | Depends on | Torvalds Linux `v7.3-rc2@df2908090cda3`, the pinned proposal sources, Armbian's boot/package contract, and tested serial or physical recovery access before installation. |
-| Current state | Both stacks were rebased from shipped Linux `v7.2` to `v7.3-rc2`, which absorbed 55 of the 299 public commits and retired ten complete proposal series. Five more series were then refreshed to their current public revisions, leaving 248 public commits plus the 19-commit WIP tail. `public` passes a full native arm64 compile; `wip` passes a focused compile over the directories its tail touches and still owes a full-tree build. Both profiles now build source packages and have been uploaded to a PPA for the first time. No maxline profile has been installed, booted, or hardware-tested. See [`status.md` track 13](../../status.md#dashboard). |
+| Current state | Both stacks were rebased from shipped Linux `v7.2` to `v7.3-rc2`, which absorbed 55 of the 299 public commits and retired ten complete proposal series. Five more series were then refreshed to their current public revisions, leaving 248 public commits plus the 19-commit WIP tail. `public` passes a full native arm64 compile; `wip` passes a focused local compile. Both profiles were uploaded to a PPA for the first time and both built successfully on Launchpad's arm64 builders with binaries Published. No maxline profile has been installed, booted, or hardware-tested. See [`status.md` track 13](../../status.md#dashboard). |
 
 ## Maintained records
 
@@ -237,9 +237,11 @@ inverted, and a duplicate function definition from a commit upstream took
 verbatim. A conflict-free replay across a release boundary is not evidence that
 the tree builds.
 
-`wip` passes only a focused compile over the directories its 19-commit tail
-touches; it still owes a full-tree build. Exact current and historical results
-are in [`verification.md`](verification.md).
+`wip` passes a focused local compile over the directories its 19-commit tail
+touches, and both profiles' signed source packages then built successfully on
+Launchpad's arm64 builders with binaries Published — `wip`'s Launchpad build
+is the first full-tree compile it has ever had. Exact current and historical
+results are in [`verification.md`](verification.md).
 
 Both profiles now build signed source packages, which is how they reach
 Launchpad; local binary `.deb` builds for this refresh have not been rerun. The
