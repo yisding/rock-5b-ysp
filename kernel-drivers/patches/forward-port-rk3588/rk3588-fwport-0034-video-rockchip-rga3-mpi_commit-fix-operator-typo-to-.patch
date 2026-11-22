@@ -1,8 +1,8 @@
-From 18ad9b2277f9f51e58761ffd256427fc2f00b2bd Mon Sep 17 00:00:00 2001
+From 6473c6cbad396b477b4b014be6df9762151e9679 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Fri, 17 Apr 2026 18:23:01 +0800
-Subject: [PATCH 34/87] video: rockchip: rga3: mpi_commit: fix operator typo (|
- to ||) in rotate_mode check
+Subject: [PATCH 034/107] video: rockchip: rga3: mpi_commit: fix operator typo
+ (| to ||) in rotate_mode check
 
 Change-Id: I4f74f0848d4acfad3b43ee989ad491ad58ffbe0d
 Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
@@ -13,7 +13,7 @@ Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
  2 files changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga2_reg_info.c b/drivers/video/rockchip/rga3/rga2_reg_info.c
-index e50093d9b40c8..9b1ae012fa8b7 100644
+index e50093d9b40c..9b1ae012fa8b 100644
 --- a/drivers/video/rockchip/rga3/rga2_reg_info.c
 +++ b/drivers/video/rockchip/rga3/rga2_reg_info.c
 @@ -415,7 +415,7 @@ static void RGA2_set_reg_src_info(u8 *base, struct rga2_req *msg)
@@ -26,7 +26,7 @@ index e50093d9b40c8..9b1ae012fa8b7 100644
  			dh = msg->dst.act_w;
  		} else {
 diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
-index 5388cf919043b..84df6f8c14bc7 100644
+index 5388cf919043..84df6f8c14bc 100644
 --- a/drivers/video/rockchip/rga3/rga_drv.c
 +++ b/drivers/video/rockchip/rga3/rga_drv.c
 @@ -115,7 +115,7 @@ static void rga_mpi_scale_protect(struct rga_req *msg)
@@ -38,3 +38,6 @@ index 5388cf919043b..84df6f8c14bc7 100644
  		dw = msg->dst.act_h;
  		dh = msg->dst.act_w;
  	} else {
+-- 
+2.56.1
+

@@ -1,0 +1,45 @@
+From ee5c04a5dd55894a7c21b224346293150e8900ec Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sun, 22 Nov 2026 07:03:57 -0800
+Subject: [PATCH 104/107] video: rockchip: rga3: reject palette modes RGA2
+ cannot encode
+
+RGA2_set_reg_color_palette() derives the source byte stride as
+vir_w >> (3 - palette_mode). palette_mode comes straight from the user
+request and was never range-checked, so a COLOR_PALETTE_MODE request
+with palette_mode >= 4 shifted by a negative count, which is undefined
+behaviour. The resulting stride and offsets were then programmed into
+the hardware. The RGA2 MMU bounds the access, so the effect is a faulted
+or garbage job rather than host memory corruption.
+
+Reject palette modes outside the 1/2/4/8 bpp range 0..3.
+
+Assisted-by: Claude:claude-opus-5-5
+---
+ drivers/video/rockchip/rga3/rga2_reg_info.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/drivers/video/rockchip/rga3/rga2_reg_info.c b/drivers/video/rockchip/rga3/rga2_reg_info.c
+index 9b1ae012fa8b..148c48a6b9c8 100644
+--- a/drivers/video/rockchip/rga3/rga2_reg_info.c
++++ b/drivers/video/rockchip/rga3/rga2_reg_info.c
+@@ -2776,6 +2776,16 @@ static void rga2_soft_reset_print(struct rga_scheduler_t *scheduler)
+ static int rga2_check_param(struct rga_job *job,
+ 			    const struct rga_hw_data *data, const struct rga2_req *req)
+ {
++	/*
++	 * RGA2_set_reg_color_palette() shifts by 3 - palette_mode; only the
++	 * 1/2/4/8 bpp modes 0..3 exist.
++	 */
++	if (unlikely(req->render_mode == COLOR_PALETTE_MODE &&
++		     req->palette_mode > 3)) {
++		rga_job_err(job, "invalid palette_mode %u\n", req->palette_mode);
++		return -EINVAL;
++	}
++
+ 	if (!((req->render_mode == COLOR_FILL_MODE) ||
+ 	      (req->render_mode == UPDATE_PALETTE_TABLE_MODE))) {
+ 		if (unlikely(rga_hw_out_of_range(&data->input_range,
+-- 
+2.56.1
+

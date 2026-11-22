@@ -1,7 +1,7 @@
-From 92e08bc80f544cab1a56105ab33d78a6b3edcc7b Mon Sep 17 00:00:00 2001
+From 6943ec0f3c79f1f1786d885c10bbc5bad647b1af Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 3 Jul 2026 19:43:41 -0700
-Subject: [PATCH 09/87] arm64: dts: rockchip: rk3588: add decoder/AV1 IOMMUs,
+Subject: [PATCH 009/107] arm64: dts: rockchip: rk3588: add decoder/AV1 IOMMUs,
  SRAM and node wiring
 
 Wire up the IOMMU topology and fixed SRAM windows for the RK3588 media
@@ -20,7 +20,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
  2 files changed, 122 insertions(+)
 
 diff --git a/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi b/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi
-index 8bd8122bf2449..90c8fe6e9b97f 100644
+index 9d96fdc8f152..6735467027bb 100644
 --- a/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi
 +++ b/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi
 @@ -1418,6 +1418,80 @@ vepu121_3_mmu: iommu@fdbac800 {
@@ -140,7 +140,7 @@ index 8bd8122bf2449..90c8fe6e9b97f 100644
  
  	pinctrl: pinctrl {
 diff --git a/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi b/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi
-index edce7285b10ec..f094c4453cace 100644
+index edce7285b10e..f094c4453cac 100644
 --- a/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi
 +++ b/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi
 @@ -99,6 +99,31 @@ &mpp_srv {
@@ -191,3 +191,6 @@ index edce7285b10ec..f094c4453cace 100644
  	status = "okay";
  };
  
+-- 
+2.56.1
+

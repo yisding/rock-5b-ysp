@@ -1,7 +1,7 @@
-From 890f639058693666634ea7b9ae526e6cb16cc5e4 Mon Sep 17 00:00:00 2001
+From f4170037e3986265b64e1b49ac52be58ee11c093 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 4 Jul 2026 23:14:52 -0700
-Subject: [PATCH 14/87] media: rockchip: harden IOMMU forward port
+Subject: [PATCH 014/107] media: rockchip: harden IOMMU forward port
 
 Restore the BSP large-segment DMA contract in the Rockchip/VSI IOMMU providers, preserve provider fault fallback semantics, and guard provider MMIO helpers with runtime-PM state.
 
@@ -29,7 +29,7 @@ Clean up MPP shared-domain, fixed-window, clock/runtime-PM, run-failure, AV1 AFB
  17 files changed, 1384 insertions(+), 321 deletions(-)
 
 diff --git a/drivers/iommu/rockchip-iommu.c b/drivers/iommu/rockchip-iommu.c
-index 4635130ce80e9..921ad0433e4c3 100644
+index 44aaa4b08645..b2a37c78e2a1 100644
 --- a/drivers/iommu/rockchip-iommu.c
 +++ b/drivers/iommu/rockchip-iommu.c
 @@ -135,8 +135,8 @@ struct rk_iommudata {
@@ -43,7 +43,7 @@ index 4635130ce80e9..921ad0433e4c3 100644
  
  static inline void rk_table_flush(struct rk_iommu_domain *dom, dma_addr_t dma,
  				  unsigned int count)
-@@ -607,6 +607,8 @@ static irqreturn_t rk_iommu_irq(int irq, void *dev_id)
+@@ -620,6 +620,8 @@ static irqreturn_t rk_iommu_irq(int irq, void *dev_id)
  		goto out;
  
  	for (i = 0; i < iommu->num_mmu; i++) {
@@ -52,7 +52,7 @@ index 4635130ce80e9..921ad0433e4c3 100644
  		int_status = rk_iommu_read(iommu->bases[i], RK_MMU_INT_STATUS);
  		if (int_status == 0)
  			continue;
-@@ -632,11 +634,22 @@ static irqreturn_t rk_iommu_irq(int irq, void *dev_id)
+@@ -645,11 +647,22 @@ static irqreturn_t rk_iommu_irq(int irq, void *dev_id)
  			 * Ignore the return code, though, since we always zap cache
  			 * and clear the page fault anyway.
  			 */
@@ -79,7 +79,7 @@ index 4635130ce80e9..921ad0433e4c3 100644
  
  			rk_iommu_base_command(iommu->bases[i], RK_MMU_CMD_ZAP_CACHE);
  			if (rk_iommu_read(iommu->bases[i], RK_MMU_INT_MASK))
-@@ -644,8 +657,20 @@ static irqreturn_t rk_iommu_irq(int irq, void *dev_id)
+@@ -657,8 +670,20 @@ static irqreturn_t rk_iommu_irq(int irq, void *dev_id)
  						      RK_MMU_CMD_PAGE_FAULT_DONE);
  		}
  
@@ -101,7 +101,7 @@ index 4635130ce80e9..921ad0433e4c3 100644
  
  		if (int_status & ~RK_MMU_IRQ_MASK)
  			dev_err(iommu->dev, "unexpected int_status: %#08x\n",
-@@ -956,8 +981,8 @@ static struct rk_iommu *rk_iommu_from_dev(struct device *dev)
+@@ -969,8 +994,8 @@ static struct rk_iommu *rk_iommu_from_dev(struct device *dev)
  	return data ? data->iommu : NULL;
  }
  
@@ -112,7 +112,7 @@ index 4635130ce80e9..921ad0433e4c3 100644
  {
  	iommu_fault_handler_t handler;
  	unsigned long irq_flags;
-@@ -969,11 +994,9 @@ static bool rk_iommu_call_fault_handler(struct rk_iommu *iommu,
+@@ -982,11 +1007,9 @@ static bool rk_iommu_call_fault_handler(struct rk_iommu *iommu,
  	spin_unlock_irqrestore(&iommu->fault_lock, irq_flags);
  
  	if (!handler || iommu->domain == &rk_identity_domain)
@@ -126,7 +126,7 @@ index 4635130ce80e9..921ad0433e4c3 100644
  }
  
  /* Must be called with iommu powered on and attached */
-@@ -1217,9 +1240,14 @@ static struct iommu_device *rk_iommu_probe_device(struct device *dev)
+@@ -1243,9 +1266,14 @@ static struct iommu_device *rk_iommu_probe_device(struct device *dev)
  	 * the DMA layer to merge the full 32-bit IOMMU aperture into one segment.
  	 */
  	if (!dev->dma_parms)
@@ -143,7 +143,7 @@ index 4635130ce80e9..921ad0433e4c3 100644
  
  	dma_set_max_seg_size(dev, DMA_BIT_MASK(32));
  
-@@ -1230,7 +1258,10 @@ static void rk_iommu_release_device(struct device *dev)
+@@ -1256,7 +1284,10 @@ static void rk_iommu_release_device(struct device *dev)
  {
  	struct rk_iommudata *data = dev_iommu_priv_get(dev);
  
@@ -155,7 +155,7 @@ index 4635130ce80e9..921ad0433e4c3 100644
  }
  
  static int rk_iommu_of_xlate(struct device *dev,
-@@ -1279,14 +1310,35 @@ static struct rk_iommu *rk_iommu_from_dev_checked(struct device *dev)
+@@ -1305,14 +1336,35 @@ static struct rk_iommu *rk_iommu_from_dev_checked(struct device *dev)
  	return rk_iommu_from_dev(dev);
  }
  
@@ -191,7 +191,7 @@ index 4635130ce80e9..921ad0433e4c3 100644
  
  	return 0;
  }
-@@ -1295,11 +1347,21 @@ EXPORT_SYMBOL_GPL(rockchip_iommu_disable);
+@@ -1321,11 +1373,21 @@ EXPORT_SYMBOL_GPL(rockchip_iommu_disable);
  int rockchip_iommu_enable(struct device *dev)
  {
  	struct rk_iommu *iommu = rk_iommu_from_dev_checked(dev);
@@ -214,7 +214,7 @@ index 4635130ce80e9..921ad0433e4c3 100644
  }
  EXPORT_SYMBOL_GPL(rockchip_iommu_enable);
  
-@@ -1319,10 +1381,16 @@ int rockchip_iommu_force_reset(struct device *dev)
+@@ -1345,10 +1407,16 @@ int rockchip_iommu_force_reset(struct device *dev)
  	if (!iommu)
  		return -ENODEV;
  
@@ -232,7 +232,7 @@ index 4635130ce80e9..921ad0433e4c3 100644
  	ret = rk_iommu_enable_stall(iommu);
  	if (!ret) {
  		ret = rk_iommu_force_reset(iommu);
-@@ -1332,6 +1400,8 @@ int rockchip_iommu_force_reset(struct device *dev)
+@@ -1358,6 +1426,8 @@ int rockchip_iommu_force_reset(struct device *dev)
  	}
  
  	clk_bulk_disable(iommu->num_clocks, iommu->clocks);
@@ -241,7 +241,7 @@ index 4635130ce80e9..921ad0433e4c3 100644
  
  	return ret;
  }
-@@ -1345,8 +1415,13 @@ void rockchip_iommu_mask_irq(struct device *dev)
+@@ -1371,8 +1441,13 @@ void rockchip_iommu_mask_irq(struct device *dev)
  	if (!iommu)
  		return;
  
@@ -255,7 +255,7 @@ index 4635130ce80e9..921ad0433e4c3 100644
  }
  EXPORT_SYMBOL_GPL(rockchip_iommu_mask_irq);
  
-@@ -1358,6 +1433,9 @@ void rockchip_iommu_unmask_irq(struct device *dev)
+@@ -1384,6 +1459,9 @@ void rockchip_iommu_unmask_irq(struct device *dev)
  	if (!iommu)
  		return;
  
@@ -265,7 +265,7 @@ index 4635130ce80e9..921ad0433e4c3 100644
  	for (i = 0; i < iommu->num_mmu; i++) {
  		rk_iommu_base_command(iommu->bases[i], RK_MMU_CMD_ZAP_CACHE);
  		rk_iommu_write(iommu->bases[i], RK_MMU_INT_MASK,
-@@ -1365,6 +1443,8 @@ void rockchip_iommu_unmask_irq(struct device *dev)
+@@ -1391,6 +1469,8 @@ void rockchip_iommu_unmask_irq(struct device *dev)
  		rk_iommu_base_command(iommu->bases[i],
  				      RK_MMU_CMD_PAGE_FAULT_DONE);
  	}
@@ -274,7 +274,7 @@ index 4635130ce80e9..921ad0433e4c3 100644
  }
  EXPORT_SYMBOL_GPL(rockchip_iommu_unmask_irq);
  
-@@ -1376,12 +1456,17 @@ int rockchip_pagefault_done(struct device *dev)
+@@ -1402,12 +1482,17 @@ int rockchip_pagefault_done(struct device *dev)
  	if (!iommu)
  		return -ENODEV;
  
@@ -293,7 +293,7 @@ index 4635130ce80e9..921ad0433e4c3 100644
  }
  EXPORT_SYMBOL_GPL(rockchip_pagefault_done);
 diff --git a/drivers/iommu/vsi-iommu.c b/drivers/iommu/vsi-iommu.c
-index eb8f2aa48610a..9ced6b2dcb145 100644
+index f375768d202f..cc31c8fddc40 100644
 --- a/drivers/iommu/vsi-iommu.c
 +++ b/drivers/iommu/vsi-iommu.c
 @@ -196,9 +196,9 @@ static u32 vsi_iova_page_offset(u32 iova)
@@ -335,7 +335,7 @@ index eb8f2aa48610a..9ced6b2dcb145 100644
  			if (domain && domain != &vsi_identity_domain)
  				report_iommu_fault(domain, iommu->dev, iova, fault_flags);
  			else
-@@ -773,6 +773,21 @@ static struct iommu_device *vsi_iommu_probe_device(struct device *dev)
+@@ -775,6 +775,21 @@ static struct iommu_device *vsi_iommu_probe_device(struct device *dev)
  		dev_err(dev, "Unable to link %s\n", dev_name(provider_dev));
  	put_device(provider_dev);
  
@@ -358,7 +358,7 @@ index eb8f2aa48610a..9ced6b2dcb145 100644
  	return &iommu->iommu;
  }
 diff --git a/drivers/video/rockchip/mpp/mpp_av1dec.c b/drivers/video/rockchip/mpp/mpp_av1dec.c
-index 947e16a782397..7c6189b363259 100644
+index 947e16a78239..7c6189b36325 100644
 --- a/drivers/video/rockchip/mpp/mpp_av1dec.c
 +++ b/drivers/video/rockchip/mpp/mpp_av1dec.c
 @@ -154,6 +154,7 @@ struct av1dec_dev {
@@ -489,7 +489,7 @@ index 947e16a782397..7c6189b363259 100644
  	av1dec_procfs_init(mpp);
  	mpp_dev_register_srv(mpp, mpp->srv);
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index d56b4ca80c832..6b460c88e09f5 100644
+index d56b4ca80c83..6b460c88e09f 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -187,6 +187,16 @@ mpp_taskqueue_pop_running(struct mpp_taskqueue *queue,
@@ -610,7 +610,7 @@ index d56b4ca80c832..6b460c88e09f5 100644
  		hw_info->hw_id = mpp_read(mpp, hw_info->reg_id * sizeof(u32));
  		if (mpp->hw_ops->clk_off)
 diff --git a/drivers/video/rockchip/mpp/mpp_common.h b/drivers/video/rockchip/mpp/mpp_common.h
-index ffc217d16c909..75dca08cd781c 100644
+index ffc217d16c90..75dca08cd781 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.h
 +++ b/drivers/video/rockchip/mpp/mpp_common.h
 @@ -778,7 +778,7 @@ static inline int mpp_safe_unreset(struct reset_control *rst)
@@ -623,7 +623,7 @@ index ffc217d16c909..75dca08cd781c 100644
  	return 0;
  }
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
-index 0b0ebc6ff1c55..27fc50ef0cee1 100644
+index 0b0ebc6ff1c5..27fc50ef0cee 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.c
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.c
 @@ -18,6 +18,7 @@
@@ -1081,7 +1081,7 @@ index 0b0ebc6ff1c55..27fc50ef0cee1 100644
 +	free_iova(iovad, iova_pfn(iovad, iova));
 +}
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.h b/drivers/video/rockchip/mpp/mpp_iommu.h
-index 03e0b765633c8..777b4babd2d96 100644
+index 03e0b765633c..777b4babd2d9 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.h
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.h
 @@ -15,6 +15,7 @@
@@ -1151,7 +1151,7 @@ index 03e0b765633c8..777b4babd2d96 100644
  static inline int mpp_iommu_down_read(struct mpp_iommu_info *info)
  {
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
-index 402a964f78428..4e36f7ad897fd 100644
+index 402a964f7842..4e36f7ad897f 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 @@ -27,8 +27,6 @@
@@ -1434,7 +1434,7 @@ index 402a964f78428..4e36f7ad897fd 100644
  			/* enable core irq */
  			enable_irq(mpp->irq);
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.h b/drivers/video/rockchip/mpp/mpp_rkvdec2.h
-index fc958bfacb0e5..dda9d19efc636 100644
+index fc958bfacb0e..dda9d19efc63 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2.h
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.h
 @@ -207,6 +207,8 @@ struct rkvdec2_dev {
@@ -1455,7 +1455,7 @@ index fc958bfacb0e5..dda9d19efc636 100644
  void mpp_devfreq_set_core_rate(struct mpp_dev *mpp, enum MPP_CLOCK_MODE mode);
  
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
-index 0e6dd8bde6c0c..a4b818acc207d 100644
+index 0e6dd8bde6c0..a4b818acc207 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 @@ -932,21 +932,58 @@ static void rkvdec2_link_trigger_work(struct mpp_dev *mpp)
@@ -1993,7 +1993,7 @@ index 0e6dd8bde6c0c..a4b818acc207d 100644
  		mpp_taskqueue_pending_to_run(queue, mpp_task);
  	}
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.h b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.h
-index c5b4b53f13731..94c354c118eb4 100644
+index c5b4b53f1373..94c354c118eb 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.h
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.h
 @@ -212,6 +212,10 @@ struct rkvdec2_ccu {
@@ -2016,7 +2016,7 @@ index c5b4b53f13731..94c354c118eb4 100644
  void *rkvdec2_ccu_alloc_task(struct mpp_session *session, struct mpp_task_msgs *msgs);
  int rkvdec2_soft_ccu_iommu_fault_handle(struct iommu_domain *iommu,
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
-index d40eb8b4fb899..f5e7cbb5330fa 100644
+index d40eb8b4fb89..f5e7cbb5330f 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 @@ -23,6 +23,7 @@
@@ -2681,7 +2681,7 @@ index d40eb8b4fb899..f5e7cbb5330fa 100644
  		rkvenc_procfs_remove(&enc->mpp);
  	} else {
 diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
-index 1e9cbd5bfdebe..e7c8cff87fec9 100644
+index 1e9cbd5bfdeb..e7c8cff87fec 100644
 --- a/drivers/video/rockchip/rga3/include/rga_drv.h
 +++ b/drivers/video/rockchip/rga3/include/rga_drv.h
 @@ -159,7 +159,11 @@ struct rga_iommu_info {
@@ -2697,7 +2697,7 @@ index 1e9cbd5bfdebe..e7c8cff87fec9 100644
  
  struct rga_dma_buffer {
 diff --git a/drivers/video/rockchip/rga3/rga_debugger.c b/drivers/video/rockchip/rga3/rga_debugger.c
-index 95cc8097648b4..612db0ffb603d 100644
+index 95cc8097648b..612db0ffb603 100644
 --- a/drivers/video/rockchip/rga3/rga_debugger.c
 +++ b/drivers/video/rockchip/rga3/rga_debugger.c
 @@ -891,7 +891,7 @@ static int rga_dump_image_to_file(struct rga_internal_buffer *dump_buffer,
@@ -2719,7 +2719,7 @@ index 95cc8097648b4..612db0ffb603d 100644
  		dma_buf_vunmap(dump_buffer->dma_buffer->dma_buf, kvaddr_origin);
  #endif
 diff --git a/drivers/video/rockchip/rga3/rga_dma_buf.c b/drivers/video/rockchip/rga3/rga_dma_buf.c
-index 586742244b906..05f4037feca8b 100644
+index 586742244b90..05f4037feca8 100644
 --- a/drivers/video/rockchip/rga3/rga_dma_buf.c
 +++ b/drivers/video/rockchip/rga3/rga_dma_buf.c
 @@ -11,6 +11,62 @@
@@ -2932,7 +2932,7 @@ index 586742244b906..05f4037feca8b 100644
  	if (rga_dma_buffer->attach) {
  		dma_buf_detach(rga_dma_buffer->dma_buf, rga_dma_buffer->attach);
 diff --git a/drivers/video/rockchip/rga3/rga_iommu.c b/drivers/video/rockchip/rga3/rga_iommu.c
-index 6b2fd5ff630fb..00956e28dfd07 100644
+index 6b2fd5ff630f..00956e28dfd0 100644
 --- a/drivers/video/rockchip/rga3/rga_iommu.c
 +++ b/drivers/video/rockchip/rga3/rga_iommu.c
 @@ -12,6 +12,8 @@
@@ -3172,7 +3172,7 @@ index 6b2fd5ff630fb..00956e28dfd07 100644
  	if (rga_drvdata->mmu_base)
  		rga_mmu_base_free(&rga_drvdata->mmu_base);
 diff --git a/include/soc/rockchip/rockchip_iommu.h b/include/soc/rockchip/rockchip_iommu.h
-index 71b6fdf1cba9f..b6fca6be66e68 100644
+index 71b6fdf1cba9..b6fca6be66e6 100644
 --- a/include/soc/rockchip/rockchip_iommu.h
 +++ b/include/soc/rockchip/rockchip_iommu.h
 @@ -10,6 +10,9 @@
@@ -3185,3 +3185,6 @@ index 71b6fdf1cba9f..b6fca6be66e68 100644
  #if IS_ENABLED(CONFIG_ROCKCHIP_IOMMU)
  int rockchip_iommu_enable(struct device *dev);
  int rockchip_iommu_disable(struct device *dev);
+-- 
+2.56.1
+

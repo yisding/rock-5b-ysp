@@ -1,7 +1,7 @@
-From 71bcd51ccb4387e6f6564ce2b02a7fcb6a886a5e Mon Sep 17 00:00:00 2001
+From 4db853665e1cd484baac4a54be6033ec9f4c678b Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 3 Jul 2026 19:43:41 -0700
-Subject: [PATCH 08/87] video: rockchip: rga: depend on ROCKCHIP_IOMMU and
+Subject: [PATCH 008/107] video: rockchip: rga: depend on ROCKCHIP_IOMMU and
  harden version string
 
 Add an explicit ROCKCHIP_IOMMU dependency to ROCKCHIP_MULTI_RGA (the RGA2/
@@ -21,7 +21,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
 diff --git a/Documentation/devicetree/bindings/media/rockchip,rga-vendor.yaml b/Documentation/devicetree/bindings/media/rockchip,rga-vendor.yaml
 new file mode 100644
-index 0000000000000..dea535e600da8
+index 000000000000..dea535e600da
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/media/rockchip,rga-vendor.yaml
 @@ -0,0 +1,45 @@
@@ -71,7 +71,7 @@ index 0000000000000..dea535e600da8
 +    };
 +...
 diff --git a/drivers/video/rockchip/rga3/Kconfig b/drivers/video/rockchip/rga3/Kconfig
-index 2e56888814e21..5b2d4c0064aac 100644
+index 2e56888814e2..5b2d4c0064aa 100644
 --- a/drivers/video/rockchip/rga3/Kconfig
 +++ b/drivers/video/rockchip/rga3/Kconfig
 @@ -1,7 +1,7 @@
@@ -84,7 +84,7 @@ index 2e56888814e21..5b2d4c0064aac 100644
  	select SYNC_FILE
  	help
 diff --git a/drivers/video/rockchip/rga3/rga2_reg_info.c b/drivers/video/rockchip/rga3/rga2_reg_info.c
-index 7f5e4c9e1862b..5e4c69a673578 100644
+index 7f5e4c9e1862..5e4c69a67357 100644
 --- a/drivers/video/rockchip/rga3/rga2_reg_info.c
 +++ b/drivers/video/rockchip/rga3/rga2_reg_info.c
 @@ -3247,7 +3247,8 @@ static int rga2_get_version(struct rga_scheduler_t *scheduler)
@@ -98,7 +98,7 @@ index 7f5e4c9e1862b..5e4c69a673578 100644
  
  	scheduler->version.major = major_version;
 diff --git a/drivers/video/rockchip/rga3/rga3_reg_info.c b/drivers/video/rockchip/rga3/rga3_reg_info.c
-index 28f86a67f58ba..9bba84af71e32 100644
+index 28f86a67f58b..9bba84af71e3 100644
 --- a/drivers/video/rockchip/rga3/rga3_reg_info.c
 +++ b/drivers/video/rockchip/rga3/rga3_reg_info.c
 @@ -2196,7 +2196,8 @@ static int rga3_get_version(struct rga_scheduler_t *scheduler)
@@ -111,3 +111,6 @@ index 28f86a67f58ba..9bba84af71e32 100644
  		 minor_version, svn_version);
  
  	scheduler->version.major = major_version;
+-- 
+2.56.1
+

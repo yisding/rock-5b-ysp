@@ -1,7 +1,7 @@
-From 31967d0316b088f088ffaabde023b79b708196a0 Mon Sep 17 00:00:00 2001
+From 5843d21ffe1f374898c2fc91d507aea911eebecf Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Thu, 16 Jul 2026 15:19:45 -0700
-Subject: [PATCH 32/87] video: rockchip: rga3: clear tile4x4 chroma bases
+Subject: [PATCH 032/107] video: rockchip: rga3: clear tile4x4 chroma bases
 
 RGA2 requires tile4x4 input base1 and base2 to be zero. Adapt Rockchip develop-5.10 commit c2df109b01ad without importing its unrelated AFBC32x8 refactor context.
 ---
@@ -9,7 +9,7 @@ RGA2 requires tile4x4 input base1 and base2 to be zero. Adapt Rockchip develop-5
  1 file changed, 5 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga2_reg_info.c b/drivers/video/rockchip/rga3/rga2_reg_info.c
-index 6ba713bff7f62..e50093d9b40c8 100644
+index 6ba713bff7f6..e50093d9b40c 100644
 --- a/drivers/video/rockchip/rga3/rga2_reg_info.c
 +++ b/drivers/video/rockchip/rga3/rga2_reg_info.c
 @@ -942,7 +942,11 @@ static void RGA2_set_reg_src_info(u8 *base, struct rga2_req *msg)
@@ -25,3 +25,6 @@ index 6ba713bff7f62..e50093d9b40c8 100644
  			/*
  			 * When Y400 as the input format, because the current RGA does
  			 * not support closing the access of the UV channel, the address
+-- 
+2.56.1
+

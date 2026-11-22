@@ -1,7 +1,7 @@
-From 8a5423c1eefac24b072fd34f336bf86180d4f579 Mon Sep 17 00:00:00 2001
+From 90ee52342f63fcad661f7a91854ab16b4a9c3bc3 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Mon, 13 Oct 2025 21:05:08 +0800
-Subject: [PATCH 30/87] video: rockchip: rga3: fix incorrect check in
+Subject: [PATCH 030/107] video: rockchip: rga3: fix incorrect check in
  update_LUT mode
 
 Change-Id: I72d9a8ee5a85e435671d47c206ff8675a8a1f706
@@ -12,7 +12,7 @@ Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
  1 file changed, 23 insertions(+), 20 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga2_reg_info.c b/drivers/video/rockchip/rga3/rga2_reg_info.c
-index 321492c1b5724..6ba713bff7f62 100644
+index 321492c1b572..6ba713bff7f6 100644
 --- a/drivers/video/rockchip/rga3/rga2_reg_info.c
 +++ b/drivers/video/rockchip/rga3/rga2_reg_info.c
 @@ -2392,8 +2392,6 @@ static int rga2_gen_reg_info(struct rga_scheduler_t *scheduler, u8 *base, struct
@@ -96,3 +96,6 @@ index 321492c1b5724..6ba713bff7f62 100644
  	}
  
  	return 0;
+-- 
+2.56.1
+

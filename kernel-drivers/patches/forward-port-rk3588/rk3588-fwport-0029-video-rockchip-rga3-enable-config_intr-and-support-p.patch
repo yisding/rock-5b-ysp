@@ -1,7 +1,7 @@
-From 7df90e9b89ccb9afd6c1986bf3d07cca22962822 Mon Sep 17 00:00:00 2001
+From b8eb33cb3d4bd5d638fe545df04b4cbe37ccaa99 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Fri, 10 Oct 2025 19:14:54 +0800
-Subject: [PATCH 29/87] video: rockchip: rga3: enable config_intr and support
+Subject: [PATCH 029/107] video: rockchip: rga3: enable config_intr and support
  parse error status
 
 Change-Id: I00030dd532f417914183b1654fdc0b1aad8cd271
@@ -14,7 +14,7 @@ Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
  3 files changed, 30 insertions(+), 3 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/include/rga2_reg_info.h b/drivers/video/rockchip/rga3/include/rga2_reg_info.h
-index f19a2421b888e..2500a6996a65f 100644
+index f19a2421b888..2500a6996a65 100644
 --- a/drivers/video/rockchip/rga3/include/rga2_reg_info.h
 +++ b/drivers/video/rockchip/rga3/include/rga2_reg_info.h
 @@ -20,6 +20,7 @@
@@ -80,7 +80,7 @@ index f19a2421b888e..2500a6996a65f 100644
  #define m_RGA2_READ_LINE_SW_INTR_LINE_RD_TH		(0x1fff << 0)
  
 diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
-index d3a6c93f22920..45c7afef77f4f 100644
+index d3a6c93f2292..45c7afef77f4 100644
 --- a/drivers/video/rockchip/rga3/include/rga_drv.h
 +++ b/drivers/video/rockchip/rga3/include/rga_drv.h
 @@ -338,6 +338,7 @@ struct rga_job {
@@ -92,7 +92,7 @@ index d3a6c93f22920..45c7afef77f4f 100644
  	uint32_t work_cycle;
  };
 diff --git a/drivers/video/rockchip/rga3/rga2_reg_info.c b/drivers/video/rockchip/rga3/rga2_reg_info.c
-index 24cdae11628ab..321492c1b5724 100644
+index 24cdae11628a..321492c1b572 100644
 --- a/drivers/video/rockchip/rga3/rga2_reg_info.c
 +++ b/drivers/video/rockchip/rga3/rga2_reg_info.c
 @@ -3373,6 +3373,7 @@ static int rga2_read_status(struct rga_job *job, struct rga_scheduler_t *schedul
@@ -121,3 +121,6 @@ index 24cdae11628ab..321492c1b5724 100644
  		}
  
  		if (job->ret == 0) {
+-- 
+2.56.1
+

@@ -1,7 +1,7 @@
-From 6c7eb3efa3f0d8461cd5b790408a67665f1670d0 Mon Sep 17 00:00:00 2001
+From 90f06fc2a08a7e70ce0f6111998df4f34945d018 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 08:09:27 -0700
-Subject: [PATCH 48/87] video: rockchip: rga3: derive 10-bit plane offsets
+Subject: [PATCH 048/107] video: rockchip: rga3: derive 10-bit plane offsets
  byte-literally
 
 rga_convert_addr() places the UV plane at yrgb_addr + vir_w * vir_h,
@@ -27,7 +27,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  1 file changed, 22 insertions(+)
 
 diff --git a/drivers/video/rockchip/rga3/rga_common.c b/drivers/video/rockchip/rga3/rga_common.c
-index d94110769ac6b..865c9edd8a974 100644
+index d94110769ac6..865c9edd8a97 100644
 --- a/drivers/video/rockchip/rga3/rga_common.c
 +++ b/drivers/video/rockchip/rga3/rga_common.c
 @@ -720,6 +720,28 @@ void rga_convert_addr(struct rga_img_info_t *img, bool before_vir_get_channel)
@@ -59,3 +59,6 @@ index d94110769ac6b..865c9edd8a974 100644
  		img->uv_addr = img->yrgb_addr + (img->vir_w * img->vir_h);
  
  		//warning: rga3 may need /2 for all
+-- 
+2.56.1
+

@@ -1,7 +1,8 @@
-From 94d78390e3e70a9cc14a28ccc1fb50811a12de57 Mon Sep 17 00:00:00 2001
+From 702c73d8fd1d0c940061c66cde20812128b9dfbb Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 22 Jul 2026 08:18:02 -0700
-Subject: [PATCH 67/87] video: rockchip: rga: unwind partial handle acquisition
+Subject: [PATCH 067/107] video: rockchip: rga: unwind partial handle
+ acquisition
 
 Make per-channel release idempotent, including current RGA2 bounce
 and DMA-mapped page-table state. If a later source, destination, or
@@ -14,7 +15,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  1 file changed, 24 insertions(+), 7 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index b3d15efa47c7c..4be9f18a2ae55 100644
+index b3d15efa47c7..4be9f18a2ae5 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -2191,21 +2191,30 @@ static void rga_mm_put_channel_handle_info(struct rga_mm *mm,
@@ -100,3 +101,6 @@ index b3d15efa47c7c..4be9f18a2ae55 100644
  }
  
  static void rga_mm_put_handle_info(struct rga_job *job,
+-- 
+2.56.1
+

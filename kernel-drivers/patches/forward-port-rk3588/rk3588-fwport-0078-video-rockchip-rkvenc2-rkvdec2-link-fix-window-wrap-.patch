@@ -1,8 +1,8 @@
-From b7883d72b7467c6ee31814e9f8d1dbc2247d1a23 Mon Sep 17 00:00:00 2001
+From 9ba9f3599860f3a7cf0cb10e2327d6ba13eb48c5 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 29 Jul 2026 09:58:28 -0700
-Subject: [PATCH 78/87] video: rockchip: rkvenc2/rkvdec2-link: fix window wrap,
- atomic clocks, WARN
+Subject: [PATCH 078/107] video: rockchip: rkvenc2/rkvdec2-link: fix window
+ wrap, atomic clocks, WARN
 
 Three defects in the codec drivers.
 
@@ -51,7 +51,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  2 files changed, 105 insertions(+), 16 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
-index a2b03665f504a..c6740df3555b1 100644
+index a2b03665f504..c6740df3555b 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 @@ -2918,10 +2918,18 @@ static void rkvdec2_hard_ccu_resend_tasks(struct mpp_dev *mpp, struct mpp_taskqu
@@ -75,7 +75,7 @@ index a2b03665f504a..c6740df3555b1 100644
  	}
  
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
-index f52b7448cf33c..d6b2e22a2d299 100644
+index f52b7448cf33..d6b2e22a2d29 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 @@ -808,7 +808,17 @@ static bool req_over_class(struct mpp_request *req,
@@ -321,3 +321,6 @@ index f52b7448cf33c..d6b2e22a2d299 100644
  	.hw_ops = &rkvenc_hw_ops,
  	.dev_ops = &rkvenc_ccu_dev_ops,
  };
+-- 
+2.56.1
+

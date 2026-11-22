@@ -1,8 +1,8 @@
-From c10074f4474e088341ba7adbac9b93705c124439 Mon Sep 17 00:00:00 2001
+From 6fc8553ec7591e22d169ac0c4549be29a7f7677a Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 29 Jul 2026 09:58:53 -0700
-Subject: [PATCH 79/87] video: rockchip: rga: fix job/buffer lifetime, locking
- and import validation
+Subject: [PATCH 079/107] video: rockchip: rga: fix job/buffer lifetime,
+ locking and import validation
 
 Six defects in the RGA driver, all found by source audit of the 6.18
 forward port.
@@ -73,7 +73,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  4 files changed, 89 insertions(+), 10 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_debugger.c b/drivers/video/rockchip/rga3/rga_debugger.c
-index 3a9b1b69da5ba..d1e834f14b595 100644
+index 3a9b1b69da5b..d1e834f14b59 100644
 --- a/drivers/video/rockchip/rga3/rga_debugger.c
 +++ b/drivers/video/rockchip/rga3/rga_debugger.c
 @@ -79,7 +79,7 @@ static ssize_t rga_debug_write(struct file *file, const char __user *ubuf,
@@ -142,7 +142,7 @@ index 3a9b1b69da5ba..d1e834f14b595 100644
  	if (copy_from_user(buf, ubuf, len))
  		return -EFAULT;
 diff --git a/drivers/video/rockchip/rga3/rga_iommu.c b/drivers/video/rockchip/rga3/rga_iommu.c
-index 064f432f441a2..4f0756f1da94e 100644
+index 064f432f441a..4f0756f1da94 100644
 --- a/drivers/video/rockchip/rga3/rga_iommu.c
 +++ b/drivers/video/rockchip/rga3/rga_iommu.c
 @@ -256,10 +256,24 @@ static int rga_iommu_intr_fault_handler(struct iommu_domain *iommu, struct devic
@@ -182,7 +182,7 @@ index 064f432f441a2..4f0756f1da94e 100644
  }
  
 diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
-index ecc2b26bd6b6d..376a33c883d63 100644
+index ecc2b26bd6b6..376a33c883d6 100644
 --- a/drivers/video/rockchip/rga3/rga_job.c
 +++ b/drivers/video/rockchip/rga3/rga_job.c
 @@ -1359,6 +1359,7 @@ int rga_request_submit(struct rga_request *request)
@@ -213,7 +213,7 @@ index ecc2b26bd6b6d..376a33c883d63 100644
  err_abort_request:
  	rga_request_release_abort(request, ret);
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index 6a6c66ee244a0..5e3a22bcaca11 100644
+index 6a6c66ee244a..5e3a22bcaca1 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -255,6 +255,25 @@ static int rga_get_user_pages_from_vma(struct page **pages, unsigned long Memory
@@ -283,3 +283,6 @@ index 6a6c66ee244a0..5e3a22bcaca11 100644
  	kref_put(&internal_buffer->refcount, rga_mm_kref_release_buffer);
  
  	if (DEBUGGER_EN(TIME))
+-- 
+2.56.1
+

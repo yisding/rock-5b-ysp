@@ -1,7 +1,7 @@
-From 07742fdfbbff08ed1481bd2b0a816816619598bd Mon Sep 17 00:00:00 2001
+From 677c87e04e65596b3d6b070222b1a33a16a915ca Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 3 Jul 2026 19:18:05 -0700
-Subject: [PATCH 03/87] media: rockchip: mpp: route iommu fault handling
+Subject: [PATCH 003/107] media: rockchip: mpp: route iommu fault handling
  through provider hooks
 
 The MPP iommu layer forward-port to 6.18 needs provider-local fault-handler,
@@ -27,7 +27,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
  2 files changed, 35 insertions(+), 13 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
-index cdba2d3499d02..5795f785306ed 100644
+index cdba2d3499d0..5795f785306e 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.c
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.c
 @@ -26,6 +26,7 @@
@@ -121,7 +121,7 @@ index cdba2d3499d02..5795f785306ed 100644
  	spin_unlock_irqrestore(&info->dev_lock, flags);
  
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.h b/drivers/video/rockchip/mpp/mpp_iommu.h
-index 7b4686a795993..9d91feae1f92b 100644
+index 7b4686a79599..9d91feae1f92 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.h
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.h
 @@ -139,8 +139,6 @@ int mpp_iommu_detach(struct mpp_iommu_info *info);
@@ -133,3 +133,6 @@ index 7b4686a795993..9d91feae1f92b 100644
  
  int mpp_iommu_dev_activate(struct mpp_iommu_info *info, struct mpp_dev *dev);
  int mpp_iommu_dev_deactivate(struct mpp_iommu_info *info, struct mpp_dev *dev);
+-- 
+2.56.1
+

@@ -1,7 +1,7 @@
-From 4dba1f42ab2b7a5c05254e063db1ee789820ff33 Mon Sep 17 00:00:00 2001
+From 649d1eb022a2081e67aa048925c7ef0300cd184b Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 29 Jul 2026 09:58:04 -0700
-Subject: [PATCH 77/87] video: rockchip: mpp: fix IOMMU cookie typing and
+Subject: [PATCH 077/107] video: rockchip: mpp: fix IOMMU cookie typing and
  buffer-release ordering
 
 Two latent defects in the forward-ported MPP IOMMU glue.
@@ -40,7 +40,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  2 files changed, 43 insertions(+), 33 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
-index c02124f4c4bac..df936ec86019f 100644
+index c02124f4c4ba..df936ec86019 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.c
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.c
 @@ -124,18 +124,28 @@ static void mpp_dma_release_buffer(struct kref *ref)
@@ -163,7 +163,7 @@ index c02124f4c4bac..df936ec86019f 100644
  	free_iova(iovad, iova_pfn(iovad, iova));
  }
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.h b/drivers/video/rockchip/mpp/mpp_iommu.h
-index 777b4babd2d96..da970c572634e 100644
+index 777b4babd2d9..da970c572634 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.h
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.h
 @@ -18,17 +18,6 @@
@@ -184,3 +184,6 @@ index 777b4babd2d96..da970c572634e 100644
  struct mpp_dma_buffer {
  	/* link to dma session buffer list */
  	struct list_head link;
+-- 
+2.56.1
+

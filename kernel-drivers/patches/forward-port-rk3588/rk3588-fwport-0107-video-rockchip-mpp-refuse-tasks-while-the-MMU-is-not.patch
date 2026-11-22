@@ -1,0 +1,112 @@
+From 9fb65e96362493ab2961a9bf1f44dec7a8568f8e Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sun, 22 Nov 2026 07:10:52 -0800
+Subject: [PATCH 107/107] video: rockchip: mpp: refuse tasks while the MMU is
+ not translating
+
+mpp_iommu_refresh() disables and re-enables the codec MMU after a reset.
+Its callers log a failure and carry on, and nothing checks again before
+the next task starts. Disabled paging is bypass on this MMU, so the codec
+would then DMA to physical addresses equal to the IOVAs it was given,
+including fixed windows such as the RCB area, and write kernel memory.
+The rkvdec and rkvenc MMUs set rockchip,disable-mmu-reset, so a
+force-reset cannot be relied on to recover a stuck bank.
+
+Before a task is admitted on the default worker path, and before a
+soft-CCU RKVDEC2 task is enqueued, check that a Rockchip MMU attached to
+a paging domain is translating. If it is not, retry the enable once, and
+fail the task with -EIO if translation is still off.
+
+Assisted-by: Claude:claude-opus-5-5
+---
+ drivers/video/rockchip/mpp/mpp_iommu.c        | 33 +++++++++++++++++++
+ drivers/video/rockchip/mpp/mpp_iommu.h        |  1 +
+ drivers/video/rockchip/mpp/mpp_rkvdec2_link.c |  9 +++++
+ 3 files changed, 43 insertions(+)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
+index c2ebe43d6254..3bc2bbce7d5b 100644
+--- a/drivers/video/rockchip/mpp/mpp_iommu.c
++++ b/drivers/video/rockchip/mpp/mpp_iommu.c
+@@ -1233,6 +1233,30 @@ int mpp_iommu_dev_activate_task(struct mpp_iommu_info *info,
+ 	return ret;
+ }
+ 
++/*
++ * Refuse to start hardware behind a Rockchip MMU whose paging domain is not
++ * translating.  Callers log a failed refresh and carry on, and the MMU then
++ * bypasses translation.  Retry the enable once; if translation is still off,
++ * fail the task rather than let the codec DMA to raw physical addresses.
++ * Must be called from sleepable context with the master powered.
++ */
++int mpp_iommu_ensure_translating(struct mpp_iommu_info *info)
++{
++	int ret;
++
++	if (!info || !rockchip_iommu_translation_lost(info->dev))
++		return 0;
++
++	dev_warn(info->dev, "iommu translation lost, re-enabling\n");
++	ret = rockchip_iommu_enable(info->dev);
++	if (!ret && rockchip_iommu_translation_lost(info->dev))
++		ret = -EIO;
++	if (ret)
++		dev_err(info->dev, "refusing task: iommu not translating: %d\n", ret);
++
++	return ret;
++}
++
+ int mpp_iommu_dev_prepare_task(struct mpp_iommu_info *info,
+ 			       struct mpp_dev *dev)
+ {
+@@ -1256,6 +1280,15 @@ int mpp_iommu_dev_prepare_task(struct mpp_iommu_info *info,
+ 	if (ret)
+ 		return ret;
+ 
++	ret = mpp_iommu_ensure_translating(info);
++	if (ret) {
++		spin_lock_irqsave(&info->dev_lock, flags);
++		if (info->task_admission_owner == dev && !info->dev_active)
++			info->task_admission_owner = NULL;
++		spin_unlock_irqrestore(&info->dev_lock, flags);
++		return ret;
++	}
++
+ 	/*
+ 	 * Provider prepare masks delivery, synchronizes an in-flight IRQ and
+ 	 * acknowledges only pre-task status while remaining masked.  It never
+diff --git a/drivers/video/rockchip/mpp/mpp_iommu.h b/drivers/video/rockchip/mpp/mpp_iommu.h
+index c4f661cb313b..bf1b09eb3938 100644
+--- a/drivers/video/rockchip/mpp/mpp_iommu.h
++++ b/drivers/video/rockchip/mpp/mpp_iommu.h
+@@ -204,6 +204,7 @@ void mpp_iommu_shared_domain_unreserve_window(struct mpp_iommu_shared_domain *sh
+ 					      dma_addr_t iova, size_t size);
+ 
+ int mpp_iommu_refresh(struct mpp_iommu_info *info, struct device *dev);
++int mpp_iommu_ensure_translating(struct mpp_iommu_info *info);
+ int mpp_iommu_flush_tlb(struct mpp_iommu_info *info);
+ 
+ int mpp_iommu_dev_activate(struct mpp_iommu_info *info, struct mpp_dev *dev);
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+index 1114d863418a..f76e14f8fd38 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+@@ -2498,6 +2498,15 @@ void rkvdec2_soft_ccu_worker(struct kthread_work *work_s)
+ 						       rkvdec2_link_free_task);
+ 			continue;
+ 		}
++		ret = mpp_iommu_ensure_translating(mpp->iommu_info);
++		if (ret) {
++			clear_bit(TASK_TIMING_RUN, &mpp_task->state);
++			mpp_task->on_run = 0;
++			rkvdec2_put_idle_core(queue, mpp_task);
++			rkvdec2_complete_pending_abort(queue, mpp_task, NULL,
++						       rkvdec2_link_free_task);
++			continue;
++		}
+ 		rkvdec2_soft_ccu_enqueue(mpp, mpp_task);
+ 		/* pending to running */
+ 		mpp_taskqueue_pending_to_run(queue, mpp_task);
+-- 
+2.56.1
+

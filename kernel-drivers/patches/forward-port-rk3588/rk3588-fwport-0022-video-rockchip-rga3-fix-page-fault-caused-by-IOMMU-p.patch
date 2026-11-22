@@ -1,7 +1,7 @@
-From f65078016123fab206fac64deee214f5bdc0ab0f Mon Sep 17 00:00:00 2001
+From 9b25db4995e8eb04c9a09db40beab0f8a330e180 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Tue, 30 Dec 2025 11:37:22 +0800
-Subject: [PATCH 22/87] video: rockchip: rga3: fix page fault caused by IOMMU
+Subject: [PATCH 022/107] video: rockchip: rga3: fix page fault caused by IOMMU
  prefetch
 
 1. IOMMU prefetch requires configuring min/max limits based on the prefetch
@@ -17,7 +17,7 @@ Change-Id: Id9d27a3b1a644de1d43976eebefa8259f1ef08cb
  2 files changed, 23 insertions(+), 9 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/include/rga2_reg_info.h b/drivers/video/rockchip/rga3/include/rga2_reg_info.h
-index 5f4238b84eb6a..f19a2421b888e 100644
+index 5f4238b84eb6..f19a2421b888 100644
 --- a/drivers/video/rockchip/rga3/include/rga2_reg_info.h
 +++ b/drivers/video/rockchip/rga3/include/rga2_reg_info.h
 @@ -534,13 +534,14 @@
@@ -39,7 +39,7 @@ index 5f4238b84eb6a..f19a2421b888e 100644
  #define RGA2_MAX_RD_OUTSTANDING				0x3f
  
 diff --git a/drivers/video/rockchip/rga3/rga2_reg_info.c b/drivers/video/rockchip/rga3/rga2_reg_info.c
-index 577374fb2635b..236dfa4e7d054 100644
+index 577374fb2635..236dfa4e7d05 100644
 --- a/drivers/video/rockchip/rga3/rga2_reg_info.c
 +++ b/drivers/video/rockchip/rga3/rga2_reg_info.c
 @@ -297,8 +297,21 @@ static void RGA2_set_mode_ctrl(u8 *base, struct rga2_req *msg)
@@ -89,3 +89,6 @@ index 577374fb2635b..236dfa4e7d054 100644
  		}
  	}
  }
+-- 
+2.56.1
+

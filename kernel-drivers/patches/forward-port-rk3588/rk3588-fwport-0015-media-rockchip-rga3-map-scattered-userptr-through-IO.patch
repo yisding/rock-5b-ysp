@@ -1,7 +1,7 @@
-From f2250adc8ea2b734aa6935ec5f4474f9ebd7370e Mon Sep 17 00:00:00 2001
+From b60cd8fa7d17437cef8b0c2c0a96c9cb7e584cfd Mon Sep 17 00:00:00 2001
 From: Codex <codex@example.invalid>
 Date: Sun, 5 Jul 2026 15:49:18 -0700
-Subject: [PATCH 15/87] media: rockchip: rga3: map scattered userptr through
+Subject: [PATCH 015/107] media: rockchip: rga3: map scattered userptr through
  IOMMU
 
 RGA3 command streams carry base addresses, not scatterlists. The
@@ -37,7 +37,7 @@ Signed-off-by: Codex <codex@example.invalid>
  6 files changed, 361 insertions(+), 32 deletions(-)
 
 diff --git a/drivers/iommu/dma-iommu.c b/drivers/iommu/dma-iommu.c
-index f1fb27681b0bd..b470c181c03cf 100644
+index aa9ebf2bc96e..a16a1af69f1c 100644
 --- a/drivers/iommu/dma-iommu.c
 +++ b/drivers/iommu/dma-iommu.c
 @@ -382,6 +382,20 @@ int iommu_get_dma_cookie(struct iommu_domain *domain)
@@ -62,7 +62,7 @@ index f1fb27681b0bd..b470c181c03cf 100644
   * iommu_get_msi_cookie - Acquire just MSI remapping resources
   * @domain: IOMMU domain to prepare
 diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
-index e7c8cff87fec9..c5ec6f9656380 100644
+index e7c8cff87fec..c5ec6f965638 100644
 --- a/drivers/video/rockchip/rga3/include/rga_drv.h
 +++ b/drivers/video/rockchip/rga3/include/rga_drv.h
 @@ -44,6 +44,7 @@
@@ -120,7 +120,7 @@ index e7c8cff87fec9..c5ec6f9656380 100644
  };
  
 diff --git a/drivers/video/rockchip/rga3/rga_dma_buf.c b/drivers/video/rockchip/rga3/rga_dma_buf.c
-index 05f4037feca8b..41ae9e76ba51f 100644
+index 05f4037feca8..41ae9e76ba51 100644
 --- a/drivers/video/rockchip/rga3/rga_dma_buf.c
 +++ b/drivers/video/rockchip/rga3/rga_dma_buf.c
 @@ -5,45 +5,314 @@
@@ -511,7 +511,7 @@ index 05f4037feca8b..41ae9e76ba51f 100644
  		     buffer->sgt->sgl,
  		     buffer->sgt->orig_nents,
 diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
-index 320d89ca23702..8d9a620e91b8c 100644
+index 320d89ca2370..8d9a620e91b8 100644
 --- a/drivers/video/rockchip/rga3/rga_drv.c
 +++ b/drivers/video/rockchip/rga3/rga_drv.c
 @@ -20,8 +20,6 @@
@@ -524,7 +524,7 @@ index 320d89ca23702..8d9a620e91b8c 100644
  static struct hrtimer timer;
  static ktime_t kt;
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index f6b1ff5b7ab24..9ab9e7f60fa8b 100644
+index f6b1ff5b7ab2..9ab9e7f60fa8 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -249,8 +249,11 @@ static void rga_free_virt_addr(struct rga_virt_addr **virt_addr_p)
@@ -598,7 +598,7 @@ index f6b1ff5b7ab24..9ab9e7f60fa8b 100644
  
  	if (DEBUGGER_EN(TIME))
 diff --git a/include/linux/iommu.h b/include/linux/iommu.h
-index c30d12e16473d..2007a9058608f 100644
+index c242712565f6..cd8b73b10823 100644
 --- a/include/linux/iommu.h
 +++ b/include/linux/iommu.h
 @@ -43,6 +43,7 @@ struct notifier_block;
@@ -609,7 +609,7 @@ index c30d12e16473d..2007a9058608f 100644
  struct iommu_fault_param;
  struct iommufd_ctx;
  struct iommufd_viommu;
-@@ -1555,11 +1556,19 @@ static inline void iommu_debugfs_setup(void) {}
+@@ -1559,11 +1560,19 @@ static inline void iommu_debugfs_setup(void) {}
  
  #ifdef CONFIG_IOMMU_DMA
  int iommu_get_msi_cookie(struct iommu_domain *domain, dma_addr_t base);
@@ -629,3 +629,6 @@ index c30d12e16473d..2007a9058608f 100644
  #endif	/* CONFIG_IOMMU_DMA */
  
  /*
+-- 
+2.56.1
+

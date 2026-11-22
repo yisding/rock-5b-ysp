@@ -1,8 +1,8 @@
-From 1b4b65b57e7c28e68b0dec38d11b94605b7c7628 Mon Sep 17 00:00:00 2001
+From 6f2a6c8b457faba3a76bf28c7a063700468ce5b6 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 1 Aug 2026 21:40:12 -0700
-Subject: [PATCH 84/87] video: rockchip: rkvdec2: sync-cancel the timeout work
- and clear cur_task
+Subject: [PATCH 084/107] video: rockchip: rkvdec2: sync-cancel the timeout
+ work and clear cur_task
 
 rkvdec2_soft_ccu_dequeue() frees the task a few lines after cancelling
 its timeout work, but used the non-sync cancel_delayed_work(), which
@@ -30,7 +30,7 @@ Assisted-By: Claude Fable 5 <noreply@anthropic.com>
  1 file changed, 25 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
-index c6740df3555b1..439212c5c85a5 100644
+index c6740df3555b..439212c5c85a 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 @@ -1944,7 +1944,19 @@ static int rkvdec2_soft_ccu_dequeue(struct mpp_taskqueue *queue)
@@ -73,3 +73,6 @@ index c6740df3555b1..439212c5c85a5 100644
  			spin_unlock_irqrestore(&queue->running_lock, flags);
  			mpp_dev_load(mpp, mpp_task);
  			kref_put(&mpp_task->ref, mpp_free_task);
+-- 
+2.56.1
+

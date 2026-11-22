@@ -1,8 +1,8 @@
-From 874fbff8ba504d50a5d6ad643770822293391d9f Mon Sep 17 00:00:00 2001
+From 307591a62c1ecbf6f12e99fdb93008d22fa75ad7 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 1 Aug 2026 21:39:39 -0700
-Subject: [PATCH 82/87] video: rockchip: mpp: make MPP_CMD_RELEASE_FD give back
- only what it took
+Subject: [PATCH 082/107] video: rockchip: mpp: make MPP_CMD_RELEASE_FD give
+ back only what it took
 
 mpp_dma_release_fd() ended in an unconditional kref_put() with no check
 that the caller ever acquired a reference. MPP_CMD_RELEASE_FD passes an
@@ -30,7 +30,7 @@ Assisted-By: Claude Fable 5 <noreply@anthropic.com>
  2 files changed, 35 insertions(+), 3 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
-index df936ec86019f..fac9e70de7061 100644
+index df936ec86019..fac9e70de706 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.c
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.c
 @@ -150,6 +150,7 @@ static void mpp_dma_release_buffer(struct kref *ref)
@@ -96,7 +96,7 @@ index df936ec86019f..fac9e70de7061 100644
  
  	return buffer;
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.h b/drivers/video/rockchip/mpp/mpp_iommu.h
-index da970c572634e..d31f0314de65d 100644
+index da970c572634..d31f0314de65 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.h
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.h
 @@ -36,6 +36,13 @@ struct mpp_dma_buffer {
@@ -113,3 +113,6 @@ index da970c572634e..d31f0314de65d 100644
  	ktime_t last_used;
  	/* alloc by device */
  	struct device *dev;
+-- 
+2.56.1
+

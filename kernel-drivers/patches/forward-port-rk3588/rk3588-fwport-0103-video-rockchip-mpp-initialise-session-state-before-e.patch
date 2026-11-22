@@ -1,0 +1,42 @@
+From f47b1f0fe5624a47941b5fc6dc3c3a69e59d3b37 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sun, 22 Nov 2026 07:03:32 -0800
+Subject: [PATCH 103/107] video: rockchip: mpp: initialise session state before
+ exposing the node
+
+mpp_register_service() calls cdev_add(), which makes /dev/mpp_service
+openable immediately, but session_lock and session_list were initialised
+only afterwards. An open() racing probe at boot would take an
+uninitialised mutex and add to a zeroed list head.
+
+Initialise both before registering the character device.
+
+Assisted-by: Claude:claude-opus-5-5
+---
+ drivers/video/rockchip/mpp/mpp_service.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_service.c b/drivers/video/rockchip/mpp/mpp_service.c
+index d62cdad4a09e..456b9c115209 100644
+--- a/drivers/video/rockchip/mpp/mpp_service.c
++++ b/drivers/video/rockchip/mpp/mpp_service.c
+@@ -463,13 +463,14 @@ static int mpp_service_probe(struct platform_device *pdev)
+ 	of_property_read_u32(np, "rockchip,iommu-shared-mask",
+ 			     &srv->iommu_shared_mask);
+ 
++	/* open() takes session_lock as soon as cdev_add() publishes the node. */
++	mutex_init(&srv->session_lock);
++	INIT_LIST_HEAD(&srv->session_list);
+ 	ret = mpp_register_service(srv, MPP_SERVICE_NAME);
+ 	if (ret) {
+ 		dev_err(dev, "register %s device\n", MPP_SERVICE_NAME);
+ 		goto fail_register;
+ 	}
+-	mutex_init(&srv->session_lock);
+-	INIT_LIST_HEAD(&srv->session_list);
+ 	mpp_procfs_init(srv);
+ 
+ 	/* register sub drivers */
+-- 
+2.56.1
+

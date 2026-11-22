@@ -1,8 +1,8 @@
-From febed97bc459775e08bb3151ae6ea38bbdac5b17 Mon Sep 17 00:00:00 2001
+From 4f2fc65fe96bdb8b6b69f3dc27e8f9975342b479 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 29 Jul 2026 09:57:26 -0700
-Subject: [PATCH 76/87] video: rockchip: mpp: bound user register requests and
- translations
+Subject: [PATCH 076/107] video: rockchip: mpp: bound user register requests
+ and translations
 
 Four unprivileged-reachable memory-safety defects in the MPP core, all
 found by source audit of the 6.18 forward port. Any process that can open
@@ -57,7 +57,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  4 files changed, 140 insertions(+), 25 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_av1dec.c b/drivers/video/rockchip/mpp/mpp_av1dec.c
-index 7c6189b363259..39c63f49a0f3a 100644
+index 7c6189b36325..39c63f49a0f3 100644
 --- a/drivers/video/rockchip/mpp/mpp_av1dec.c
 +++ b/drivers/video/rockchip/mpp/mpp_av1dec.c
 @@ -474,6 +474,8 @@ static void *av1dec_alloc_task(struct mpp_session *session,
@@ -109,7 +109,7 @@ index 7c6189b363259..39c63f49a0f3a 100644
  	.dev_ops = &av1dec_dev_ops,
  };
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index 804e19e2eb969..b34e439c6e144 100644
+index 804e19e2eb96..b34e439c6e14 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -1518,6 +1518,7 @@ static int mpp_process_request(struct mpp_session *session,
@@ -309,7 +309,7 @@ index 804e19e2eb969..b34e439c6e144 100644
  	}
  	mpp_debug_leave();
 diff --git a/drivers/video/rockchip/mpp/mpp_common.h b/drivers/video/rockchip/mpp/mpp_common.h
-index 75dca08cd781c..a141cdc7cf65b 100644
+index 75dca08cd781..a141cdc7cf65 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.h
 +++ b/drivers/video/rockchip/mpp/mpp_common.h
 @@ -251,6 +251,8 @@ struct mpp_dev_var {
@@ -342,7 +342,7 @@ index 75dca08cd781c..a141cdc7cf65b 100644
  		  struct mpp_task *task);
  int mpp_task_finish(struct mpp_session *session,
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
-index 236ee0ada3d95..564e0c8776d10 100644
+index 236ee0ada3d9..564e0c8776d1 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 @@ -392,12 +392,18 @@ int rkvdec2_task_init(struct mpp_dev *mpp, struct mpp_session *session,
@@ -423,3 +423,6 @@ index 236ee0ada3d95..564e0c8776d10 100644
  	.hw_ops = &rkvdec_rv1126b_hw_ops,
  	.dev_ops = &rkvdec_vdpu383_dev_ops,
  };
+-- 
+2.56.1
+

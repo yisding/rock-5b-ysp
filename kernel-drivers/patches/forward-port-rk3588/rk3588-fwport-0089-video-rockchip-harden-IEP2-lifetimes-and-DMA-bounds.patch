@@ -1,7 +1,7 @@
-From 7615b69a744af7e79068a7bcc9968783aac62a3b Mon Sep 17 00:00:00 2001
+From 4e44ace21c7b9b0761e2a3d52a141a42f2ba1397 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sun, 2 Aug 2026 22:13:37 -0700
-Subject: [PATCH 89/89] video: rockchip: harden IEP2 lifetimes and DMA bounds
+Subject: [PATCH 089/107] video: rockchip: harden IEP2 lifetimes and DMA bounds
 
 Synchronize timeout and provider callback teardown before task or device storage can be freed. Protect IEP2 current-task access, make clock/reset failures fatal, and close raw-address and undersized-buffer submission paths.
 
@@ -22,7 +22,7 @@ Keep the I1O1T auxiliary mapping inside task and IOVA allocator lifetime, using 
  12 files changed, 386 insertions(+), 44 deletions(-)
 
 diff --git a/drivers/iommu/iova.c b/drivers/iommu/iova.c
-index 18f8397218136..7b7f0fc259c1a 100644
+index 18f839721813..7b7f0fc259c1 100644
 --- a/drivers/iommu/iova.c
 +++ b/drivers/iommu/iova.c
 @@ -549,6 +549,43 @@ reserve_iova(struct iova_domain *iovad,
@@ -70,10 +70,10 @@ index 18f8397218136..7b7f0fc259c1a 100644
   * Magazine caches for IOVA ranges.  For an introduction to magazines,
   * see the USENIX 2001 paper "Magazines and Vmem: Extending the Slab
 diff --git a/drivers/iommu/rockchip-iommu.c b/drivers/iommu/rockchip-iommu.c
-index 921ad0433e4c3..06dc9f6cb7a5c 100644
+index b2a37c78e2a1..71388d3c75f4 100644
 --- a/drivers/iommu/rockchip-iommu.c
 +++ b/drivers/iommu/rockchip-iommu.c
-@@ -1489,6 +1489,34 @@ int rockchip_iommu_set_fault_handler(struct device *dev,
+@@ -1515,6 +1515,34 @@ int rockchip_iommu_set_fault_handler(struct device *dev,
  }
  EXPORT_SYMBOL_GPL(rockchip_iommu_set_fault_handler);
  
@@ -109,10 +109,10 @@ index 921ad0433e4c3..06dc9f6cb7a5c 100644
  {
  	struct device *dev = &pdev->dev;
 diff --git a/drivers/iommu/vsi-iommu.c b/drivers/iommu/vsi-iommu.c
-index 9ced6b2dcb145..1b2aa5867334f 100644
+index cc31c8fddc40..e5aa6d7560d7 100644
 --- a/drivers/iommu/vsi-iommu.c
 +++ b/drivers/iommu/vsi-iommu.c
-@@ -900,6 +900,22 @@ int vsi_iommu_set_fault_handler(struct device *dev,
+@@ -902,6 +902,22 @@ int vsi_iommu_set_fault_handler(struct device *dev,
  }
  EXPORT_SYMBOL_GPL(vsi_iommu_set_fault_handler);
  
@@ -136,7 +136,7 @@ index 9ced6b2dcb145..1b2aa5867334f 100644
  	{
  		.compatible = "verisilicon,iommu-1.2",
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index a471047a35c87..8297c7f193f99 100644
+index a471047a35c8..8297c7f193f9 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -196,6 +196,10 @@ mpp_taskqueue_pop_running(struct mpp_taskqueue *queue,
@@ -231,7 +231,7 @@ index a471047a35c87..8297c7f193f99 100644
  				   "rockchip,normal-rates",
  				   index,
 diff --git a/drivers/video/rockchip/mpp/mpp_common.h b/drivers/video/rockchip/mpp/mpp_common.h
-index a141cdc7cf65b..e079a50ab661e 100644
+index a141cdc7cf65..e079a50ab661 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.h
 +++ b/drivers/video/rockchip/mpp/mpp_common.h
 @@ -765,23 +765,23 @@ static inline u32 mpp_read_relaxed(struct mpp_dev *mpp, u32 reg)
@@ -273,7 +273,7 @@ index a141cdc7cf65b..e079a50ab661e 100644
  
  	return 0;
 diff --git a/drivers/video/rockchip/mpp/mpp_iep2.c b/drivers/video/rockchip/mpp/mpp_iep2.c
-index 2f8b5d28ed9df..97f3d74b12742 100644
+index 2f8b5d28ed9d..97f3d74b1274 100644
 --- a/drivers/video/rockchip/mpp/mpp_iep2.c
 +++ b/drivers/video/rockchip/mpp/mpp_iep2.c
 @@ -33,7 +33,6 @@
@@ -764,7 +764,7 @@ index 2f8b5d28ed9df..97f3d74b12742 100644
  };
  EXPORT_SYMBOL(rockchip_iep2_driver);
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
-index 5cb9e0828e267..2f90608ab41ae 100644
+index 5cb9e0828e26..2f90608ab41a 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.c
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.c
 @@ -1056,6 +1056,20 @@ static void mpp_iommu_clear_fault_handler(struct mpp_iommu_info *info)
@@ -809,7 +809,7 @@ index 5cb9e0828e267..2f90608ab41ae 100644
  	return 0;
  
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.h b/drivers/video/rockchip/mpp/mpp_iommu.h
-index d31f0314de65d..206599d800786 100644
+index d31f0314de65..206599d80078 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.h
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.h
 @@ -181,6 +181,7 @@ void mpp_dma_buf_sync(struct mpp_dma_buffer *buffer, u32 offset, u32 length,
@@ -821,7 +821,7 @@ index d31f0314de65d..206599d800786 100644
  
  int mpp_iommu_attach(struct mpp_iommu_info *info);
 diff --git a/drivers/video/rockchip/mpp/mpp_service.c b/drivers/video/rockchip/mpp/mpp_service.c
-index 8d397e979e83d..d62cdad4a09e8 100644
+index 8d397e979e83..d62cdad4a09e 100644
 --- a/drivers/video/rockchip/mpp/mpp_service.c
 +++ b/drivers/video/rockchip/mpp/mpp_service.c
 @@ -538,6 +538,8 @@ static struct platform_driver mpp_service_driver = {
@@ -834,7 +834,7 @@ index 8d397e979e83d..d62cdad4a09e8 100644
  };
  
 diff --git a/include/linux/iova.h b/include/linux/iova.h
-index d2c4fd923efab..5a0de266bbf38 100644
+index d2c4fd923efa..5a0de266bbf3 100644
 --- a/include/linux/iova.h
 +++ b/include/linux/iova.h
 @@ -97,6 +97,9 @@ unsigned long alloc_iova_fast(struct iova_domain *iovad, unsigned long size,
@@ -862,7 +862,7 @@ index d2c4fd923efab..5a0de266bbf38 100644
  				    unsigned long granule,
  				    unsigned long start_pfn)
 diff --git a/include/soc/rockchip/rockchip_iommu.h b/include/soc/rockchip/rockchip_iommu.h
-index b6fca6be66e68..b0e810c10395f 100644
+index b6fca6be66e6..b0e810c10395 100644
 --- a/include/soc/rockchip/rockchip_iommu.h
 +++ b/include/soc/rockchip/rockchip_iommu.h
 @@ -23,6 +23,8 @@ void rockchip_iommu_unmask_irq(struct device *dev);
@@ -887,7 +887,7 @@ index b6fca6be66e68..b0e810c10395f 100644
  
  #endif /* __SOC_ROCKCHIP_IOMMU_H */
 diff --git a/include/soc/rockchip/vsi_iommu.h b/include/soc/rockchip/vsi_iommu.h
-index f32c2b848dc80..7a5ae91724d66 100644
+index f32c2b848dc8..7a5ae91724d6 100644
 --- a/include/soc/rockchip/vsi_iommu.h
 +++ b/include/soc/rockchip/vsi_iommu.h
 @@ -12,6 +12,7 @@ int vsi_iommu_refresh(struct device *dev);
@@ -910,3 +910,6 @@ index f32c2b848dc80..7a5ae91724d66 100644
  #endif
  
  #endif /* __SOC_ROCKCHIP_VSI_IOMMU_H */
+-- 
+2.56.1
+

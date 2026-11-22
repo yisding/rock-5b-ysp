@@ -1,7 +1,7 @@
-From 538d69525532d2268afd42cf05906c320ffd6bf8 Mon Sep 17 00:00:00 2001
+From 459612c8c5566ff02098bf7fdc12d32b6bfaea1a Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 3 Jul 2026 19:43:26 -0700
-Subject: [PATCH 07/87] video: rockchip: mpp: add RKMPP AV1 decoder
+Subject: [PATCH 007/107] video: rockchip: mpp: add RKMPP AV1 decoder
 
 Add the RK3588 hardware AV1 decoder backend (mpp_av1dec.c) to the MPP
 service framework behind CONFIG_ROCKCHIP_MPP_AV1DEC. It preserves the
@@ -22,7 +22,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
 diff --git a/Documentation/devicetree/bindings/media/rockchip,av1-decoder.yaml b/Documentation/devicetree/bindings/media/rockchip,av1-decoder.yaml
 new file mode 100644
-index 0000000000000..8dd22e0428e20
+index 000000000000..8dd22e0428e2
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/media/rockchip,av1-decoder.yaml
 @@ -0,0 +1,159 @@
@@ -186,7 +186,7 @@ index 0000000000000..8dd22e0428e20
 +      };
 +    };
 diff --git a/drivers/video/rockchip/mpp/Kconfig b/drivers/video/rockchip/mpp/Kconfig
-index 9245dd8d1ed6c..c5f8a4737c3bf 100644
+index 9245dd8d1ed6..c5f8a4737c3b 100644
 --- a/drivers/video/rockchip/mpp/Kconfig
 +++ b/drivers/video/rockchip/mpp/Kconfig
 @@ -51,4 +51,14 @@ config ROCKCHIP_MPP_RKVDEC2_DEVFREQ
@@ -205,7 +205,7 @@ index 9245dd8d1ed6c..c5f8a4737c3bf 100644
 +
  endif
 diff --git a/drivers/video/rockchip/mpp/Makefile b/drivers/video/rockchip/mpp/Makefile
-index 53938164c1195..1a11d3c9bab70 100644
+index 53938164c119..1a11d3c9bab7 100644
 --- a/drivers/video/rockchip/mpp/Makefile
 +++ b/drivers/video/rockchip/mpp/Makefile
 @@ -20,3 +20,4 @@ obj-$(CONFIG_ROCKCHIP_MPP_SERVICE) += rk_vcodec.o
@@ -215,7 +215,7 @@ index 53938164c1195..1a11d3c9bab70 100644
 +rk_vcodec-$(CONFIG_ROCKCHIP_MPP_AV1DEC) += mpp_av1dec.o
 diff --git a/drivers/video/rockchip/mpp/mpp_av1dec.c b/drivers/video/rockchip/mpp/mpp_av1dec.c
 new file mode 100644
-index 0000000000000..947e16a782397
+index 000000000000..947e16a78239
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/mpp_av1dec.c
 @@ -0,0 +1,1114 @@
@@ -1333,3 +1333,6 @@ index 0000000000000..947e16a782397
 +		.of_match_table = of_match_ptr(mpp_av1dec_dt_match),
 +	},
 +};
+-- 
+2.56.1
+

@@ -1,8 +1,8 @@
-From 796571e72b6a465b07b4c60d6847f22e36656ebc Mon Sep 17 00:00:00 2001
+From 997fad4b21d9ef870130ca3fbc8f3b766be9c788 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Thu, 2 Apr 2026 17:18:28 +0800
-Subject: [PATCH 20/87] video: rockchip: rga3: fix request leak when multi-task
- submit failed
+Subject: [PATCH 020/107] video: rockchip: rga3: fix request leak when
+ multi-task submit failed
 
 Change-Id: Ic1d96f5cf05bd705043ffe7c33f4c4f9c0da88fe
 Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
@@ -12,7 +12,7 @@ Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
  1 file changed, 3 insertions(+), 6 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
-index 052938214e99c..6af4e607aef76 100644
+index 052938214e99..6af4e607aef7 100644
 --- a/drivers/video/rockchip/rga3/rga_drv.c
 +++ b/drivers/video/rockchip/rga3/rga_drv.c
 @@ -807,15 +807,12 @@ static long rga_ioctl_request_submit(unsigned long arg, bool run_enbale)
@@ -42,3 +42,6 @@ index 052938214e99c..6af4e607aef76 100644
  }
  
  static long rga_ioctl_request_cancel(unsigned long arg)
+-- 
+2.56.1
+

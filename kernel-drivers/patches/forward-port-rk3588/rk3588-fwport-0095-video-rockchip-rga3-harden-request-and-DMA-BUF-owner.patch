@@ -1,7 +1,7 @@
-From b734ddf33a40ddb7f6bebfb72fd10bb1d69dc195 Mon Sep 17 00:00:00 2001
+From c195150dbdafba8822d62682a27ef2d58a251793 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 8 Aug 2026 16:48:38 -0700
-Subject: [PATCH 95/96] video: rockchip: rga3: harden request and DMA-BUF
+Subject: [PATCH 095/107] video: rockchip: rga3: harden request and DMA-BUF
  ownership
 
 Canonicalize every high-address RGA2 DMA-BUF through a bounded job-shared DMA32 staging object so aliases share one image even when a direct SWIOTLB mapping would succeed. Copy staged output back once only after successful quiesced completion, and account job, session, and global staging limits.
@@ -21,7 +21,7 @@ Make imported handles session-authorized and transactional, close duplicate-impo
  10 files changed, 912 insertions(+), 439 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/include/rga_common.h b/drivers/video/rockchip/rga3/include/rga_common.h
-index 4ed75821f89a4..80014ff09e7c2 100644
+index 4ed75821f89a..80014ff09e7c 100644
 --- a/drivers/video/rockchip/rga3/include/rga_common.h
 +++ b/drivers/video/rockchip/rga3/include/rga_common.h
 @@ -41,9 +41,10 @@
@@ -38,7 +38,7 @@ index 4ed75821f89a4..80014ff09e7c2 100644
  #define RGA_GET_PAGE_COUNT(size) (((size) >> PAGE_SHIFT) + (((size) & (~PAGE_MASK)) ? 1 : 0))
  
 diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
-index c6ff097daf498..daf530c0879a6 100644
+index c6ff097daf49..daf530c0879a 100644
 --- a/drivers/video/rockchip/rga3/include/rga_drv.h
 +++ b/drivers/video/rockchip/rga3/include/rga_drv.h
 @@ -238,26 +238,23 @@ struct rga_internal_buffer {
@@ -140,7 +140,7 @@ index c6ff097daf498..daf530c0879a6 100644
  	/*
  	 * Set once the initial reference taken by rga_request_alloc() has been
 diff --git a/drivers/video/rockchip/rga3/include/rga_fence.h b/drivers/video/rockchip/rga3/include/rga_fence.h
-index 75c7c22926a2e..e24dbed09333e 100644
+index 75c7c22926a2..e24dbed09333 100644
 --- a/drivers/video/rockchip/rga3/include/rga_fence.h
 +++ b/drivers/video/rockchip/rga3/include/rga_fence.h
 @@ -14,13 +14,6 @@ struct rga_fence_context {
@@ -196,7 +196,7 @@ index 75c7c22926a2e..e24dbed09333e 100644
  {
  }
 diff --git a/drivers/video/rockchip/rga3/include/rga_job.h b/drivers/video/rockchip/rga3/include/rga_job.h
-index 83d3e2e5e1400..62c9caa0752ab 100644
+index 83d3e2e5e140..62c9caa0752a 100644
 --- a/drivers/video/rockchip/rga3/include/rga_job.h
 +++ b/drivers/video/rockchip/rga3/include/rga_job.h
 @@ -41,16 +41,17 @@ int rga_request_commit(struct rga_request *user_request);
@@ -222,7 +222,7 @@ index 83d3e2e5e1400..62c9caa0752ab 100644
  int rga_request_release_signal(struct rga_scheduler_t *scheduler, struct rga_job *job);
  
 diff --git a/drivers/video/rockchip/rga3/include/rga_mm.h b/drivers/video/rockchip/rga3/include/rga_mm.h
-index 425410464a689..6dc8c87104ae7 100644
+index 425410464a68..6dc8c87104ae 100644
 --- a/drivers/video/rockchip/rga3/include/rga_mm.h
 +++ b/drivers/video/rockchip/rga3/include/rga_mm.h
 @@ -67,7 +67,8 @@ static inline bool rga_mm_is_invalid_dma_buffer(struct rga_dma_buffer *buffer)
@@ -236,7 +236,7 @@ index 425410464a689..6dc8c87104ae7 100644
  struct sg_table *rga_mm_lookup_sgt(struct rga_internal_buffer *buffer);
  
 diff --git a/drivers/video/rockchip/rga3/rga_debugger.c b/drivers/video/rockchip/rga3/rga_debugger.c
-index 6cfa841422ec0..239992b414d89 100644
+index 6cfa841422ec..239992b414d8 100644
 --- a/drivers/video/rockchip/rga3/rga_debugger.c
 +++ b/drivers/video/rockchip/rga3/rga_debugger.c
 @@ -219,17 +219,19 @@ static int rga_load_show(struct seq_file *m, void *data)
@@ -275,7 +275,7 @@ index 6cfa841422ec0..239992b414d89 100644
  		 * here would walk freed memory. The bound must be the snapshot
  		 * too -- the live count describes the replacement list.
 diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
-index 2fea79e57d2f8..0b43558c38959 100644
+index 2fea79e57d2f..0b43558c3895 100644
 --- a/drivers/video/rockchip/rga3/rga_drv.c
 +++ b/drivers/video/rockchip/rga3/rga_drv.c
 @@ -136,9 +136,12 @@ int rga_mpi_commit(struct rga_mpi_job_t *mpi_job)
@@ -706,7 +706,7 @@ index 2fea79e57d2f8..0b43558c38959 100644
  	device_init_wakeup(dev, false);
  	pm_runtime_disable(dev);
 diff --git a/drivers/video/rockchip/rga3/rga_fence.c b/drivers/video/rockchip/rga3/rga_fence.c
-index 10cb6586d1538..3c52b0db9d4e9 100644
+index 10cb6586d153..3c52b0db9d4e 100644
 --- a/drivers/video/rockchip/rga3/rga_fence.c
 +++ b/drivers/video/rockchip/rga3/rga_fence.c
 @@ -115,30 +115,15 @@ int rga_dma_fence_wait(struct dma_fence *fence)
@@ -746,7 +746,7 @@ index 10cb6586d1538..3c52b0db9d4e9 100644
  	return ret;
  }
 diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
-index 48cc568d7a3eb..037c51e69a0f3 100644
+index 48cc568d7a3e..037c51e69a0f 100644
 --- a/drivers/video/rockchip/rga3/rga_job.c
 +++ b/drivers/video/rockchip/rga3/rga_job.c
 @@ -13,8 +13,18 @@
@@ -2035,7 +2035,7 @@ index 48cc568d7a3eb..037c51e69a0f3 100644
  	request->pid = current->pid;
  	request->flags = flags;
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index 15834b04c5938..16ba3bf69e4af 100644
+index 15834b04c593..16ba3bf69e4a 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -29,7 +29,9 @@
@@ -2690,5 +2690,5 @@ index 15834b04c5938..16ba3bf69e4af 100644
  }
  
 -- 
-2.55.0
+2.56.1
 

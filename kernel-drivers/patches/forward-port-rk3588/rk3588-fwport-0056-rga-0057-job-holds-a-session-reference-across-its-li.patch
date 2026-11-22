@@ -1,8 +1,8 @@
-From dea09c9d02cd09f6f06c0871eff8efaa853c6a30 Mon Sep 17 00:00:00 2001
+From 92ecc05282ea7ad02704f279b9b1ec82f9d405da Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 22:20:55 -0700
-Subject: [PATCH 56/87] =?UTF-8?q?rga:=200057=20=E2=80=94=20job=20holds=20a?=
- =?UTF-8?q?=20session=20reference=20across=20its=20lifetime?=
+Subject: [PATCH 056/107] =?UTF-8?q?rga:=200057=20=E2=80=94=20job=20holds?=
+ =?UTF-8?q?=20a=20session=20reference=20across=20its=20lifetime?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -34,7 +34,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
  1 file changed, 19 insertions(+)
 
 diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
-index cc8e9a7bc9655..ec709f5b84d83 100644
+index cc8e9a7bc965..ec709f5b84d8 100644
 --- a/drivers/video/rockchip/rga3/rga_job.c
 +++ b/drivers/video/rockchip/rga3/rga_job.c
 @@ -26,6 +26,14 @@ static void rga_job_free(struct rga_job *job)
@@ -70,3 +70,6 @@ index cc8e9a7bc9655..ec709f5b84d83 100644
  	job->mm = request->current_mm;
  
  	scheduler = rga_job_schedule(job);
+-- 
+2.56.1
+

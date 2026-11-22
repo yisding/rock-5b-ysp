@@ -1,7 +1,7 @@
-From 5b87d46eefdcbb276f1e15dd199deb6ea6b12893 Mon Sep 17 00:00:00 2001
+From ebaf167c4454cb91c7592a34ccc76b07639f5b52 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 1 Aug 2026 22:03:37 -0700
-Subject: [PATCH 87/87] video: rockchip: fix defects found reviewing the
+Subject: [PATCH 087/107] video: rockchip: fix defects found reviewing the
  previous five commits
 
 Adversarial review of the audit fixes found that three of them were
@@ -52,7 +52,7 @@ Assisted-By: Claude Fable 5 <noreply@anthropic.com>
  6 files changed, 182 insertions(+), 39 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index 462caf0b2028d..a471047a35c87 100644
+index 462caf0b2028..a471047a35c8 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -258,6 +258,12 @@ static void task_msgs_reset(struct mpp_task_msgs *msgs)
@@ -163,7 +163,7 @@ index 462caf0b2028d..a471047a35c87 100644
  
  		/* NOTE: add previous ready task to queue and drop empty task */
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
-index fac9e70de7061..5cb9e0828e267 100644
+index fac9e70de706..5cb9e0828e26 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.c
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.c
 @@ -33,6 +33,45 @@
@@ -272,7 +272,7 @@ index fac9e70de7061..5cb9e0828e267 100644
  	return 0;
  }
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
-index 439212c5c85a5..b5ad3ec84479c 100644
+index 439212c5c85a..b5ad3ec84479 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 @@ -2131,6 +2131,7 @@ int rkvdec2_soft_ccu_iommu_fault_handle(struct iommu_domain *iommu,
@@ -354,7 +354,7 @@ index 439212c5c85a5..b5ad3ec84479c 100644
  		/* reset process */
  		ret = rkvdec2_hard_ccu_reset(queue, dec->ccu);
 diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
-index 60c1b5d3cf4d1..310e168a4537e 100644
+index 60c1b5d3cf4d..310e168a4537 100644
 --- a/drivers/video/rockchip/rga3/include/rga_drv.h
 +++ b/drivers/video/rockchip/rga3/include/rga_drv.h
 @@ -240,7 +240,12 @@ struct rga_internal_buffer {
@@ -372,7 +372,7 @@ index 60c1b5d3cf4d1..310e168a4537e 100644
  	 * times; ownership must survive until the last of those is released,
  	 * otherwise the buffer is orphaned (session == NULL) and the owning
 diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
-index b894aa48b5496..2fea79e57d2f8 100644
+index b894aa48b549..2fea79e57d2f 100644
 --- a/drivers/video/rockchip/rga3/rga_drv.c
 +++ b/drivers/video/rockchip/rga3/rga_drv.c
 @@ -696,25 +696,22 @@ static long rga_ioctl_import_buffer(unsigned long arg, struct rga_session *sessi
@@ -431,7 +431,7 @@ index b894aa48b5496..2fea79e57d2f8 100644
  		ret = rga_mm_import_buffer(&external_buffer[i], session);
  		if (ret <= 0) {
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index 6b5d3c8daf3e8..11aa0d9d78256 100644
+index 6b5d3c8daf3e..11aa0d9d7825 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -1284,7 +1284,17 @@ rga_mm_lookup_external(struct rga_mm *mm_session,
@@ -479,3 +479,6 @@ index 6b5d3c8daf3e8..11aa0d9d78256 100644
  		mutex_unlock(&mm->lock);
  
  		if (DEBUGGER_EN(MM)) {
+-- 
+2.56.1
+

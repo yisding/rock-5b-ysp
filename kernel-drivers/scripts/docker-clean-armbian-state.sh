@@ -8,7 +8,14 @@
 # mounts; it repeats every path check before deleting anything.
 set -euo pipefail
 
-DEFAULT_IMAGE="ghcr.io/armbian/docker-armbian-build:armbian-ubuntu-noble-latest"
+# Armbian's build-host image follows its own host-distro choice: it moved from
+# Ubuntu Noble to Debian Trixie between build@2a53f158 and build@eb97c8d0, and a
+# fresh build pulls only the current one. With no --image or
+# ARMBIAN_DOCKER_IMAGE, use the first of these that exists locally.
+DEFAULT_IMAGES=(
+	"ghcr.io/armbian/docker-armbian-build:armbian-debian-trixie-latest"
+	"ghcr.io/armbian/docker-armbian-build:armbian-ubuntu-noble-latest"
+)
 
 say() { printf '>>> %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 2; }
@@ -145,7 +152,7 @@ CODE="$(cd "$ROOT/.." && pwd)"
 ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$CODE/rock-5b}"
 WORKSPACE="${WORKSPACE:-$ROCK5B_WORKSPACE/build/kernel/rock5b-kernel-build}"
 ARMBIAN_BUILD="${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}"
-IMAGE="${ARMBIAN_DOCKER_IMAGE:-$DEFAULT_IMAGE}"
+IMAGE="${ARMBIAN_DOCKER_IMAGE:-}"
 APPLY=0
 
 while [ "$#" -gt 0 ]; do
@@ -262,6 +269,16 @@ if [ "$APPLY" != 1 ]; then
 fi
 
 command -v docker >/dev/null || die "docker is required for --apply"
+if [ -z "$IMAGE" ]; then
+	for candidate in "${DEFAULT_IMAGES[@]}"; do
+		if docker image inspect "$candidate" >/dev/null 2>&1; then
+			IMAGE="$candidate"
+			break
+		fi
+	done
+	[ -n "$IMAGE" ] ||
+		die "no local Armbian Docker image found (tried: ${DEFAULT_IMAGES[*]}); run an Armbian build or set --image"
+fi
 IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$IMAGE" 2>/dev/null)" ||
 	die "local Armbian Docker image not found: $IMAGE (run an Armbian build or set --image)"
 [[ "$IMAGE_ID" == sha256:* ]] || die "Docker returned an invalid image ID for $IMAGE: $IMAGE_ID"

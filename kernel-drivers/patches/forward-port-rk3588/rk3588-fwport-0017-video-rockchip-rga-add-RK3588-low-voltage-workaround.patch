@@ -1,7 +1,7 @@
-From 7f6a45e74fd3a66d27f23dd18938fcb86ece22f7 Mon Sep 17 00:00:00 2001
+From 25550819d83785d7f355b8c5edc6275b3a294ea6 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Thu, 16 Jul 2026 14:49:27 -0700
-Subject: [PATCH 17/87] video: rockchip: rga: add RK3588 low-voltage
+Subject: [PATCH 017/107] video: rockchip: rga: add RK3588 low-voltage
  workarounds
 
 Keep the RGA3 logic clock enabled while issuing commands, and disable the unreliable RGA2 automatic reset path on RK3588 revision 3.2.63318. Both avoid failures seen when the hardware is operating at low voltage.\n\nAdapt Rockchip develop-5.10 commits 561aab30f22b and 718fad971319 to the forward port.
@@ -11,7 +11,7 @@ Keep the RGA3 logic clock enabled while issuing commands, and disable the unreli
  2 files changed, 8 insertions(+), 3 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga3_reg_info.c b/drivers/video/rockchip/rga3/rga3_reg_info.c
-index 9bba84af71e32..438ce783d09af 100644
+index 9bba84af71e3..438ce783d09a 100644
 --- a/drivers/video/rockchip/rga3/rga3_reg_info.c
 +++ b/drivers/video/rockchip/rga3/rga3_reg_info.c
 @@ -2146,16 +2146,18 @@ static int rga3_set_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
@@ -36,7 +36,7 @@ index 9bba84af71e32..438ce783d09af 100644
  		for (i = 0; i <= 50; i++)
  			rga_write(cmd[i], 0x100 + i * 4, scheduler);
 diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
-index 8d9a620e91b8c..052938214e99c 100644
+index 8d9a620e91b8..052938214e99 100644
 --- a/drivers/video/rockchip/rga3/rga_drv.c
 +++ b/drivers/video/rockchip/rga3/rga_drv.c
 @@ -1451,7 +1451,10 @@ static int rga_drv_probe(struct platform_device *pdev)
@@ -51,3 +51,6 @@ index 8d9a620e91b8c..052938214e99c 100644
  			scheduler->data = &rga2e_1106_data;
  		} else if (!strcmp(scheduler->version.str, "3.6.92812") ||
  			 !strcmp(scheduler->version.str, "3.7.93215")) {
+-- 
+2.56.1
+

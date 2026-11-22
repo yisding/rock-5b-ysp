@@ -1,7 +1,7 @@
-From c05bc08cecfe15941a0f7a510f98145d45a1ef9a Mon Sep 17 00:00:00 2001
+From 8760a394013b158d50dae27924d32e6ac3f0a100 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Tue, 17 Mar 2026 16:10:45 +0800
-Subject: [PATCH 24/87] video: rockchip: rga3: fix cache-line unaligned VA
+Subject: [PATCH 024/107] video: rockchip: rga3: fix cache-line unaligned VA
  access fault
 
 When CONFIG_DMA_BOUNCE_UNALIGNED_KMALLOC is enabled, non-cache-line
@@ -16,7 +16,7 @@ Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
  1 file changed, 38 insertions(+), 5 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index 8914197a80c34..9391d72188c1f 100644
+index 8914197a80c3..9391d72188c1 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -736,6 +736,9 @@ static int rga_mm_map_virt_addr(struct rga_external_buffer *external_buffer,
@@ -105,3 +105,6 @@ index 8914197a80c34..9391d72188c1f 100644
  
  	switch (dump_buffer->type) {
  	case RGA_DMA_BUFFER:
+-- 
+2.56.1
+

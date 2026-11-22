@@ -1,7 +1,7 @@
-From 3393359f8b6636f5c9885a28164d1ba26a0072de Mon Sep 17 00:00:00 2001
+From 9f17ab3dc39c3629cab03ef430893286d6eac2c6 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 22 Jul 2026 08:15:51 -0700
-Subject: [PATCH 65/87] video: rockchip: rga: reject missing multi-plane
+Subject: [PATCH 065/107] video: rockchip: rga: reject missing multi-plane
  handles
 
 Separate-plane requests may omit a plane whose buffer pointer is
@@ -15,7 +15,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  1 file changed, 47 insertions(+), 25 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index 46b40d9e0dd2a..ce9d50a0e5c7d 100644
+index 46b40d9e0dd2..ce9d50a0e5c7 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -1738,11 +1738,11 @@ static int rga_mm_set_mmu_base(struct rga_job *job,
@@ -118,3 +118,6 @@ index 46b40d9e0dd2a..ce9d50a0e5c7d 100644
  
  		img->yrgb_addr = yrgb_offset;
  		img->uv_addr = (yrgb_count << PAGE_SHIFT) + uv_offset;
+-- 
+2.56.1
+

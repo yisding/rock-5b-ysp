@@ -1,7 +1,7 @@
-From a68c39dbb834847d6a97ffb5857deab1b154cc05 Mon Sep 17 00:00:00 2001
+From adf7db49305b83f0468ba1cbd858269ef7e51083 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 18 Jul 2026 05:59:58 -0700
-Subject: [PATCH 41/87] video: rockchip: mpp: clear session->dma after reset
+Subject: [PATCH 041/107] video: rockchip: mpp: clear session->dma after reset
  destroy
 
 MPP_CMD_RESET_SESSION destroys session->dma via mpp_dma_session_destroy()
@@ -27,7 +27,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  1 file changed, 1 insertion(+)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index e10d603119432..65cb3a625f5b3 100644
+index e10d60311943..65cb3a625f5b 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -1475,6 +1475,7 @@ static int mpp_process_request(struct mpp_session *session,
@@ -38,3 +38,6 @@ index e10d603119432..65cb3a625f5b3 100644
  			mpp_iommu_up_write(mpp->iommu_info);
  		}
  		return ret;
+-- 
+2.56.1
+

@@ -1,3 +1,35 @@
+linux-rockchip64-ysp (6.18.64+rk3588av1fwport20261122-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Rebase the package from Linux 6.18.51 to longterm Linux 6.18.64 commit
+    fd7cfd39c8859, selected by Armbian build input eb97c8d0 from the
+    linux-6.18.y stable branch.
+  * Rebase the maintained forward-port series onto v6.18.64. Patch 0005
+    drops its RK_MMU_AUTO_GATING DISABLE_FETCH_DTE_TIME_LIMIT write, now
+    carried by stable as upstream 8d4346ecd495, and adapts the VSI IOMMU
+    attach callbacks to the three-argument attach_dev that 6.18.57
+    backported (upstream fd714986e4e4). The other 96 patches are unchanged.
+  * Extend the series from 0001-0097 to 0001-0107 with fixes from a fresh
+    full review of the driver code:
+    - parse 32-bit MPP requests with libmpp's real 24-byte record size;
+    - stop reporting a stale IRQ status as success for a timed-out task;
+    - return a failed task's encoder core claim and keep the worker draining;
+    - suppress sysfs unbind for rkvdec2, rkvenc2 and av1dec;
+    - free RKVENC2 class buffers when a request carries no format, closing
+      an unprivileged kernel memory leak;
+    - initialise service session state before /dev/mpp_service is exposed;
+    - reject RGA2 palette modes outside 0..3;
+    - zero the RGA hardware-version reply before copying it to userspace;
+    - refuse to start a codec task while its Rockchip MMU has a paging
+      domain but is not translating, instead of letting a failed post-reset
+      refresh leave DMA in bypass.
+  * Runtime basis: the previous 6.18.51 / 0001-0097 package has been
+    installed and booted on the ROCK 5B since 2026-11-03, but has no recorded
+    conformance result. Neither 0098-0107 nor the 6.18.64 base has been
+    installed or booted. The fixes are strict-checkpatch and production-config
+    W=1 compile verified only.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Sun, 22 Nov 2026 12:00:00 -0800
+
 linux-rockchip64-ysp (6.18.51+rk3588av1fwport20260913-0ubuntu1~rk1) resolute; urgency=medium
 
   * Rebase the package from Linux 6.18.44 to stable Linux 6.18.51 commit

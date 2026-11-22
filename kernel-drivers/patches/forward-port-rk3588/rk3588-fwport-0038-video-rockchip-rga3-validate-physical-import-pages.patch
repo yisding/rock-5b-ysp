@@ -1,7 +1,7 @@
-From 25e630cbcfca2ae9b1b3a6e9aaea5c469f3d5d4d Mon Sep 17 00:00:00 2001
+From ef8de183072645c539d2f97b44aa3bb7f331497d Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Thu, 16 Jul 2026 20:20:08 -0700
-Subject: [PATCH 38/87] video: rockchip: rga3: validate physical import pages
+Subject: [PATCH 038/107] video: rockchip: rga3: validate physical import pages
 
 RGA physical-address imports currently accept any pfn_valid() base.
 They pass the resulting pages to dma_map_sg(). On arm64, pfn_valid()
@@ -21,7 +21,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  1 file changed, 23 insertions(+), 11 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index 1994ef25aaae7..3d54c39b026e8 100644
+index 1994ef25aaae..3d54c39b026e 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -5,6 +5,8 @@
@@ -99,3 +99,6 @@ index 1994ef25aaae7..3d54c39b026e8 100644
  		mm_flag |= RGA_MEM_UNDER_4G;
  
  	if (!rga_mm_check_memory_limit(scheduler, mm_flag)) {
+-- 
+2.56.1
+

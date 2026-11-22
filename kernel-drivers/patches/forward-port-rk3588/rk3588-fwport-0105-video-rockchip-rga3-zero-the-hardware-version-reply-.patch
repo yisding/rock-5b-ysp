@@ -1,0 +1,36 @@
+From 61f14842809f2c7882384e60d20f34ec62072d89 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sun, 22 Nov 2026 07:03:58 -0800
+Subject: [PATCH 105/107] video: rockchip: rga3: zero the hardware-version
+ reply before copying it out
+
+RGA_IOC_GET_HW_VERSION fills only the first num_of_scheduler entries of
+an on-stack struct rga_hw_versions_t and then copies the whole struct to
+userspace. On RK3588 the remaining entries are uninitialised stack.
+CONFIG_INIT_STACK_ALL_ZERO currently hides this, but the explicit
+initialiser that the BSP audit recorded as applied was missing from this
+tree.
+
+Zero-initialise the reply.
+
+Assisted-by: Claude:claude-opus-5-5
+---
+ drivers/video/rockchip/rga3/rga_drv.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
+index 0b43558c3895..db7ae5b2bbdc 100644
+--- a/drivers/video/rockchip/rga3/rga_drv.c
++++ b/drivers/video/rockchip/rga3/rga_drv.c
+@@ -1108,7 +1108,7 @@ static long rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
+ 	int major_version = 0, minor_version = 0;
+ 	char version[16] = { 0 };
+ 	struct rga_version_t driver_version;
+-	struct rga_hw_versions_t hw_versions;
++	struct rga_hw_versions_t hw_versions = { 0 };
+ 	struct rga_drvdata_t *rga = rga_drvdata;
+ 	struct rga_session *session = file->private_data;
+ 
+-- 
+2.56.1
+

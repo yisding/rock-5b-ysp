@@ -1,8 +1,8 @@
-From 7b48a8d5b30df6cbc4f29ee001614b1f79cb3296 Mon Sep 17 00:00:00 2001
+From 16b2922b41188ebfee05ab1d5dbf80ab1cae566b Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 06:12:44 -0700
-Subject: [PATCH 45/87] video: rockchip: rga3: accept legacy virtual addresses
- in task check
+Subject: [PATCH 045/107] video: rockchip: rga3: accept legacy virtual
+ addresses in task check
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -23,7 +23,7 @@ missing-pattern and unknown-render-mode ABI contract.
  1 file changed, 16 insertions(+), 4 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
-index 755af53952ab1..eb3a9aa17c710 100644
+index 755af53952ab..eb3a9aa17c71 100644
 --- a/drivers/video/rockchip/rga3/rga_job.c
 +++ b/drivers/video/rockchip/rga3/rga_job.c
 @@ -660,26 +660,38 @@ int rga_request_check(struct rga_user_request *req)
@@ -69,3 +69,6 @@ index 755af53952ab1..eb3a9aa17c710 100644
  			return -EINVAL;
  
  		break;
+-- 
+2.56.1
+

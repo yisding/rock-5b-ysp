@@ -1,7 +1,7 @@
-From 522f3e122206efb1d90cdf1c497b4ed83596e5a7 Mon Sep 17 00:00:00 2001
+From f63adff6f2dc00f9808289d8d76125cae2717690 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Thu, 30 Apr 2026 10:30:46 +0800
-Subject: [PATCH 25/87] video: rockchip: rga3: fix VA map size calculation
+Subject: [PATCH 025/107] video: rockchip: rga3: fix VA map size calculation
 
 When shadow_page is active, the map size calculation did not account for
 the case where the offset is 0.
@@ -16,7 +16,7 @@ Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
  1 file changed, 3 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index 9391d72188c1f..88623fca782dc 100644
+index 9391d72188c1..88623fca782d 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -786,9 +786,10 @@ static int rga_mm_map_virt_addr(struct rga_external_buffer *external_buffer,
@@ -32,3 +32,6 @@ index 9391d72188c1f..88623fca782dc 100644
  		}
  	} else {
  		real_offset = 0;
+-- 
+2.56.1
+

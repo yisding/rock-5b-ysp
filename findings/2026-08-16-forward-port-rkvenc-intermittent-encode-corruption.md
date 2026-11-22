@@ -132,6 +132,51 @@ defect that earlier forward-port runs were already exhibiting at lower severity.
 The severity has also genuinely shifted: no run in the twelve-run loop exceeded
 38.2 dB, against the 41–47 dB the 08-04 baseline reached.
 
+## Candidate mechanism: unsynced cached input frames (2026-11-22)
+
+Trust for this section: SOURCE-INSPECTED, HYPOTHESIS. Found by the
+2026-11-22 full driver review
+([update finding](2026-11-22-forward-port-6-18-64-rebase-and-driver-review.md)).
+No runtime test has been run.
+
+The forward-port's dma-buf import cache maps an input buffer, and so cleans the
+CPU cache for it, only on first import. A later task that reuses a pooled
+buffer (`mpp_dma_import_fd()` finds it and takes only a `kref`) gets no
+`DMA_TO_DEVICE` sync from `rkvenc_alloc_task()` or `rkvenc_run()`. The only
+sync calls in `mpp_rkvenc2.c` are for the JPEG bitstream, which RK3588 never
+reaches. That is verbatim BSP behaviour: the BSP assumes uncached heaps, and
+this kernel has only cached `system`, CMA and `reserved` heaps, so MPP falls
+back to cached memory.
+
+On the userspace side, suite FFmpeg's `hwcontext_rkmpp.c` defaults to
+`MPP_BUFFER_FLAGS_DMA32` without `MPP_BUFFER_FLAGS_CACHABLE`, and it issues
+`DMA_BUF_IOCTL_SYNC` only when it requested a cacheable buffer. So neither side
+flushes CPU writes to a reused frame buffer, and the encoder can read stale RAM
+for lines still dirty in cache.
+
+This fits several recorded symptoms: flat colour is bit-exact, a few good
+frames per stream (first use of each pool buffer), larger bad frames with
+row-wise artefacts, survival across CQP, all-intra, MPP versions and solo
+runs, a clean kernel log, and unaffected decode.
+
+**Weighing against it:** the rewrite MPP driver also reuses session imports
+without a per-job sync (`rk_mpp_import_fd()` in `mpp_rewrite.c`), yet rewrite
+runs land at ~47 dB. The near-clean 2026-08-04 forward-port run is not
+explained either. Treat this as a lead, not a cause.
+
+Cheap discriminating tests, any one of which would settle it:
+
+1. Run the twelve-iteration loop with FFmpeg's `cacheable=1` device option,
+   which makes FFmpeg bracket its uploads with `DMA_BUF_IOCTL_SYNC`.
+2. Do a resolution sweep. If this is the mechanism, corruption should fall
+   sharply once a frame far exceeds the CPU caches (4K).
+3. Feed the same raw YUV through MPP's `mpi_enc_test`, which syncs its own
+   buffers.
+
+The corresponding fix belongs in userspace (sync whenever the buffer is
+actually cached). A kernel-side per-task `DMA_TO_DEVICE` sync would also mask
+it, at a per-frame flush cost. Neither is applied.
+
 ## Verification gate
 
 Run the same twelve-iteration fixed-QP loop on a second forward-port kernel and

@@ -1,8 +1,8 @@
-From 897fac51feaf66390c5d279cb66b27af4f19ddd8 Mon Sep 17 00:00:00 2001
+From 7b7b6546b3abbbfadab4db5ca85280cbaf6626f5 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 18:04:33 -0700
-Subject: [PATCH 54/87] video: rockchip: mpp: bounds-check register-translation
- imports
+Subject: [PATCH 054/107] video: rockchip: mpp: bounds-check
+ register-translation imports
 
 Two out-of-bounds writes into struct mpp_task's fixed 80-entry
 translation storage are reachable from an unprivileged MPP job with
@@ -34,7 +34,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  1 file changed, 13 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index b981bcbb1ae94..0fe7fe01467f5 100644
+index b981bcbb1ae9..0fe7fe01467f 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -1988,7 +1988,7 @@ mpp_task_attach_fd(struct mpp_task *task, int fd)
@@ -73,3 +73,6 @@ index b981bcbb1ae94..0fe7fe01467f5 100644
  		mpp_err("copy_from_user failed\n");
  		return -EINVAL;
  	}
+-- 
+2.56.1
+

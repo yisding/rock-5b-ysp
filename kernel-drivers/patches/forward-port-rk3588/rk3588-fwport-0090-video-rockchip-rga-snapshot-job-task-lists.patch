@@ -1,7 +1,7 @@
-From 4081e39e87125b333b60fa805e622f4303674bce Mon Sep 17 00:00:00 2001
+From fbd4a9ab01064ab1cb42c72f622601e22156a184 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 4 Aug 2026 16:16:35 -0700
-Subject: [PATCH 90/92] video: rockchip: rga: snapshot job task lists
+Subject: [PATCH 090/107] video: rockchip: rga: snapshot job task lists
 
 ---
  drivers/video/rockchip/rga3/include/rga_drv.h |  1 +
@@ -10,7 +10,7 @@ Subject: [PATCH 90/92] video: rockchip: rga: snapshot job task lists
  3 files changed, 44 insertions(+), 12 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
-index 310e168a4537e..bf1c0df8da7b0 100644
+index 310e168a4537..bf1c0df8da7b 100644
 --- a/drivers/video/rockchip/rga3/include/rga_drv.h
 +++ b/drivers/video/rockchip/rga3/include/rga_drv.h
 @@ -347,6 +347,7 @@ struct rga_job {
@@ -22,7 +22,7 @@ index 310e168a4537e..bf1c0df8da7b0 100644
  	size_t finished_count;
  
 diff --git a/drivers/video/rockchip/rga3/include/rga_job.h b/drivers/video/rockchip/rga3/include/rga_job.h
-index 7e26bec62cb00..2692cde0b6157 100644
+index 7e26bec62cb0..2692cde0b615 100644
 --- a/drivers/video/rockchip/rga3/include/rga_job.h
 +++ b/drivers/video/rockchip/rga3/include/rga_job.h
 @@ -25,7 +25,8 @@ enum job_flags {
@@ -36,7 +36,7 @@ index 7e26bec62cb00..2692cde0b6157 100644
  
  int rga_job_assign(struct rga_job *job);
 diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
-index 2777cebf275cc..dcfaa5656b7a3 100644
+index 2777cebf275c..dcfaa5656b7a 100644
 --- a/drivers/video/rockchip/rga3/rga_job.c
 +++ b/drivers/video/rockchip/rga3/rga_job.c
 @@ -25,6 +25,8 @@ static void rga_job_free(struct rga_job *job)
@@ -159,3 +159,6 @@ index 2777cebf275cc..dcfaa5656b7a3 100644
  	if (ret < 0) {
  		rga_req_err(request, "failed to commit job!\n");
  		goto err_abort_request;
+-- 
+2.56.1
+

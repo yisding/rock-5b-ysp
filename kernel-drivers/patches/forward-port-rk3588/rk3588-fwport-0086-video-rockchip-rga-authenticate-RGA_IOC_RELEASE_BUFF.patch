@@ -1,7 +1,7 @@
-From 36ec9c956ce110d5c2654afa0d6337e4348123c4 Mon Sep 17 00:00:00 2001
+From aa380255c67620b3001cfc5585cdd019d2617681 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 1 Aug 2026 21:53:17 -0700
-Subject: [PATCH 86/87] video: rockchip: rga: authenticate
+Subject: [PATCH 086/107] video: rockchip: rga: authenticate
  RGA_IOC_RELEASE_BUFFER
 
 rga_mm_release_buffer() took only a handle and dropped an import
@@ -23,7 +23,7 @@ Assisted-By: Claude Fable 5 <noreply@anthropic.com>
  3 files changed, 23 insertions(+), 8 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/include/rga_mm.h b/drivers/video/rockchip/rga3/include/rga_mm.h
-index 28c84ae338492..a77248e920f2c 100644
+index 28c84ae33849..a77248e920f2 100644
 --- a/drivers/video/rockchip/rga3/include/rga_mm.h
 +++ b/drivers/video/rockchip/rga3/include/rga_mm.h
 @@ -59,7 +59,7 @@ void rga_mm_unmap_job_info(struct rga_job *job);
@@ -36,7 +36,7 @@ index 28c84ae338492..a77248e920f2c 100644
  
  int rga_mm_init(struct rga_mm **session);
 diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
-index 7d8b85bd74ef2..b894aa48b5496 100644
+index 7d8b85bd74ef..b894aa48b549 100644
 --- a/drivers/video/rockchip/rga3/rga_drv.c
 +++ b/drivers/video/rockchip/rga3/rga_drv.c
 @@ -284,11 +284,11 @@ int rga_mpi_commit(struct rga_mpi_job_t *mpi_job)
@@ -83,7 +83,7 @@ index 7d8b85bd74ef2..b894aa48b5496 100644
  		rga_power_disable_all();
  
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index c072a2e14ee38..6b5d3c8daf3e8 100644
+index c072a2e14ee3..6b5d3c8daf3e 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -3259,7 +3259,7 @@ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
@@ -116,3 +116,6 @@ index c072a2e14ee38..6b5d3c8daf3e8 100644
  	if (DEBUGGER_EN(MM)) {
  		rga_buf_log(internal_buffer, "release buffer:\n");
  		rga_mm_dump_buffer(internal_buffer);
+-- 
+2.56.1
+

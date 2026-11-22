@@ -1,7 +1,7 @@
-From e7ff978398825b63ddcb13e0572d77564034c1e2 Mon Sep 17 00:00:00 2001
+From 099be4230613ed92d8253fff9f3e6e2c1f1da3c8 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 11 Aug 2026 14:21:33 -0700
-Subject: [PATCH 97/97] video: rockchip: rga3: remap contiguous high USERPTRs
+Subject: [PATCH 097/107] video: rockchip: rga3: remap contiguous high USERPTRs
 
 A high virtual import can still be physically contiguous when its pages
 come from a transparent huge page. Do not classify that generic property as
@@ -17,7 +17,7 @@ raw high physical imports.
  1 file changed, 14 insertions(+), 9 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index 16ba3bf69e4af..f6c0e1e7096bb 100644
+index 16ba3bf69e4a..f6c0e1e7096b 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -1643,14 +1643,13 @@ int rga_mm_lookup_rga2_support(struct rga_mm *mm_session, uint64_t handle,
@@ -80,5 +80,5 @@ index 16ba3bf69e4af..f6c0e1e7096bb 100644
  			break;
  		}
 -- 
-2.55.0
+2.56.1
 

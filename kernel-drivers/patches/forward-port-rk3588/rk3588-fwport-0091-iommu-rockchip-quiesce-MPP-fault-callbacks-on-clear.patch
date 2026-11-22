@@ -1,7 +1,7 @@
-From 552a9eea6aab59df8a4e829521e88cbec84653bf Mon Sep 17 00:00:00 2001
+From 342a19c9b80321e1b86991cbed526a7a47f222fe Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 4 Aug 2026 16:16:58 -0700
-Subject: [PATCH 91/92] iommu: rockchip: quiesce MPP fault callbacks on clear
+Subject: [PATCH 091/107] iommu: rockchip: quiesce MPP fault callbacks on clear
 
 Keep provider fault callbacks under the same spinlock used to replace or clear their handler and token. Clearing a callback is therefore a non-sleeping quiescence barrier instead of leaving an IRQ with a borrowed token that teardown can free.
 
@@ -14,10 +14,10 @@ Pin generic MPP and RKVENC current-task inspection with the running-list lock. K
  4 files changed, 27 insertions(+), 24 deletions(-)
 
 diff --git a/drivers/iommu/rockchip-iommu.c b/drivers/iommu/rockchip-iommu.c
-index 06dc9f6cb7a5c..e05d5217fd9bf 100644
+index 71388d3c75f4..eade2ae97a96 100644
 --- a/drivers/iommu/rockchip-iommu.c
 +++ b/drivers/iommu/rockchip-iommu.c
-@@ -984,19 +984,18 @@ static struct rk_iommu *rk_iommu_from_dev(struct device *dev)
+@@ -997,19 +997,18 @@ static struct rk_iommu *rk_iommu_from_dev(struct device *dev)
  static int rk_iommu_call_fault_handler(struct rk_iommu *iommu,
  				       dma_addr_t iova, int flags)
  {
@@ -44,7 +44,7 @@ index 06dc9f6cb7a5c..e05d5217fd9bf 100644
  }
  
  /* Must be called with iommu powered on and attached */
-@@ -1489,11 +1488,7 @@ int rockchip_iommu_set_fault_handler(struct device *dev,
+@@ -1515,11 +1514,7 @@ int rockchip_iommu_set_fault_handler(struct device *dev,
  }
  EXPORT_SYMBOL_GPL(rockchip_iommu_set_fault_handler);
  
@@ -58,7 +58,7 @@ index 06dc9f6cb7a5c..e05d5217fd9bf 100644
  {
  	struct rk_iommu *iommu = rk_iommu_from_dev_checked(dev);
 diff --git a/drivers/iommu/vsi-iommu.c b/drivers/iommu/vsi-iommu.c
-index 1b2aa5867334f..359c40e6d6b8d 100644
+index e5aa6d7560d7..cd94cc6073e7 100644
 --- a/drivers/iommu/vsi-iommu.c
 +++ b/drivers/iommu/vsi-iommu.c
 @@ -200,19 +200,18 @@ static int vsi_iommu_call_fault_handler(struct vsi_iommu *iommu,
@@ -88,7 +88,7 @@ index 1b2aa5867334f..359c40e6d6b8d 100644
  }
  
  static void vsi_iommu_mask_irq_locked(struct vsi_iommu *iommu)
-@@ -900,7 +899,7 @@ int vsi_iommu_set_fault_handler(struct device *dev,
+@@ -902,7 +901,7 @@ int vsi_iommu_set_fault_handler(struct device *dev,
  }
  EXPORT_SYMBOL_GPL(vsi_iommu_set_fault_handler);
  
@@ -98,7 +98,7 @@ index 1b2aa5867334f..359c40e6d6b8d 100644
  {
  	struct vsi_iommu *iommu = vsi_iommu_from_dev_checked(dev);
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
-index 2f90608ab41ae..d9feeaf63dcd0 100644
+index 2f90608ab41a..d9feeaf63dcd 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.c
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.c
 @@ -912,6 +912,7 @@ static int mpp_iommu_handle(struct iommu_domain *iommu,
@@ -133,7 +133,7 @@ index 2f90608ab41ae..d9feeaf63dcd0 100644
  	rockchip_iommu_sync_fault_handler(info->dev);
  	vsi_iommu_sync_fault_handler(info->dev);
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
-index 9aceaaa77f692..fa125b7cb19a5 100644
+index 9aceaaa77f69..fa125b7cb19a 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 @@ -3494,6 +3494,7 @@ static int rkvenc2_iommu_fault_handle(struct iommu_domain *iommu,
@@ -175,3 +175,6 @@ index 9aceaaa77f692..fa125b7cb19a5 100644
  
  	return 0;
  }
+-- 
+2.56.1
+

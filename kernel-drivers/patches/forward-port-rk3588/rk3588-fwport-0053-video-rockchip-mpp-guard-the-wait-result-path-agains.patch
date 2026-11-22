@@ -1,7 +1,7 @@
-From 862a7bea0d1d3caeb82f6ca8e8abb8ab6e699680 Mon Sep 17 00:00:00 2001
+From 96dc2d20ae160e8d3832d145c57ef0dadf260276 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 17:27:13 -0700
-Subject: [PATCH 53/87] video: rockchip: mpp: guard the wait-result path
+Subject: [PATCH 053/107] video: rockchip: mpp: guard the wait-result path
  against a device-less session
 
 mpp_wait_result_default() fetches the task's device with
@@ -28,7 +28,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  1 file changed, 13 insertions(+)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index f19728d8f73e1..b981bcbb1ae94 100644
+index f19728d8f73e..b981bcbb1ae9 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -1080,6 +1080,19 @@ static int mpp_wait_result_default(struct mpp_session *session,
@@ -51,3 +51,6 @@ index f19728d8f73e1..b981bcbb1ae94 100644
  
  	if (msgs->flags & MPP_FLAGS_POLL_NON_BLOCK) {
  		if (!test_bit(TASK_STATE_DONE, &task->state))
+-- 
+2.56.1
+

@@ -1,7 +1,7 @@
-From 6d4ab1572f04be8104f22ddb19504ec1fbe4be33 Mon Sep 17 00:00:00 2001
+From d95ac691acac90c9162f3e792d007e801fcd2fd6 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Mon, 16 Mar 2026 21:03:19 +0800
-Subject: [PATCH 26/87] video: rockchip: rga3: fix return value of
+Subject: [PATCH 026/107] video: rockchip: rga3: fix return value of
  rga_mm_lookup_iova() on error
 
 Change-Id: I2c5d066fffb2e72e9b5ba3affa44160758b3069e
@@ -12,7 +12,7 @@ Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
  1 file changed, 15 insertions(+), 7 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index 88623fca782dc..1994ef25aaae7 100644
+index 88623fca782d..1994ef25aaae 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -1236,7 +1236,7 @@ int rga_mm_lookup_flag(struct rga_mm *mm_session, uint64_t handle)
@@ -73,3 +73,6 @@ index 88623fca782dc..1994ef25aaae7 100644
  
  		break;
  	case RGA_MMU:
+-- 
+2.56.1
+

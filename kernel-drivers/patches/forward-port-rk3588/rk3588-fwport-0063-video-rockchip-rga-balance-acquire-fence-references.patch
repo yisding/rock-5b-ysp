@@ -1,7 +1,8 @@
-From a619d9f8a0ae0e1e1c8e63629270b89e892a7e7c Mon Sep 17 00:00:00 2001
+From 25509519d567706646c41948ab0c0b072d22cd21 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 22 Jul 2026 08:13:16 -0700
-Subject: [PATCH 63/87] video: rockchip: rga: balance acquire-fence references
+Subject: [PATCH 063/107] video: rockchip: rga: balance acquire-fence
+ references
 
 sync_file_get_fence() returns a referenced fence, but every completion
 and error path leaked it. Release the reference on early exits,
@@ -14,7 +15,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  1 file changed, 9 insertions(+)
 
 diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
-index ec709f5b84d83..2bd6bfe2617c6 100644
+index ec709f5b84d8..2bd6bfe2617c 100644
 --- a/drivers/video/rockchip/rga3/rga_job.c
 +++ b/drivers/video/rockchip/rga3/rga_job.c
 @@ -611,6 +611,7 @@ static int rga_request_add_acquire_fence_callback(int acquire_fence_fd,
@@ -57,3 +58,6 @@ index ec709f5b84d83..2bd6bfe2617c6 100644
  }
  
  int rga_request_release_signal(struct rga_scheduler_t *scheduler, struct rga_job *job)
+-- 
+2.56.1
+

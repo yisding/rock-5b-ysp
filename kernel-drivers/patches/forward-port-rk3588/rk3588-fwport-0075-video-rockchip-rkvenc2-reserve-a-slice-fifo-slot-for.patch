@@ -1,8 +1,8 @@
-From 12a7da02bea835e5f7024c42073bb84eb682fd99 Mon Sep 17 00:00:00 2001
+From 1c449f68aacdc8ceebb791791a6a25561af94e6d Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 25 Jul 2026 00:52:40 -0700
-Subject: [PATCH 75/87] video: rockchip: rkvenc2: reserve a slice fifo slot for
- the terminal record
+Subject: [PATCH 075/107] video: rockchip: rkvenc2: reserve a slice fifo slot
+ for the terminal record
 
 rkvenc2_read_slice_len() feeds the 256-entry per-task kfifo declared in
 struct rkvenc_task, and both of its insertion sites ignore the return
@@ -61,7 +61,7 @@ reproducer is still owed.
  1 file changed, 82 insertions(+), 9 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
-index 567712fe05f30..f52b7448cf33c 100644
+index 567712fe05f3..f52b7448cf33 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 @@ -276,6 +276,8 @@ struct rkvenc_task {
@@ -206,3 +206,6 @@ index 567712fe05f30..f52b7448cf33c 100644
  
  		return ret;
  
+-- 
+2.56.1
+

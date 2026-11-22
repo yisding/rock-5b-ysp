@@ -3,6 +3,51 @@
 This directory owns the source-package path for the co-installable ROCK 5B
 forward-port kernel.
 
+**Uploaded 2026-11-22:**
+`6.18.64+rk3588av1fwport20261122-0ubuntu1~rk1` — the complete `0001`–`0107`
+production forward-port tip `9fb65e963624` (`linux-rock5b:rk3588-video-6.18.64`),
+rebased onto longterm Linux 6.18.64. The dedicated PPA lane used Armbian build
+input `eb97c8d0`, which selected Linux 6.18.64 from `linux-6.18.y`. Armbian's
+patcher applied all 107 patches. The staged lane matched the maintained
+forward-port IOMMU fault-handler implementation and contained zero
+`*-rewrite` paths. The [6.18.64 finding](../../../findings/2026-11-22-forward-port-6-18-64-rebase-and-driver-review.md)
+owns the rebase, the ten review fixes `0098`–`0107`, and their boundary.
+
+The generated `.dsc` passed `dscverify --nosigcheck` and extracted cleanly as
+Linux 6.18.64. 79 of the 80 files the series touches are byte-identical to
+`9fb65e963624`. The 80th, `rk3588-base.dtsi`, differs only by Armbian's own
+layer: a CAN-FD node and the `media-0003` VPU121 compatible override. Every
+forward-port video node is present. The packaged config is the unchanged
+tracked file. Direct GPG verification reports good signatures on the `.dsc`,
+`.buildinfo`, and source `.changes` from
+`0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`. Final signed-artifact SHA-256
+values are:
+
+- orig: `4e775f1964f90c32928324b4912bc75c0ba5f2a37c860ca6ac86549e452df506`;
+- Debian tar: `193df5d15c1a37e09103ee4a37aea29bc5a82d2b53987b27d760191c6670cb1a`;
+- `.dsc`: `d9f97c670b2951879d0266c7db455b9f7259b914f537b07378198ebb63faa3e2`;
+- `.buildinfo`: `3e0f5fc1311366e5c39c2849a6588d29b94bb5e38d6da17727a1d377ea864f18`;
+- source `.changes`: `dd00f5515f2260d1d3b151b7addedc22238c3a4dbe4779d2eb285c602329002c`.
+
+`dput --check-only` passed its suite, source-only, field, checksum, and GPG
+gates. `dput` then transferred all five source artifacts to
+`ppa:yi-ding/ubuntu-rock-5b` and wrote
+`linux-rockchip64-ysp_6.18.64+rk3588av1fwport20261122-0ubuntu1~rk1_source.ppa.upload`
+(SHA-256
+`b8857eff9c57ac4a17b70dab709401dc660835d8558985f378a361becb12d221`).
+A Launchpad API query then returned source publication
+[`18974511`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18974511/+listing-archive-extra)
+(created 16:07 UTC) in `Pending` state, with arm64 build
+[`34003009`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/34003009)
+`Currently building`. Build success, binary publication, installation, boot,
+and runtime behaviour are unverified at this entry; [W05](../../../status.md#watch-w05)
+owns later observations.
+
+**Correction to the 2026-09-13 entry below.** The 6.18.51 package it describes
+has been installed and booted on the board since 2026-11-03, so its "not
+installed" statements are stale. That gives `0097` boot evidence only; no
+gray256, USERPTR, or conformance result exists for it.
+
 **Published 2026-09-13:**
 `6.18.51+rk3588av1fwport20260913-0ubuntu1~rk1` — the unchanged complete
 `0001`–`0097` production forward-port tip `e7ff978398825`, re-cut onto the

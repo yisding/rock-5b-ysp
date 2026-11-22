@@ -1,7 +1,7 @@
-From 2dae7f05f5288d2ec9faa0a6ccd3d920f54d13c6 Mon Sep 17 00:00:00 2001
+From 04c338b2cf9b22fe2b129197d964d0bc0b58c9ed Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 3 Jul 2026 20:28:54 -0700
-Subject: [PATCH 10/87] video: rockchip: mpp: convert rkvenc2 CCU attach to
+Subject: [PATCH 010/107] video: rockchip: mpp: convert rkvenc2 CCU attach to
  shared-domain helper
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -30,7 +30,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
  1 file changed, 22 insertions(+), 23 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
-index 54ce553979199..5a7bce7841966 100644
+index 54ce55397919..5a7bce784196 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 @@ -350,6 +350,8 @@ struct rkvenc_ccu {
@@ -107,3 +107,6 @@ index 54ce553979199..5a7bce7841966 100644
  	} else if (ccu->main_core && !enc->mpp.msgs_cap &&
  		   ccu->main_core->msgs_cap) {
  		ccu->main_core->msgs_cap--;
+-- 
+2.56.1
+

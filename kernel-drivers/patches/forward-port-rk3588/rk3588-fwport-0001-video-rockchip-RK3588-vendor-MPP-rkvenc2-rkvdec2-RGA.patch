@@ -1,8 +1,8 @@
-From 924f4232546df251c645a63928229f2589bfba18 Mon Sep 17 00:00:00 2001
+From cb4b0bbc86a7e45c00f99b2b52e7809f16641cb4 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sun, 28 Jun 2026 08:34:01 -0700
-Subject: [PATCH 01/87] video: rockchip: RK3588 vendor MPP (rkvenc2/rkvdec2) +
- RGA3/RGA2 drivers
+Subject: [PATCH 001/107] video: rockchip: RK3588 vendor MPP (rkvenc2/rkvdec2)
+ + RGA3/RGA2 drivers
 
 Forward-port of the Rockchip 6.1 BSP out-of-tree drivers to v6.18:
  - MPP service framework (rk_vcodec.ko, /dev/mpp_service)
@@ -134,10 +134,10 @@ rkvenc2 devfreq-remove underflow guarded. SoC-specific hack/ helpers kept
  create mode 100644 include/uapi/linux/rk-mpp.h
 
 diff --git a/drivers/video/Kconfig b/drivers/video/Kconfig
-index d51777df12d16..cef0d381a7254 100644
+index 0adb1e2fa533..ac0085838da6 100644
 --- a/drivers/video/Kconfig
 +++ b/drivers/video/Kconfig
-@@ -49,6 +49,8 @@ endmenu
+@@ -50,6 +50,8 @@ endmenu
  
  source "drivers/video/backlight/Kconfig"
  
@@ -147,7 +147,7 @@ index d51777df12d16..cef0d381a7254 100644
         tristate
         default n
 diff --git a/drivers/video/Makefile b/drivers/video/Makefile
-index ffbac4387c670..de60ba8512c8a 100644
+index ffbac4387c67..de60ba8512c8 100644
 --- a/drivers/video/Makefile
 +++ b/drivers/video/Makefile
 @@ -17,6 +17,8 @@ obj-y				  += backlight/
@@ -161,7 +161,7 @@ index ffbac4387c670..de60ba8512c8a 100644
  obj-$(CONFIG_VIDEOMODE_HELPERS) += of_display_timing.o of_videomode.o
 diff --git a/drivers/video/rockchip/Kconfig b/drivers/video/rockchip/Kconfig
 new file mode 100644
-index 0000000000000..13ecab409e7d1
+index 000000000000..13ecab409e7d
 --- /dev/null
 +++ b/drivers/video/rockchip/Kconfig
 @@ -0,0 +1,3 @@
@@ -170,7 +170,7 @@ index 0000000000000..13ecab409e7d1
 +source "drivers/video/rockchip/rga3/Kconfig"
 diff --git a/drivers/video/rockchip/Makefile b/drivers/video/rockchip/Makefile
 new file mode 100644
-index 0000000000000..5a7a4716c38f1
+index 000000000000..5a7a4716c38f
 --- /dev/null
 +++ b/drivers/video/rockchip/Makefile
 @@ -0,0 +1,3 @@
@@ -179,7 +179,7 @@ index 0000000000000..5a7a4716c38f1
 +obj-$(CONFIG_ROCKCHIP_MULTI_RGA) += rga3/
 diff --git a/drivers/video/rockchip/mpp/Kconfig b/drivers/video/rockchip/mpp/Kconfig
 new file mode 100644
-index 0000000000000..9b38f3b35b558
+index 000000000000..9b38f3b35b55
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/Kconfig
 @@ -0,0 +1,53 @@
@@ -238,7 +238,7 @@ index 0000000000000..9b38f3b35b558
 +endif
 diff --git a/drivers/video/rockchip/mpp/Makefile b/drivers/video/rockchip/mpp/Makefile
 new file mode 100644
-index 0000000000000..b74afd6db1f30
+index 000000000000..b74afd6db1f3
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/Makefile
 @@ -0,0 +1,21 @@
@@ -265,7 +265,7 @@ index 0000000000000..b74afd6db1f30
 +rk_vcodec-$(CONFIG_ROCKCHIP_MPP_RKVDEC2) += mpp_rkvdec2.o mpp_rkvdec2_link.o
 diff --git a/drivers/video/rockchip/mpp/compat/linux/rockchip/rockchip_sip.h b/drivers/video/rockchip/mpp/compat/linux/rockchip/rockchip_sip.h
 new file mode 100644
-index 0000000000000..bd9ce54bc4155
+index 000000000000..bd9ce54bc415
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/compat/linux/rockchip/rockchip_sip.h
 @@ -0,0 +1,34 @@
@@ -305,7 +305,7 @@ index 0000000000000..bd9ce54bc4155
 +#endif /* _MPP_COMPAT_LINUX_ROCKCHIP_SIP_H */
 diff --git a/drivers/video/rockchip/mpp/compat/rockchip_pmu_idle.h b/drivers/video/rockchip/mpp/compat/rockchip_pmu_idle.h
 new file mode 100644
-index 0000000000000..3ced5f54f6c79
+index 000000000000..3ced5f54f6c7
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/compat/rockchip_pmu_idle.h
 @@ -0,0 +1,32 @@
@@ -343,7 +343,7 @@ index 0000000000000..3ced5f54f6c79
 +#endif /* _MPP_COMPAT_ROCKCHIP_PMU_IDLE_H */
 diff --git a/drivers/video/rockchip/mpp/compat/rockchip_qos_compat.h b/drivers/video/rockchip/mpp/compat/rockchip_qos_compat.h
 new file mode 100644
-index 0000000000000..962b1a65d732a
+index 000000000000..962b1a65d732
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/compat/rockchip_qos_compat.h
 @@ -0,0 +1,29 @@
@@ -378,7 +378,7 @@ index 0000000000000..962b1a65d732a
 +#endif /* _MPP_COMPAT_ROCKCHIP_QOS_COMPAT_H */
 diff --git a/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_dmc.h b/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_dmc.h
 new file mode 100644
-index 0000000000000..c365505572307
+index 000000000000..c36550557230
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_dmc.h
 @@ -0,0 +1,23 @@
@@ -407,7 +407,7 @@ index 0000000000000..c365505572307
 +#endif /* _MPP_COMPAT_SOC_ROCKCHIP_DMC_H */
 diff --git a/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_iommu.h b/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_iommu.h
 new file mode 100644
-index 0000000000000..300563f3743b2
+index 000000000000..300563f3743b
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_iommu.h
 @@ -0,0 +1,41 @@
@@ -454,7 +454,7 @@ index 0000000000000..300563f3743b2
 +#endif /* _MPP_COMPAT_SOC_ROCKCHIP_IOMMU_H */
 diff --git a/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_ipa.h b/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_ipa.h
 new file mode 100644
-index 0000000000000..92da9173181aa
+index 000000000000..92da9173181a
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_ipa.h
 @@ -0,0 +1,40 @@
@@ -500,7 +500,7 @@ index 0000000000000..92da9173181aa
 +#endif /* _MPP_COMPAT_SOC_ROCKCHIP_IPA_H */
 diff --git a/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_opp_select.h b/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_opp_select.h
 new file mode 100644
-index 0000000000000..cdb1aef323a79
+index 000000000000..cdb1aef323a7
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_opp_select.h
 @@ -0,0 +1,66 @@
@@ -572,7 +572,7 @@ index 0000000000000..cdb1aef323a79
 +#endif /* _MPP_COMPAT_SOC_ROCKCHIP_OPP_SELECT_H */
 diff --git a/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_system_monitor.h b/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_system_monitor.h
 new file mode 100644
-index 0000000000000..0907e31fdf6df
+index 000000000000..0907e31fdf6d
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_system_monitor.h
 @@ -0,0 +1,73 @@
@@ -651,7 +651,7 @@ index 0000000000000..0907e31fdf6df
 +#endif /* _MPP_COMPAT_SOC_ROCKCHIP_SYSTEM_MONITOR_H */
 diff --git a/drivers/video/rockchip/mpp/hack/mpp_hack_px30.c b/drivers/video/rockchip/mpp/hack/mpp_hack_px30.c
 new file mode 100644
-index 0000000000000..a8e1a457bf975
+index 000000000000..a8e1a457bf97
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/hack/mpp_hack_px30.c
 @@ -0,0 +1,245 @@
@@ -902,7 +902,7 @@ index 0000000000000..a8e1a457bf975
 +}
 diff --git a/drivers/video/rockchip/mpp/hack/mpp_hack_px30.h b/drivers/video/rockchip/mpp/hack/mpp_hack_px30.h
 new file mode 100644
-index 0000000000000..c8402e30d810a
+index 000000000000..c8402e30d810
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/hack/mpp_hack_px30.h
 @@ -0,0 +1,27 @@
@@ -935,7 +935,7 @@ index 0000000000000..c8402e30d810a
 +#endif
 diff --git a/drivers/video/rockchip/mpp/hack/mpp_hack_rk3576.c b/drivers/video/rockchip/mpp/hack/mpp_hack_rk3576.c
 new file mode 100644
-index 0000000000000..aade189bd3d5a
+index 000000000000..aade189bd3d5
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/hack/mpp_hack_rk3576.c
 @@ -0,0 +1,193 @@
@@ -1134,7 +1134,7 @@ index 0000000000000..aade189bd3d5a
 +}
 diff --git a/drivers/video/rockchip/mpp/hack/mpp_hack_rk3576.h b/drivers/video/rockchip/mpp/hack/mpp_hack_rk3576.h
 new file mode 100644
-index 0000000000000..f386c184b89fc
+index 000000000000..f386c184b89f
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/hack/mpp_hack_rk3576.h
 @@ -0,0 +1,35 @@
@@ -1175,7 +1175,7 @@ index 0000000000000..f386c184b89fc
 +#endif
 diff --git a/drivers/video/rockchip/mpp/hack/mpp_rkvdec2_hack_rk3568.c b/drivers/video/rockchip/mpp/hack/mpp_rkvdec2_hack_rk3568.c
 new file mode 100644
-index 0000000000000..0c20dd9c59231
+index 000000000000..0c20dd9c5923
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/hack/mpp_rkvdec2_hack_rk3568.c
 @@ -0,0 +1,732 @@
@@ -1913,7 +1913,7 @@ index 0000000000000..0c20dd9c59231
 +}
 diff --git a/drivers/video/rockchip/mpp/hack/mpp_rkvdec2_link_hack_rk3568.c b/drivers/video/rockchip/mpp/hack/mpp_rkvdec2_link_hack_rk3568.c
 new file mode 100644
-index 0000000000000..a200d63a67887
+index 000000000000..a200d63a6788
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/hack/mpp_rkvdec2_link_hack_rk3568.c
 @@ -0,0 +1,213 @@
@@ -2132,7 +2132,7 @@ index 0000000000000..a200d63a67887
 +}
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
 new file mode 100644
-index 0000000000000..a66a51a0efded
+index 000000000000..a66a51a0efde
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -0,0 +1,2691 @@
@@ -4829,7 +4829,7 @@ index 0000000000000..a66a51a0efded
 +#endif
 diff --git a/drivers/video/rockchip/mpp/mpp_common.h b/drivers/video/rockchip/mpp/mpp_common.h
 new file mode 100644
-index 0000000000000..ffc217d16c909
+index 000000000000..ffc217d16c90
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/mpp_common.h
 @@ -0,0 +1,882 @@
@@ -5717,7 +5717,7 @@ index 0000000000000..ffc217d16c909
 +#endif
 diff --git a/drivers/video/rockchip/mpp/mpp_debug.h b/drivers/video/rockchip/mpp/mpp_debug.h
 new file mode 100644
-index 0000000000000..4108c69da894a
+index 000000000000..4108c69da894
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/mpp_debug.h
 @@ -0,0 +1,138 @@
@@ -5861,7 +5861,7 @@ index 0000000000000..4108c69da894a
 +#endif
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
 new file mode 100644
-index 0000000000000..cdba2d3499d02
+index 000000000000..cdba2d3499d0
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.c
 @@ -0,0 +1,731 @@
@@ -6598,7 +6598,7 @@ index 0000000000000..cdba2d3499d02
 +}
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.h b/drivers/video/rockchip/mpp/mpp_iommu.h
 new file mode 100644
-index 0000000000000..7b4686a795993
+index 000000000000..7b4686a79599
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.h
 @@ -0,0 +1,193 @@
@@ -6797,7 +6797,7 @@ index 0000000000000..7b4686a795993
 +#endif
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 new file mode 100644
-index 0000000000000..ce73e17e7215f
+index 000000000000..ce73e17e7215
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 @@ -0,0 +1,2222 @@
@@ -9025,7 +9025,7 @@ index 0000000000000..ce73e17e7215f
 +EXPORT_SYMBOL(rockchip_rkvdec2_driver);
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.h b/drivers/video/rockchip/mpp/mpp_rkvdec2.h
 new file mode 100644
-index 0000000000000..1d14d184933ff
+index 000000000000..1d14d184933f
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.h
 @@ -0,0 +1,233 @@
@@ -9264,7 +9264,7 @@ index 0000000000000..1d14d184933ff
 +#endif
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 new file mode 100644
-index 0000000000000..f52df09f05476
+index 000000000000..f52df09f0547
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 @@ -0,0 +1,2763 @@
@@ -12033,7 +12033,7 @@ index 0000000000000..f52df09f05476
 +}
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.h b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.h
 new file mode 100644
-index 0000000000000..a8796bf6078be
+index 000000000000..a8796bf6078b
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.h
 @@ -0,0 +1,257 @@
@@ -12296,7 +12296,7 @@ index 0000000000000..a8796bf6078be
 +#endif
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 new file mode 100644
-index 0000000000000..988151ebf488b
+index 000000000000..988151ebf488
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 @@ -0,0 +1,3305 @@
@@ -15607,7 +15607,7 @@ index 0000000000000..988151ebf488b
 +};
 diff --git a/drivers/video/rockchip/mpp/mpp_service.c b/drivers/video/rockchip/mpp/mpp_service.c
 new file mode 100644
-index 0000000000000..6303756e0c24b
+index 000000000000..6303756e0c24
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/mpp_service.c
 @@ -0,0 +1,550 @@
@@ -16163,7 +16163,7 @@ index 0000000000000..6303756e0c24b
 +MODULE_DESCRIPTION("Rockchip mpp service driver");
 diff --git a/drivers/video/rockchip/rga3/Kconfig b/drivers/video/rockchip/rga3/Kconfig
 new file mode 100644
-index 0000000000000..2e56888814e21
+index 000000000000..2e56888814e2
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/Kconfig
 @@ -0,0 +1,62 @@
@@ -16231,7 +16231,7 @@ index 0000000000000..2e56888814e21
 +endif
 diff --git a/drivers/video/rockchip/rga3/Makefile b/drivers/video/rockchip/rga3/Makefile
 new file mode 100644
-index 0000000000000..97871b5db9e0d
+index 000000000000..97871b5db9e0
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/Makefile
 @@ -0,0 +1,10 @@
@@ -16247,7 +16247,7 @@ index 0000000000000..97871b5db9e0d
 +obj-$(CONFIG_ROCKCHIP_MULTI_RGA)	+= rga3.o
 diff --git a/drivers/video/rockchip/rga3/include/rga.h b/drivers/video/rockchip/rga3/include/rga.h
 new file mode 100644
-index 0000000000000..671867b22371b
+index 000000000000..671867b22371
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/include/rga.h
 @@ -0,0 +1,1007 @@
@@ -17260,7 +17260,7 @@ index 0000000000000..671867b22371b
 +#endif /*_RGA_DRIVER_H_*/
 diff --git a/drivers/video/rockchip/rga3/include/rga2_reg_info.h b/drivers/video/rockchip/rga3/include/rga2_reg_info.h
 new file mode 100644
-index 0000000000000..187460833cf5f
+index 000000000000..187460833cf5
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/include/rga2_reg_info.h
 @@ -0,0 +1,573 @@
@@ -17839,7 +17839,7 @@ index 0000000000000..187460833cf5f
 +
 diff --git a/drivers/video/rockchip/rga3/include/rga3_reg_info.h b/drivers/video/rockchip/rga3/include/rga3_reg_info.h
 new file mode 100644
-index 0000000000000..50629a3fd994d
+index 000000000000..50629a3fd994
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/include/rga3_reg_info.h
 @@ -0,0 +1,525 @@
@@ -18370,7 +18370,7 @@ index 0000000000000..50629a3fd994d
 +
 diff --git a/drivers/video/rockchip/rga3/include/rga_common.h b/drivers/video/rockchip/rga3/include/rga_common.h
 new file mode 100644
-index 0000000000000..4ed75821f89a4
+index 000000000000..4ed75821f89a
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/include/rga_common.h
 @@ -0,0 +1,88 @@
@@ -18464,7 +18464,7 @@ index 0000000000000..4ed75821f89a4
 +#endif
 diff --git a/drivers/video/rockchip/rga3/include/rga_debugger.h b/drivers/video/rockchip/rga3/include/rga_debugger.h
 new file mode 100644
-index 0000000000000..cc2966ec554dc
+index 000000000000..cc2966ec554d
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/include/rga_debugger.h
 @@ -0,0 +1,145 @@
@@ -18615,7 +18615,7 @@ index 0000000000000..cc2966ec554dc
 +
 diff --git a/drivers/video/rockchip/rga3/include/rga_dma_buf.h b/drivers/video/rockchip/rga3/include/rga_dma_buf.h
 new file mode 100644
-index 0000000000000..bebcc817fc568
+index 000000000000..bebcc817fc56
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/include/rga_dma_buf.h
 @@ -0,0 +1,65 @@
@@ -18686,7 +18686,7 @@ index 0000000000000..bebcc817fc568
 +
 diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
 new file mode 100644
-index 0000000000000..1e9cbd5bfdebe
+index 000000000000..1e9cbd5bfdeb
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/include/rga_drv.h
 @@ -0,0 +1,502 @@
@@ -19194,7 +19194,7 @@ index 0000000000000..1e9cbd5bfdebe
 +#endif /* __LINUX_RGA_FENCE_H_ */
 diff --git a/drivers/video/rockchip/rga3/include/rga_fence.h b/drivers/video/rockchip/rga3/include/rga_fence.h
 new file mode 100644
-index 0000000000000..75c7c22926a2e
+index 000000000000..75c7c22926a2
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/include/rga_fence.h
 @@ -0,0 +1,101 @@
@@ -19301,7 +19301,7 @@ index 0000000000000..75c7c22926a2e
 +#endif /* __LINUX_RGA_FENCE_H_ */
 diff --git a/drivers/video/rockchip/rga3/include/rga_hw_config.h b/drivers/video/rockchip/rga3/include/rga_hw_config.h
 new file mode 100644
-index 0000000000000..12e7e81e3f47f
+index 000000000000..12e7e81e3f47
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/include/rga_hw_config.h
 @@ -0,0 +1,97 @@
@@ -19404,7 +19404,7 @@ index 0000000000000..12e7e81e3f47f
 +#endif /* __LINUX_RGA_HW_CONFIG_H_ */
 diff --git a/drivers/video/rockchip/rga3/include/rga_iommu.h b/drivers/video/rockchip/rga3/include/rga_iommu.h
 new file mode 100644
-index 0000000000000..b80a1f48bb25b
+index 000000000000..b80a1f48bb25
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/include/rga_iommu.h
 @@ -0,0 +1,79 @@
@@ -19489,7 +19489,7 @@ index 0000000000000..b80a1f48bb25b
 +
 diff --git a/drivers/video/rockchip/rga3/include/rga_job.h b/drivers/video/rockchip/rga3/include/rga_job.h
 new file mode 100644
-index 0000000000000..e63659bb0e8e2
+index 000000000000..e63659bb0e8e
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/include/rga_job.h
 @@ -0,0 +1,56 @@
@@ -19551,7 +19551,7 @@ index 0000000000000..e63659bb0e8e2
 +#endif /* __LINUX_RKRGA_JOB_H_ */
 diff --git a/drivers/video/rockchip/rga3/include/rga_mm.h b/drivers/video/rockchip/rga3/include/rga_mm.h
 new file mode 100644
-index 0000000000000..a75f2470b9288
+index 000000000000..a75f2470b928
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/include/rga_mm.h
 @@ -0,0 +1,67 @@
@@ -19624,7 +19624,7 @@ index 0000000000000..a75f2470b9288
 +#endif
 diff --git a/drivers/video/rockchip/rga3/rga2_reg_info.c b/drivers/video/rockchip/rga3/rga2_reg_info.c
 new file mode 100644
-index 0000000000000..7f5e4c9e1862b
+index 000000000000..7f5e4c9e1862
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/rga2_reg_info.c
 @@ -0,0 +1,3390 @@
@@ -23020,7 +23020,7 @@ index 0000000000000..7f5e4c9e1862b
 +};
 diff --git a/drivers/video/rockchip/rga3/rga3_reg_info.c b/drivers/video/rockchip/rga3/rga3_reg_info.c
 new file mode 100644
-index 0000000000000..28f86a67f58ba
+index 000000000000..28f86a67f58b
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/rga3_reg_info.c
 @@ -0,0 +1,2305 @@
@@ -25331,7 +25331,7 @@ index 0000000000000..28f86a67f58ba
 +};
 diff --git a/drivers/video/rockchip/rga3/rga_common.c b/drivers/video/rockchip/rga3/rga_common.c
 new file mode 100644
-index 0000000000000..d94110769ac6b
+index 000000000000..d94110769ac6
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/rga_common.c
 @@ -0,0 +1,965 @@
@@ -26302,7 +26302,7 @@ index 0000000000000..d94110769ac6b
 +}
 diff --git a/drivers/video/rockchip/rga3/rga_debugger.c b/drivers/video/rockchip/rga3/rga_debugger.c
 new file mode 100644
-index 0000000000000..95cc8097648b4
+index 000000000000..95cc8097648b
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/rga_debugger.c
 @@ -0,0 +1,1004 @@
@@ -27312,7 +27312,7 @@ index 0000000000000..95cc8097648b4
 +#endif /* #ifdef CONFIG_NO_GKI */
 diff --git a/drivers/video/rockchip/rga3/rga_dma_buf.c b/drivers/video/rockchip/rga3/rga_dma_buf.c
 new file mode 100644
-index 0000000000000..586742244b906
+index 000000000000..586742244b90
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/rga_dma_buf.c
 @@ -0,0 +1,432 @@
@@ -27750,7 +27750,7 @@ index 0000000000000..586742244b906
 +}
 diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
 new file mode 100644
-index 0000000000000..3ecd7ff6a3259
+index 000000000000..3ecd7ff6a325
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/rga_drv.c
 @@ -0,0 +1,1724 @@
@@ -29480,7 +29480,7 @@ index 0000000000000..3ecd7ff6a3259
 +#endif
 diff --git a/drivers/video/rockchip/rga3/rga_fence.c b/drivers/video/rockchip/rga3/rga_fence.c
 new file mode 100644
-index 0000000000000..9c663f3be5cae
+index 000000000000..9c663f3be5ca
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/rga_fence.c
 @@ -0,0 +1,145 @@
@@ -29631,7 +29631,7 @@ index 0000000000000..9c663f3be5cae
 +}
 diff --git a/drivers/video/rockchip/rga3/rga_hw_config.c b/drivers/video/rockchip/rga3/rga_hw_config.c
 new file mode 100644
-index 0000000000000..581693e82cb96
+index 000000000000..581693e82cb9
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/rga_hw_config.c
 @@ -0,0 +1,784 @@
@@ -30421,7 +30421,7 @@ index 0000000000000..581693e82cb96
 +};
 diff --git a/drivers/video/rockchip/rga3/rga_iommu.c b/drivers/video/rockchip/rga3/rga_iommu.c
 new file mode 100644
-index 0000000000000..6b2fd5ff630fb
+index 000000000000..6b2fd5ff630f
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/rga_iommu.c
 @@ -0,0 +1,422 @@
@@ -30849,7 +30849,7 @@ index 0000000000000..6b2fd5ff630fb
 +}
 diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
 new file mode 100644
-index 0000000000000..47d2034af90df
+index 000000000000..47d2034af90d
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/rga_job.c
 @@ -0,0 +1,1555 @@
@@ -32410,7 +32410,7 @@ index 0000000000000..47d2034af90df
 +}
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
 new file mode 100644
-index 0000000000000..f6b1ff5b7ab24
+index 000000000000..f6b1ff5b7ab2
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -0,0 +1,2556 @@
@@ -34972,7 +34972,7 @@ index 0000000000000..f6b1ff5b7ab24
 +}
 diff --git a/drivers/video/rockchip/rga3/rga_policy.c b/drivers/video/rockchip/rga3/rga_policy.c
 new file mode 100644
-index 0000000000000..2554f4bf6389b
+index 000000000000..2554f4bf6389
 --- /dev/null
 +++ b/drivers/video/rockchip/rga3/rga_policy.c
 @@ -0,0 +1,512 @@
@@ -35490,7 +35490,7 @@ index 0000000000000..2554f4bf6389b
 +}
 diff --git a/include/uapi/linux/rk-mpp.h b/include/uapi/linux/rk-mpp.h
 new file mode 100644
-index 0000000000000..9a24407001ec6
+index 000000000000..9a24407001ec
 --- /dev/null
 +++ b/include/uapi/linux/rk-mpp.h
 @@ -0,0 +1,82 @@
@@ -35576,3 +35576,6 @@ index 0000000000000..9a24407001ec6
 +};
 +
 +#endif /* _UAPI_RK_MPP_H */
+-- 
+2.56.1
+

@@ -1,7 +1,7 @@
-From 6f5bdf5c0a52c0ed3895842a73dafd585ef3324b Mon Sep 17 00:00:00 2001
+From 1504c5f5f10bad4e9eedb69862202e8baa9095d5 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sun, 2 Aug 2026 17:17:20 -0700
-Subject: [PATCH 88/89] video: rockchip: add RK3588 IEP2 deinterlacing
+Subject: [PATCH 088/107] video: rockchip: add RK3588 IEP2 deinterlacing
 
 ---
  .../bindings/media/rockchip,iep2.yaml         |  140 ++
@@ -18,7 +18,7 @@ Subject: [PATCH 88/89] video: rockchip: add RK3588 IEP2 deinterlacing
 
 diff --git a/Documentation/devicetree/bindings/media/rockchip,iep2.yaml b/Documentation/devicetree/bindings/media/rockchip,iep2.yaml
 new file mode 100644
-index 0000000000000..1ca7acb2e3a08
+index 000000000000..1ca7acb2e3a0
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/media/rockchip,iep2.yaml
 @@ -0,0 +1,140 @@
@@ -163,7 +163,7 @@ index 0000000000000..1ca7acb2e3a08
 +    };
 +...
 diff --git a/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi b/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi
-index 90c8fe6e9b97f..8bf1b61c39195 100644
+index 6735467027bb..21a84b811eb6 100644
 --- a/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi
 +++ b/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi
 @@ -1418,6 +1418,41 @@ vepu121_3_mmu: iommu@fdbac800 {
@@ -209,7 +209,7 @@ index 90c8fe6e9b97f..8bf1b61c39195 100644
  		compatible = "rockchip,rk3588-vdec";
  		reg = <0x0 0xfdc38000 0x0 0x100>,
 diff --git a/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi b/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi
-index f094c4453cace..251a82dfa304d 100644
+index f094c4453cac..251a82dfa304 100644
 --- a/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi
 +++ b/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi
 @@ -99,6 +99,14 @@ &mpp_srv {
@@ -228,7 +228,7 @@ index f094c4453cace..251a82dfa304d 100644
  	compatible = "rockchip,av1-decoder";
  	reg = <0x0 0xfdc70000 0x0 0x800>,
 diff --git a/drivers/video/rockchip/mpp/Kconfig b/drivers/video/rockchip/mpp/Kconfig
-index c5f8a4737c3bf..b5b545a2cab22 100644
+index c5f8a4737c3b..b5b545a2cab2 100644
 --- a/drivers/video/rockchip/mpp/Kconfig
 +++ b/drivers/video/rockchip/mpp/Kconfig
 @@ -51,6 +51,15 @@ config ROCKCHIP_MPP_RKVDEC2_DEVFREQ
@@ -248,7 +248,7 @@ index c5f8a4737c3bf..b5b545a2cab22 100644
  	bool "AV1 decoder"
  	depends on ARM64 && IOMMU_SUPPORT
 diff --git a/drivers/video/rockchip/mpp/Makefile b/drivers/video/rockchip/mpp/Makefile
-index 1a11d3c9bab70..49da4c619fb83 100644
+index 1a11d3c9bab7..49da4c619fb8 100644
 --- a/drivers/video/rockchip/mpp/Makefile
 +++ b/drivers/video/rockchip/mpp/Makefile
 @@ -20,4 +20,5 @@ obj-$(CONFIG_ROCKCHIP_MPP_SERVICE) += rk_vcodec.o
@@ -259,7 +259,7 @@ index 1a11d3c9bab70..49da4c619fb83 100644
  rk_vcodec-$(CONFIG_ROCKCHIP_MPP_AV1DEC) += mpp_av1dec.o
 diff --git a/drivers/video/rockchip/mpp/mpp_iep2.c b/drivers/video/rockchip/mpp/mpp_iep2.c
 new file mode 100644
-index 0000000000000..2f8b5d28ed9df
+index 000000000000..2f8b5d28ed9d
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/mpp_iep2.c
 @@ -0,0 +1,1248 @@
@@ -1513,7 +1513,7 @@ index 0000000000000..2f8b5d28ed9df
 +EXPORT_SYMBOL(rockchip_iep2_driver);
 diff --git a/drivers/video/rockchip/mpp/rockchip_iep2_regs.h b/drivers/video/rockchip/mpp/rockchip_iep2_regs.h
 new file mode 100644
-index 0000000000000..784781726ea0b
+index 000000000000..784781726ea0
 --- /dev/null
 +++ b/drivers/video/rockchip/mpp/rockchip_iep2_regs.h
 @@ -0,0 +1,183 @@
@@ -1700,3 +1700,6 @@ index 0000000000000..784781726ea0b
 +#define     IEP2_REG_RO_MV_HIST_EVEN(x)			((x) & 0xffff)
 +
 +#endif
+-- 
+2.56.1
+

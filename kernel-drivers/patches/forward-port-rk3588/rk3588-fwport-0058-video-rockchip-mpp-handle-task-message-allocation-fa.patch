@@ -1,7 +1,7 @@
-From 1fee90f5b9c5c5f2fed7e40b94e02b8399ffadcb Mon Sep 17 00:00:00 2001
+From f76903f0b574bda78c1a6992e54e97e3600443c5 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 22 Jul 2026 08:11:21 -0700
-Subject: [PATCH 58/87] video: rockchip: mpp: handle task message allocation
+Subject: [PATCH 058/107] video: rockchip: mpp: handle task message allocation
  failure
 
 get_task_msgs() dereferenced a failed kzalloc before its caller
@@ -14,7 +14,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  1 file changed, 7 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index 1ac08b3144cb3..2b5fb5bbf0e0b 100644
+index 1ac08b3144cb..2b5fb5bbf0e0 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -291,6 +291,8 @@ static struct mpp_task_msgs *get_task_msgs(struct mpp_session *session)
@@ -39,3 +39,6 @@ index 1ac08b3144cb3..2b5fb5bbf0e0b 100644
  		if (fd_file(f)->private_data == session)
  			msgs->ext_fd = bat_msg.fd;
  
+-- 
+2.56.1
+

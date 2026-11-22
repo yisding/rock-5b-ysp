@@ -1,8 +1,8 @@
-From 5614909e58035e86228cab71fc0938eda4925591 Mon Sep 17 00:00:00 2001
+From 4f347bfc0f0ff694a232728f0913010ccfd96eb3 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sun, 28 Jun 2026 08:34:01 -0700
-Subject: [PATCH 02/87] arm64: dts: rockchip: rk3588: VEPU580 encoder, rkvdec2
- decoder, RGA3 nodes
+Subject: [PATCH 002/107] arm64: dts: rockchip: rk3588: VEPU580 encoder,
+ rkvdec2 decoder, RGA3 nodes
 
 Add vendor MPP encoder (fdbd0000/fdbe0000) + decoder (fdc38000/fdc40000)
 cores, their CCUs, the shared mpp_srv coordinator, and convert the RGA
@@ -21,7 +21,7 @@ inside the 64 KiB window).
  2 files changed, 329 insertions(+), 7 deletions(-)
 
 diff --git a/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi b/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi
-index e2500e31c434a..8bd8122bf2449 100644
+index a031f42c558e..9d96fdc8f152 100644
 --- a/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi
 +++ b/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi
 @@ -21,6 +21,14 @@ / {
@@ -246,7 +246,7 @@ index e2500e31c434a..8bd8122bf2449 100644
  		compatible = "rockchip,rk3588-vop";
  		reg = <0x0 0xfdd90000 0x0 0x4200>, <0x0 0xfdd95000 0x0 0x1000>;
 diff --git a/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi b/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi
-index e5c474e4d02a6..edce7285b10ec 100644
+index e5c474e4d02a..edce7285b10e 100644
 --- a/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi
 +++ b/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi
 @@ -84,3 +84,140 @@ &vcc3v3_pcie2x1l0 {
@@ -390,3 +390,6 @@ index e5c474e4d02a6..edce7285b10ec 100644
 +	rockchip,disable-mmu-reset;
 +	status = "okay";
 +};
+-- 
+2.56.1
+

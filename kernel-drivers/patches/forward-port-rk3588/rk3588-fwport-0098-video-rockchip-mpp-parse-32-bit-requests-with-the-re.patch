@@ -1,0 +1,85 @@
+From d24a9417a709906b0c042b5cacbc72078b8425e5 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sun, 22 Nov 2026 07:01:35 -0800
+Subject: [PATCH 098/107] video: rockchip: mpp: parse 32-bit requests with the
+ real record size
+
+libmpp declares MppReqV1.data_ptr as RK_U64 on every ABI, so a 32-bit
+process sends the same 24-byte request record as a 64-bit one. The
+forward-port's compat path instead parsed a 20-byte record with a
+compat_uptr_t pointer. The first record still decoded, but every
+following record in a multi-message ioctl, which is every task submit,
+was read four bytes out of phase.
+
+Read the native record on both paths and convert only the pointer value
+for compat callers, which is what the Rockchip BSP's shared
+native/compat ioctl handler effectively did.
+
+Assisted-by: Claude:claude-opus-5-5
+---
+ drivers/video/rockchip/mpp/mpp_common.c | 39 +++++++------------------
+ 1 file changed, 11 insertions(+), 28 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
+index a369b6b5bea2..66c590e900a7 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.c
++++ b/drivers/video/rockchip/mpp/mpp_common.c
+@@ -49,16 +49,6 @@ struct mpp_msg_v1 {
+ 	__u64 data_ptr;
+ };
+ 
+-#ifdef CONFIG_COMPAT
+-struct mpp_msg_v1_compat {
+-	__u32 cmd;
+-	__u32 flags;
+-	__u32 size;
+-	__u32 offset;
+-	compat_uptr_t data_ptr;
+-};
+-#endif
+-
+ #ifdef CONFIG_ROCKCHIP_MPP_PROC_FS
+ const char *mpp_device_name[MPP_DEVICE_BUTT] = {
+ 	[MPP_DEVICE_VDPU1]		= "VDPU1",
+@@ -1855,27 +1845,20 @@ static void task_msgs_add(struct mpp_task_msgs *msgs, struct list_head *head)
+ static int mpp_copy_msg_v1(struct mpp_msg_v1 *msg_v1, void __user **msg,
+ 				   bool compat_ioctl)
+ {
+-#ifdef CONFIG_COMPAT
+-	if (compat_ioctl) {
+-		struct mpp_msg_v1_compat msg_v1_compat;
+-
+-		if (copy_from_user(&msg_v1_compat, *msg, sizeof(msg_v1_compat)))
+-			return -EFAULT;
+-
+-		msg_v1->cmd = msg_v1_compat.cmd;
+-		msg_v1->flags = msg_v1_compat.flags;
+-		msg_v1->size = msg_v1_compat.size;
+-		msg_v1->offset = msg_v1_compat.offset;
+-		msg_v1->data_ptr = (unsigned long)compat_ptr(msg_v1_compat.data_ptr);
+-		*msg = (void __user *)((u8 __user *)*msg + sizeof(msg_v1_compat));
+-
+-		return 0;
+-	}
+-#endif
+-
++	/*
++	 * libmpp's MppReqV1 declares data_ptr as RK_U64 on every ABI, so a
++	 * 32-bit caller sends the same 24-byte record as a 64-bit one. Only
++	 * the pointer value needs converting; the record stride does not.
++	 */
+ 	if (copy_from_user(msg_v1, *msg, sizeof(*msg_v1)))
+ 		return -EFAULT;
+ 
++#ifdef CONFIG_COMPAT
++	if (compat_ioctl)
++		msg_v1->data_ptr = (unsigned long)
++			compat_ptr((compat_uptr_t)msg_v1->data_ptr);
++#endif
++
+ 	*msg = (void __user *)((u8 __user *)*msg + sizeof(*msg_v1));
+ 
+ 	return 0;
+-- 
+2.56.1
+

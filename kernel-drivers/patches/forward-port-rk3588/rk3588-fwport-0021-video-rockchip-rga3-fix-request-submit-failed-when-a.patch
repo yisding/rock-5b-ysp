@@ -1,7 +1,7 @@
-From 28ab788af387e8f41a007fae757ddd4915410407 Mon Sep 17 00:00:00 2001
+From 485088c1405ebef32719af7ecf5b5f054d793721 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Fri, 20 Mar 2026 16:04:46 +0800
-Subject: [PATCH 21/87] video: rockchip: rga3: fix request submit failed when
+Subject: [PATCH 021/107] video: rockchip: rga3: fix request submit failed when
  acquire_fence is already signaled
 
 There is a narrow race window between dma_fence_get_status() and
@@ -17,7 +17,7 @@ Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
  2 files changed, 8 insertions(+), 6 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_fence.c b/drivers/video/rockchip/rga3/rga_fence.c
-index 9c663f3be5cae..10cb6586d1538 100644
+index 9c663f3be5ca..10cb6586d153 100644
 --- a/drivers/video/rockchip/rga3/rga_fence.c
 +++ b/drivers/video/rockchip/rga3/rga_fence.c
 @@ -130,7 +130,6 @@ int rga_dma_fence_add_callback(struct dma_fence *fence, dma_fence_func_t func, v
@@ -29,7 +29,7 @@ index 9c663f3be5cae..10cb6586d1538 100644
  	} else if (ret == -EINVAL) {
  		rga_err("%s: failed to add callback to dma_fence, err: %d\n", __func__, ret);
 diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
-index 019c308591c12..9c133e9f2f350 100644
+index 019c308591c1..9c133e9f2f35 100644
 --- a/drivers/video/rockchip/rga3/rga_job.c
 +++ b/drivers/video/rockchip/rga3/rga_job.c
 @@ -619,7 +619,10 @@ static int rga_request_add_acquire_fence_callback(int acquire_fence_fd,
@@ -66,3 +66,6 @@ index 019c308591c12..9c133e9f2f350 100644
  
  				rga_dma_fence_put(request->release_fence);
  				request->release_fence = NULL;
+-- 
+2.56.1
+

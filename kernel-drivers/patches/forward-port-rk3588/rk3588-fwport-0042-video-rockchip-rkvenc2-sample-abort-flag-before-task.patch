@@ -1,8 +1,8 @@
-From e2a89c17275822a31a2a602fd2631684e47996d8 Mon Sep 17 00:00:00 2001
+From ae8736a83b9f8038bc9943f25639023a064d697c Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 18 Jul 2026 09:42:03 -0700
-Subject: [PATCH 42/87] video: rockchip: rkvenc2: sample abort flag before task
- is freed
+Subject: [PATCH 042/107] video: rockchip: rkvenc2: sample abort flag before
+ task is freed
 
 The forward-port added abort-status propagation to rkvenc2_wait_result():
 
@@ -30,7 +30,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  1 file changed, 9 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
-index 1bb7ef85a7e71..3549f3bda235d 100644
+index 1bb7ef85a7e7..3549f3bda235 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 @@ -2715,6 +2715,7 @@ static int rkvenc2_wait_result(struct mpp_session *session,
@@ -58,3 +58,6 @@ index 1bb7ef85a7e71..3549f3bda235d 100644
  			ret = -EIO;
  
  		return ret;
+-- 
+2.56.1
+

@@ -1,7 +1,7 @@
-From fec94d803ff4ff89158b0afd824f0b99465b6154 Mon Sep 17 00:00:00 2001
+From fbf0e30ab644d5bdcf301157443d8c20f9a694f0 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Mon, 9 Mar 2026 19:46:15 +0800
-Subject: [PATCH 33/87] video: rockchip: rga3: mpi_commit: restore
+Subject: [PATCH 033/107] video: rockchip: rga3: mpi_commit: restore
  output_params in rotate 90/270
 
 Change-Id: I0fbdb0721a5e0bd52881b9383997e142a7a85c24
@@ -12,7 +12,7 @@ Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
  1 file changed, 12 insertions(+), 4 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
-index 7272111769e7d..5388cf919043b 100644
+index 7272111769e7..5388cf919043 100644
 --- a/drivers/video/rockchip/rga3/rga_drv.c
 +++ b/drivers/video/rockchip/rga3/rga_drv.c
 @@ -138,6 +138,7 @@ int rga_mpi_commit(struct rga_mpi_job_t *mpi_job)
@@ -59,3 +59,6 @@ index 7272111769e7d..5388cf919043b 100644
  	}
  
  err_put_request:
+-- 
+2.56.1
+

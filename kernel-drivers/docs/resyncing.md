@@ -60,6 +60,18 @@ the rank, the more carefully you must re-verify.
 
 ### #1 — the `mpp_iommu_dma_cookie` struct-layout shadow *(most fragile)*
 
+> **Which consumer carries it.** The maintained forward-port series
+> (`rk3588-video-6.18`) no longer has this shadow. It exports
+> `iommu_dma_get_iova_domain()` from `drivers/iommu/dma-iommu.c`, which returns
+> `&domain->iova_cookie->iovad` only for an `IOMMU_COOKIE_DMA_IOVA` domain, and
+> `mpp_iommu.c` and `rga_dma_buf.c` call that. Layout drift there is a compile
+> error, not silent corruption. On that series, re-check only that the
+> accessor's hunk still applies and that `cookie_type` and
+> `IOMMU_COOKIE_DMA_IOVA` still exist. The shadow described below remains in
+> tracked patch 01, and so in the [DKMS](../../packaging/dkms) module and the
+> documentation-anchor tree, which build against a kernel without that export.
+> Verified 2026-11-22 against the 6.18.64 rebase.
+
 `mpp_iommu.h:20-29` defines a **private shadow** of the kernel-internal
 `struct iommu_dma_cookie` so the driver can reach the IOVA allocator `iovad` via
 `iommu_domain->iova_cookie` (`mpp_iommu.c:703-726`, `mpp_iommu_reserve_iova()`).

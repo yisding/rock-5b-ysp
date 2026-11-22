@@ -1,7 +1,7 @@
-From b1906083e53d823951840aa18a931bef78bff014 Mon Sep 17 00:00:00 2001
+From bef7aabf5cbda52693ef2baa37c5f50b54ad57f2 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 17 Jul 2026 17:00:14 -0700
-Subject: [PATCH 40/87] video: rockchip: mpp: unlink sessions before private
+Subject: [PATCH 040/107] video: rockchip: mpp: unlink sessions before private
  teardown
 
 The mpp_service procfs readers walk srv->session_list while holding
@@ -25,7 +25,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  3 files changed, 17 insertions(+), 15 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index 6b460c88e09f5..e10d603119432 100644
+index 6b460c88e09f..e10d60311943 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -444,14 +444,6 @@ static void mpp_session_deinit_default(struct mpp_session *session)
@@ -65,7 +65,7 @@ index 6b460c88e09f5..e10d603119432 100644
  		session->deinit(session);
  	else
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
-index a4b818acc207d..8ff38b00255fc 100644
+index a4b818acc207..8ff38b00255f 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 @@ -1571,13 +1571,6 @@ void rkvdec2_link_session_deinit(struct mpp_session *session)
@@ -83,7 +83,7 @@ index a4b818acc207d..8ff38b00255fc 100644
  
  	mpp_dbg_session("session %d release\n", session->index);
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
-index c9ea9607a930d..1bb7ef85a7e71 100644
+index c9ea9607a930..1bb7ef85a7e7 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 @@ -2056,6 +2056,9 @@ static int rkvenc_dump_session(struct mpp_session *session, struct seq_file *seq
@@ -96,3 +96,6 @@ index c9ea9607a930d..1bb7ef85a7e71 100644
  	down_read(&priv->rw_sem);
  	/* item name */
  	seq_puts(seq, "------------------------------------------------------");
+-- 
+2.56.1
+

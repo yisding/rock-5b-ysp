@@ -1,0 +1,55 @@
+From b0b4a83553dbc38879af6cff37bc405f1795f76f Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sun, 22 Nov 2026 07:03:06 -0800
+Subject: [PATCH 100/107] video: rockchip: mpp: release a failed task's core
+ and keep draining
+
+When mpp_task_run() fails, the default worker failed the task and then
+stopped, so tasks already pending waited for an unrelated trigger. Most
+failure paths in mpp_task_run() also return without a reset, and
+rkvenc2_prepare() had already cleared the selected core's core_idle bit.
+Only reset or a completion ISR sets that bit again, so each such failure
+removed an encoder core from dispatch until reboot.
+
+Return the core claim after failing the task, then continue with the next
+pending task. For single-core devices the bit is already set and the
+set_bit() is a no-op.
+
+Assisted-by: Claude:claude-opus-5-5
+---
+ drivers/video/rockchip/mpp/mpp_common.c | 18 +++++++++++++++---
+ 1 file changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
+index 5e3400a40f50..46dd862c0bfd 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.c
++++ b/drivers/video/rockchip/mpp/mpp_common.c
+@@ -1167,10 +1167,22 @@ static void mpp_task_worker_default(struct kthread_work *work_s)
+ 		atomic_inc(&task_mpp->task_count);
+ 		mpp_taskqueue_pending_to_run(queue, task);
+ 		set_bit(TASK_STATE_RUNNING, &task->state);
+-		if (mpp_task_run(task_mpp, task))
++		if (mpp_task_run(task_mpp, task)) {
++			unsigned long flags;
++
+ 			mpp_taskqueue_fail_running(queue, task);
+-		else
+-			goto again;
++			/*
++			 * A backend prepare() may have claimed a core for this
++			 * task (rkvenc2 clears its core_idle bit).  Nothing will
++			 * complete on that core, so return the claim, then keep
++			 * draining: later pending tasks must not wait for an
++			 * unrelated trigger.
++			 */
++			spin_lock_irqsave(&queue->running_lock, flags);
++			set_bit(task_mpp->core_id, &queue->core_idle);
++			spin_unlock_irqrestore(&queue->running_lock, flags);
++		}
++		goto again;
+ 	}
+ 
+ done:
+-- 
+2.56.1
+

@@ -1,7 +1,7 @@
-From 5983ccd09a76046cf7fcdaf17ae82c4ff7ebf0e1 Mon Sep 17 00:00:00 2001
+From 2e1724292013359ca9f91dea60ea35966a4b1f31 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 3 Jul 2026 20:39:20 -0700
-Subject: [PATCH 11/87] video: rockchip: mpp: harden CCU shared-domain RCB
+Subject: [PATCH 011/107] video: rockchip: mpp: harden CCU shared-domain RCB
  windows and reset paths
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -38,7 +38,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
  5 files changed, 89 insertions(+)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
-index 383eb27676607..0b0ebc6ff1c55 100644
+index 383eb2767660..0b0ebc6ff1c5 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.c
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.c
 @@ -577,6 +577,50 @@ bool mpp_iommu_shared_domain_verify(struct mpp_iommu_shared_domain *shared,
@@ -93,7 +93,7 @@ index 383eb27676607..0b0ebc6ff1c55 100644
  			    struct device *iommu_dev,
  			    unsigned long iova,
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.h b/drivers/video/rockchip/mpp/mpp_iommu.h
-index 09a857ba2b825..03e0b765633c8 100644
+index 09a857ba2b82..03e0b765633c 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.h
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.h
 @@ -107,6 +107,9 @@ struct mpp_iommu_info {
@@ -135,7 +135,7 @@ index 09a857ba2b825..03e0b765633c8 100644
  int mpp_iommu_refresh(struct mpp_iommu_info *info, struct device *dev);
  int mpp_iommu_flush_tlb(struct mpp_iommu_info *info);
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
-index 29f1c79509aaa..402a964f78428 100644
+index 29f1c79509aa..402a964f7842 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 @@ -1851,6 +1851,13 @@ static int rkvdec2_alloc_rcbbuf(struct platform_device *pdev, struct rkvdec2_dev
@@ -153,7 +153,7 @@ index 29f1c79509aaa..402a964f78428 100644
  	if (ret) {
  		dev_err(dev, "sram iommu_map error.\n");
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
-index 7c9220a1c4fcc..0e6dd8bde6c0c 100644
+index 7c9220a1c4fc..0e6dd8bde6c0 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 @@ -1621,6 +1621,9 @@ int rkvdec2_attach_ccu(struct device *dev, struct rkvdec2_dev *dec)
@@ -185,7 +185,7 @@ index 7c9220a1c4fcc..0e6dd8bde6c0c 100644
  		dev_info(mpp->dev, "reset done, idle %d\n", (val & 1));
  	}
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
-index 5a7bce7841966..d40eb8b4fb899 100644
+index 5a7bce784196..d40eb8b4fb89 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 @@ -2490,6 +2490,9 @@ static int rkvenc_reset(struct mpp_dev *mpp)
@@ -223,3 +223,6 @@ index 5a7bce7841966..d40eb8b4fb899 100644
  	/* 6.18: iommu_map() gained a trailing gfp_t; probe ctx -> GFP_KERNEL */
  	ret = iommu_map(domain, iova, sram_start, sram_size,
  			IOMMU_READ | IOMMU_WRITE, GFP_KERNEL);
+-- 
+2.56.1
+

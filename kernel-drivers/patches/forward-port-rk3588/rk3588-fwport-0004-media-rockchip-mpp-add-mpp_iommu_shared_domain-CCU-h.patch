@@ -1,7 +1,7 @@
-From 648daa4216029a8bef1f39d7745470b43a347c5a Mon Sep 17 00:00:00 2001
+From ba16214c75f59203a6d3c377ea70c46b32ad7290 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 3 Jul 2026 19:18:33 -0700
-Subject: [PATCH 04/87] media: rockchip: mpp: add mpp_iommu_shared_domain CCU
+Subject: [PATCH 004/107] media: rockchip: mpp: add mpp_iommu_shared_domain CCU
  helper
 
 A multicore CCU cluster (rkvdec2/rkvenc2) shares one IOVA address space
@@ -41,7 +41,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
  2 files changed, 134 insertions(+)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
-index 5795f785306ed..383eb27676607 100644
+index 5795f785306e..383eb2767660 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.c
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.c
 @@ -479,6 +479,104 @@ int mpp_iommu_attach(struct mpp_iommu_info *info)
@@ -150,7 +150,7 @@ index 5795f785306ed..383eb27676607 100644
  			    struct device *iommu_dev,
  			    unsigned long iova,
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.h b/drivers/video/rockchip/mpp/mpp_iommu.h
-index 9d91feae1f92b..09a857ba2b825 100644
+index 9d91feae1f92..09a857ba2b82 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.h
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.h
 @@ -107,6 +107,35 @@ struct mpp_iommu_info {
@@ -203,3 +203,6 @@ index 9d91feae1f92b..09a857ba2b825 100644
  int mpp_iommu_refresh(struct mpp_iommu_info *info, struct device *dev);
  int mpp_iommu_flush_tlb(struct mpp_iommu_info *info);
  
+-- 
+2.56.1
+

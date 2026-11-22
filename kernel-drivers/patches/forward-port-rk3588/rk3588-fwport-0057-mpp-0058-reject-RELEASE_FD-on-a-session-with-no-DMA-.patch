@@ -1,9 +1,9 @@
-From 09030239b5e4243a04a5c3434cef75bd665283c9 Mon Sep 17 00:00:00 2001
+From 3aeb068b296c990aeebb57a71a8c357d0f59a457 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 22:20:56 -0700
-Subject: [PATCH 57/87] =?UTF-8?q?mpp:=200058=20=E2=80=94=20reject=20RELEAS?=
- =?UTF-8?q?E=5FFD=20on=20a=20session=20with=20no=20DMA=20(client-less=20NU?=
- =?UTF-8?q?LL=20deref)?=
+Subject: [PATCH 057/107] =?UTF-8?q?mpp:=200058=20=E2=80=94=20reject=20RELE?=
+ =?UTF-8?q?ASE=5FFD=20on=20a=20session=20with=20no=20DMA=20(client-less=20?=
+ =?UTF-8?q?NULL=20deref)?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -35,7 +35,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
  2 files changed, 27 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index 0fe7fe01467f5..1ac08b3144cb3 100644
+index 0fe7fe01467f..1ac08b3144cb 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -1569,6 +1569,19 @@ static int mpp_process_request(struct mpp_session *session,
@@ -59,7 +59,7 @@ index 0fe7fe01467f5..1ac08b3144cb3 100644
  		    req->size > sizeof(data))
  			return -EINVAL;
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
-index 27fc50ef0cee1..c02124f4c4bac 100644
+index 27fc50ef0cee..c02124f4c4ba 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.c
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.c
 @@ -171,6 +171,9 @@ mpp_dma_remove_extra_buffer(struct mpp_dma_session *dma)
@@ -93,3 +93,6 @@ index 27fc50ef0cee1..c02124f4c4bac 100644
  	buffer = mpp_dma_find_buffer_fd(dma, fd);
  	if (IS_ERR_OR_NULL(buffer)) {
  		dev_err(dev, "can not find %d buffer in list\n", fd);
+-- 
+2.56.1
+

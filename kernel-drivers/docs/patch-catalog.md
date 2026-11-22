@@ -360,6 +360,25 @@ The `0079` session-ownership fix deliberately does **not** revert
 still correct, and the ownership test around it is what was wrong. Anyone
 backporting to a BSP that lacks `0071` should carry both or neither.
 
+## `0098`–`0107` — 2026-11-22 full driver review on Linux 6.18.64
+
+Current numbering. BSP presence was checked against `rockchip-kernel@b4ef083dc0c3`.
+The [dated finding](../../findings/2026-11-22-forward-port-6-18-64-rebase-and-driver-review.md)
+owns triggers and reach. None of these is booted.
+
+| # | What it does | Class | BSP evidence | Backport |
+|---|--------------|-------|--------------|----------|
+| 0098 | MPP compat ioctl: read libmpp's real 24-byte `MppReqV1` record and convert only `data_ptr`. | `PORT-FIX` | The BSP uses the native handler for compat; the 20-byte `compat_uptr_t` record was added by forward-port `0006`. | **No** |
+| 0099 | MPP: clear the latched `irq_status` when a task times out, so the backend ISR does not report the previous frame's status as this task's result. | `BSP-BUG` | The BSP's timeout work, worker, and `try_process_running_task()` → `dev_ops->isr()` path is the same shape and never clears `irq_status`. | **Yes** |
+| 0100 | MPP default worker: after `mpp_task_run()` fails, return any `core_idle` claim and keep draining pending tasks. | `BSP-BUG` | The BSP worker falls out of the loop after a failed run, and `rkvenc2_prepare()` clears the core bit the same way. | **Yes** |
+| 0101 | Set `suppress_bind_attrs` on RKVDEC2, RKVENC2 and AV1. | `HARDEN` | No BSP MPP driver sets `suppress_bind_attrs`; the forward port had added it only to IEP2 and the service. | Optional |
+| 0102 | RKVENC2: free class register buffers when `rkvenc_task_get_format()` fails. | `BSP-BUG` | `develop-6.1` has the same `goto free_task` after a successful extract. | **Yes** — unprivileged, unbounded kernel memory leak |
+| 0103 | MPP service: initialise `session_lock`/`session_list` before `cdev_add()`. | `BSP-BUG` | Same ordering in the BSP `mpp_service_probe()`. | **Yes** |
+| 0104 | RGA2: reject `COLOR_PALETTE_MODE` requests with `palette_mode` > 3. | `BSP-BUG` | `RGA2_set_reg_color_palette()` computes `3 - palette_mode` unchecked in the BSP. | **Yes** |
+| 0105 | RGA: zero-initialise the `RGA_IOC_GET_HW_VERSION` reply. | `BSP-BUG` | The BSP declares the on-stack reply without an initialiser. | **Yes** |
+| 0106 | Rockchip IOMMU: export `rockchip_iommu_translation_lost()`. | `PORT` | A provider query in the forward port's hook API. | **No** — the BSP provider differs |
+| 0107 | MPP: refuse to start a task while a paging-domain Rockchip MMU is not translating; retry the enable once. | `HARDEN` | All four BSP `mpp_iommu_refresh()` callers ignore its return value outright, so the BSP has the same fail-open shape; its provider and reset model differ. | Optional, adapted to the BSP provider |
+
 ## The BSP backport set
 
 What should go back to Rockchip's `develop-6.1`, in priority order:

@@ -1,7 +1,7 @@
-From f29f87c22034658c74612253b969ecfb3399aa13 Mon Sep 17 00:00:00 2001
+From d6c0c8156698b32bba534af999fcb340deebff3d Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 22 Jul 2026 08:12:19 -0700
-Subject: [PATCH 60/87] video: rockchip: rkvdec2: bound RCB register indexes
+Subject: [PATCH 060/107] video: rockchip: rkvdec2: bound RCB register indexes
 
 RCB register indexes come from userspace and were used directly
 to index the fixed task register array. Reject indexes outside
@@ -13,7 +13,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  1 file changed, 5 insertions(+)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
-index b54341ba4d8e1..236ee0ada3d95 100644
+index b54341ba4d8e..236ee0ada3d9 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 @@ -349,6 +349,10 @@ int mpp_set_rcbbuf(struct mpp_dev *mpp, struct mpp_session *session,
@@ -35,3 +35,6 @@ index b54341ba4d8e1..236ee0ada3d95 100644
  			task->reg[reg_idx] = dec->rcb_iova + rcb_offset;
  			rcb_offset += rcb_size;
  		}
+-- 
+2.56.1
+

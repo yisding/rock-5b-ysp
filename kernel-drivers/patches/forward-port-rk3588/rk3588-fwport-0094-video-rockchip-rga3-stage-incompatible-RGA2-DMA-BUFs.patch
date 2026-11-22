@@ -1,7 +1,8 @@
-From 65f5b67940a79dcbf15e72389bcceb2ed263de72 Mon Sep 17 00:00:00 2001
+From cb1604a0bce43d00c0e807144ad5ce3d2f1ca83f Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 8 Aug 2026 12:51:06 -0700
-Subject: [PATCH 94/94] video: rockchip: rga3: stage incompatible RGA2 DMA-BUFs
+Subject: [PATCH 094/107] video: rockchip: rga3: stage incompatible RGA2
+ DMA-BUFs
 
 Prefer RGA3 for high DMA-BUF jobs when it is compatible. For RGA2-only work whose exporter SG entry exceeds the SWIOTLB mapping ceiling, copy CPU-accessible buffers through a bounded job-owned DMA32 staging object. Share staging across aliased planes and tasks, copy output back only after successful quiesced completion, and expose lifecycle counters in debugfs.
 ---
@@ -15,7 +16,7 @@ Prefer RGA3 for high DMA-BUF jobs when it is compatible. For RGA2-only work whos
  7 files changed, 541 insertions(+), 52 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
-index bf1c0df8da7b0..c6ff097daf498 100644
+index bf1c0df8da7b..c6ff097daf49 100644
 --- a/drivers/video/rockchip/rga3/include/rga_drv.h
 +++ b/drivers/video/rockchip/rga3/include/rga_drv.h
 @@ -255,9 +255,13 @@ struct rga_internal_buffer {
@@ -52,7 +53,7 @@ index bf1c0df8da7b0..c6ff097daf498 100644
  	struct rga_scheduler_t *scheduler;
  	struct rga_session *session;
 diff --git a/drivers/video/rockchip/rga3/include/rga_job.h b/drivers/video/rockchip/rga3/include/rga_job.h
-index 2692cde0b6157..83d3e2e5e1400 100644
+index 2692cde0b615..83d3e2e5e140 100644
 --- a/drivers/video/rockchip/rga3/include/rga_job.h
 +++ b/drivers/video/rockchip/rga3/include/rga_job.h
 @@ -20,6 +20,7 @@ enum job_flags {
@@ -64,7 +65,7 @@ index 2692cde0b6157..83d3e2e5e1400 100644
  
  void rga_job_scheduler_dump_info(struct rga_scheduler_t *scheduler);
 diff --git a/drivers/video/rockchip/rga3/include/rga_mm.h b/drivers/video/rockchip/rga3/include/rga_mm.h
-index a77248e920f2c..425410464a689 100644
+index a77248e920f2..425410464a68 100644
 --- a/drivers/video/rockchip/rga3/include/rga_mm.h
 +++ b/drivers/video/rockchip/rga3/include/rga_mm.h
 @@ -11,6 +11,8 @@
@@ -111,7 +112,7 @@ index a77248e920f2c..425410464a689 100644
  int rga_mm_map_job_info(struct rga_job *job);
  void rga_mm_unmap_job_info(struct rga_job *job);
 diff --git a/drivers/video/rockchip/rga3/rga_debugger.c b/drivers/video/rockchip/rga3/rga_debugger.c
-index d1e834f14b595..6cfa841422ec0 100644
+index d1e834f14b59..6cfa841422ec 100644
 --- a/drivers/video/rockchip/rga3/rga_debugger.c
 +++ b/drivers/video/rockchip/rga3/rga_debugger.c
 @@ -340,6 +340,24 @@ static int rga_mm_session_show(struct seq_file *m, void *data)
@@ -168,7 +169,7 @@ index d1e834f14b595..6cfa841422ec0 100644
  #ifdef CONFIG_NO_GKI
  	{"dump_path", rga_dump_path_show, rga_dump_path_write, NULL},
 diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
-index dcfaa5656b7a3..48cc568d7a3eb 100644
+index dcfaa5656b7a..48cc568d7a3e 100644
 --- a/drivers/video/rockchip/rga3/rga_job.c
 +++ b/drivers/video/rockchip/rga3/rga_job.c
 @@ -15,6 +15,8 @@
@@ -232,7 +233,7 @@ index dcfaa5656b7a3..48cc568d7a3eb 100644
  	}
  
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index 883fd1a66dca5..15834b04c5938 100644
+index 883fd1a66dca..15834b04c593 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -5,8 +5,14 @@
@@ -872,7 +873,7 @@ index 883fd1a66dca5..15834b04c5938 100644
  	if (job_buffer->addr->mm_flag & RGA_MEM_FORCE_FLUSH_CACHE && dir != DMA_NONE)
  		if (rga_mm_sync_dma_sg_for_cpu(job_buffer->addr, job, dir))
 diff --git a/drivers/video/rockchip/rga3/rga_policy.c b/drivers/video/rockchip/rga3/rga_policy.c
-index 94eacdd2afd05..45d4715bb69cc 100644
+index 94eacdd2afd0..45d4715bb69c 100644
 --- a/drivers/video/rockchip/rga3/rga_policy.c
 +++ b/drivers/video/rockchip/rga3/rga_policy.c
 @@ -534,6 +534,19 @@ int rga_job_assign(struct rga_job *job)
@@ -896,5 +897,5 @@ index 94eacdd2afd05..45d4715bb69cc 100644
  		scheduler = rga_drvdata->scheduler[i];
  
 -- 
-2.55.0
+2.56.1
 

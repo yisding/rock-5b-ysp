@@ -1,7 +1,7 @@
-From 3595a6f3d6c02cd1653836609b0edf098a0927a1 Mon Sep 17 00:00:00 2001
+From 2fd49be5c457606004cca891d85d4fcd302c9ed3 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 22 Jul 2026 08:12:29 -0700
-Subject: [PATCH 61/87] video: rockchip: rkvdec2-link: test per-core disable
+Subject: [PATCH 061/107] video: rockchip: rkvdec2-link: test per-core disable
  flag
 
 The CCU work-mode loop tested the outer worker device instead of
@@ -14,7 +14,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
-index 8ff38b00255fc..a2b03665f504a 100644
+index 8ff38b00255f..a2b03665f504 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 @@ -2843,7 +2843,7 @@ static int rkvdec2_hard_ccu_enqueue(struct rkvdec2_ccu *ccu,
@@ -26,3 +26,6 @@ index 8ff38b00255fc..a2b03665f504a 100644
  				continue;
  			work_mode |= dec->core_mask;
  			rkvdec2_ccu_link_fix_rcb_regs(dec);
+-- 
+2.56.1
+

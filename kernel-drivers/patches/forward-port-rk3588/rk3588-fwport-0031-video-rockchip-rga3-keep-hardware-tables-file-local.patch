@@ -1,7 +1,8 @@
-From ebeb267cada5fbb78255e96785b6239a57897529 Mon Sep 17 00:00:00 2001
+From bd4f13686ef5abaabc98820e576de102ecb698d1 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Thu, 16 Jul 2026 15:18:50 -0700
-Subject: [PATCH 31/87] video: rockchip: rga3: keep hardware tables file-local
+Subject: [PATCH 031/107] video: rockchip: rga3: keep hardware tables
+ file-local
 
 Adapt Rockchip develop-5.10 commit d90086843793 without importing its unrelated RK3572 and newer-format table context.
 ---
@@ -9,7 +10,7 @@ Adapt Rockchip develop-5.10 commit d90086843793 without importing its unrelated 
  1 file changed, 19 insertions(+), 19 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_hw_config.c b/drivers/video/rockchip/rga3/rga_hw_config.c
-index 581693e82cb96..6fe05d4e87992 100644
+index 581693e82cb9..6fe05d4e8799 100644
 --- a/drivers/video/rockchip/rga3/rga_hw_config.c
 +++ b/drivers/video/rockchip/rga3/rga_hw_config.c
 @@ -11,7 +11,7 @@
@@ -183,3 +184,6 @@ index 581693e82cb96..6fe05d4e87992 100644
  	{
  		.name = "rga2e-src0",
  		.formats[RGA_RASTER_INDEX] = rga2e_input_raster_format,
+-- 
+2.56.1
+

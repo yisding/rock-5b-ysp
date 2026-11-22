@@ -1,8 +1,8 @@
-From afcd69845942db97421b2d5a8dcff3007da23766 Mon Sep 17 00:00:00 2001
+From 469afe61d50eb04b4e90e40dffd3b7085bc8e3a5 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 08:50:22 -0700
-Subject: [PATCH 50/87] video: rockchip: rga3: serve over-4G memory on RGA2 via
- DMA-API mapping
+Subject: [PATCH 050/107] video: rockchip: rga3: serve over-4G memory on RGA2
+ via DMA-API mapping
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -59,7 +59,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  6 files changed, 442 insertions(+), 97 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/include/rga_dma_buf.h b/drivers/video/rockchip/rga3/include/rga_dma_buf.h
-index 0dfb04970f7c2..da55b823b0787 100644
+index 0dfb04970f7c..da55b823b078 100644
 --- a/drivers/video/rockchip/rga3/include/rga_dma_buf.h
 +++ b/drivers/video/rockchip/rga3/include/rga_dma_buf.h
 @@ -42,12 +42,19 @@ int rga_dma_memory_check(struct rga_dma_buffer *rga_dma_buffer, struct rga_img_i
@@ -83,7 +83,7 @@ index 0dfb04970f7c2..da55b823b0787 100644
  
  
 diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
-index 9ae36a9b7852f..29776251b5f88 100644
+index 9ae36a9b7852..29776251b5f8 100644
 --- a/drivers/video/rockchip/rga3/include/rga_drv.h
 +++ b/drivers/video/rockchip/rga3/include/rga_drv.h
 @@ -290,6 +290,15 @@ struct rga_job_buffer {
@@ -103,7 +103,7 @@ index 9ae36a9b7852f..29776251b5f88 100644
  
  struct rga_job_task_buffers {
 diff --git a/drivers/video/rockchip/rga3/include/rga_mm.h b/drivers/video/rockchip/rga3/include/rga_mm.h
-index a75f2470b9288..28c84ae338492 100644
+index a75f2470b928..28c84ae33849 100644
 --- a/drivers/video/rockchip/rga3/include/rga_mm.h
 +++ b/drivers/video/rockchip/rga3/include/rga_mm.h
 @@ -47,6 +47,7 @@ static inline bool rga_mm_is_invalid_dma_buffer(struct rga_dma_buffer *buffer)
@@ -115,7 +115,7 @@ index a75f2470b9288..28c84ae338492 100644
  struct sg_table *rga_mm_lookup_sgt(struct rga_internal_buffer *buffer);
  
 diff --git a/drivers/video/rockchip/rga3/rga_dma_buf.c b/drivers/video/rockchip/rga3/rga_dma_buf.c
-index fc8f072f12a1e..466f818ba1351 100644
+index fc8f072f12a1..466f818ba135 100644
 --- a/drivers/video/rockchip/rga3/rga_dma_buf.c
 +++ b/drivers/video/rockchip/rga3/rga_dma_buf.c
 @@ -315,22 +315,64 @@ static void rga_dma_unmap_sgt_iommu(struct rga_dma_buffer *buffer)
@@ -414,7 +414,7 @@ index fc8f072f12a1e..466f818ba1351 100644
  
  void rga_dma_unmap_buf(struct rga_dma_buffer *rga_dma_buffer)
 diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
-index bdd29ee37eb99..d99336d2e8409 100644
+index bdd29ee37eb9..d99336d2e840 100644
 --- a/drivers/video/rockchip/rga3/rga_job.c
 +++ b/drivers/video/rockchip/rga3/rga_job.c
 @@ -58,7 +58,6 @@ static int rga_job_cleanup(struct rga_job *job)
@@ -478,7 +478,7 @@ index bdd29ee37eb99..d99336d2e8409 100644
  			goto out_finish;
  		}
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index ee469309d6893..46b40d9e0dd2a 100644
+index ee469309d689..46b40d9e0dd2 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -542,9 +542,18 @@ static inline bool rga_mm_check_memory_limit(struct rga_scheduler_t *scheduler,
@@ -900,3 +900,6 @@ index ee469309d6893..46b40d9e0dd2a 100644
  		if (ret < 0) {
  			job_buffer->addr = NULL;
  			goto error_free_dma_buf;
+-- 
+2.56.1
+

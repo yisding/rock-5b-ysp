@@ -1,8 +1,8 @@
-From 4b2beb91521f10df6fd4432702a5248ff737a4d6 Mon Sep 17 00:00:00 2001
+From 2db0d33e5ef94265b177dc0164cdef492fd565cb Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 06:13:15 -0700
-Subject: [PATCH 47/87] video: rockchip: rga3: program byte-literal strides for
- 10-bit rasters
+Subject: [PATCH 047/107] video: rockchip: rga3: program byte-literal strides
+ for 10-bit rasters
 
 The WIN0/WIN1/WR raster stride programming leaves pixel_width at 1 for
 every 10-bit semi-planar format, so the hardware walks 10-bit rows at
@@ -24,7 +24,7 @@ math but still needs hardware validation.
  1 file changed, 37 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga3_reg_info.c b/drivers/video/rockchip/rga3/rga3_reg_info.c
-index 4506ab7063f4f..759c508cfb158 100644
+index 4506ab7063f4..759c508cfb15 100644
 --- a/drivers/video/rockchip/rga3/rga3_reg_info.c
 +++ b/drivers/video/rockchip/rga3/rga3_reg_info.c
 @@ -348,6 +348,23 @@ static void RGA3_set_reg_win0_info(u8 *base, struct rga3_req *msg)
@@ -87,3 +87,6 @@ index 4506ab7063f4f..759c508cfb158 100644
  
  		*bRGA3_WR_U_BASE = (u32) msg->wr.uv_addr;
  
+-- 
+2.56.1
+

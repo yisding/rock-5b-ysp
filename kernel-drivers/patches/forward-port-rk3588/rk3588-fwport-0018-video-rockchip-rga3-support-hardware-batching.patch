@@ -1,7 +1,7 @@
-From 38e81610a400788a6d381ed726bd92a136e8e5c2 Mon Sep 17 00:00:00 2001
+From ff06dd07f041853469663116f0b7d9699eb2a1f5 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Wed, 8 Apr 2026 20:22:45 +0800
-Subject: [PATCH 18/87] video: rockchip: rga3: support hardware batching
+Subject: [PATCH 018/107] video: rockchip: rga3: support hardware batching
 
 Users can enable this by setting RGA_REQUEST_FLAGS_EXEC_SEQUENTIAL. The
 current request is batched into hardware commands, running in
@@ -27,7 +27,7 @@ Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
  13 files changed, 704 insertions(+), 381 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/include/rga.h b/drivers/video/rockchip/rga3/include/rga.h
-index 671867b22371b..3d185ac7ab28c 100644
+index 671867b22371..3d185ac7ab28 100644
 --- a/drivers/video/rockchip/rga3/include/rga.h
 +++ b/drivers/video/rockchip/rga3/include/rga.h
 @@ -138,6 +138,7 @@ enum {
@@ -49,7 +49,7 @@ index 671867b22371b..3d185ac7ab28c 100644
  enum {
  	RGA_COLOR_FILL			= 0x1 << 0,
 diff --git a/drivers/video/rockchip/rga3/include/rga2_reg_info.h b/drivers/video/rockchip/rga3/include/rga2_reg_info.h
-index 187460833cf5f..5f4238b84eb6a 100644
+index 187460833cf5..5f4238b84eb6 100644
 --- a/drivers/video/rockchip/rga3/include/rga2_reg_info.h
 +++ b/drivers/video/rockchip/rga3/include/rga2_reg_info.h
 @@ -127,19 +127,31 @@
@@ -96,7 +96,7 @@ index 187460833cf5f..5f4238b84eb6a 100644
  	uint32_t value;
  	struct {
 diff --git a/drivers/video/rockchip/rga3/include/rga3_reg_info.h b/drivers/video/rockchip/rga3/include/rga3_reg_info.h
-index 50629a3fd994d..0c7aabe623922 100644
+index 50629a3fd994..0c7aabe62392 100644
 --- a/drivers/video/rockchip/rga3/include/rga3_reg_info.h
 +++ b/drivers/video/rockchip/rga3/include/rga3_reg_info.h
 @@ -81,6 +81,8 @@
@@ -130,7 +130,7 @@ index 50629a3fd994d..0c7aabe623922 100644
  #define m_RGA3_WIN0_RD_CTRL_SW_WIN0_ENABLE			(0x1 << 0)
  #define m_RGA3_WIN0_RD_CTRL_SW_WIN0_RD_MODE			(0x3 << 1)
 diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
-index c5ec6f9656380..d2edb30b83d97 100644
+index c5ec6f965638..d2edb30b83d9 100644
 --- a/drivers/video/rockchip/rga3/include/rga_drv.h
 +++ b/drivers/video/rockchip/rga3/include/rga_drv.h
 @@ -279,6 +279,14 @@ struct rga_job_buffer {
@@ -189,7 +189,7 @@ index c5ec6f9656380..d2edb30b83d97 100644
  	bool is_done;
  	int ret;
 diff --git a/drivers/video/rockchip/rga3/include/rga_iommu.h b/drivers/video/rockchip/rga3/include/rga_iommu.h
-index b80a1f48bb25b..79f533c20ab53 100644
+index b80a1f48bb25..79f533c20ab5 100644
 --- a/drivers/video/rockchip/rga3/include/rga_iommu.h
 +++ b/drivers/video/rockchip/rga3/include/rga_iommu.h
 @@ -61,7 +61,9 @@ struct rga_mmu_base {
@@ -204,7 +204,7 @@ index b80a1f48bb25b..79f533c20ab53 100644
  
  struct rga_mmu_base *rga_mmu_base_init(size_t size);
 diff --git a/drivers/video/rockchip/rga3/include/rga_job.h b/drivers/video/rockchip/rga3/include/rga_job.h
-index e63659bb0e8e2..ac206c2cb3776 100644
+index e63659bb0e8e..ac206c2cb377 100644
 --- a/drivers/video/rockchip/rga3/include/rga_job.h
 +++ b/drivers/video/rockchip/rga3/include/rga_job.h
 @@ -25,7 +25,7 @@ enum job_flags {
@@ -217,7 +217,7 @@ index e63659bb0e8e2..ac206c2cb3776 100644
  
  int rga_job_assign(struct rga_job *job);
 diff --git a/drivers/video/rockchip/rga3/rga2_reg_info.c b/drivers/video/rockchip/rga3/rga2_reg_info.c
-index 5e4c69a673578..501c31a7608df 100644
+index 5e4c69a67357..501c31a7608d 100644
 --- a/drivers/video/rockchip/rga3/rga2_reg_info.c
 +++ b/drivers/video/rockchip/rga3/rga2_reg_info.c
 @@ -2813,65 +2813,108 @@ static int rga2_align_check(struct rga_job *job, struct rga2_req *req)
@@ -686,7 +686,7 @@ index 5e4c69a673578..501c31a7608df 100644
  
  	rga2_clear_intr(scheduler);
 diff --git a/drivers/video/rockchip/rga3/rga3_reg_info.c b/drivers/video/rockchip/rga3/rga3_reg_info.c
-index 438ce783d09af..fceca4a067918 100644
+index 438ce783d09a..fceca4a06791 100644
 --- a/drivers/video/rockchip/rga3/rga3_reg_info.c
 +++ b/drivers/video/rockchip/rga3/rga3_reg_info.c
 @@ -1927,61 +1927,65 @@ static int rga3_check_param(struct rga_job *job, const struct rga_hw_data *data,
@@ -985,7 +985,7 @@ index 438ce783d09af..fceca4a067918 100644
  
  	rga3_clear_intr(scheduler);
 diff --git a/drivers/video/rockchip/rga3/rga_debugger.c b/drivers/video/rockchip/rga3/rga_debugger.c
-index 612db0ffb603d..59d6464cfff7c 100644
+index 612db0ffb603..59d6464cfff7 100644
 --- a/drivers/video/rockchip/rga3/rga_debugger.c
 +++ b/drivers/video/rockchip/rga3/rga_debugger.c
 @@ -867,6 +867,7 @@ void rga_request_task_debug_info(struct seq_file *m, struct rga_req *req)
@@ -1057,7 +1057,7 @@ index 612db0ffb603d..59d6464cfff7c 100644
  	if (RGA_DEBUG_DUMP_IMAGE > 0)
  		RGA_DEBUG_DUMP_IMAGE--;
 diff --git a/drivers/video/rockchip/rga3/rga_iommu.c b/drivers/video/rockchip/rga3/rga_iommu.c
-index 00956e28dfd07..69b73bdcb6543 100644
+index 00956e28dfd0..69b73bdcb654 100644
 --- a/drivers/video/rockchip/rga3/rga_iommu.c
 +++ b/drivers/video/rockchip/rga3/rga_iommu.c
 @@ -52,30 +52,32 @@ int rga_user_memory_check(struct page **pages, u32 w, u32 h, u32 format, int fla
@@ -1128,7 +1128,7 @@ index 00956e28dfd07..69b73bdcb6543 100644
  
  	return 0;
 diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
-index 47d2034af90df..019c308591c12 100644
+index 47d2034af90d..019c308591c1 100644
 --- a/drivers/video/rockchip/rga3/rga_job.c
 +++ b/drivers/video/rockchip/rga3/rga_job.c
 @@ -15,8 +15,16 @@
@@ -1406,7 +1406,7 @@ index 47d2034af90df..019c308591c12 100644
  		rga_req_err(request, "failed to commit job!\n");
  		goto err_abort_request;
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index 9ab9e7f60fa8b..cdc9ae47d7f65 100644
+index 9ab9e7f60fa8..cdc9ae47d7f6 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -1137,7 +1137,9 @@ static bool rga_mm_is_need_mmu(struct rga_job *job, struct rga_internal_buffer *
@@ -1947,7 +1947,7 @@ index 9ab9e7f60fa8b..cdc9ae47d7f65 100644
   * rga_mm_import_buffer - Importing external buffer into the RGA driver
   *
 diff --git a/drivers/video/rockchip/rga3/rga_policy.c b/drivers/video/rockchip/rga3/rga_policy.c
-index 2554f4bf6389b..83909898a19fa 100644
+index 2554f4bf6389..83909898a19f 100644
 --- a/drivers/video/rockchip/rga3/rga_policy.c
 +++ b/drivers/video/rockchip/rga3/rga_policy.c
 @@ -297,23 +297,18 @@ static bool rga_check_rotate(struct rga_job *job, const struct rga_hw_data *data
@@ -2014,3 +2014,6 @@ index 2554f4bf6389b..83909898a19fa 100644
  	for (i = 0; i < rga_drvdata->num_of_scheduler; i++) {
  		scheduler = rga_drvdata->scheduler[i];
  
+-- 
+2.56.1
+

@@ -1,7 +1,7 @@
-From f4d15aac4410252d94ee6885cbceae171e59b78b Mon Sep 17 00:00:00 2001
+From 73dc6913dc3310b2d127e5db0e957a8f9d43a81f Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Mon, 11 May 2026 20:17:49 +0800
-Subject: [PATCH 35/87] video: rockchip: rga3: fix R2Y CSC mode bit shift
+Subject: [PATCH 035/107] video: rockchip: rga3: fix R2Y CSC mode bit shift
  definition
 
 Fixes: dd79e039dca5 ("video: rockchip: rga3: fix check err when enable R2Y & Y2R")
@@ -14,7 +14,7 @@ Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
  1 file changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/include/rga.h b/drivers/video/rockchip/rga3/include/rga.h
-index 3d185ac7ab28c..7de682eab8707 100644
+index 3d185ac7ab28..7de682eab870 100644
 --- a/drivers/video/rockchip/rga3/include/rga.h
 +++ b/drivers/video/rockchip/rga3/include/rga.h
 @@ -74,10 +74,10 @@ enum rga_csc_mode {
@@ -32,3 +32,6 @@ index 3d185ac7ab28c..7de682eab8707 100644
  };
  
  enum rga_memory_type {
+-- 
+2.56.1
+

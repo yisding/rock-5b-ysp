@@ -1,7 +1,7 @@
-From 679c4afd5eb69dcc2564311ef1fb18b51d624b39 Mon Sep 17 00:00:00 2001
+From 46008fae0f59bab6a1e096010ed59e6ba03eb43a Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 22 Jul 2026 08:16:21 -0700
-Subject: [PATCH 66/87] video: rockchip: rga: balance get-buffer error paths
+Subject: [PATCH 066/107] video: rockchip: rga: balance get-buffer error paths
 
 After taking an internal-buffer reference, every error must drop
 it and clear the caller output pointer. Route buffer-info failures
@@ -13,7 +13,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  1 file changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index ce9d50a0e5c7d..b3d15efa47c7c 100644
+index ce9d50a0e5c7..b3d15efa47c7 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -2124,7 +2124,7 @@ static int rga_mm_get_buffer(struct rga_mm *mm,
@@ -33,3 +33,6 @@ index ce9d50a0e5c7d..b3d15efa47c7c 100644
  	return ret;
  
  }
+-- 
+2.56.1
+

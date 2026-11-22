@@ -1,7 +1,7 @@
-From 23ff47eab6f682f08fe0dac38546a877652112f2 Mon Sep 17 00:00:00 2001
+From e56c8710edafb336bb1b052e643c3e7a8c64001c Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 3 Jul 2026 19:43:12 -0700
-Subject: [PATCH 06/87] video: rockchip: mpp: forward-port MPP core and
+Subject: [PATCH 006/107] video: rockchip: mpp: forward-port MPP core and
  rkvdec2/rkvenc2 to 6.18
 
 Forward-port the RK3588 vendor MPP service core and the rkvdec2/rkvenc2
@@ -51,7 +51,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
 diff --git a/Documentation/devicetree/bindings/media/rockchip,mpp-service.yaml b/Documentation/devicetree/bindings/media/rockchip,mpp-service.yaml
 new file mode 100644
-index 0000000000000..cd7daab04364c
+index 000000000000..cd7daab04364
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/media/rockchip,mpp-service.yaml
 @@ -0,0 +1,43 @@
@@ -100,7 +100,7 @@ index 0000000000000..cd7daab04364c
 +...
 diff --git a/Documentation/devicetree/bindings/media/rockchip,rkvdec2.yaml b/Documentation/devicetree/bindings/media/rockchip,rkvdec2.yaml
 new file mode 100644
-index 0000000000000..f7b49c8168910
+index 000000000000..f7b49c816891
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/media/rockchip,rkvdec2.yaml
 @@ -0,0 +1,116 @@
@@ -222,7 +222,7 @@ index 0000000000000..f7b49c8168910
 +...
 diff --git a/Documentation/devicetree/bindings/media/rockchip,rkvenc2.yaml b/Documentation/devicetree/bindings/media/rockchip,rkvenc2.yaml
 new file mode 100644
-index 0000000000000..5e90d404058bf
+index 000000000000..5e90d404058b
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/media/rockchip,rkvenc2.yaml
 @@ -0,0 +1,84 @@
@@ -311,7 +311,7 @@ index 0000000000000..5e90d404058bf
 +    };
 +...
 diff --git a/drivers/video/rockchip/mpp/Kconfig b/drivers/video/rockchip/mpp/Kconfig
-index 9b38f3b35b558..9245dd8d1ed6c 100644
+index 9b38f3b35b55..9245dd8d1ed6 100644
 --- a/drivers/video/rockchip/mpp/Kconfig
 +++ b/drivers/video/rockchip/mpp/Kconfig
 @@ -1,7 +1,7 @@
@@ -332,7 +332,7 @@ index 9b38f3b35b558..9245dd8d1ed6c 100644
  	help
  	  Expose per-device runtime state under /proc/mpp_service.
 diff --git a/drivers/video/rockchip/mpp/Makefile b/drivers/video/rockchip/mpp/Makefile
-index b74afd6db1f30..53938164c1195 100644
+index b74afd6db1f3..53938164c119 100644
 --- a/drivers/video/rockchip/mpp/Makefile
 +++ b/drivers/video/rockchip/mpp/Makefile
 @@ -2,9 +2,10 @@
@@ -351,7 +351,7 @@ index b74afd6db1f30..53938164c1195 100644
  ccflags-y += -DMPP_VERSION=\"6.18-rkvenc-fwport\"
 diff --git a/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_iommu.h b/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_iommu.h
 deleted file mode 100644
-index 300563f3743b2..0000000000000
+index 300563f3743b..000000000000
 --- a/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_iommu.h
 +++ /dev/null
 @@ -1,41 +0,0 @@
@@ -397,7 +397,7 @@ index 300563f3743b2..0000000000000
 -
 -#endif /* _MPP_COMPAT_SOC_ROCKCHIP_IOMMU_H */
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index a66a51a0efded..d56b4ca80c832 100644
+index a66a51a0efde..d56b4ca80c83 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -9,6 +9,7 @@
@@ -704,7 +704,7 @@ index a66a51a0efded..d56b4ca80c832 100644
  	device_init_wakeup(dev, false);
  	pm_runtime_disable(dev);
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
-index ce73e17e7215f..29f1c79509aaa 100644
+index ce73e17e7215..29f1c79509aa 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 @@ -27,6 +27,8 @@
@@ -879,7 +879,7 @@ index ce73e17e7215f..29f1c79509aaa 100644
  		if (mpp->hw_ops->clk_off)
  			mpp->hw_ops->clk_off(mpp);
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.h b/drivers/video/rockchip/mpp/mpp_rkvdec2.h
-index 1d14d184933ff..fc958bfacb0e5 100644
+index 1d14d184933f..fc958bfacb0e 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2.h
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.h
 @@ -182,7 +182,7 @@ struct rkvdec2_dev {
@@ -892,7 +892,7 @@ index 1d14d184933ff..fc958bfacb0e5 100644
  	struct devfreq *devfreq;
  	unsigned long volt;
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
-index f52df09f05476..7c9220a1c4fcc 100644
+index f52df09f0547..7c9220a1c4fc 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 @@ -634,6 +634,7 @@ static void *rkvdec2_link_prepare(struct mpp_dev *mpp,
@@ -1182,7 +1182,7 @@ index f52df09f05476..7c9220a1c4fcc 100644
  	while (1) {
  		if (atomic_read(&queue->reset_request))
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.h b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.h
-index a8796bf6078be..c5b4b53f13731 100644
+index a8796bf6078b..c5b4b53f1373 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.h
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.h
 @@ -211,6 +211,9 @@ struct rkvdec2_ccu {
@@ -1196,7 +1196,7 @@ index a8796bf6078be..c5b4b53f13731 100644
  
  extern struct rkvdec_link_info rkvdec_link_rk356x_hw_info;
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
-index 988151ebf488b..54ce553979199 100644
+index 988151ebf488..54ce55397919 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 @@ -33,7 +33,7 @@
@@ -1535,7 +1535,7 @@ index 988151ebf488b..54ce553979199 100644
  		mpp_dev_remove(&enc->mpp);
  		rkvenc_procfs_remove(&enc->mpp);
 diff --git a/drivers/video/rockchip/mpp/mpp_service.c b/drivers/video/rockchip/mpp/mpp_service.c
-index 6303756e0c24b..8d397e979e83d 100644
+index 6303756e0c24..8d397e979e83 100644
 --- a/drivers/video/rockchip/mpp/mpp_service.c
 +++ b/drivers/video/rockchip/mpp/mpp_service.c
 @@ -8,6 +8,7 @@
@@ -1547,7 +1547,7 @@ index 6303756e0c24b..8d397e979e83d 100644
  
  #include <linux/completion.h>
 diff --git a/include/uapi/linux/rk-mpp.h b/include/uapi/linux/rk-mpp.h
-index 9a24407001ec6..2244b63f405c9 100644
+index 9a24407001ec..2244b63f405c 100644
 --- a/include/uapi/linux/rk-mpp.h
 +++ b/include/uapi/linux/rk-mpp.h
 @@ -49,6 +49,7 @@ enum MPP_DEV_COMMAND_TYPE {
@@ -1569,3 +1569,6 @@ index 9a24407001ec6..2244b63f405c9 100644
  #define MPP_FLAGS_SECURE_MODE		(0x00010000)
  
  /* data common struct for parse out */
+-- 
+2.56.1
+

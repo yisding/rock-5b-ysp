@@ -1,7 +1,7 @@
-From 57585821dcef56a8c60e8f60b77e06796601ada2 Mon Sep 17 00:00:00 2001
+From eb3231d306196fec5e6e345384ecee3d362458a5 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 1 Aug 2026 21:39:42 -0700
-Subject: [PATCH 83/87] video: rockchip: rkvenc2: don't write through an
+Subject: [PATCH 083/107] video: rockchip: rkvenc2: don't write through an
  unallocated class buffer
 
 rkvenc_get_class_reg() returned task->reg[i].data + (addr - base_s)
@@ -33,7 +33,7 @@ Assisted-By: Claude Fable 5 <noreply@anthropic.com>
  1 file changed, 25 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
-index d6b2e22a2d299..9aceaaa77f692 100644
+index d6b2e22a2d29..9aceaaa77f69 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 @@ -929,6 +929,18 @@ static u32 *rkvenc_get_class_reg(struct rkvenc_task *task, u32 addr)
@@ -76,3 +76,6 @@ index d6b2e22a2d299..9aceaaa77f692 100644
  
  			seq_printf(seq, "%8s|", name);
  		} else {
+-- 
+2.56.1
+

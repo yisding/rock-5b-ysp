@@ -1,7 +1,7 @@
-From 78a4d1a903700d67ea1370f8da8820141942f040 Mon Sep 17 00:00:00 2001
+From 78425663ebfd2d9b2b49a42006a3eba207e4e344 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 1 Aug 2026 21:40:15 -0700
-Subject: [PATCH 85/87] video: rockchip: rga: authenticate the ioctl boundary
+Subject: [PATCH 085/107] video: rockchip: rga: authenticate the ioctl boundary
  and own imports properly
 
 RGA_IOC_IMPORT_BUFFER validated the buffer count and the array pointer
@@ -57,7 +57,7 @@ Assisted-By: Claude Fable 5 <noreply@anthropic.com>
  5 files changed, 137 insertions(+), 24 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
-index 95a14b437ba93..60c1b5d3cf4d1 100644
+index 95a14b437ba9..60c1b5d3cf4d 100644
 --- a/drivers/video/rockchip/rga3/include/rga_drv.h
 +++ b/drivers/video/rockchip/rga3/include/rga_drv.h
 @@ -239,6 +239,14 @@ struct rga_internal_buffer {
@@ -76,7 +76,7 @@ index 95a14b437ba93..60c1b5d3cf4d1 100644
  	/* The scheduler of the mapping */
  	struct rga_scheduler_t *scheduler;
 diff --git a/drivers/video/rockchip/rga3/include/rga_job.h b/drivers/video/rockchip/rga3/include/rga_job.h
-index f3b4f128c3840..7e26bec62cb00 100644
+index f3b4f128c384..7e26bec62cb0 100644
 --- a/drivers/video/rockchip/rga3/include/rga_job.h
 +++ b/drivers/video/rockchip/rga3/include/rga_job.h
 @@ -45,7 +45,8 @@ void rga_request_get(struct rga_request *request);
@@ -90,7 +90,7 @@ index f3b4f128c3840..7e26bec62cb00 100644
  int rga_request_submit(struct rga_request *request);
  int rga_request_mpi_submit(struct rga_req *req, struct rga_request *request);
 diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
-index a32457709df71..7d8b85bd74ef2 100644
+index a32457709df7..7d8b85bd74ef 100644
 --- a/drivers/video/rockchip/rga3/rga_drv.c
 +++ b/drivers/video/rockchip/rga3/rga_drv.c
 @@ -702,6 +702,29 @@ static long rga_ioctl_import_buffer(unsigned long arg, struct rga_session *sessi
@@ -219,7 +219,7 @@ index a32457709df71..7d8b85bd74ef2 100644
  		break;
  
 diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
-index 376a33c883d63..2777cebf275cc 100644
+index 376a33c883d6..2777cebf275c 100644
 --- a/drivers/video/rockchip/rga3/rga_job.c
 +++ b/drivers/video/rockchip/rga3/rga_job.c
 @@ -1220,7 +1220,8 @@ int rga_request_release_signal(struct rga_scheduler_t *scheduler, struct rga_job
@@ -254,7 +254,7 @@ index 376a33c883d63..2777cebf275cc 100644
  	mutex_unlock(&request_manager->lock);
  
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index 51cefcc724018..c072a2e14ee38 100644
+index 51cefcc72401..c072a2e14ee3 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -1265,6 +1265,16 @@ rga_mm_lookup_external(struct rga_mm *mm_session,
@@ -383,3 +383,6 @@ index 51cefcc724018..c072a2e14ee38 100644
  		} else {
  			rga_err("[tgid:%d] Destroy handle[%d] when the user exits\n",
  			       session->tgid, buffer->handle);
+-- 
+2.56.1
+

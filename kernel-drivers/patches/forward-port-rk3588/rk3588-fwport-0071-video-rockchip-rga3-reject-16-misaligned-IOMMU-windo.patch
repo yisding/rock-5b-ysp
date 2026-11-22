@@ -1,7 +1,7 @@
-From 39750d2e3b60d13e771be494869e0d55c7e2042a Mon Sep 17 00:00:00 2001
+From 21312f2bd4c26334bcf95cc72019123f77548355 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Thu, 23 Jul 2026 06:57:49 -0700
-Subject: [PATCH 71/87] video: rockchip: rga3: reject 16-misaligned IOMMU
+Subject: [PATCH 071/107] video: rockchip: rga3: reject 16-misaligned IOMMU
  window base
 
 RGA3 fetches a window base on a 16-byte granularity (the low 4 bits of the
@@ -28,7 +28,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
  1 file changed, 29 insertions(+)
 
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index 131c349947932..6ce00f363080a 100644
+index 131c34994793..6ce00f363080 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -16,6 +16,13 @@
@@ -74,3 +74,6 @@ index 131c349947932..6ce00f363080a 100644
  		break;
  	case RGA_MMU:
  	default:
+-- 
+2.56.1
+

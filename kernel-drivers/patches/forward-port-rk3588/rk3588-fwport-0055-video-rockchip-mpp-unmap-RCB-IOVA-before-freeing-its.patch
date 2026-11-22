@@ -1,8 +1,8 @@
-From b444c0e4df7f72634a31cb0b10ac4926406af4f9 Mon Sep 17 00:00:00 2001
+From 1669cd94ea1759561a9b002f4399d4cdf159709a Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 18:04:34 -0700
-Subject: [PATCH 55/87] video: rockchip: mpp: unmap RCB IOVA before freeing its
- pages
+Subject: [PATCH 055/107] video: rockchip: mpp: unmap RCB IOVA before freeing
+ its pages
 
 rkvdec2_free_rcbbuf() and rkvenc2_free_rcbbuf() called __free_pages() on
 the RCB backing pages before iommu_unmap() removed their fixed-IOVA
@@ -23,7 +23,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  2 files changed, 14 insertions(+), 4 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
-index 4e36f7ad897fd..b54341ba4d8e1 100644
+index 4e36f7ad897f..b54341ba4d8e 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 @@ -2166,6 +2166,13 @@ int rkvdec2_free_rcbbuf(struct platform_device *pdev, struct rkvdec2_dev *dec)
@@ -50,7 +50,7 @@ index 4e36f7ad897fd..b54341ba4d8e1 100644
  		mpp_iommu_unreserve_iova(info, dec->rcb_iova, dec->rcb_size);
  	if (dec->rcb_iova && dec->ccu)
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
-index 3549f3bda235d..5bade0e3880c9 100644
+index 3549f3bda235..5bade0e3880c 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 @@ -3511,6 +3511,13 @@ static int rkvenc2_free_rcbbuf(struct platform_device *pdev, struct rkvenc_dev *
@@ -76,3 +76,6 @@ index 3549f3bda235d..5bade0e3880c9 100644
  	if (enc->sram_iova && info)
  		mpp_iommu_unreserve_iova(info, enc->sram_iova, enc->sram_used);
  	if (enc->sram_iova && enc->ccu)
+-- 
+2.56.1
+

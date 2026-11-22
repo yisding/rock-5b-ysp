@@ -1,0 +1,81 @@
+From c93484104ac8409be979122865c92dbf48783e3d Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sun, 22 Nov 2026 07:10:51 -0800
+Subject: [PATCH 106/107] iommu/rockchip: report a paging domain that is not
+ translating
+
+rk_iommu_enable() sets iommu_enabled only once paging is actually on, and
+disable, runtime suspend and a successful force-reset clear it. When an
+enable times out on stall or paging, the MMU is left in bypass, or paging
+with a null directory, while the device is still recorded as attached to
+its paging domain.
+
+Export rockchip_iommu_translation_lost() so the vendor media drivers can
+refuse to start hardware in that state instead of letting it DMA to raw
+physical addresses.
+
+Assisted-by: Claude:claude-opus-5-5
+---
+ drivers/iommu/rockchip-iommu.c        | 21 +++++++++++++++++++++
+ include/soc/rockchip/rockchip_iommu.h |  6 ++++++
+ 2 files changed, 27 insertions(+)
+
+diff --git a/drivers/iommu/rockchip-iommu.c b/drivers/iommu/rockchip-iommu.c
+index 5725141750cb..b18a0f184904 100644
+--- a/drivers/iommu/rockchip-iommu.c
++++ b/drivers/iommu/rockchip-iommu.c
+@@ -1402,6 +1402,27 @@ bool rockchip_iommu_is_enabled(struct device *dev)
+ }
+ EXPORT_SYMBOL_GPL(rockchip_iommu_is_enabled);
+ 
++/*
++ * True when @dev's MMU is attached to a paging domain but translation is not
++ * enabled, for example after an enable that timed out on stall or paging.
++ * Disabled paging is bypass on this IP, so a master started in that state
++ * DMAs to physical addresses equal to the IOVAs it was programmed with.
++ * Only meaningful while the master, and so its MMU, is runtime-active.
++ */
++bool rockchip_iommu_translation_lost(struct device *dev)
++{
++	struct rk_iommu *iommu = rk_iommu_from_dev_checked(dev);
++	struct iommu_domain *domain;
++
++	if (!iommu)
++		return false;
++	domain = READ_ONCE(iommu->domain);
++
++	return domain && domain != &rk_identity_domain &&
++	       !READ_ONCE(iommu->iommu_enabled);
++}
++EXPORT_SYMBOL_GPL(rockchip_iommu_translation_lost);
++
+ int rockchip_iommu_force_reset(struct device *dev)
+ {
+ 	struct rk_iommu *iommu = rk_iommu_from_dev_checked(dev);
+diff --git a/include/soc/rockchip/rockchip_iommu.h b/include/soc/rockchip/rockchip_iommu.h
+index 3a19dee05a91..2ab724488ab4 100644
+--- a/include/soc/rockchip/rockchip_iommu.h
++++ b/include/soc/rockchip/rockchip_iommu.h
+@@ -17,6 +17,7 @@ struct device;
+ int rockchip_iommu_enable(struct device *dev);
+ int rockchip_iommu_disable(struct device *dev);
+ bool rockchip_iommu_is_enabled(struct device *dev);
++bool rockchip_iommu_translation_lost(struct device *dev);
+ int rockchip_iommu_force_reset(struct device *dev);
+ void rockchip_iommu_mask_irq(struct device *dev);
+ void rockchip_iommu_unmask_irq(struct device *dev);
+@@ -43,6 +44,11 @@ static inline bool rockchip_iommu_is_enabled(struct device *dev)
+ 	return false;
+ }
+ 
++static inline bool rockchip_iommu_translation_lost(struct device *dev)
++{
++	return false;
++}
++
+ static inline int rockchip_iommu_force_reset(struct device *dev)
+ {
+ 	return -ENODEV;
+-- 
+2.56.1
+

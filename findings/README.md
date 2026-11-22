@@ -150,10 +150,11 @@ RK3588 platform behaviour outside the media path.
 - [`2026-07-26`](2026-07-26-dwc-pcie-pmu-bus-notifier-lockdep-false-positive.md) — DWC PCIe PMU nests distinct same-class bus notifier locks and disables lockdep
 - [`2026-07-25`](2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md) — RK3588 per-die voltage binning: the BSP selects voltage from eFuse, mainline ships only the worst-die column
 
-### Kernel forward port: MPP and codec drivers (22)
+### Kernel forward port: MPP and codec drivers (23)
 
 Vendor MPP/rkvenc/rkvdec forward-ported to 6.18 — defects, audits, and whole-tip validation runs.
 
+- [`2026-11-22`](2026-11-22-forward-port-6-18-64-rebase-and-driver-review.md) — Forward-port rebased to Linux 6.18.64 with ten driver-review fixes
 - [`2026-08-16`](2026-08-16-forward-port-rkvenc-intermittent-encode-corruption.md) — Forward-port RKVENC emits intermittently corrupt H.264/HEVC frames with clean kernel logs
 - [`2026-08-08`](2026-08-08-forward-port-rga-mpp-ownership-audit-fixes.md) — Forward-port 0095–0096 close RGA/MPP ownership and fault-admission gaps
 - [`2026-08-04`](2026-08-04-forward-port-6-18-42-0092-production-validation.md) — Forward-port 6.18.42 production validation boots 0092 and closes the functional recovery gates
@@ -367,6 +368,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-11-22-forward-port-6-18-64-rebase-and-driver-review.md`](2026-11-22-forward-port-6-18-64-rebase-and-driver-review.md) — Forward-port rebased to Linux 6.18.64 with ten driver-review fixes
 - [`2026-09-13-kernel-lines-updated-to-latest-upstreams.md`](2026-09-13-kernel-lines-updated-to-latest-upstreams.md) — All four ROCK 5B kernel lines updated to their latest upstreams
 - [`2026-08-25-rewrite-hardware-sim-seams-and-arbitration-inventory.md`](2026-08-25-rewrite-hardware-sim-seams-and-arbitration-inventory.md) — Rewrite hardware-simulation seams and arbitration-case inventory
 - [`2026-08-16-forward-port-rkvenc-intermittent-encode-corruption.md`](2026-08-16-forward-port-rkvenc-intermittent-encode-corruption.md) — Forward-port RKVENC emits intermittently corrupt H.264/HEVC frames with clean kernel logs

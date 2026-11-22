@@ -1,7 +1,7 @@
-From 7d53bc7a3adc3ce5e6d93e311857e142007368a9 Mon Sep 17 00:00:00 2001
+From 598c7a5228865a8b52d2df9626132be59a570d26 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 4 Aug 2026 16:17:13 -0700
-Subject: [PATCH 92/92] video: rockchip: rkvdec2: quiesce failed tasks before
+Subject: [PATCH 092/107] video: rockchip: rkvdec2: quiesce failed tasks before
  retire
 
 Do not remove or free a soft-CCU task merely because its timeout or abort bit is set. The core can still fetch task registers and DMA buffers at that point. Keep the task on the running list and its core busy, allow completed siblings to retire, reset after no healthy task remains, and retire failed tasks only after reset has stopped the hardware.
@@ -12,7 +12,7 @@ Claim queue and per-core reset requests before reset instead of clearing them af
  1 file changed, 45 insertions(+), 22 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
-index b5ad3ec84479c..c0f9cff40fc43 100644
+index b5ad3ec84479..c0f9cff40fc4 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 @@ -1121,10 +1121,9 @@ static int rkvdec2_link_iommu_fault_handle(struct iommu_domain *iommu,
@@ -183,3 +183,6 @@ index b5ad3ec84479c..c0f9cff40fc43 100644
  			rkvdec2_hard_ccu_resend_tasks(mpp, queue);
  	}
  
+-- 
+2.56.1
+

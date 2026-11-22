@@ -1,7 +1,7 @@
-From 039d880127e7a4490ef05c50d8667c02801cdc6a Mon Sep 17 00:00:00 2001
+From 79fb03973e0df4b0783cc0e55ff460929f39157a Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 15:56:38 -0700
-Subject: [PATCH 51/87] video: rockchip: rga3: drop the request initial
+Subject: [PATCH 051/107] video: rockchip: rga3: drop the request initial
  reference exactly once
 
 A request carries a single initial reference from rga_request_alloc()
@@ -55,7 +55,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  4 files changed, 42 insertions(+), 6 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
-index 29776251b5f88..95a14b437ba93 100644
+index 29776251b5f8..95a14b437ba9 100644
 --- a/drivers/video/rockchip/rga3/include/rga_drv.h
 +++ b/drivers/video/rockchip/rga3/include/rga_drv.h
 @@ -432,6 +432,12 @@ struct rga_request {
@@ -72,7 +72,7 @@ index 29776251b5f88..95a14b437ba93 100644
  	pid_t pid;
  
 diff --git a/drivers/video/rockchip/rga3/include/rga_job.h b/drivers/video/rockchip/rga3/include/rga_job.h
-index ac206c2cb3776..f3b4f128c3840 100644
+index ac206c2cb377..f3b4f128c384 100644
 --- a/drivers/video/rockchip/rga3/include/rga_job.h
 +++ b/drivers/video/rockchip/rga3/include/rga_job.h
 @@ -40,6 +40,7 @@ void rga_request_scheduler_shutdown(struct rga_scheduler_t *scheduler);
@@ -84,7 +84,7 @@ index ac206c2cb3776..f3b4f128c3840 100644
  int rga_request_free(struct rga_request *request);
  int rga_request_alloc(uint32_t flags, struct rga_session *session);
 diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
-index 73a347f3cac2e..a32457709df71 100644
+index 73a347f3cac2..a32457709df7 100644
 --- a/drivers/video/rockchip/rga3/rga_drv.c
 +++ b/drivers/video/rockchip/rga3/rga_drv.c
 @@ -889,7 +889,8 @@ static long rga_ioctl_request_cancel(unsigned long arg)
@@ -98,7 +98,7 @@ index 73a347f3cac2e..a32457709df71 100644
  	mutex_unlock(&request_manager->lock);
  
 diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
-index d99336d2e8409..cc8e9a7bc9655 100644
+index d99336d2e840..cc8e9a7bc965 100644
 --- a/drivers/video/rockchip/rga3/rga_job.c
 +++ b/drivers/video/rockchip/rga3/rga_job.c
 @@ -919,8 +919,8 @@ static void rga_request_release_abort(struct rga_request *request, int err_code)
@@ -168,3 +168,6 @@ index d99336d2e8409..cc8e9a7bc9655 100644
  void rga_request_get(struct rga_request *request)
  {
  	kref_get(&request->refcount);
+-- 
+2.56.1
+

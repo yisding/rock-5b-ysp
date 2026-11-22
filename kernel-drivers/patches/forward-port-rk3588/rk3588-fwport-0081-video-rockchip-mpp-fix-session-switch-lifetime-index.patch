@@ -1,7 +1,7 @@
-From a88f4fdfccda5c6f2ed496584f406d2cea9d3cc7 Mon Sep 17 00:00:00 2001
+From d42ac4e0678fecee363e63c320fe8262afcd8e3e Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 1 Aug 2026 21:39:15 -0700
-Subject: [PATCH 81/87] video: rockchip: mpp: fix session-switch lifetime,
+Subject: [PATCH 081/107] video: rockchip: mpp: fix session-switch lifetime,
  index refetch and msgs leak
 
 MPP_CMD_INIT_DRIVER_DATA dereferenced mpp->grf_info without a NULL check.
@@ -37,7 +37,7 @@ Assisted-By: Claude Fable 5 <noreply@anthropic.com>
  1 file changed, 84 insertions(+), 32 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index b34e439c6e144..462caf0b2028d 100644
+index b34e439c6e14..462caf0b2028 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -1467,7 +1467,12 @@ static int mpp_process_request(struct mpp_session *session,
@@ -261,3 +261,6 @@ index b34e439c6e144..462caf0b2028d 100644
  	}
  
  	mpp_debug_leave();
+-- 
+2.56.1
+

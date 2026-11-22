@@ -1,8 +1,8 @@
-From b1de79e7e0f7f859f3d8b1ccda4b6f33ba6b873e Mon Sep 17 00:00:00 2001
+From b6d650c735e0f8aa77c94e6707584e81a3726809 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 17:21:00 -0700
-Subject: [PATCH 52/87] video: rockchip: mpp: don't oops when a task's session
- has no device
+Subject: [PATCH 052/107] video: rockchip: mpp: don't oops when a task's
+ session has no device
 
 The async task worker mpp_task_worker_default() reads
 task->session->mpp directly and immediately dereferences it
@@ -51,7 +51,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  1 file changed, 34 insertions(+), 4 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index 65cb3a625f5b3..f19728d8f73e1 100644
+index 65cb3a625f5b..f19728d8f73e 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -103,7 +103,13 @@ static int
@@ -124,3 +124,6 @@ index 65cb3a625f5b3..f19728d8f73e1 100644
  
  	/*
  	 * In the link table mode, the prepare function of the device
+-- 
+2.56.1
+

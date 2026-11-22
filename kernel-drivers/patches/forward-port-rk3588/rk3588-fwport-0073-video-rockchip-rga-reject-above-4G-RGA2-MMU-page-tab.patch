@@ -1,7 +1,7 @@
-From 79fc616390e580ae18ae7bc346976fe8350c59eb Mon Sep 17 00:00:00 2001
+From 8ddd7dc66561f1961b07cec60272b1b7cf3c42d8 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 24 Jul 2026 05:07:50 -0700
-Subject: [PATCH 73/87] video: rockchip: rga: reject above-4G RGA2 MMU
+Subject: [PATCH 073/107] video: rockchip: rga: reject above-4G RGA2 MMU
  page-table entries
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -28,7 +28,7 @@ check; they now unwind through the existing err_free_page_table path.
  1 file changed, 36 insertions(+), 8 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index 6ce00f363080a..6a6c66ee244a0 100644
+index 6ce00f363080..6a6c66ee244a 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -1541,6 +1541,17 @@ static int rga_mm_sgt_to_page_table(struct sg_table *sg,
@@ -110,3 +110,6 @@ index 6ce00f363080a..6a6c66ee244a0 100644
  
  		img->yrgb_addr = img_offset;
  		rga_convert_addr(img, false);
+-- 
+2.56.1
+

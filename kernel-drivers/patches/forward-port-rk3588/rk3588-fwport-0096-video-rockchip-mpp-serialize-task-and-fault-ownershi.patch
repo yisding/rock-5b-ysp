@@ -1,7 +1,7 @@
-From 7698e7018e3d5d68815d34b638e77c9633217dd8 Mon Sep 17 00:00:00 2001
+From 092c485698f0b7053c7c5773ab027b34f5163fea Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 8 Aug 2026 16:48:55 -0700
-Subject: [PATCH 96/96] video: rockchip: mpp: serialize task and fault
+Subject: [PATCH 096/107] video: rockchip: mpp: serialize task and fault
  ownership
 
 Serialize session control, result collection, and DMA cache lookup so reset, poll, import, release, and task construction cannot race their owned state. Balance static translation references, preserve interrupted link waits, and force unsafe hard CCU requests onto the soft worker before hook selection.
@@ -20,10 +20,10 @@ Reserve IOMMU fault admission per task before provider preparation, publish the 
  9 files changed, 657 insertions(+), 80 deletions(-)
 
 diff --git a/drivers/iommu/rockchip-iommu.c b/drivers/iommu/rockchip-iommu.c
-index e05d5217fd9bf..550afce176121 100644
+index eade2ae97a96..5725141750cb 100644
 --- a/drivers/iommu/rockchip-iommu.c
 +++ b/drivers/iommu/rockchip-iommu.c
-@@ -1232,6 +1232,10 @@ static struct iommu_device *rk_iommu_probe_device(struct device *dev)
+@@ -1258,6 +1258,10 @@ static struct iommu_device *rk_iommu_probe_device(struct device *dev)
  
  	data->link = device_link_add(dev, iommu->dev,
  				     DL_FLAG_STATELESS | DL_FLAG_PM_RUNTIME);
@@ -34,7 +34,7 @@ index e05d5217fd9bf..550afce176121 100644
  
  	/*
  	 * RGA and other Rockchip multimedia clients can depend on dma_map_sg()
-@@ -1447,6 +1451,81 @@ void rockchip_iommu_unmask_irq(struct device *dev)
+@@ -1473,6 +1477,81 @@ void rockchip_iommu_unmask_irq(struct device *dev)
  }
  EXPORT_SYMBOL_GPL(rockchip_iommu_unmask_irq);
  
@@ -117,7 +117,7 @@ index e05d5217fd9bf..550afce176121 100644
  {
  	struct rk_iommu *iommu = rk_iommu_from_dev_checked(dev);
 diff --git a/drivers/iommu/vsi-iommu.c b/drivers/iommu/vsi-iommu.c
-index 359c40e6d6b8d..5de5dfc2679e7 100644
+index cd94cc6073e7..9541e8820c88 100644
 --- a/drivers/iommu/vsi-iommu.c
 +++ b/drivers/iommu/vsi-iommu.c
 @@ -242,13 +242,17 @@ static irqreturn_t vsi_iommu_irq(int irq, void *dev_id)
@@ -144,7 +144,7 @@ index 359c40e6d6b8d..5de5dfc2679e7 100644
  	writel(0, iommu->regs + VSI_MMU_STATUS_BASE);
  
  	spin_unlock_irqrestore(&iommu->lock, flags);
-@@ -768,8 +772,11 @@ static struct iommu_device *vsi_iommu_probe_device(struct device *dev)
+@@ -770,8 +774,11 @@ static struct iommu_device *vsi_iommu_probe_device(struct device *dev)
  
  	link = device_link_add(dev, provider_dev,
  			       DL_FLAG_STATELESS | DL_FLAG_PM_RUNTIME);
@@ -157,7 +157,7 @@ index 359c40e6d6b8d..5de5dfc2679e7 100644
  	put_device(provider_dev);
  
  	/*
-@@ -881,6 +888,104 @@ void vsi_iommu_mask_irq(struct device *dev)
+@@ -883,6 +890,104 @@ void vsi_iommu_mask_irq(struct device *dev)
  }
  EXPORT_SYMBOL_GPL(vsi_iommu_mask_irq);
  
@@ -263,7 +263,7 @@ index 359c40e6d6b8d..5de5dfc2679e7 100644
  					iommu_fault_handler_t handler, void *token)
  {
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index 8297c7f193f99..a369b6b5bea2f 100644
+index 8297c7f193f9..a369b6b5bea2 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -440,6 +440,8 @@ static struct mpp_session *mpp_session_init(void)
@@ -528,7 +528,7 @@ index 8297c7f193f99..a369b6b5bea2f 100644
  
  	if (!ret) {
 diff --git a/drivers/video/rockchip/mpp/mpp_common.h b/drivers/video/rockchip/mpp/mpp_common.h
-index e079a50ab661e..96b318a9822ee 100644
+index e079a50ab661..96b318a9822e 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.h
 +++ b/drivers/video/rockchip/mpp/mpp_common.h
 @@ -347,6 +347,10 @@ struct mpp_session {
@@ -543,7 +543,7 @@ index e079a50ab661e..96b318a9822ee 100644
  	/* lock for session task pending list */
  	struct mutex pending_lock;
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
-index d9feeaf63dcd0..c2ebe43d62546 100644
+index d9feeaf63dcd..c2ebe43d6254 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.c
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.c
 @@ -352,28 +352,42 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
@@ -981,7 +981,7 @@ index d9feeaf63dcd0..c2ebe43d62546 100644
  
  	return 0;
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.h b/drivers/video/rockchip/mpp/mpp_iommu.h
-index 206599d800786..c4f661cb313b8 100644
+index 206599d80078..c4f661cb313b 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.h
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.h
 @@ -103,6 +103,8 @@ struct mpp_iommu_info {
@@ -1010,7 +1010,7 @@ index 206599d800786..c4f661cb313b8 100644
  void mpp_iommu_unreserve_iova(struct mpp_iommu_info *info, dma_addr_t iova, size_t size);
  
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
-index c0f9cff40fc43..1114d863418a4 100644
+index c0f9cff40fc4..1114d863418a 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 @@ -1476,8 +1476,10 @@ int rkvdec2_link_wait_result(struct mpp_session *session,
@@ -1043,7 +1043,7 @@ index c0f9cff40fc43..1114d863418a4 100644
  
  	/*
 diff --git a/include/soc/rockchip/rockchip_iommu.h b/include/soc/rockchip/rockchip_iommu.h
-index b0e810c10395f..3a19dee05a91e 100644
+index b0e810c10395..3a19dee05a91 100644
 --- a/include/soc/rockchip/rockchip_iommu.h
 +++ b/include/soc/rockchip/rockchip_iommu.h
 @@ -20,6 +20,8 @@ bool rockchip_iommu_is_enabled(struct device *dev);
@@ -1073,7 +1073,7 @@ index b0e810c10395f..3a19dee05a91e 100644
  {
  	return -ENODEV;
 diff --git a/include/soc/rockchip/vsi_iommu.h b/include/soc/rockchip/vsi_iommu.h
-index 7a5ae91724d66..37f83d5f45947 100644
+index 7a5ae91724d6..37f83d5f4594 100644
 --- a/include/soc/rockchip/vsi_iommu.h
 +++ b/include/soc/rockchip/vsi_iommu.h
 @@ -10,6 +10,9 @@ struct device;
@@ -1108,5 +1108,5 @@ index 7a5ae91724d66..37f83d5f45947 100644
  				     iommu_fault_handler_t handler, void *token)
  {
 -- 
-2.55.0
+2.56.1
 

@@ -1,7 +1,7 @@
-From b54ba6079824b1aa0b9e9a1c6b845460b8b4f9d8 Mon Sep 17 00:00:00 2001
+From fed28de191a7ce47c1576adcd53b8158cef9a6fc Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 8 Aug 2026 11:48:02 -0700
-Subject: [PATCH 93/93] video: rockchip: rga3: cap RGA2 USERPTR SG segments
+Subject: [PATCH 093/107] video: rockchip: rga3: cap RGA2 USERPTR SG segments
 
 RGA2 has a 32-bit DMA mask, so high USERPTR pages are bounced through
 SWIOTLB. The backend can map at most 256 KiB per entry on RK3588, while
@@ -21,7 +21,7 @@ Signed-off-by: rkvenc forward-port <forward-port@local>
  1 file changed, 47 insertions(+), 13 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index 11aa0d9d78256..883fd1a66dca5 100644
+index 11aa0d9d7825..883fd1a66dca 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -5,6 +5,7 @@
@@ -128,5 +128,5 @@ index 11aa0d9d78256..883fd1a66dca5 100644
  			ret = PTR_ERR(sgt);
  			break;
 -- 
-2.55.0
+2.56.1
 

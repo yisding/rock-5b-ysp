@@ -1,7 +1,7 @@
-From 14c0456c4108c71d1143081a5ad6b22a68c6762b Mon Sep 17 00:00:00 2001
+From b6b303fc39b37d6ab59806f418c1e8cc420b607f Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 31 Jul 2026 08:17:39 -0700
-Subject: [PATCH 80/87] media: rockchip: rga: honor mapped SG contracts
+Subject: [PATCH 080/107] media: rockchip: rga: honor mapped SG contracts
 
 ---
  drivers/video/rockchip/rga3/rga_dma_buf.c |  45 +++++--
@@ -9,7 +9,7 @@ Subject: [PATCH 80/87] media: rockchip: rga: honor mapped SG contracts
  2 files changed, 121 insertions(+), 66 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_dma_buf.c b/drivers/video/rockchip/rga3/rga_dma_buf.c
-index 466f818ba1351..a0f6d1e2269db 100644
+index 466f818ba135..a0f6d1e2269d 100644
 --- a/drivers/video/rockchip/rga3/rga_dma_buf.c
 +++ b/drivers/video/rockchip/rga3/rga_dma_buf.c
 @@ -40,6 +40,12 @@ static int rga_dma_check_iova_span(dma_addr_t dma_addr, size_t size,
@@ -86,7 +86,7 @@ index 466f818ba1351..a0f6d1e2269db 100644
  
  	buffer->sgt = sgt;
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index 5e3a22bcaca11..51cefcc724018 100644
+index 5e3a22bcaca1..51cefcc72401 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -1532,68 +1532,102 @@ static int rga_mm_set_mmu_flag(struct rga_job *job,
@@ -246,3 +246,6 @@ index 5e3a22bcaca11..51cefcc724018 100644
  
  	return 0;
  }
+-- 
+2.56.1
+

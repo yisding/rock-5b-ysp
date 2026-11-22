@@ -1,7 +1,7 @@
-From a2a5d91a7d78d5194d5ffbac2393ab468ef47477 Mon Sep 17 00:00:00 2001
+From cc6d8327630bbf2a4b2be988b44db7ecc309483a Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Mon, 26 Jan 2026 20:03:59 +0800
-Subject: [PATCH 27/87] video: rockchip: rga3: fix bi-linear scale-down
+Subject: [PATCH 027/107] video: rockchip: rga3: fix bi-linear scale-down
  coefficient check
 
 Ensure src/dst last point mapping is confirmed after recalculating
@@ -17,7 +17,7 @@ Change-Id: I3e71a7867176e27a3de12c02e305a485e65c01fc
  1 file changed, 28 insertions(+), 13 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga2_reg_info.c b/drivers/video/rockchip/rga3/rga2_reg_info.c
-index 236dfa4e7d054..24cdae11628ab 100644
+index 236dfa4e7d05..24cdae11628a 100644
 --- a/drivers/video/rockchip/rga3/rga2_reg_info.c
 +++ b/drivers/video/rockchip/rga3/rga2_reg_info.c
 @@ -106,28 +106,43 @@ static void rga2_scale_down_bilinear_protect(u32 *param_fix, u32 *src_fix,
@@ -77,3 +77,6 @@ index 236dfa4e7d054..24cdae11628ab 100644
  
  	*param_fix = param;
  	*src_fix = final_steps + 1;
+-- 
+2.56.1
+

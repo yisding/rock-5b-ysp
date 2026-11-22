@@ -1,7 +1,7 @@
-From a0160273e9a32fa881600fd9c28c7dcfd326e60a Mon Sep 17 00:00:00 2001
+From fc0ed574c2fc23958485b20a594ccf3a27a12f19 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Fri, 13 Mar 2026 15:29:14 +0800
-Subject: [PATCH 23/87] video: rockchip: rga3: add shadow_page for cache-line
+Subject: [PATCH 023/107] video: rockchip: rga3: add shadow_page for cache-line
  unaligned VA
 
 VA from user-space malloc are not always cache-line aligned. Introduce
@@ -17,7 +17,7 @@ Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
  2 files changed, 219 insertions(+)
 
 diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
-index d2edb30b83d97..d3a6c93f22920 100644
+index d2edb30b83d9..d3a6c93f2292 100644
 --- a/drivers/video/rockchip/rga3/include/rga_drv.h
 +++ b/drivers/video/rockchip/rga3/include/rga_drv.h
 @@ -204,6 +204,11 @@ struct rga_virt_addr {
@@ -33,7 +33,7 @@ index d2edb30b83d97..d3a6c93f22920 100644
  };
  
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index cdc9ae47d7f65..8914197a80c34 100644
+index cdc9ae47d7f6..8914197a80c3 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -14,6 +14,178 @@
@@ -315,3 +315,6 @@ index cdc9ae47d7f65..8914197a80c34 100644
  	if (DEBUGGER_EN(TIME))
  		rga_job_log(job, "handle[%d], %s, flush CPU cache for CPU cost %lld us\n",
  			buffer->handle, rga_get_dma_data_direction_str(dir),
+-- 
+2.56.1
+
