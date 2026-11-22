@@ -195,12 +195,12 @@ owns the public verdict.
 
 | Snapshot | Pin and base | Historical relationships |
 |----------|--------------|--------------------------|
-| 6.18 rewrite driver-review fixes, 2026-11-22 | `rk3588-rewrite-6.18@042d5894eff5178c76a4be62c94f7ae32983af4c` on `v6.18.64@fd7cfd39c8859` | Rebased tip `7e79a54acdcb`; adds sixteen review commits (`rockchip_iommu_restore()` after reset, single completion owner, owned register words, frame-wait on close/reset, RGA2E envelope, suspend parking). Local only, unpushed |
-| Mainline rewrite driver-review fixes, 2026-11-22 | `rk3588-rewrite-mainline@7d17efc678f30f68e8fbd8babfa6315f678ea6b2` on `v7.4-rc3@aebb72744764` | Rebased tip `7d2bd0a3f72f`; byte-identical rewrite C/Kconfig/ABI/UAPI checkpoint. The two provider commits differ from 6.18 by context and one forward declaration. Local only, unpushed |
-| 6.18 rewrite rebased to 6.18.64, 2026-11-22 | `rk3588-rewrite-6.18@7e79a54acdcb2304fc036157005d1fae76ab0275` on `v6.18.64@fd7cfd39c8859` | Prior tip `7c38fc4ffaba`, kept as local-only `ysp-backup/rk3588-rewrite-6.18-before-6.18.64-20261122`; 445 commits replayed with one `rk_iommu_enable()` conflict, plus the VSI three-argument `attach_dev` compile fix as the tip commit |
-| Mainline rewrite rebased to 7.4-rc3, 2026-11-22 | `rk3588-rewrite-mainline@7d2bd0a3f72f600da349376a04b88c4478484e7f` on `v7.4-rc3@aebb72744764` | Prior tip `12a6a61b76ac`, kept as local-only `ysp-backup/rk3588-rewrite-mainline-before-7.4-rc3-20261122`; 370 commits replayed with one `rk_iommu_probe()` conflict against upstream's `devm_kzalloc_objs()` conversion |
-| 6.18 rewrite rebased to 6.18.51, 2026-09-13 | `rk3588-rewrite-6.18@7c38fc4ffaba723b839af96981875f349b1b337e` on `v6.18.51@f6388029ea9e2` | Rewrite payload byte-identical to prior tip `9030386c8bcc`, kept at `ysp-backup/rk3588-rewrite-6.18-before-6.18.51-20260913`. Source of the published 6.18 alpha, and still the fork's branch head |
-| Mainline rewrite rebased to 7.3-rc2, 2026-09-13 | `rk3588-rewrite-mainline@12a6a61b76acab23f61b92cb36d301f537721bc8` on `v7.3-rc2@df2908090cda3` | Rewrite payload byte-identical to prior tip `a7a308ab6345`, kept at `ysp-backup/rk3588-rewrite-mainline-before-7.3-rc2-20260913`. Source of the published mainline alpha, and still the fork's branch head |
+| 6.18 rewrite driver-review fixes, 2026-11-22 | `rk3588-rewrite-6.18@a6fa1f5455071773c98eaf136233f2865bf26636` on `v6.18.64@fd7cfd39c8859` | Rebased tip `9f59bfd5f3b7`; adds twenty review commits (`rockchip_iommu_restore()` after reset, single completion owner, owned register words, frame-wait on close/reset, RGA2E envelope, suspend parking, hard-CCU shutdown stage, RGA2 line-only acknowledge, zeroed USERPTR shadows). Commit messages carry the kernel `Assisted-by:` trailer |
+| Mainline rewrite driver-review fixes, 2026-11-22 | `rk3588-rewrite-mainline@b153bd9195151906c1b7910962536ba0bdd4d800` on `v7.4-rc3@aebb72744764` | Rebased tip `7d2bd0a3f72f`; the same twenty commits and a byte-identical rewrite C/Kconfig/ABI/UAPI checkpoint. The two provider commits differ from 6.18 by context and one forward declaration |
+| 6.18 rewrite rebased to 6.18.64, 2026-11-22 | `rk3588-rewrite-6.18@9f59bfd5f3b7e18940aa8dcf6b68f82309964b94` on `v6.18.64@fd7cfd39c8859` | Prior tip `7c38fc4ffaba`, kept as `ysp-backup/rk3588-rewrite-6.18-before-6.18.64-20261122`; 445 commits replayed (through `63596abcb3c9`) with one `rk_iommu_enable()` conflict, plus the VSI three-argument `attach_dev` compile fix as the tip commit. The pin is that commit's id after the trailer reword recorded in the finding |
+| Mainline rewrite rebased to 7.4-rc3, 2026-11-22 | `rk3588-rewrite-mainline@7d2bd0a3f72f600da349376a04b88c4478484e7f` on `v7.4-rc3@aebb72744764` | Prior tip `12a6a61b76ac`, kept as `ysp-backup/rk3588-rewrite-mainline-before-7.4-rc3-20261122`; 370 commits replayed with one `rk_iommu_probe()` conflict against upstream's `devm_kzalloc_objs()` conversion |
+| 6.18 rewrite rebased to 6.18.51, 2026-09-13 | `rk3588-rewrite-6.18@7c38fc4ffaba723b839af96981875f349b1b337e` on `v6.18.51@f6388029ea9e2` | Rewrite payload byte-identical to prior tip `9030386c8bcc`, kept at `ysp-backup/rk3588-rewrite-6.18-before-6.18.51-20260913`. Source of the published 6.18 alpha, and the fork's branch head until a 2026-11-22 tip is pushed over it |
+| Mainline rewrite rebased to 7.3-rc2, 2026-09-13 | `rk3588-rewrite-mainline@12a6a61b76acab23f61b92cb36d301f537721bc8` on `v7.3-rc2@df2908090cda3` | Rewrite payload byte-identical to prior tip `a7a308ab6345`, kept at `ysp-backup/rk3588-rewrite-mainline-before-7.3-rc2-20260913`. Source of the published mainline alpha, and the fork's branch head until a 2026-11-22 tip is pushed over it |
 | 6.18 rewrite post-refactor boundary hardening, 2026-08-11 | `rk3588-rewrite-6.18@d9cbcf21cda1c047c053447a48a908dcb6e4c5d6` on `v6.18.42@856a9b51680c` | Phase 4/5 tip `149a9ecd38f78`; adds fixed-width MPP UAPI decoding and RGA validation, pin-accounting, fault-latching, reclamation, and suspend boundary repairs |
 | Mainline rewrite post-refactor boundary hardening, 2026-08-11 | `rk3588-rewrite-mainline@b6335efd8f98bedabf426a80d224f85a266c8ea4` on `v7.2-rc6@075b74841bd0` | Phase 4/5 tip `280181e634a3`; byte-identical rewrite C/Kconfig/ABI/UAPI checkpoint |
 | 6.18 rewrite Phases 4–5 complete, 2026-08-11 | `rk3588-rewrite-6.18@149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` on `v6.18.42@856a9b51680c` | Phase 3 completion tip `77b60c9250cccc`; adds RGA task-execution ownership plus immutable RGA plans and sealed MPP register images |
@@ -251,15 +251,17 @@ owns the public verdict.
 
 The two 2026-11-22 review-fix snapshots have byte-identical tracked MPP/RGA
 rewrite sources, Kconfig, ABI ledgers, and UAPI. Their MPP source SHA-256 is
-`ce53eef3677c22e0941975a95683dea686dc62a28cea672c836ed0ebf29fc902`; the RGA
+`dd41cdd67da5b60e66e12d63b28886dd45f27f3ab599abf6385c565b47ac3f6e`; the RGA
 source SHA-256 is
-`afbdf5d9e57233d0fa70bea353d20f60dc09e2a80b0f56232a4c29afc3a31e21`. The exact
-source manifest is 112 MPP + 154 RGA = 266 cases, ownership passes at 2,321
-signals/tree, and KUnit fixture debt passes at 312/tree. Both tips pass a
+`de3af8980707bb1be4e70dedc97c266a4b01af893f74e9df2215e7743a1cc436`. The exact
+source manifest is 112 MPP + 156 RGA = 268 cases, ownership passes at 2,326
+signals/tree, and KUnit fixture debt passes at 313/tree. Both tips pass a
 warning-free `W=1` build and the gate's `normal` profile; the `test-disabled`,
 `memory`, and `race` profiles and the ABI-mutation gate were not rerun on
-them. Strict checkpatch reports only the commit-trailer findings on each of the
-sixteen commits. No runtime result exists; the
+them. Strict checkpatch reports no code-style finding on the twenty commits;
+what it says about the `Assisted-by:` trailer differs between the two lines.
+This table pins branch tips and does not record what the `linux-rock5b` fork
+holds. No runtime result exists; the
 [rebase and review finding](../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md)
 owns the detail.
 

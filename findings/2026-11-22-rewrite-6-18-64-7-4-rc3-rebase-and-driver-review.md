@@ -1,25 +1,28 @@
-# Rewrite lines rebased to Linux 6.18.64 and 7.4-rc3 with sixteen driver-review fix commits
+# Rewrite lines rebased to Linux 6.18.64 and 7.4-rc3 with twenty driver-review fix commits
 
 > Scope: both clean-room rewrite kernel lines (`rk3588-rewrite-6.18`,
 > `rk3588-rewrite-mainline`), their MPP and RGA drivers, and the Rockchip IOMMU
 > provider hook they call
 > Source: Linux `v6.18.64@fd7cfd39c8859` and `v7.4-rc3@aebb72744764`; tips
-> `rk3588-rewrite-6.18@042d5894eff5` (was `7c38fc4ffaba` on `v6.18.51`) and
-> `rk3588-rewrite-mainline@7d17efc678f3` (was `12a6a61b76ac` on `v7.3-rc2`)
+> `rk3588-rewrite-6.18@a6fa1f545507` (was `7c38fc4ffaba` on `v6.18.51`) and
+> `rk3588-rewrite-mainline@b153bd919515` (was `12a6a61b76ac` on `v7.3-rc2`)
 > Date: 2026-11-22
 > Trust: SOURCE-INSPECTED, COMPILE-VERIFIED. KUnit was compiled but not run, and
-> there is no boot or hardware result for anything here. Both branches are
-> local only: nothing was pushed, packaged or uploaded.
+> there is no boot or hardware result for anything here. Nothing was packaged
+> or uploaded. The ids above are the reference for this record; it does not
+> track what the `linux-rock5b` fork holds (see [Result](#result)).
 
 ## Result
 
-Both rewrite lines moved to their current upstream and then took sixteen fix
-commits from a full review of the driver surface.
+Both rewrite lines moved to their current upstream and then took twenty fix
+commits from a full review of the driver surface. The review confirmed sixteen
+findings, and every one of them now has a fix on both lines; one (F9) is fixed
+only in part.
 
 | Line | Was | Now | Local range | Rebase |
 | --- | --- | --- | ---: | --- |
-| Rewrite 6.18 | `v6.18.51` | **`v6.18.64`** | 445 replayed + 1 compile fix + 16 review commits = 462 | 1 conflict, 1 compile-only break |
-| Rewrite mainline | `v7.3-rc2` | **`v7.4-rc3`** | 370 replayed + 16 review commits = 386 | 1 conflict |
+| Rewrite 6.18 | `v6.18.51` | **`v6.18.64`** | 445 replayed + 1 compile fix + 20 review commits = 466 | 1 conflict, 1 compile-only break |
+| Rewrite mainline | `v7.3-rc2` | **`v7.4-rc3`** | 370 replayed + 20 review commits = 390 | 1 conflict |
 
 **6.18 rebase.** All 445 commits replayed onto `v6.18.64`. The one conflict
 was in `rk_iommu_enable()`: stable `08003cc005c8`
@@ -33,7 +36,7 @@ faults before enabling stall") merged underneath without conflict.
 The rebase then reported success on a tree that did not build. Stable
 `11dfe2896ea2` (upstream `fd714986e4e4`) gave `attach_dev` a third
 `struct iommu_domain *old` argument, and `vsi-iommu.c` is a file the series
-adds, so nothing conflicted. New commit `7e79a54acdcb` ("iommu/vsi: take the old
+adds, so nothing conflicted. New commit `9f59bfd5f3b7` ("iommu/vsi: take the old
 domain in attach_dev callbacks") adds the argument to both VSI attach callbacks,
 as the mainline branch already had. Only the compile caught it.
 
@@ -48,14 +51,31 @@ not history.
 Before the review commits, the rewrite payload (`mpp-rewrite/`, `rga-rewrite/`
 and `include/uapi/linux/rk-mpp.h`) was byte-identical across both rebases and
 between the two lines. After them it is again identical between the two tips:
-tree objects `mpp-rewrite@3a2e6a557d52`, `rga-rewrite@e0196240c9fc`,
+tree objects `mpp-rewrite@abe53581756a`, `rga-rewrite@7f4edd6753ed`,
 `rk-mpp.h@3e92b10c3e5a`.
 
-The prior tips are preserved at
-`ysp-backup/rk3588-rewrite-6.18-before-6.18.64-20261122` and
-`ysp-backup/rk3588-rewrite-mainline-before-7.4-rc3-20261122`. Unlike the
-2026-09-13 backups, these exist only in the local kernel repository. The
-`linux-rock5b` fork still carries the 2026-09-13 tips on both branches.
+The prior tips are preserved as branches
+`ysp-backup/rk3588-rewrite-6.18-before-6.18.64-20261122` (`7c38fc4ffaba`) and
+`ysp-backup/rk3588-rewrite-mainline-before-7.4-rc3-20261122` (`12a6a61b76ac`).
+Those two ids are also what the `linux-rock5b` fork's `rk3588-rewrite-6.18` and
+`rk3588-rewrite-mainline` held before this pass.
+
+**Fork state.** When this record was written, neither the new tips nor the two
+`-20261122` backup branches had been sent to the fork. That is a statement
+about one moment, and this file is not updated when a push happens. Read the
+fork's state from the fork: a branch there carries this work exactly when
+`git ls-remote` on it prints the tip id above. Both branches were rebased, so
+they do not fast-forward from the 2026-09-13 heads.
+
+**Commit ids.** The first sixteen commits (seventeen on 6.18, counting the VSI
+compile fix) were message-reworded once after they were written, to change the
+attribution trailer to the kernel's form (see [Gates](#gates)). That changed
+the id of every commit in the range, the four later ones included because
+they sit on top, and both tips. It changed nothing else: each commit kept its
+tree, author, dates and subject, and the tip trees are `2557cc03a5bb`
+(mainline) and `a620521369fa` (6.18) before and after. The ids in this file are
+the post-reword ones. Ids recorded by the first revision of this file
+(repository commit `d02ebc0`) no longer name a commit on either branch.
 
 ## Driver review
 
@@ -66,7 +86,8 @@ the MPP and RGA userspace boundaries, MPP and RGA concurrency, lifetime and
 power management, IOMMU and device tree, parity with the forward-port fixes,
 and hardware programming. Every finding the reviewers ranked above low was
 handed to two independent refuters, with a tie-break when they disagreed.
-Sixteen findings survived and one was rejected.
+Sixteen findings survived and one was rejected. The survivors keep their review
+numbers, F1 to F17 with no F11.
 
 Two of the fixed defects are kernel memory-safety defects that a
 `/dev/mpp_service` or `/dev/rga` user could reach: a job lifetime error on the
@@ -78,41 +99,55 @@ which is a fair measure of how much less runtime this code has had.
 ### Fixed
 
 Commit ids are the ones on the final branches; the 6.18 ids differ because the
-series was cherry-picked there. `git range-diff` shows fourteen commits
+series was cherry-picked there. `git range-diff` shows eighteen commits
 identical and the two provider commits differing only by context and one
 forward declaration (below).
 
+The fixes landed in two passes. Twelve commits and their four follow-ups came
+first. F10, F13, F14 and F17 were written and build-clean at the same time but
+could not be committed then (see the hook note under [Gates](#gates)); they
+were re-read against the moved tip, applied with line offsets only, and
+committed afterwards in the order F17, F13, F10, F14.
+
 | Item | Mainline | 6.18 | Defect | Reach |
 | --- | --- | --- | --- | --- |
-| F1 | `51bddb91c7ce` | `86b2b3bf597e` | Four RKVENC2 completion paths released the DCHS lifecycle mutex through the job after the call that can drop the job's last reference. The lock helper now returns the mutex, which lives in the service. | unprivileged; every hardware encode completion |
-| F2 | `4e3f757e6807` | `862b3c3ad43a` | The RGA2-to-RGA3 reroute branch of `rk_rga_hw_dispatch()` called itself instead of continuing its loop, so stack depth grew with each consecutive rerouted job. | unprivileged, where an RGA2 DMA-BUF mapping fails with `-EIO` |
-| F3 | `ffcf73b782e7`, `6af77f072649` | `f83a90584510`, `49a3580bc485` | After a recovery reset the Rockchip-provider "refresh" was only a TLB zap. It never rewrote `DTE_ADDR` or the interrupt mask, never re-enabled paging and could not fail, while autosuspend and cluster power leases keep the MMU resumed between jobs. New export `rockchip_iommu_restore()` runs the provider's disable-then-enable sequence; RKVDEC2 and RKVENC2 call it after every driver reset, and a failure quarantines the core. | unprivileged, conditional on a reset clearing the embedded MMU (unmeasured) |
-| F4 | `99b4d77d8122` | `49ec3841fac6` | Same defect on RGA3: `rk_rga_hw_refresh_iommu()` was a void TLB zap, and the next queued job can start before the supplier MMU is runtime-suspended. It now calls `rockchip_iommu_restore()`; a failed restore quarantines the core but still retires the recovered job, because the reset did stop DMA. | unprivileged, same hardware premise |
-| F5 | `bc428007984e` | `e366d9252917` | Address validation ran on the job's register image, but only the caller's `SET_REG_WRITE` spans reach MMIO and a core's register file is not cleared between jobs. An address register or format selector left out of every span kept the previous job's value. The driver now programs every kernel-validated word no span carried. | unprivileged; another session's DMA buffers in the same codec domain, not kernel memory |
-| F6 | `c4714587da8f` | `2c190a85ae9c` | Session close and `RESET_SESSION` completed every job not on hardware regardless of who owned it, so a job in flight to completion, in dispatch, or in a queue sweep could be completed twice. Whoever unqueued a job now owns its completion until it reaches hardware. No new state. | unprivileged; also an abrupt process exit |
-| F7 | `5ea38e98ab70` | `fc4200e6b9ac` | A non-blocking buffered `POLL_HW_IRQ` could copy out the final slice record and still return `-EAGAIN`, so a caller that retried lost the end-of-frame record. The final record now stays queued until the job is complete. | unprivileged, own session only |
-| F8 | `14c45ecc42c3` | `3c8da9e1908b` | RGA2 validation enforced none of the RGA2E limits `ABI.rst` documents: the 2x2 floor, the 4096x4096 destination, and the 1/16x..16x scale range. Out-of-range work was programmed, and large destinations could be load-balanced onto RGA2. No out-of-bounds DMA was involved. | unprivileged; also ordinary >4K work under load |
-| F9 | `7ea2f4cdf76c` | `2602d0b1254c` | **Partly fixed.** Close and `RESET_SESSION` pulsed the reset lines of a healthy mid-frame engine. They now wait for the frame on every core (see F12). The timeout, IOMMU-fault and error-IRQ paths still pulse with no engine-level stop; see below. | unprivileged |
-| F12 | `b131430000a2` | `55de36eab785` | AV1 recovery is terminal by design, so closing or resetting a session mid-frame removed hardware AV1 for every user until reboot. Close and reset now wait up to 1 s for the frame to retire through its IRQ or watchdog, and reset only if it does neither. | unprivileged |
-| F15 | `6676a57fc3db` | `e7944c6b08d2` | Already-admitted asynchronous RGA work that became runnable while its core was system-suspended completed with `-ENODEV` or `-EBUSY` instead of waiting. It now parks on the core and runs at resume; a failed resume fails it with `-EIO` behind a new `resume_failed` flag. | a system suspend with async RGA work in flight |
+| F1 | `80f3383b592e` | `a31d85a68943` | Four RKVENC2 completion paths released the DCHS lifecycle mutex through the job after the call that can drop the job's last reference. The lock helper now returns the mutex, which lives in the service. | unprivileged; every hardware encode completion |
+| F2 | `6ff7ec809ab8` | `bb814aed53a0` | The RGA2-to-RGA3 reroute branch of `rk_rga_hw_dispatch()` called itself instead of continuing its loop, so stack depth grew with each consecutive rerouted job. | unprivileged, where an RGA2 DMA-BUF mapping fails with `-EIO` |
+| F3 | `47882baa895a`, `a3e101eacd66` | `058f7c39d799`, `2f80f488c7f5` | After a recovery reset the Rockchip-provider "refresh" was only a TLB zap. It never rewrote `DTE_ADDR` or the interrupt mask, never re-enabled paging and could not fail, while autosuspend and cluster power leases keep the MMU resumed between jobs. New export `rockchip_iommu_restore()` runs the provider's disable-then-enable sequence; RKVDEC2 and RKVENC2 call it after every driver reset, and a failure quarantines the core. | unprivileged, conditional on a reset clearing the embedded MMU (unmeasured) |
+| F4 | `a4a0f7f46ae9` | `c4d6bf6224b6` | Same defect on RGA3: `rk_rga_hw_refresh_iommu()` was a void TLB zap, and the next queued job can start before the supplier MMU is runtime-suspended. It now calls `rockchip_iommu_restore()`; a failed restore quarantines the core but still retires the recovered job, because the reset did stop DMA. | unprivileged, same hardware premise |
+| F5 | `9628337ec52f` | `c31d0cbc7c96` | Address validation ran on the job's register image, but only the caller's `SET_REG_WRITE` spans reach MMIO and a core's register file is not cleared between jobs. An address register or format selector left out of every span kept the previous job's value. The driver now programs every kernel-validated word no span carried. | unprivileged; another session's DMA buffers in the same codec domain, not kernel memory |
+| F6 | `615ff6503f9b` | `12116b24e7f1` | Session close and `RESET_SESSION` completed every job not on hardware regardless of who owned it, so a job in flight to completion, in dispatch, or in a queue sweep could be completed twice. Whoever unqueued a job now owns its completion until it reaches hardware. No new state. | unprivileged; also an abrupt process exit |
+| F7 | `799e96ecef84` | `58490b99833f` | A non-blocking buffered `POLL_HW_IRQ` could copy out the final slice record and still return `-EAGAIN`, so a caller that retried lost the end-of-frame record. The final record now stays queued until the job is complete. | unprivileged, own session only |
+| F8 | `09669ae5e20e` | `a2ddadcda83e` | RGA2 validation enforced none of the RGA2E limits `ABI.rst` documents: the 2x2 floor, the 4096x4096 destination, and the 1/16x..16x scale range. Out-of-range work was programmed, and large destinations could be load-balanced onto RGA2. No out-of-bounds DMA was involved. | unprivileged; also ordinary >4K work under load |
+| F9 | `92909b4216b3` | `829e05e84693` | **Partly fixed.** Close and `RESET_SESSION` pulsed the reset lines of a healthy mid-frame engine. They now wait for the frame on every core (see F12). The timeout, IOMMU-fault and error-IRQ paths still pulse with no engine-level stop; see below. | unprivileged |
+| F10 | `8b6a11879984` | `00d05f80afe9` | `rk_rga_add_userptr_shadow()` allocated the USERPTR boundary shadow page without `__GFP_ZERO` and only the imported window is filled, but the whole page is device-addressable. It is now allocated zeroed. Whether an engine ever reads the slack was not established. Adds one KUnit case. | none on a shipped configuration: `init_on_alloc` already zeroes the page |
+| F12 | `36b107ee45c0` | `8bfeaf4689b9` | AV1 recovery is terminal by design, so closing or resetting a session mid-frame removed hardware AV1 for every user until reboot. Close and reset now wait up to 1 s for the frame to retire through its IRQ or watchdog, and reset only if it does neither. | unprivileged |
+| F13 | `d4af2f9b385d` | `7f68dcce4c90` | `rk_mpp_hw_shutdown()` reset only the owner core and retired a hard-CCU job on a core-only proof, though the coordinator may be running the descriptor on a peer. New `rk_mpp_hw_shutdown_hard_ccu()` puts a coordinator stage in front of the per-core abort, as remove and recovery have: stop the chain, abort the dependents on the group proof, then retire the shutting-down core's own job under the same lock. A failed stop feeds the existing retry loop. Extends one KUnit case, adds none. | shutdown or kexec with a hard-CCU decode in flight; latent on ROCK 5B, which selects soft CCU |
+| F14 | `b153bd919515` | `a6fa1f545507` | An RGA2 line-only interrupt was acknowledged with the full clear mask, so a completion or error that latched during the handler was cleared unseen and the job waited out the watchdog. The line-only branch now strobes only the two line clears; the completion and spurious paths keep the full mask. Rests on the unverified assumption that the clear bits are independent write-1 strobes. Adds one KUnit case. | an RGA2 job that requests line interrupts; fail-safe, the job times out |
+| F15 | `24ada6c9089c` | `79e74494c414` | Already-admitted asynchronous RGA work that became runnable while its core was system-suspended completed with `-ENODEV` or `-EBUSY` instead of waiting. It now parks on the core and runs at resume; a failed resume fails it with `-EIO` behind a new `resume_failed` flag. | a system suspend with async RGA work in flight |
 | F16 | — | — | Closed by the F6 commit, which rewrote the file-release KUnit fixture: the activation is now initialised and the path no longer reaches the completion call that needed a full service. | KUnit only |
+| F17 | `60c4652507ac` | `68de73450fe9` | `rk_mpp_cluster_recovery_result_kunit` and `rk_mpp_cluster_reset_group_kunit` never initialised `hw->regs_lock`, which every reset transaction now takes to revoke the register lease. Under `PROVE_LOCKING` the first acquisition should turn lockdep off for the rest of the boot and fail the compound KUnit gate. Four `raw_spin_lock_init()` calls, plus assertions on the reset epoch each revocation records. Changes two cases, adds none. | KUnit only |
 
-Each fix was then reviewed by an agent that had not written it. Four came back
-clean and four with notes that are recorded below. Three needed changes, which
-produced four follow-up commits:
+Each first-pass fix was then reviewed by an agent that had not written it. Four
+came back clean and four with notes that are recorded below. Three needed
+changes, which produced four follow-up commits:
 
 | Follow-up | Mainline | 6.18 | Change |
 | --- | --- | --- | --- |
-| F3 | `1b9020074452` | `1f4b4bd0db92` | The first F3 commit also ran the full restore on the idle IOMMU-fault path, where no reset had happened; in hard-CCU mode that could cycle an MMU through paging-off under a peer's live DMA. The restore now runs only behind a driver reset, and the idle-fault path keeps the old flush. |
-| F3 | `81f4f4d84982` | `0e209a3c4edd` | A restore failure isolates the whole IOMMU group, which on ROCK 5B is both decoder cores, until reboot. Each provider handshake is a single 1 ms poll, so `rockchip_iommu_restore()` now makes two passes before it reports an error. |
-| F5 | `2044f63c9648` | `b01b313a8182` | AV1 word 321 selects AFBC output but was not in an address table, so it was not owned. It now is, together with geometry words 4, 8 and 503 when the image selects AFBC. |
-| F7 | `7d17efc678f3` | `042d5894eff5` | The F7 commit left `rk_mpp_job_pop_rkvenc_slice()` with no caller outside the KUnit block, which is an unused-function warning when the KUnit option is off. Marked `__maybe_unused`. |
+| F3 | `8948a6d31a91` | `9b2013062f60` | The first F3 commit also ran the full restore on the idle IOMMU-fault path, where no reset had happened; in hard-CCU mode that could cycle an MMU through paging-off under a peer's live DMA. The restore now runs only behind a driver reset, and the idle-fault path keeps the old flush. |
+| F3 | `66eb3bf7169a` | `563d4b972dcd` | A restore failure isolates the whole IOMMU group, which on ROCK 5B is both decoder cores, until reboot. Each provider handshake is a single 1 ms poll, so `rockchip_iommu_restore()` now makes two passes before it reports an error. |
+| F5 | `a439db6a5575` | `d22d4965cf37` | AV1 word 321 selects AFBC output but was not in an address table, so it was not owned. It now is, together with geometry words 4, 8 and 503 when the image selects AFBC. |
+| F7 | `83efa82fac11` | `228079480654` | The F7 commit left `rk_mpp_job_pop_rkvenc_slice()` with no caller outside the KUnit block, which is an unused-function warning when the KUnit option is off. Marked `__maybe_unused`. |
 
 The 6.18 port of the provider commit needed one adaptation. That tree defines
-`rk_iommu_from_dev_checked()` below `rk_iommu_ops`, so `f83a90584510` adds a
+`rk_iommu_from_dev_checked()` below `rk_iommu_ops`, so `058f7c39d799` adds a
 forward declaration ahead of `rockchip_iommu_restore()` and says so in its
 message. The first 6.18 cherry-pick failed to build without it; the port was
 redone so that no 6.18 commit is left unbuildable.
+
+The four second-pass fixes were reviewed the same way after they landed. All
+four verdicts were clean, with nits only, so they have no follow-up commits;
+the nits are under [Reported but not changed](#reported-but-not-changed).
 
 ### Contract of `rockchip_iommu_restore()`
 
@@ -135,10 +170,11 @@ not the MMU. It is declared in `include/soc/rockchip/rockchip_iommu.h` with an
 
 ### Behaviour changes
 
-No UAPI layout changed. Both `ABI.rst` ledgers were updated in the commits that
-changed behaviour, and
+No UAPI layout changed. Both `ABI.rst` ledgers were updated in the first-pass
+commits that changed behaviour, and
 [rewrite-drivers](../kernel-drivers/docs/rewrite-drivers.md) carries the
-maintained summary.
+maintained summary. The four second-pass commits touch only `mpp_rewrite.c` and
+`rga_rewrite.c`, so neither ledger mentions the last three items below.
 
 - **Close and `RESET_SESSION` can block.** On every MPP core they wait up to
   1 s per on-hardware job, uninterruptibly and with no lock held, before
@@ -158,38 +194,73 @@ maintained summary.
   `BITBLT` destination becomes RGA3-only; RGA2-only operations of that size
   fail. This matches the vendor table, not a measured hardware limit.
 - **Suspend parks work** instead of failing it.
+- **Hard-CCU shutdown stops the coordinator first.** Dependents now complete
+  with `-ESHUTDOWN` and the shutdown transition. A coordinator that can be
+  neither stopped nor isolated holds shutdown in the existing retry loop,
+  where the old code would have released the job. An invalid cluster falls
+  back to the per-core abort. Soft-CCU clusters, direct cores and an idle
+  coordinator are unchanged.
+- **An RGA2 line-only interrupt leaves completion and error flags latched**,
+  so the level interrupt fires again and the ordinary completion path handles
+  them.
+- **USERPTR shadow pages start zeroed** whatever `init_on_alloc` says.
 
 ### Gates
 
 - **Build.** `W=1` over `rockchip-iommu.o`, `vsi-iommu.o`, `mpp_rewrite.o`,
   `rga_rewrite.o` and the ROCK 5B DTB, both KUnit options `=y`, native gcc 15.2:
-  zero warnings on both tips. `rewrite-build-gate.sh all` printed
-  `[6.18/normal] PASS: clean rewrite object build at 042d5894eff5` and
-  `[mainline/normal] PASS: clean rewrite object build at 7d17efc678f3`. Only the
-  `normal` profile ran. A by-hand `W=1` build of the mainline tip with both
-  KUnit options off is also warning-free, but the gate's `test-disabled`,
-  `memory` and `race` profiles and the ABI-mutation gate were not rerun.
-- **checkpatch.** `--strict` reports one error and two warnings on each of the
-  sixteen commits and nothing else: missing `Signed-off-by`, and the trailer
-  spelling. With those classes ignored every commit is 0/0/0 on both lines. The
-  commits carry `Assisted-By: Claude Fable 5.2 <…>`, which is this
-  repository's form; the kernel's own form is different (see the
+  zero warnings on both final tips, and after each of the four second-pass
+  commits on mainline. `rewrite-build-gate.sh all` printed
+  `[6.18/normal] PASS: clean rewrite object build at a6fa1f545507` and
+  `[mainline/normal] PASS: clean rewrite object build at b153bd919515`. Only the
+  `normal` profile ran. A by-hand `W=1` build of mainline with both KUnit
+  options off was warning-free after the first sixteen commits and was not
+  repeated after the last four. The gate's `test-disabled`, `memory` and `race`
+  profiles and the ABI-mutation gate were not rerun at all.
+- **Trailer.** Every commit carries exactly one
+  `Assisted-by: Claude:claude-fable-5-2` and no `Signed-off-by`. That is the
+  kernel's `AGENT_NAME:MODEL_VERSION` form, not this repository's
+  `Assisted-By:` form (see the
   [contribution-policy finding](2026-08-02-mainline-tool-assisted-contribution-policy.md)).
-  The branches are unpushed, so correcting the trailer is still a free rewrite.
-- **KUnit manifest.** Five cases were added and none removed, so the manifest
-  is now **112 MPP + 154 RGA = 266** (was 109 + 152). The new cases are
-  `rk_mpp_job_write_regs_owned_words_kunit`,
+  The first sixteen commits were written with the repository form and reworded
+  on both branches; the tip trees are unchanged by the reword.
+- **checkpatch.** `--strict` finds no code-style problem on either line. The
+  two lines disagree about the trailer, because they carry different
+  `scripts/checkpatch.pl`:
+  - 6.18 (21 commits): one `Missing Signed-off-by` error per commit, and one
+    75-column commit-description warning on the VSI compile fix
+    `9f59bfd5f3b7`, which quotes a compiler error line. Its checkpatch knows
+    the `Assisted-by` form and accepts the trailer.
+  - Mainline (20 commits): two errors and one warning per commit. Besides the
+    missing `Signed-off-by` they are `Unrecognized email address:
+    'Claude:claude-fable-5-2'` and `Non-standard signature: Assisted-by:`. The
+    `checkpatch.pl` at `v7.4-rc3` in this checkout has no `Assisted-by` entry
+    in its signature tags, and the branch does not modify that script.
+
+  So the trailer is settled as far as the policy document goes, but mainline
+  checkpatch is not quiet about it. Changing that means a different trailer or
+  a checkpatch change, and is a decision for the owner.
+- **KUnit manifest.** Seven cases were added and none removed, so the manifest
+  is now **112 MPP + 156 RGA = 268** (was 109 + 152 = 261). The first pass
+  added `rk_mpp_job_write_regs_owned_words_kunit`,
   `rk_mpp_session_poll_irq_nonblock_last_kunit`,
   `rk_mpp_hw_abort_defers_to_frame_kunit`,
   `rk_rga2_envelope_backend_mask_kunit` and
-  `rk_rga_queue_on_suspended_hw_kunit`. Three land mid-list, so the manifest was
-  regenerated and later ordinals shift.
-- **Source audits.** Ownership passes at **2,321 signals/tree** (the committed
-  baseline held 2,312): 30 new and 21 absent, each absent one paired with a new
-  one from a changed line. Fixture debt passes at **312/tree** (was 306); the
-  six new signals are the same kinds of debt in cases this series added or
-  rewrote. The writer inventory is unchanged at 118. Cross-tree identity
-  passes.
+  `rk_rga_queue_on_suspended_hw_kunit`; the second added
+  `rk_rga2_line_irq_ack_kunit` and `rk_rga_userptr_shadow_zeroed_kunit`. They
+  land mid-list, so the manifest was regenerated and later ordinals shift.
+  `kunit-manifest-check.sh` returns 0 against both tips.
+- **Source audits.** Ownership passes at **2,326 signals/tree** (the baseline
+  before this pass held 2,312). The first sixteen commits took it to 2,321: 30
+  new and 21 absent, each absent one paired with a new one from a changed line.
+  F13 took it to 2,326: seven new and two absent, five of the new ones in
+  `rk_mpp_hw_shutdown_hard_ccu()` and two replacing reworded lines in
+  `rk_mpp_hw_abort_ccu_dependents()` and `rk_mpp_hw_shutdown()`. Fixture debt
+  passes at **313/tree** (was 306): six signals from the first pass, and one
+  `manual-list-link` where F13's extended case lists the coordinator the way
+  the fixture already lists both cores. The writer inventory is unchanged at
+  118. Cross-tree identity passes. The ownership and writer baselines pin
+  both tip ids, so any further rewrite of either branch needs a re-pin.
 - **Audit script edit.** The ownership audit hard-codes owner allowlists that
   `--update-baseline` cannot change. Two new accessors were added to them after
   reading both: `rk_mpp_job_outcome_finalized_locked()` is a read-only check
@@ -199,38 +270,36 @@ maintained summary.
 
 The kernel repository's pre-commit hook compares the staged KUnit case array
 with this repository's manifest. It refused every commit that touched a driver
-file after the first new case landed, which is why four prepared fixes below
-were not committed. The manifest now matches both tips, so the hook passes
-again. Regenerate it in the same change as any commit that adds a case.
+file after the first new case landed, which is why F10, F13, F14 and F17 waited
+for a second pass. The manifest now matches both tips, so the hook passes
+again. Regenerate it before any commit that adds a case.
+`kunit-manifest-check.sh --regenerate <tree>` prints to stdout: capture it to a
+scratch file and copy that over the manifest, because the script reads its
+suite list from the file a direct redirection would truncate.
 
 ### Reported but not changed
 
 Recorded so the next pass does not re-derive them.
 
-**Confirmed, fix written and build-clean, not committed.** The diffs sit in the
-disposable build workspace (`../rock-5b/build/rewrite-update-20261122/`) and
-are small enough to rewrite from these lines if that is cleaned first.
+**Nits from the second-pass reviews.** None blocked a commit and none was
+acted on.
 
-- **F10: RGA USERPTR shadow pages are not zeroed.** `rk_rga_add_userptr_shadow()`
-  allocates without `__GFP_ZERO` and only the imported window is filled, but the
-  whole page is device-addressable. Hidden on every shipped configuration by
-  `init_on_alloc`. Fix: `alloc_page(gfp | __GFP_ZERO)`. Adds one KUnit case.
-- **F13: shutdown does not stop a hard-CCU chain.** `rk_mpp_hw_shutdown()`
-  resets only the owner core and retires the job on a core-only proof, though
-  the coordinator may be running the descriptor on a peer. Needs a coordinator
-  stage in front of the per-core abort, as remove and recovery have. Latent on
-  ROCK 5B, which selects soft CCU. `remove()` still retires its own core's
-  hard-CCU job on a core-only proof after the coordinator stop.
-- **F14: an RGA2 line-only interrupt acknowledges with the full clear mask**, so
-  a completion or error that latches during the handler is cleared unseen and
-  the job waits out the watchdog. Fix: strobe only the two line clears. Rests on
-  the unverified assumption that the clear bits are independent write-1
-  strobes. Adds one KUnit case.
-- **F17: two MPP cluster fixtures never initialise `hw->regs_lock`**
-  (`rk_mpp_cluster_recovery_result_kunit`, `rk_mpp_cluster_reset_group_kunit`).
-  Under `PROVE_LOCKING` the first acquisition should turn lockdep off for the
-  rest of the boot, which fails the compound KUnit gate. Fix: three
-  `raw_spin_lock_init()` calls. **Land this before any KUnit boot.**
+- **F10.** The new case cannot fail on a kernel with `init_on_alloc`, which is
+  every configuration the driver ships in, so it proves nothing until it runs
+  without it. Its fixture leaves `view.rga` NULL.
+- **F13.** The extended case covers only the idle-coordinator gate, not the
+  stop-and-retire branch. `remove()` still retires its own core's hard-CCU job
+  on a core-only proof after the coordinator stop; the review of the first
+  pass reported that and F13 did not change it.
+- **F14.** The commit message's last paragraph says a late flag left latched on
+  the completion path "could be charged to the next activation". It could not:
+  `rk_rga2_execution_publish_and_start()` clears the full mask before every
+  start. The code is right and the stated reason is imprecise. The message was
+  left alone because rewording it moves both tips and the baseline pins again.
+- **F17.** There is still no shared helper that initialises a fixture's
+  hardware object, so the next lock a production path starts taking can be
+  missed the same way. The new reset-epoch expectations (1, then 2) are read
+  from the code, not observed.
 
 **Left open on purpose.**
 
@@ -301,7 +370,8 @@ are small enough to rewrite from these lines if that is cleaned first.
   pointer before its NULL guard (latent).
 
 KUnit fixtures, all read rather than run. Several predict a failed or noisy
-first boot of the suite at these tips, independent of driver behaviour:
+first boot of the suite at these tips, independent of driver behaviour. F17,
+which was the first of these, is fixed; the rest are not:
 
 - `rk_mpp_session_poll_irq_nonslice_kunit` expects success from a job whose
   register builder was never sealed. Two readers reached this independently.
@@ -359,7 +429,9 @@ against the rewrite.
   not executed: `qemu-system-aarch64` is not installed on the build host, and
   the suites depend on `ARCH_ROCKCHIP`. Every fix, every new and rewritten
   KUnit case, and every race this finding describes is argued from the code.
-  None of the original defects was reproduced.
+  None of the original defects was reproduced. That includes the seven new
+  cases, the extended abort-dependents case, the F17 epoch assertions, and the
+  F13 and F14 hardware behaviour.
 - **No package exists for these tips.** No composite was rebuilt on a fresh
   Armbian layer, nothing was uploaded, and the published rewrite alphas are
   still the 2026-09-13 ones on `v6.18.51` and `v7.3-rc2`.
@@ -378,10 +450,9 @@ against the rewrite.
   not reviewed. The cross-cutting reviewers did not read KUnit regions.
 - The gate ran one build profile of four per line.
 
-**Next gate.** Commit F17, then F13, F10 and F14 with the manifest regenerated
-for the two that add cases. Fix or accept the fixture items predicted to fail.
-Rerun the remaining build profiles. Build a composite for each tip and boot the
-6.18 one under KASAN and lockdep, requiring all 266 cases and a fatal-free
+**Next gate.** Fix or accept the fixture items predicted to fail. Rerun the
+three build profiles the gate skipped. Build a composite for each tip and boot
+the 6.18 one under KASAN and lockdep, requiring all 268 cases and a fatal-free
 interval. With that kernel, read `DTE_ADDR`, `STATUS` and `INT_MASK` of the vdec
 and RGA3 MMUs after a reset pulse and after the restore, then run the
 reset-contention gate watching `iommu_refresh_count` and

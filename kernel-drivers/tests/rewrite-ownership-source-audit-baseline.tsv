@@ -1,6 +1,6 @@
 # Rewrite ownership inventory; new signals fail, resolved signals are allowed.
-# source-head	042d5894eff5178c76a4be62c94f7ae32983af4c
-# source-head	7d17efc678f30f68e8fbd8babfa6315f678ea6b2
+# source-head	a6fa1f5455071773c98eaf136233f2865bf26636
+# source-head	b153bd9195151906c1b7910962536ba0bdd4d800
 # category	source	function	ordinal	normalized source signal
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	enum rk_mpp_debug_event_type { RK_MPP_DEBUG_REQUEST_FAIL, RK_MPP_DEBUG_SELECT_FAIL, RK_MPP_DEBUG_TRANSLATE_FAIL, RK_MPP_DEBUG_RCB_FAIL, RK_MPP_DEBUG_SUBMIT_FAIL, RK_MPP_DEBUG_POLL_FAIL, RK_MPP_DEBUG_QUEUED, RK_MPP_DEBUG_DISPATCH, RK_MPP_DEBUG_STARTED, RK_MPP_DEBUG_IRQ, RK_MPP_DEBUG_DONE, RK_MPP_DEBUG_TIMEOUT, RK_MPP_DEBUG_IOMMU_FAULT, RK_MPP_DEBUG_ABORT, RK_MPP_DEBUG_SPURIOUS_IRQ, };
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	struct rk_mpp_debug_event { u64 seq; u64 timestamp_ns; u64 data; u32 session_id; u32 job_id; u32 client_type; u32 irq_status; s32 core_id; s32 result; u8 type; char hw_name[20]; char dev_name[32]; };
@@ -1087,6 +1087,7 @@ mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_m
 mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_probe	1	INIT_LIST_HEAD(&hw->cluster_link);
 mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_probe	1	WARN_ON_ONCE(hw->cluster && !rk_mpp_cluster_contains_published_view_locked(&rk_mpp_srv, hw->cluster));
 mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_recover_active	1	if (!iommu_fault && !ccu_stop_ret && !reset_ret && ccu_recovery.reusable && recovery.reusable) { rk_mpp_cluster_prepare_resend_chain(READ_ONCE(ccu->cluster), ccu);
+mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_shutdown_hard_ccu	1	cluster = READ_ONCE(ccu->cluster);
 mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_drain_ccu_done_jobs	1	struct rk_mpp_cluster *cluster = READ_ONCE(ccu->cluster);
 mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_force_stop_ccu	1	cluster = READ_ONCE(ccu->cluster);
 mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_release_link_table	1	struct rk_mpp_cluster *cluster = ccu ? READ_ONCE(ccu->cluster) : NULL;
@@ -1228,6 +1229,7 @@ mpp-cluster-runtime-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mp
 mpp-cluster-runtime-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_cluster_validate_job	1	ret = rk_mpp_cluster_validate_ccu(cluster, rk_mpp_job_resources(job)->rkvdec_ccu);
 mpp-cluster-runtime-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_job	1	if (!ccu_stop_ret && !reset_ret && ccu_recovery.reusable && recovery.reusable) { rk_mpp_cluster_prepare_resend_chain(READ_ONCE(ccu->cluster), ccu);
 mpp-cluster-runtime-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_recover_active	1	if (!iommu_fault && !ccu_stop_ret && !reset_ret && ccu_recovery.reusable && recovery.reusable) { rk_mpp_cluster_prepare_resend_chain(READ_ONCE(ccu->cluster), ccu);
+mpp-cluster-runtime-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_shutdown_hard_ccu	1	if (!rk_mpp_cluster_validate_ccu(cluster, ccu) && rk_mpp_cluster_ccu_has_jobs(cluster, ccu)) { ret = rk_mpp_rkvdec2_force_stop_ccu(ccu, &group);
 mpp-cluster-runtime-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_drain_ccu_done_jobs	1	while ((job = rk_mpp_cluster_first_done_job(cluster, ccu))) { struct rk_mpp_hw *hw = rk_mpp_job_get_hw(job);
 mpp-cluster-runtime-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_force_stop_ccu	1	if (rk_mpp_cluster_validate_ccu(cluster, ccu)) { result->reset_error = -EXDEV;
 mpp-cluster-runtime-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_force_stop_ccu	1	} collection_complete = rk_mpp_cluster_collect_stop_cores(cluster, ccu, cores, &count, &core_work);
@@ -1652,6 +1654,7 @@ mpp-recovery-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_re
 mpp-recovery-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_recover_iommu_fault	1	rk_mpp_recovery_result_init(result);
 mpp-recovery-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_remove	1	if (hard_ccu) stop_ret = rk_mpp_rkvdec2_force_stop_ccu(ccu, &ccu_recovery);
 mpp-recovery-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_remove	1	stop_ret = rk_mpp_rkvdec2_force_stop_ccu(hw, &ccu_recovery);
+mpp-recovery-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_shutdown_hard_ccu	1	if (!rk_mpp_cluster_validate_ccu(cluster, ccu) && rk_mpp_cluster_ccu_has_jobs(cluster, ccu)) { ret = rk_mpp_rkvdec2_force_stop_ccu(ccu, &group);
 mpp-recovery-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_stop_active	1	if (!isolate_ret) rk_mpp_recovery_result_terminal(result);
 mpp-recovery-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_stop_active	2	if (!isolate_ret) rk_mpp_recovery_result_terminal(result);
 mpp-recovery-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_stop_active	3	if (!isolate_ret) rk_mpp_recovery_result_terminal(result);
@@ -2101,7 +2104,7 @@ mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_av1_t
 mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_active	1	stop_ret = rk_mpp_hw_stop_and_recover(hw, job, &recovery);
 mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_active_recovery_locked	1	stop_ret = rk_mpp_hw_stop_and_recover(hw, job, &recovery);
 mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_ccu_active_dependents	1	i++) { if (deps[i] != skip) rk_mpp_hw_abort_active_recovery_locked(deps[i], ccu, result, reason, group);
-mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_ccu_dependents	1	abort_ret = rk_mpp_hw_abort_active_recovery_locked(deps[i], ccu, -ENODEV, RK_MPP_TRANSITION_REMOVE, group);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_ccu_dependents	1	abort_ret = rk_mpp_hw_abort_active_recovery_locked(deps[i], ccu, result, reason, group);
 mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_job	1	else reset_ret = rk_mpp_hw_stop_and_recover(hw, job, &recovery);
 mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_job	1	if (!hw) return queue_owner ? rk_mpp_job_complete(job, result) : true;
 mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_job	1	if (dispatch_retired && !active_owned && queue_owner) dispatch_retired = rk_mpp_job_complete(job, result);
@@ -2119,7 +2122,9 @@ mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_re
 mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_remove	1	if (!dma_unquiesced) { stop_ret = rk_mpp_hw_abort_active(hw, -ENODEV, RK_MPP_TRANSITION_REMOVE);
 mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_remove	1	if (hard_ccu) stop_ret = rk_mpp_rkvdec2_force_stop_ccu(ccu, &ccu_recovery);
 mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_remove	1	stop_ret = rk_mpp_rkvdec2_force_stop_ccu(hw, &ccu_recovery);
-mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_shutdown	1	retry_stop: stop_ret = rk_mpp_hw_abort_active(hw, -ESHUTDOWN, RK_MPP_TRANSITION_SHUTDOWN);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_shutdown	1	if (!stop_ret) stop_ret = rk_mpp_hw_abort_active(hw, -ESHUTDOWN, RK_MPP_TRANSITION_SHUTDOWN);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_shutdown_hard_ccu	1	if (!ret && ccu != hw) ret = rk_mpp_hw_abort_active_recovery_locked(hw, ccu, -ESHUTDOWN, RK_MPP_TRANSITION_SHUTDOWN, &group);
+mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_shutdown_hard_ccu	1	if (!rk_mpp_cluster_validate_ccu(cluster, ccu) && rk_mpp_cluster_ccu_has_jobs(cluster, ccu)) { ret = rk_mpp_rkvdec2_force_stop_ccu(ccu, &group);
 mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_stop_and_recover	1	ret = rk_mpp_hw_stop_active(hw, result);
 mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_stop_and_recover	1	return rk_mpp_hw_finish_recovery(hw, job, result, true);
 mpp-terminal-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_timeout_work	1	rk_mpp_hw_recover_active(hw, false, &ref);

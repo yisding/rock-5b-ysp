@@ -207,7 +207,7 @@ The `/dev/rga` driver — session lifetime, userptr/dma-buf imports, and the 10-
 
 The from-scratch MPP/RGA replacement: reviews, soft-CCU wedges, and reset/lifecycle races.
 
-- [`2026-11-22`](2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md) — Rewrite lines rebased to Linux 6.18.64 and 7.4-rc3 with sixteen driver-review fix commits
+- [`2026-11-22`](2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md) — Rewrite lines rebased to Linux 6.18.64 and 7.4-rc3 with twenty driver-review fix commits
 - [`2026-08-25`](2026-08-25-rewrite-hardware-sim-seams-and-arbitration-inventory.md) — Rewrite hardware-simulation seams and arbitration-case inventory for the bug-resistance plan
 - [`2026-08-11`](2026-08-11-rewrite-phases-4-5-task-execution-and-sealed-emission.md) — Rewrite Phases 4 and 5 complete task-execution ownership and sealed emission
 - [`2026-08-09`](2026-08-09-rewrite-phase-3-complete-mpp-activation-retirement.md) — Rewrite Phase 3 completes MPP activation retirement
@@ -369,7 +369,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
-- [`2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md`](2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md) — Rewrite lines rebased to Linux 6.18.64 and 7.4-rc3 with sixteen driver-review fix commits
+- [`2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md`](2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md) — Rewrite lines rebased to Linux 6.18.64 and 7.4-rc3 with twenty driver-review fix commits
 - [`2026-11-22-forward-port-6-18-64-rebase-and-driver-review.md`](2026-11-22-forward-port-6-18-64-rebase-and-driver-review.md) — Forward-port rebased to Linux 6.18.64 with ten driver-review fixes
 - [`2026-09-13-kernel-lines-updated-to-latest-upstreams.md`](2026-09-13-kernel-lines-updated-to-latest-upstreams.md) — All four ROCK 5B kernel lines updated to their latest upstreams
 - [`2026-08-25-rewrite-hardware-sim-seams-and-arbitration-inventory.md`](2026-08-25-rewrite-hardware-sim-seams-and-arbitration-inventory.md) — Rewrite hardware-simulation seams and arbitration-case inventory

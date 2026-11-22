@@ -1,6 +1,6 @@
 # Rewrite protected-state writer inventory; new signals fail, resolved signals are allowed.
-# source-head	042d5894eff5178c76a4be62c94f7ae32983af4c
-# source-head	7d17efc678f30f68e8fbd8babfa6315f678ea6b2
+# source-head	a6fa1f5455071773c98eaf136233f2865bf26636
+# source-head	b153bd9195151906c1b7910962536ba0bdd4d800
 # category	source	function	ordinal	normalized source signal
 mpp-activation-state-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_activation_claim_quarantine	1	activation->resource_state = RK_MPP_ACTIVATION_RESOURCES_QUARANTINED;
 mpp-activation-state-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_activation_claim_quarantine	1	activation->slot_state = RK_MPP_ACTIVATION_QUARANTINED;

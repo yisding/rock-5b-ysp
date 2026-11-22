@@ -2,7 +2,7 @@
 
 The rewrite drivers use KUnit as a built-in boot gate for logic and state
 transitions that can be exercised without RK3588 hardware. The YSP result is
-green only when the named **112 MPP + 154 RGA case manifest** matches without
+green only when the named **112 MPP + 156 RGA case manifest** matches without
 duplicates, omissions, failures, or skips **and** the same kernel-log interval
 is free of sanitizer reports, warnings, lockdep findings, refcount failures,
 and media/IOMMU faults. The report also binds the run to the kernel release,
@@ -40,7 +40,7 @@ Each suite is compiled in the same translation unit as its driver:
 | Suite | Source | Kconfig symbol | Registered cases |
 |-------|--------|----------------|-----------------:|
 | `rk_mpp_rewrite` | `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c` | `CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST` | 112 |
-| `rockchip-rga-rewrite` | `drivers/video/rockchip/rga-rewrite/rga_rewrite.c` | `CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST` | 154 |
+| `rockchip-rga-rewrite` | `drivers/video/rockchip/rga-rewrite/rga_rewrite.c` | `CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST` | 156 |
 
 The test blocks are guarded with `IS_ENABLED()` and registered with
 `kunit_test_suite()`. Keeping the cases beside the implementation lets them
@@ -111,8 +111,10 @@ manifest, and cases added since land mid-list, so later ordinals shift:
 fixes added `rk_mpp_job_write_regs_owned_words_kunit` (MPP 35),
 `rk_mpp_session_poll_irq_nonblock_last_kunit` (MPP 98),
 `rk_mpp_hw_abort_defers_to_frame_kunit` (MPP 101),
-`rk_rga2_envelope_backend_mask_kunit` (RGA 66), and
-`rk_rga_queue_on_suspended_hw_kunit` (RGA 85).
+`rk_rga2_line_irq_ack_kunit` (RGA 7),
+`rk_rga2_envelope_backend_mask_kunit` (RGA 67),
+`rk_rga_queue_on_suspended_hw_kunit` (RGA 86), and
+`rk_rga_userptr_shadow_zeroed_kunit` (RGA 92).
 
 These are white-box cases. They call production functions with controlled fake
 objects and assert outputs, state transitions, ownership, and error behavior.
@@ -233,7 +235,7 @@ For each suite it requires:
 
 | Field | Required value |
 |-------|----------------|
-| Inner KTAP plan | exactly 112 MPP or 154 RGA |
+| Inner KTAP plan | exactly 112 MPP or 156 RGA |
 | Observed case results | exactly the planned count |
 | Failed cases | 0 |
 | Skipped cases | 0 |
@@ -351,16 +353,19 @@ source/config/package-bound evidence gate owned result attribution. See the
 [successor attribution and audit](../../findings/2026-07-27-rewrite-reset-import-fixture-lockdep.md).
 
 As of 2026-11-22 the maintained tips are 6.18
-`042d5894eff5178c76a4be62c94f7ae32983af4c` on `v6.18.64` and mainline
-`7d17efc678f30f68e8fbd8babfa6315f678ea6b2` on `v7.4-rc3`, with an exact
-112/154 manifest and fixture debt of 312 signals/tree. The driver-review
-fixes on those tips added the five cases named above, rewrote the three
+`a6fa1f5455071773c98eaf136233f2865bf26636` on `v6.18.64` and mainline
+`b153bd9195151906c1b7910962536ba0bdd4d800` on `v7.4-rc3`, with an exact
+112/156 manifest and fixture debt of 313 signals/tree. The driver-review
+fixes on those tips added the seven cases named above, rewrote the three
 session-abort fixtures whose service and activation setup had fallen behind
-the production path, and adjusted five more. All of it is compiled only: the
-suites have not run on these tips, under QEMU or on the board. The review also
-read every fixture and predicts, without having run them, that several fail
-or turn lockdep off on the first boot, starting with two cluster fixtures that
-never initialise `hw->regs_lock`. The
+the production path, and adjusted five more. A later commit in the same series
+initialises `hw->regs_lock` in `rk_mpp_cluster_recovery_result_kunit` and
+`rk_mpp_cluster_reset_group_kunit`, which the review expected to turn lockdep
+off for the whole boot, and another extends
+`rk_mpp_hw_abort_ccu_dependents_kunit` to the new hard-CCU shutdown stage. All
+of it is compiled only: the suites have not run on these tips, under QEMU or
+on the board. The review also read every fixture and predicts, without having
+run them, that several still fail on the first boot. The
 [rebase and review finding](../../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md#reported-but-not-changed) lists them; settle
 those before attributing a failed boot gate to driver behaviour.
 

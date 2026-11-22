@@ -226,7 +226,9 @@ Unaligned USERPTR boundaries can share cache lines with bytes outside the
 submitted range. The rewrite creates shadow pages for affected head/tail
 boundaries, copies data into them before DMA, and copies destination data back
 after DMA. This prevents cache maintenance or device writes from corrupting
-neighboring userspace bytes.
+neighboring userspace bytes. Only the submitted window of a shadow page is
+filled, but the whole page is mapped for the device, so since the 2026-11-22
+tips the page is allocated zeroed and no longer relies on `init_on_alloc`.
 
 The full allocation → DMA mapping → IOVA/internal-MMU contract, including why
 USERPTR permits a driver-owned fallback but DMA-BUF does not, is documented in
@@ -475,6 +477,14 @@ The hard IRQ:
 - stores decoded status in the active task execution;
 - clones the exact active execution/generation reference into `irq_ref`;
 - returns `IRQ_WAKE_THREAD` for terminal completion.
+
+An RGA2 line-count interrupt that arrives without a done or error flag is not
+terminal: the engine is still running. Since the 2026-11-22 tips that branch
+acknowledges only the two line flags (`rk_rga2_clear_line_irq()`), so a
+completion or error that latches after the handler sampled the status stays
+latched and re-raises the level interrupt. The terminal and spurious paths
+keep the full-mask clear. This assumes the clear bits are independent
+write-1 strobes, which has not been checked on hardware.
 
 The IRQ thread:
 

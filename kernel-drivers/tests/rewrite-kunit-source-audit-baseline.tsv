@@ -177,6 +177,7 @@ manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_explici
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_file_release_public_cleanup_kunit	1	list_add_tail(&active->session_link, &session->active_jobs);
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_file_release_public_cleanup_kunit	1	list_add_tail(&import->link, &session->imports);
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_ccu_dependents_kunit	1	list_add_tail(&active->session_link, &session->active_jobs);
+manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_ccu_dependents_kunit	1	list_add_tail(&ccu->link, &srv->hw_list);
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_ccu_dependents_kunit	1	list_add_tail(&core0->link, &srv->hw_list);
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_ccu_dependents_kunit	1	list_add_tail(&core1->link, &srv->hw_list);
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_abort_ccu_dependents_kunit	1	list_add_tail(&queued->sched_link, &srv->queued_jobs);

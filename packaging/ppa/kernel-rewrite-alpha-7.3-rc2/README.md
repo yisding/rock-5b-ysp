@@ -55,7 +55,7 @@ it is `include/uapi/linux/ipx.h`, which Armbian's own
 `wireless-bring-back-headers` patch restores.
 
 The branch has since moved. On 2026-11-22 it was rebased to `v7.4-rc3` and took
-sixteen driver-review fix commits (local tip `7d17efc678f3`, unpushed). No
+twenty driver-review fix commits (branch tip `b153bd919515`). No
 package has been built from that tip, so this package does not contain those
 fixes; see the [rebase and review finding](../../../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md).
 

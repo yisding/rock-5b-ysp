@@ -9,7 +9,7 @@ qualification verdict and next proof belong to
 and definition of done.
 
 > **Framing.** The targeted userspace surface is code-complete and has MPP
-> **112 KUnit cases** plus RGA **154 KUnit cases** (**266 total**). Exact green
+> **112 KUnit cases** plus RGA **156 KUnit cases** (**268 total**). Exact green
 > booted KTAP is the first qualification rung, not the finish line. These tests
 > are primarily **logic/lifecycle evidence**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
@@ -22,20 +22,21 @@ and definition of done.
 > correlated run artifacts.
 
 > **Current source boundary (2026-11-22):** both lines were rebased
-> (`rk3588-rewrite-6.18@042d5894eff5178c76a4be62c94f7ae32983af4c` on
-> `v6.18.64`, `rk3588-rewrite-mainline@7d17efc678f30f68e8fbd8babfa6315f678ea6b2`
-> on `v7.4-rc3`) and carry sixteen fix commits from a full driver review. The
+> (`rk3588-rewrite-6.18@a6fa1f5455071773c98eaf136233f2865bf26636` on
+> `v6.18.64`, `rk3588-rewrite-mainline@b153bd9195151906c1b7910962536ba0bdd4d800`
+> on `v7.4-rc3`) and carry twenty fix commits from a full driver review. The
 > fixes change what the recovery and lifecycle rungs must prove: a recovery
 > reset is now followed by a full Rockchip-MMU restore whose failure
 > quarantines the core, close and `RESET_SESSION` wait for an executing frame
 > instead of resetting under it, job completion has a single owner, validated
 > register words are programmed even outside write spans, RGA2 enforces the
-> RGA2E geometry envelope, and RGA work parks across system sleep. The exact
-> source manifest is 112 MPP plus 154 RGA cases, ownership passes at 2,321
-> signals/tree, and fixture debt passes at 312/tree. A `W=1` build and the
+> RGA2E geometry envelope, RGA work parks across system sleep, a hard-CCU
+> shutdown stops the coordinator chain before any core retires a job, and an
+> RGA2 line-only interrupt acknowledges only the line flags. The exact
+> source manifest is 112 MPP plus 156 RGA cases, ownership passes at 2,326
+> signals/tree, and fixture debt passes at 313/tree. A `W=1` build and the
 > `normal` profile pass on both lines; the other profiles were not rerun, KUnit
-> was not executed, and nothing was booted. Four confirmed fixes are written
-> but uncommitted. The
+> was not executed, and nothing was booted. The
 > [rebase and review finding](../../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md)
 > owns the detail and the measurements the new restore path needs.
 >
@@ -723,7 +724,7 @@ booted sanitizer/fault-injection evidence.
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 266 KUnit cases green **under KASAN** (112 MPP + 154 RGA), persisted from the
+1. 268 KUnit cases green **under KASAN** (112 MPP + 156 RGA), persisted from the
    booted suites by `tests/rewrite-kunit-log-check.sh`; hardware-in-the-loop
    kselftests added (the KUnit cases themselves never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —

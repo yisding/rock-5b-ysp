@@ -142,6 +142,16 @@ that cost every user the decoder until reboot. The wait holds no lock and is
 uninterruptible. Timeout, IOMMU-fault, error-IRQ, remove, and shutdown still
 reset without an engine-level stop.
 
+Shutdown does respect the hard-CCU coordinator, as remove and recovery do.
+For a hard-CCU core, or the coordinator itself,
+`rk_mpp_hw_shutdown_hard_ccu()` runs before the per-core abort: under the
+coordinator's recovery lock it force-stops a chain that lists a job, aborts
+the online dependents on the resulting group proof, and retires the
+shutting-down core's own job on that same proof. A failed stop skips the
+per-core abort and feeds the existing retry loop, so a core-only proof never
+releases a job the coordinator may still be running on a peer. This is on the
+2026-11-22 tips, unbooted, and latent on ROCK 5B, which selects soft CCU.
+
 A job has exactly one completer. It leaves the scheduler queue once, under
 `sched_lock`, and whoever unqueued it — the scheduler worker, a queue sweep, or
 the session abort — owns its completion if it never reaches hardware. Once it
