@@ -37,11 +37,14 @@ gates. `dput` then transferred all five source artifacts to
 `b8857eff9c57ac4a17b70dab709401dc660835d8558985f378a361becb12d221`).
 A Launchpad API query then returned source publication
 [`18974511`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18974511/+listing-archive-extra)
-(created 16:07 UTC) in `Pending` state, with arm64 build
+(created 16:07 UTC). arm64 build
 [`34003009`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/34003009)
-`Currently building`. Build success, binary publication, installation, boot,
-and runtime behaviour are unverified at this entry; [W05](../../../status.md#watch-w05)
-owns later observations.
+completed `Successfully built` at 17:07 UTC, and the source publication is now
+`Published`. At 17:15 UTC the image, DTB, and headers binaries were not yet
+published at this version, so 6.18.51 remained the archive's install
+candidate. Binary publication, installation, boot, and runtime behaviour are
+unverified at this entry; [W05](../../../status.md#watch-w05) owns later
+observations.
 
 **Correction to the 2026-09-13 entry below.** The 6.18.51 package it describes
 has been installed and booted on the board since 2026-11-03, so its "not

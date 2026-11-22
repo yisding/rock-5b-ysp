@@ -173,7 +173,10 @@ callbacks of their own, so the three-argument change touched only
 
 Version `6.18.64+rk3588av1fwport20261122-0ubuntu1~rk1`, built through
 `kernel-drivers/scripts/build-kernel.sh ppa-forward-port` from the dedicated
-Armbian PPA lane. Upload and Launchpad state are recorded in the
+Armbian PPA lane. Source publication `18974511` is Published, and arm64 build
+`34003009` completed `Successfully built` at 17:07 UTC. This is the first
+full-tree compile of `0098`–`0107` on Armbian's patched 6.18.64 tree. Binary
+publication was still pending at 17:15 UTC. Later state is recorded in the
 [package record](../packaging/ppa/kernel-forward-port/README.md) and
 [W05](../status.md#watch-w05).
 
