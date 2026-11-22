@@ -32,7 +32,9 @@ two adjustments:
   copy does. A plain rebase does not catch this; only the compile does.
 
 The prior tip is preserved at
-`ysp-backup/rk3588-video-6.18-before-6.18.64-20261119`.
+`ysp-backup/rk3588-video-6.18-before-6.18.64-20261119`, locally and on the
+`linux-rock5b` fork, whose `rk3588-video-6.18` branch was force-updated to the
+rebased tip.
 
 A plain `git rebase v6.18.64` (no `--onto`) tried to replay all of history
 from `Linux-2.6.12-rc2`. The shared kernel object store under

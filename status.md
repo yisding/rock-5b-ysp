@@ -484,9 +484,9 @@ state observed on its last-checked date.
   **boot** evidence, but no recorded gray256, USERPTR or conformance result;
   the gates below remain open. Source moved again: the series was rebased onto
   Linux **6.18.64** and extended to `0001`–`0107` with ten review fixes. The
-  tip is `9fb65e963624`, published as
-  `linux-rock5b:rk3588-video-6.18.64`; the local `rk3588-video-6.18` branch
-  matches it, and the fork's branch of that name still holds `e7ff978398825`.
+  tip is `9fb65e963624`, which `linux-rock5b:rk3588-video-6.18` now points at
+  (force-updated 2026-11-22). The pre-rebase tip `e7ff978398825` stays public
+  as `linux-rock5b:ysp-backup/rk3588-video-6.18-before-6.18.64-20261119`.
   See the
   [6.18.64 finding](./findings/2026-11-22-forward-port-6-18-64-rebase-and-driver-review.md).
 - **State 2026-09-13:** The board is unchanged — `6.18.43-ysp-rockchip64` /

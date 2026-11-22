@@ -42,15 +42,16 @@ were written — resolve any older number through the **renumber map** at the en
 Exported with `git format-patch v6.18.64..rk3588-video-6.18` from the kernel
 worktree at `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` (branch
 `rk3588-video-6.18`). This checked-in export is the contiguous `0001`–`0107`
-snapshot ending at `9fb65e963624`, published as
-`linux-rock5b:rk3588-video-6.18.64`.
+snapshot ending at `9fb65e963624`, which the fork's `rk3588-video-6.18`
+branch points at.
 
 On 2026-11-22 the branch was rebased from `v6.18` (`7d0a66e4bb908`) onto
 `v6.18.64` (`fd7cfd39c8859`), so every commit ID below changed. The table rows
 were remapped by exact number-and-title match. Patch `0005` lost one hunk that
 stable now carries and gained the three-argument VSI `attach_dev`; all other
 `0001`–`0097` diffs are unchanged. The pre-rebase tip `e7ff978398825` is kept as
-`ysp-backup/rk3588-video-6.18-before-6.18.64-20261119`. See the
+`ysp-backup/rk3588-video-6.18-before-6.18.64-20261119`, locally and on the
+`linux-rock5b` fork. See the
 [6.18.64 finding](../../../findings/2026-11-22-forward-port-6-18-64-rebase-and-driver-review.md). W16 owns the moving branch;
 the forward-port package record owns actual artifacts; the
 [scorecard](../../docs/forward-port-status.md) owns accumulated validation.

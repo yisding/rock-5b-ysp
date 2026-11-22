@@ -5,7 +5,7 @@ forward-port kernel.
 
 **Uploaded 2026-11-22:**
 `6.18.64+rk3588av1fwport20261122-0ubuntu1~rk1` — the complete `0001`–`0107`
-production forward-port tip `9fb65e963624` (`linux-rock5b:rk3588-video-6.18.64`),
+production forward-port tip `9fb65e963624` (`linux-rock5b:rk3588-video-6.18`),
 rebased onto longterm Linux 6.18.64. The dedicated PPA lane used Armbian build
 input `eb97c8d0`, which selected Linux 6.18.64 from `linux-6.18.y`. Armbian's
 patcher applied all 107 patches. The staged lane matched the maintained
