@@ -1,6 +1,7 @@
 # category	source	function	ordinal	normalized source signal
 fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_file_release_public_cleanup_kunit	1	acquire:import = kzalloc(sizeof(*import), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, active);
 fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_file_release_public_cleanup_kunit	1	acquire:import = kzalloc(sizeof(*import), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, import);
+fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_file_release_public_cleanup_kunit	1	acquire:import = kzalloc(sizeof(*import), GFP_KERNEL); -> fatal:KUNIT_ASSERT_TRUE(test,
 fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_file_release_public_cleanup_kunit	1	acquire:session = kzalloc(sizeof(*session), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, session);
 fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_session_public_cleanup_kunit	1	acquire:import = kzalloc(sizeof(*import), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, active);
 fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_session_public_cleanup_kunit	1	acquire:import = kzalloc(sizeof(*import), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, import);
@@ -51,6 +52,8 @@ fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_queue_on_recovery_failed_hw_kunit	1	acquire:job = kzalloc_obj(*job, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, job);
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_queue_on_removing_hw_kunit	1	acquire:job = kzalloc_obj(*job, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, fence);
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_queue_on_removing_hw_kunit	1	acquire:job = kzalloc_obj(*job, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, job);
+fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_queue_on_suspended_hw_kunit	1	acquire:job = kzalloc_obj(*job, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, fence);
+fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_queue_on_suspended_hw_kunit	1	acquire:job = kzalloc_obj(*job, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, job);
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_recovery_failed_dispatch_kunit	1	acquire:job0 = kzalloc_obj(*job0, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, job0);
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_recovery_failed_dispatch_kunit	1	acquire:job1 = kzalloc_obj(*job1, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, job1);
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_release_configured_request_kunit	1	acquire:request = kzalloc_obj(*request, GFP_KERNEL); -> fatal:KUNIT_ASSERT_EQ(test,
@@ -226,6 +229,8 @@ manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_schedul
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_session_abort_jobs_kunit	1	list_add_tail(&active->session_link, &session.active_jobs);
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_session_abort_jobs_kunit	1	list_add_tail(&queued->sched_link, &srv->queued_jobs);
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_session_abort_jobs_kunit	1	list_add_tail(&queued->session_link, &session.active_jobs);
+manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_session_poll_irq_nonblock_last_kunit	1	list_add_tail(&job->session_link, &session.active_jobs);
+manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_session_poll_irq_nonblock_last_kunit	2	list_add_tail(&job->session_link, &session.active_jobs);
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_session_poll_irq_nonslice_kunit	1	list_add_tail(&job->session_link, &session.active_jobs);
 manual-list-link	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_session_poll_nonblock_pending_kunit	1	list_add_tail(&job->session_link, &session.active_jobs);
 manual-list-link	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_core_slot_reprobe_kunit	1	list_add_tail(&rga2_0->node, &hw_list);
@@ -288,6 +293,7 @@ raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_kunit_imp
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_last_hw_remove_pending_acquire_kunit	1	session = kzalloc_obj(*session, GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_queue_on_recovery_failed_hw_kunit	1	job = kzalloc_obj(*job, GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_queue_on_removing_hw_kunit	1	job = kzalloc_obj(*job, GFP_KERNEL);
+raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_queue_on_suspended_hw_kunit	1	job = kzalloc_obj(*job, GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_recovery_failed_dispatch_kunit	1	job0 = kzalloc_obj(*job0, GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_recovery_failed_dispatch_kunit	1	job1 = kzalloc_obj(*job1, GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_release_configured_request_kunit	1	request = kzalloc_obj(*request, GFP_KERNEL);

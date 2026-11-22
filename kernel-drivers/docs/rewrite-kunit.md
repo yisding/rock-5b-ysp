@@ -2,7 +2,7 @@
 
 The rewrite drivers use KUnit as a built-in boot gate for logic and state
 transitions that can be exercised without RK3588 hardware. The YSP result is
-green only when the named **109 MPP + 152 RGA case manifest** matches without
+green only when the named **112 MPP + 154 RGA case manifest** matches without
 duplicates, omissions, failures, or skips **and** the same kernel-log interval
 is free of sanitizer reports, warnings, lockdep findings, refcount failures,
 and media/IOMMU faults. The report also binds the run to the kernel release,
@@ -39,8 +39,8 @@ Each suite is compiled in the same translation unit as its driver:
 
 | Suite | Source | Kconfig symbol | Registered cases |
 |-------|--------|----------------|-----------------:|
-| `rk_mpp_rewrite` | `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c` | `CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST` | 105 |
-| `rockchip-rga-rewrite` | `drivers/video/rockchip/rga-rewrite/rga_rewrite.c` | `CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST` | 152 |
+| `rk_mpp_rewrite` | `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c` | `CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST` | 112 |
+| `rockchip-rga-rewrite` | `drivers/video/rockchip/rga-rewrite/rga_rewrite.c` | `CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST` | 154 |
 
 The test blocks are guarded with `IS_ENABLED()` and registered with
 `kunit_test_suite()`. Keeping the cases beside the implementation lets them
@@ -104,6 +104,15 @@ hardware throughput:
 | RGA | 81–101 | Abort/recovery, scheduling, IOMMU routes, faults, and timeouts |
 | RGA | 102–148 | FFmpeg, GStreamer, RKNN, librga, and display-shaped format/emission profiles |
 | RGA | 149–152 | RGA3 overlap-copy rotate emission, the RGA2 validator-chain exclusions, the RGA2 internal-MMU sgt/layout/emit cases, and the rejection event ring |
+
+The case regions are approximate. They were last aligned at the 105/152
+manifest, and cases added since land mid-list, so later ordinals shift:
+`rewrite-kunit-manifest.tsv` is the authority for order. The 2026-11-22 review
+fixes added `rk_mpp_job_write_regs_owned_words_kunit` (MPP 35),
+`rk_mpp_session_poll_irq_nonblock_last_kunit` (MPP 98),
+`rk_mpp_hw_abort_defers_to_frame_kunit` (MPP 101),
+`rk_rga2_envelope_backend_mask_kunit` (RGA 66), and
+`rk_rga_queue_on_suspended_hw_kunit` (RGA 85).
 
 These are white-box cases. They call production functions with controlled fake
 objects and assert outputs, state transitions, ownership, and error behavior.
@@ -224,7 +233,7 @@ For each suite it requires:
 
 | Field | Required value |
 |-------|----------------|
-| Inner KTAP plan | exactly 109 MPP or 152 RGA |
+| Inner KTAP plan | exactly 112 MPP or 154 RGA |
 | Observed case results | exactly the planned count |
 | Failed cases | 0 |
 | Skipped cases | 0 |
@@ -341,7 +350,21 @@ plus a real two-thread fence/abort race. Its named ordered 90/152 manifest and
 source/config/package-bound evidence gate owned result attribution. See the
 [successor attribution and audit](../../findings/2026-07-27-rewrite-reset-import-fixture-lockdep.md).
 
-The maintained tips are now 6.18
+As of 2026-11-22 the maintained tips are 6.18
+`042d5894eff5178c76a4be62c94f7ae32983af4c` on `v6.18.64` and mainline
+`7d17efc678f30f68e8fbd8babfa6315f678ea6b2` on `v7.4-rc3`, with an exact
+112/154 manifest and fixture debt of 312 signals/tree. The driver-review
+fixes on those tips added the five cases named above, rewrote the three
+session-abort fixtures whose service and activation setup had fallen behind
+the production path, and adjusted five more. All of it is compiled only: the
+suites have not run on these tips, under QEMU or on the board. The review also
+read every fixture and predicts, without having run them, that several fail
+or turn lockdep off on the first boot, starting with two cluster fixtures that
+never initialise `hw->regs_lock`. The
+[rebase and review finding](../../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md#reported-but-not-changed) lists them; settle
+those before attributing a failed boot gate to driver behaviour.
+
+The Phase 4/5 tips were 6.18
 `149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` on `v6.18.42` and mainline
 `280181e634a3a10a3a4f1659fe7c7287f7ee3760` on `v7.2-rc6`, with an exact
 109/152 manifest. Predecessor 6.18

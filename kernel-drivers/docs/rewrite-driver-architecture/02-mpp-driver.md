@@ -132,6 +132,23 @@ across logical generations.
 2. releases its cached DMA imports;
 3. drops the file's session reference.
 
+Step 1 does not preempt a frame that is executing. Since the 2026-11-22 tips,
+close and `RESET_SESSION` mark the job cancelled and then wait up to 1 s (twice
+the watchdog) for it to reach `DONE` through its own IRQ or timeout, on every
+core, and fall into the reset path only if it does neither. No core has an
+engine-level stop, so the alternative is pulsing the reset lines of an engine
+that is still issuing bus transactions; on AV1, whose recovery is terminal,
+that cost every user the decoder until reboot. The wait holds no lock and is
+uninterruptible. Timeout, IOMMU-fault, error-IRQ, remove, and shutdown still
+reset without an engine-level stop.
+
+A job has exactly one completer. It leaves the scheduler queue once, under
+`sched_lock`, and whoever unqueued it — the scheduler worker, a queue sweep, or
+the session abort — owns its completion if it never reaches hardware. Once it
+is on hardware, the active-slot claim holder owns it. The abort therefore
+leaves alone a job it did not unqueue itself and one whose outcome is already
+finalized, instead of completing it a second time.
+
 Jobs retain their own session reference, so the allocation disappears only
 after all asynchronous owners drain.
 
@@ -164,7 +181,14 @@ The batch object is temporary ioctl state. It is not a hardware queue.
 Messages that describe one hardware operation are collected into an
 `rk_mpp_job`:
 
-- `SET_REG_WRITE` copies a register image fragment.
+- `SET_REG_WRITE` copies a register image fragment. Only the words inside a
+  write span are programmed from userspace data, and a core's register file is
+  not cleared between jobs. The words the kernel validates are the exception:
+  since the 2026-11-22 tips, `rk_mpp_job_write_owned_regs()` programs the
+  format selector, every register of the selected and custom address tables,
+  the RKVENC2 DCHS word, and the AV1 AFBC decision words from the sealed image
+  whenever no span carried them, so validation cannot be sidestepped by
+  omission.
 - `SET_REG_READ` records which bytes must be copied back.
 - `SET_REG_ADDR_OFFSET` records address adjustments.
 - `SET_RCB_INFO` supplies row/column-buffer descriptors.
@@ -535,10 +559,23 @@ The recovery path:
 3. proves that the captured job/generation is still active;
 4. records status;
 5. stops or resets the exact core/coordinator;
-6. flushes the IOMMU TLB when appropriate;
+6. restores the IOMMU of every core a reset pulsed, or flushes its TLB on the
+   idle-fault path where no reset happened;
 7. releases power only after DMA is known stopped;
 8. completes the failed job;
 9. reenables scheduling if the hardware remains usable.
+
+Step 6 changed on the 2026-11-22 tips. A reset can clear the MMU embedded in
+the codec, and the Rockchip provider's flush is only a TLB zap: it never
+rewrites the directory address or re-enables paging, while autosuspend and
+cluster power leases keep the MMU resumed between jobs. The driver now calls
+`rockchip_iommu_restore()`, which reruns the provider's disable-then-enable
+sequence (under `dma_group_lock` on the single-core and soft-CCU path), and
+treats a failure like a failed reset (§3.12). In hard-CCU mode every reset participant of a DMA group is restored,
+not only the group owner. Whether the reset pulse really clears the MMU on
+RK3588 has not been measured; the restore does not depend on the answer. A
+decoder status outside the error mask completes without a driver reset and so
+without a restore. See the [review finding](../../../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md).
 
 The important rule is: **do not free DMA-visible memory merely because software
 decided a job failed**. First prove the engine can no longer fetch from it.

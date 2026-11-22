@@ -292,6 +292,9 @@ cases:
 - system suspend closes admission, proves the core idle, drains timeout/fault
   callbacks, unregisters the fault handler, disables IRQ delivery, and only
   then force-suspends. Resume restores those owners before reopening admission.
+  The 2026-11-22 tips refine "closes admission": work that was already
+  admitted and becomes runnable during the sleep now parks on the suspended
+  core and starts at resume, instead of failing as if the core were gone.
 
 This follow-up supplies a second lesson: a good internal owner does not remove
 the need to audit ABI layout, build dependencies, resource budgets, allocation

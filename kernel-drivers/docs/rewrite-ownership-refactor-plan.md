@@ -18,7 +18,16 @@ The priority is **ownership before convention**:
 4. postpone broad file moves, naming cleanup, and test rationalization until
    the ownership graph has stopped changing.
 
-> **Current status — 2026-08-11:** the maintained tips are
+> **Tip update — 2026-11-22:** the maintained tips have since moved to
+> `rk3588-rewrite-6.18@042d5894eff5178c76a4be62c94f7ae32983af4c` on `v6.18.64`
+> and `rk3588-rewrite-mainline@7d17efc678f30f68e8fbd8babfa6315f678ea6b2` on
+> `v7.4-rc3`, through two rebases and sixteen driver-review fix commits. The
+> ownership model below is unchanged. The source manifest is now 112 MPP plus
+> 154 RGA cases, the ownership audit passes at 2,321 signals/tree, and fixture
+> debt at 312/tree; only the `normal` build profile was rerun. See the
+> [rebase and review finding](../../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md).
+>
+> **Status at the boundary-hardening tips — 2026-08-11:** the maintained tips were
 > `rk3588-rewrite-6.18@d9cbcf21cda1c047c053447a48a908dcb6e4c5d6` and
 > `rk3588-rewrite-mainline@b6335efd8f98bedabf426a80d224f85a266c8ea4`.
 > They retain the source-complete Phase 4/5 checkpoints at
@@ -1124,7 +1133,7 @@ framework. The initial split should approximately isolate:
   exercise.
 
 The first commits are code motion only. They must preserve symbol behavior,
-the 109-MPP/152-RGA named manifest, ownership and fixture-debt signal counts,
+the 112-MPP/154-RGA named manifest, ownership and fixture-debt signal counts,
 warning-fatal object builds, and the exact-tip runtime baseline recorded before
 the move. Backend-specific semantics should remain explicit: file size alone
 is not a reason to manufacture one broad abstraction over MPP, RGA2, and RGA3.
@@ -1182,7 +1191,7 @@ Preserve these invariants:
 ### Exact-tip checkpoint before Phase 6
 
 Before code motion or another ownership change, package, install, and boot the
-exact boundary-hardening tips. Require all 261 KUnit cases, a fatal-free lockdep
+exact current tips. Require all 266 KUnit cases, a fatal-free lockdep
 interval, terminal-reason and old-generation event permutations, acquisition
 failpoints, fallback/copyback, retirement/quarantine balance, and the byte-exact
 MPP/RGA artifact differential. Record source/package identity, counters, logs,

@@ -293,6 +293,13 @@ returning it to service. That is a deliberate capability sacrifice standing in
 for hardware evidence that does not exist; if a TRM ever supplies the
 handshake, that is the code to revisit.
 
+Because any AV1 reset is terminal, the driver must not issue one for a merely
+administrative reason. Since the 2026-11-22 rewrite tips (unbooted), session
+close and `RESET_SESSION` wait up to 1 s for an executing frame to retire
+through its IRQ or watchdog instead of resetting under it. Before that, a
+client that exited mid-frame removed hardware AV1 for every user until reboot.
+A frame that ends in an error IRQ or a timeout still isolates the block.
+
 AV1 also has its own auxiliary AFBC block whose mask/status/START sequence is a
 separate IRQ-safe transaction from the VCD START, and a dedicated level IRQ
 that is exclusive and hard-only. See

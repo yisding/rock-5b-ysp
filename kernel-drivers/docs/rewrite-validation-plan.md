@@ -9,7 +9,7 @@ qualification verdict and next proof belong to
 and definition of done.
 
 > **Framing.** The targeted userspace surface is code-complete and has MPP
-> **109 KUnit cases** plus RGA **152 KUnit cases** (**261 total**). Exact green
+> **112 KUnit cases** plus RGA **154 KUnit cases** (**266 total**). Exact green
 > booted KTAP is the first qualification rung, not the finish line. These tests
 > are primarily **logic/lifecycle evidence**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
@@ -21,7 +21,25 @@ and definition of done.
 > counts into this plan; follow the status row into the dated finding and
 > correlated run artifacts.
 
-> **Current source boundary (2026-08-11):** Phases 4 and 5 plus the reviewed
+> **Current source boundary (2026-11-22):** both lines were rebased
+> (`rk3588-rewrite-6.18@042d5894eff5178c76a4be62c94f7ae32983af4c` on
+> `v6.18.64`, `rk3588-rewrite-mainline@7d17efc678f30f68e8fbd8babfa6315f678ea6b2`
+> on `v7.4-rc3`) and carry sixteen fix commits from a full driver review. The
+> fixes change what the recovery and lifecycle rungs must prove: a recovery
+> reset is now followed by a full Rockchip-MMU restore whose failure
+> quarantines the core, close and `RESET_SESSION` wait for an executing frame
+> instead of resetting under it, job completion has a single owner, validated
+> register words are programmed even outside write spans, RGA2 enforces the
+> RGA2E geometry envelope, and RGA work parks across system sleep. The exact
+> source manifest is 112 MPP plus 154 RGA cases, ownership passes at 2,321
+> signals/tree, and fixture debt passes at 312/tree. A `W=1` build and the
+> `normal` profile pass on both lines; the other profiles were not rerun, KUnit
+> was not executed, and nothing was booted. Four confirmed fixes are written
+> but uncommitted. The
+> [rebase and review finding](../../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md)
+> owns the detail and the measurements the new restore path needs.
+>
+> **Source boundary 2026-08-11:** Phases 4 and 5 plus the reviewed
 > boundary-hardening follow-up are source-complete at
 > `rk3588-rewrite-6.18@d9cbcf21cda1c047c053447a48a908dcb6e4c5d6` and
 > `rk3588-rewrite-mainline@b6335efd8f98bedabf426a80d224f85a266c8ea4`.
@@ -36,11 +54,11 @@ and definition of done.
 > build prerequisites, RGA request preflight, service-wide USERPTR pin
 > accounting, allocation-independent fault latching, conservative execution
 > reclamation, and suspend/resume admission and callback drain. The exact
-> source manifest is 109 MPP plus 152 RGA cases, ownership passes at 2,313
-> signals/tree, and fixture debt passes at 306/tree. All eight
-> warning-fatal profiles and the dedicated test-disabled ABI-mutation gate pass
-> on both kernel lines. Runtime execution at these tips remains pending and is
-> not implied by source or compile evidence.
+> source manifest was 109 MPP plus 152 RGA cases, ownership passed at 2,313
+> signals/tree, and fixture debt passed at 306/tree. All eight
+> warning-fatal profiles and the dedicated test-disabled ABI-mutation gate
+> passed on both kernel lines. Runtime execution at these tips remains pending
+> and is not implied by source or compile evidence.
 >
 > **Historical Phase 3J boundary:** maintained Phase 3J tips
 > `7481df21ca2b1481a3c4b4d222e3ebed28692544` /
@@ -705,7 +723,7 @@ booted sanitizer/fault-injection evidence.
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 261 KUnit cases green **under KASAN** (109 MPP + 152 RGA), persisted from the
+1. 266 KUnit cases green **under KASAN** (112 MPP + 154 RGA), persisted from the
    booted suites by `tests/rewrite-kunit-log-check.sh`; hardware-in-the-loop
    kselftests added (the KUnit cases themselves never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —

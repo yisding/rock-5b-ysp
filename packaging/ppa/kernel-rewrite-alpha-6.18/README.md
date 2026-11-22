@@ -51,10 +51,15 @@ leaving them enabled makes the replay collide on file creation.
 The 445-commit rewrite series — its forward-port prefix plus the rewrite
 drivers — then replayed onto that snapshot without a single conflict. The
 payload under `drivers/video/rockchip/` is byte-identical to
-`rk3588-rewrite-6.18` at `7c38fc4ffaba7`, which is itself the maintained 6.18
-tip rebased from `v6.18.42` to `v6.18.51` with no conflict at any step. The
-prior tip is preserved at
+`rk3588-rewrite-6.18` at `7c38fc4ffaba7`, which was the maintained 6.18
+tip when this package was built: rebased from `v6.18.42` to `v6.18.51` with no
+conflict at any step. The prior tip is preserved at
 `ysp-backup/rk3588-rewrite-6.18-before-6.18.51-20260913`.
+
+The branch has since moved. On 2026-11-22 it was rebased to `v6.18.64` and took
+sixteen driver-review fix commits (local tip `042d5894eff5`, unpushed). No
+package has been built from that tip, so this package does not contain those
+fixes; see the [rebase and review finding](../../../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md).
 
 ## Build
 

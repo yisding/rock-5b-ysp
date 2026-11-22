@@ -797,6 +797,9 @@ MPP_SELECTED_HW_ACCESS_OWNERS = {
     "rk_mpp_job_unqueue_locked",
     "rk_mpp_job_validate_write_regs",
     "rk_mpp_job_write_regs",
+    # Called only from rk_mpp_job_write_regs() via write_owned_regs/_table;
+    # same selected-core read as its caller (kernel commit bc428007984e).
+    "rk_mpp_job_write_owned_word",
     "rk_mpp_rkvdec2_acquire_soft_ccu",
     "rk_mpp_rkvdec2_prepare_ccu_descriptor",
     "rk_mpp_rkvdec2_prepare_ccu_regs",
@@ -883,6 +886,12 @@ MPP_CURRENT_ACTIVATION_ACCESS_OWNERS = {
     "rk_mpp_job_unqueue_locked",
     "rk_mpp_job_validate_write_regs",
     "rk_mpp_job_write_regs",
+    # Register-programming helper under rk_mpp_job_write_regs()
+    # (kernel commit bc428007984e).
+    "rk_mpp_job_write_owned_word",
+    # Read-only finalized check under session->lock, mirroring
+    # rk_mpp_activation_finalize_result() (kernel commit c4714587da8f).
+    "rk_mpp_job_outcome_finalized_locked",
     "rk_mpp_job_resources",
     "rk_mpp_rkvdec2_acquire_soft_ccu",
     "rk_mpp_rkvdec2_prepare_ccu_descriptor",
@@ -3670,6 +3679,10 @@ def validate_mpp_phase3_completion_contract(
             "rk_mpp_activation_finalize_result",
             "rk_mpp_activation_note_reason",
             "rk_mpp_activation_storage_init",
+            # Read-only accessor under session->lock, the lock
+            # rk_mpp_activation_finalize_result() sets the flag under
+            # (kernel commit c4714587da8f, session abort path).
+            "rk_mpp_job_outcome_finalized_locked",
         },
     }
     for field, expected in expected_field_users.items():

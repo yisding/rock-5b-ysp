@@ -118,6 +118,15 @@ samples differed in.
    free. Pipelined jobs holding the power reference across a self-reset are the
    case that would not be covered, and that case has not been constructed.
 
+   **Update 2026-11-22:** the unbooted rewrite tips now follow every
+   *driver-issued* reset with a full MMU restore
+   (`rockchip_iommu_restore()`), replacing a refresh that, where it ran at
+   all, was only a TLB zap. That closes the driver-reset half of this gap in
+   source. It does not cover a self-reset the driver never answers with a
+   reset of its own, which is gap 3 below, and whether either kind of reset
+   actually clears the MMU is still unmeasured. See the
+   [rebase and review finding](2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md).
+
 3. **`sw_dec_bus_sta` (bit 3) is outside `err_mask`.** An AXI bus error
    self-resets the hardware and we would complete the job as successful. Worth
    context: **the BSP also uses `err_mask = 0xf0`** (`mpp_rkvdec2_link.c:82`
@@ -125,6 +134,9 @@ samples differed in.
    either. So this is a gap shared with both references rather than a rewrite
    regression, and no run has ever been observed setting it. Recorded because
    the TRM documents it and nobody handles it, not because it has bitten.
+   **Update 2026-11-22:** still open by decision. The review fixes left
+   `err_mask` alone, so a bus-error-only status completes with no driver reset
+   and no MMU restore; the in-tree `ABI.rst` now says so.
 
 4. **`SWREG20_CCU_CORE_REQ_TIMEOUT_E` (`0x0050`) is never programmed.** The TRM:
    *"When ccu start core to work, but too long to fetch ack, it will unload such

@@ -195,6 +195,12 @@ owns the public verdict.
 
 | Snapshot | Pin and base | Historical relationships |
 |----------|--------------|--------------------------|
+| 6.18 rewrite driver-review fixes, 2026-11-22 | `rk3588-rewrite-6.18@042d5894eff5178c76a4be62c94f7ae32983af4c` on `v6.18.64@fd7cfd39c8859` | Rebased tip `7e79a54acdcb`; adds sixteen review commits (`rockchip_iommu_restore()` after reset, single completion owner, owned register words, frame-wait on close/reset, RGA2E envelope, suspend parking). Local only, unpushed |
+| Mainline rewrite driver-review fixes, 2026-11-22 | `rk3588-rewrite-mainline@7d17efc678f30f68e8fbd8babfa6315f678ea6b2` on `v7.4-rc3@aebb72744764` | Rebased tip `7d2bd0a3f72f`; byte-identical rewrite C/Kconfig/ABI/UAPI checkpoint. The two provider commits differ from 6.18 by context and one forward declaration. Local only, unpushed |
+| 6.18 rewrite rebased to 6.18.64, 2026-11-22 | `rk3588-rewrite-6.18@7e79a54acdcb2304fc036157005d1fae76ab0275` on `v6.18.64@fd7cfd39c8859` | Prior tip `7c38fc4ffaba`, kept as local-only `ysp-backup/rk3588-rewrite-6.18-before-6.18.64-20261122`; 445 commits replayed with one `rk_iommu_enable()` conflict, plus the VSI three-argument `attach_dev` compile fix as the tip commit |
+| Mainline rewrite rebased to 7.4-rc3, 2026-11-22 | `rk3588-rewrite-mainline@7d2bd0a3f72f600da349376a04b88c4478484e7f` on `v7.4-rc3@aebb72744764` | Prior tip `12a6a61b76ac`, kept as local-only `ysp-backup/rk3588-rewrite-mainline-before-7.4-rc3-20261122`; 370 commits replayed with one `rk_iommu_probe()` conflict against upstream's `devm_kzalloc_objs()` conversion |
+| 6.18 rewrite rebased to 6.18.51, 2026-09-13 | `rk3588-rewrite-6.18@7c38fc4ffaba723b839af96981875f349b1b337e` on `v6.18.51@f6388029ea9e2` | Rewrite payload byte-identical to prior tip `9030386c8bcc`, kept at `ysp-backup/rk3588-rewrite-6.18-before-6.18.51-20260913`. Source of the published 6.18 alpha, and still the fork's branch head |
+| Mainline rewrite rebased to 7.3-rc2, 2026-09-13 | `rk3588-rewrite-mainline@12a6a61b76acab23f61b92cb36d301f537721bc8` on `v7.3-rc2@df2908090cda3` | Rewrite payload byte-identical to prior tip `a7a308ab6345`, kept at `ysp-backup/rk3588-rewrite-mainline-before-7.3-rc2-20260913`. Source of the published mainline alpha, and still the fork's branch head |
 | 6.18 rewrite post-refactor boundary hardening, 2026-08-11 | `rk3588-rewrite-6.18@d9cbcf21cda1c047c053447a48a908dcb6e4c5d6` on `v6.18.42@856a9b51680c` | Phase 4/5 tip `149a9ecd38f78`; adds fixed-width MPP UAPI decoding and RGA validation, pin-accounting, fault-latching, reclamation, and suspend boundary repairs |
 | Mainline rewrite post-refactor boundary hardening, 2026-08-11 | `rk3588-rewrite-mainline@b6335efd8f98bedabf426a80d224f85a266c8ea4` on `v7.2-rc6@075b74841bd0` | Phase 4/5 tip `280181e634a3`; byte-identical rewrite C/Kconfig/ABI/UAPI checkpoint |
 | 6.18 rewrite Phases 4–5 complete, 2026-08-11 | `rk3588-rewrite-6.18@149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` on `v6.18.42@856a9b51680c` | Phase 3 completion tip `77b60c9250cccc`; adds RGA task-execution ownership plus immutable RGA plans and sealed MPP register images |
@@ -243,16 +249,30 @@ owns the public verdict.
 | Mainline rewrite, 2026-08-06 | `rk3588-rewrite-mainline@7a6d4cb075a67` on `v7.2-rc6@075b74841bd0` | prior backups `9e503f6b16df` and `5bae68d8381c` |
 | Upstream-style RGA3 comparison | `rk3588-rewrite-mainline@180ee72a9a80` | detailed in §9 |
 
-The two maintained boundary-hardening snapshots have byte-identical
+The two 2026-11-22 review-fix snapshots have byte-identical tracked MPP/RGA
+rewrite sources, Kconfig, ABI ledgers, and UAPI. Their MPP source SHA-256 is
+`ce53eef3677c22e0941975a95683dea686dc62a28cea672c836ed0ebf29fc902`; the RGA
+source SHA-256 is
+`afbdf5d9e57233d0fa70bea353d20f60dc09e2a80b0f56232a4c29afc3a31e21`. The exact
+source manifest is 112 MPP + 154 RGA = 266 cases, ownership passes at 2,321
+signals/tree, and KUnit fixture debt passes at 312/tree. Both tips pass a
+warning-free `W=1` build and the gate's `normal` profile; the `test-disabled`,
+`memory`, and `race` profiles and the ABI-mutation gate were not rerun on
+them. Strict checkpatch reports only the commit-trailer findings on each of the
+sixteen commits. No runtime result exists; the
+[rebase and review finding](../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md)
+owns the detail.
+
+The two 2026-08-11 boundary-hardening snapshots also have byte-identical
 tracked MPP/RGA rewrite sources, Kconfig, ABI ledgers, and UAPI. Their MPP
 source SHA-256 is
 `349709b66254d6f3c1aeb7b5023e4fc2836d3a7dbedadfe287d14ac5d5344c7a`;
 the RGA source SHA-256 is
 `86100ff095475551ea043f6b89160b621183a649b865c599718d2194937f6619`.
 Strict checkpatch over each boundary-hardening delta is zero errors, zero
-warnings, and zero checks. The exact source manifest is 109 MPP +
-152 RGA = 261 cases. Ownership passes at
-2,313 signals/tree and KUnit fixture debt passes at 306/tree. All eight
+warnings, and zero checks. Their exact source manifest was 109 MPP +
+152 RGA = 261 cases. Ownership passed at
+2,313 signals/tree and KUnit fixture debt at 306/tree. All eight
 warning-fatal final-head profiles pass across both kernel lines (`normal`,
 `test-disabled`, `memory`, and `race`), including both IOMMU providers, both
 rewrite objects, and the Rock 5B DTB. The dedicated test-disabled policy/ABI
@@ -272,7 +292,9 @@ The Debian composite trees remain reconstructible:
 | `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` | Armbian snapshot `2ff6303a64ce`, then the 6.18 rewrite through `563f329dd8c4` |
 | `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958` | `v7.2-rc3@a13c140cc289` + Armbian build checkout `5cbc1c59c` / snapshot `2657f01c9b9a`, then the mainline rewrite |
 
-The 7.3-rc2 composite is the current mainline package pin; the other two are
+The 7.3-rc2 composite is the current mainline package pin and carries the
+2026-09-13 rewrite tip, not the 2026-11-22 one: no composite has been built for
+the `v6.18.64` or `v7.4-rc3` tips. The other two are
 historical, predate the later reconciliation, and are package reconstruction
 pins rather than validation evidence. None of the three carries a compile,
 boot, or hardware result. Fetch the public `yisding/linux-rock5b` branches and

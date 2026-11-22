@@ -308,7 +308,9 @@ Validation includes:
 
 - render mode;
 - formats and layouts;
-- dimensions, offsets, scaling limits, and alignment;
+- dimensions, offsets, scaling limits, and alignment, including the RGA2E
+  envelope (2x2 minimum window, 4096x4096 destination window, 1/16x..16x per
+  axis), which returns `-EOPNOTSUPP` so that RGA3 stays eligible;
 - rotate/flip combinations;
 - blending and color-space conversion;
 - compressed/tiled modes;
@@ -372,7 +374,15 @@ Dispatch loops until either:
 - a backend start succeeds and hardware is running.
 
 Jobs that cannot start are completed with an error outside the spinlock, then
-dispatch considers the next queued job.
+dispatch considers the next queued job. After rerouting a job from RGA2 to an
+RGA3 fallback the loop continues; it does not re-enter dispatch.
+
+A suspended core is not an absent one. Since the 2026-11-22 tips,
+already-admitted asynchronous work that becomes runnable during system sleep
+(the next task of a multi-task request, a job whose acquire fence signals, a
+reroute) enqueues on the suspended core; the dispatch gate refuses to start it
+until resume. A failed resume sets `resume_failed`, fails that queue with
+`-EIO`, and keeps the core out of selection until a later resume succeeds.
 
 ### 4.10 Command-buffer ownership
 
@@ -505,6 +515,12 @@ task execution, and attempts reset. If reset proves DMA stopped, the same
 retirement engine used by IRQ completion performs copyback, mapping/command
 teardown, power release, and retirement before the job orchestrator advances
 or completes.
+
+After a successful reset the core's MMU is restored with
+`rockchip_iommu_restore()` (2026-11-22 tips; previously a TLB-only flush). If
+that restore fails, the core is quarantined through the same
+`recovery_failed` path, but the execution is still retired and its resources
+released: the reset did stop DMA, so nothing has to stay pinned.
 
 If reset recovery fails, the core and execution are quarantined:
 
