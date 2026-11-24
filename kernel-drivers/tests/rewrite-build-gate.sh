@@ -23,7 +23,7 @@ JOBS="${JOBS:-$(nproc)}"
 KEEP_TMP="${KEEP_TMP:-0}"
 ALLOW_DIRTY="${ALLOW_DIRTY:-0}"
 FAIL_ON_WARNING="${FAIL_ON_WARNING:-1}"
-REWRITE_BUILD_PROFILES="${REWRITE_BUILD_PROFILES:-normal}"
+REWRITE_BUILD_PROFILES="${REWRITE_BUILD_PROFILES:-normal kunit-run}"
 REWRITE_BUILD_TMP_ROOT="${REWRITE_BUILD_TMP_ROOT:-$ROOT_DIR/../tmp}"
 VERIFY_ABI_STATIC_ASSERT="${VERIFY_ABI_STATIC_ASSERT:-0}"
 
@@ -62,8 +62,17 @@ Environment:
   ALLOW_DIRTY=1     allow dirty kernel worktrees, but still build HEAD archive
   FAIL_ON_WARNING=0 do not fail on "warning:" lines in the build log
   REWRITE_BUILD_PROFILES
-                    space-separated profiles: normal, test-disabled, memory, race
-                    normal: KUnit-enabled provider/rewrite/DTB build (default)
+                    space-separated profiles: normal, kunit-run,
+                    test-disabled, memory, race (default: normal kunit-run)
+                    normal: KUnit-enabled provider/rewrite/DTB build
+                    kunit-run: execute both KUnit suites in a KVM guest with
+                            rewrite-kunit-qemu.sh and require every case to
+                            pass with a quiet console and lockdep alive.  Not
+                            an object build: it builds a whole minimal kernel
+                            in a persistent directory under
+                            \$ROCK5B_WORKSPACE/build/rewrite-kunit-qemu and
+                            needs QEMU and /dev/kvm (see that script's --help;
+                            KUNIT_QEMU_* variables pass through)
                     test-disabled: same targets with both rewrite KUnit suites off
                     memory: KASAN/fault-injection provider/rewrite/DTB build
                             with the package's 2048-byte frame-warning ceiling
@@ -352,6 +361,20 @@ verify_abi_static_assert() {
   echo "PASS: deliberate MPP ABI mutation failed at compile time"
 }
 
+run_kunit_profile() {
+  local label="$1"
+  local tree="$2"
+  local commit
+
+  commit="$(git -C "$tree" rev-parse --short=12 HEAD)"
+  echo "[$label/kunit-run] source: $tree @ $commit"
+  # The script exports HEAD itself, so a dirty worktree cannot leak in.  It
+  # keeps one build directory per branch, shared with by-hand runs, so the
+  # gate is incremental after the first build of a line.
+  JOBS="$JOBS" bash "$TEST_DIR/rewrite-kunit-qemu.sh" "$tree"
+  echo "[$label/kunit-run] PASS: both KUnit suites ran clean at $commit"
+}
+
 build_one_profile() {
   local label="$1"
   local tree="$2"
@@ -363,6 +386,10 @@ build_one_profile() {
   local log
 
   check_clean_tree "$tree"
+  if [ "$profile" = kunit-run ]; then
+    run_kunit_profile "$label" "$tree"
+    return
+  fi
   commit="$(git -C "$tree" rev-parse --short=12 HEAD)"
   mkdir -p "$REWRITE_BUILD_TMP_ROOT"
   profile_tmp="$(mktemp -d "$REWRITE_BUILD_TMP_ROOT/rkcompat-rewrite-build.$label.$profile.XXXXXX")"

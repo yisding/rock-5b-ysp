@@ -195,6 +195,8 @@ owns the public verdict.
 
 | Snapshot | Pin and base | Historical relationships |
 |----------|--------------|--------------------------|
+| 6.18 rewrite shared MPP hardware constructor, 2026-11-24 | `rk3588-rewrite-6.18@c7aab336874b70bf311746755a771f80d0cf8da4` on `v6.18.64@fd7cfd39c8859` | Fixture-repair tip `94b3d97d6a12`; adds two commits: `41f6e0eb526f` moves probe's device-independent hardware-object initialisation into `rk_mpp_hw_state_init()` (behaviour-neutral), and the tip builds the MPP KUnit hardware fixtures through it. 472-commit local range |
+| Mainline rewrite shared MPP hardware constructor, 2026-11-24 | `rk3588-rewrite-mainline@8dd8071bbab6b126d26f50e2b7161ab6f0eaf1cf` on `v7.4-rc3@aebb72744764` | Fixture-repair tip `1bcfb8514376`; the same two commits (`8aeaa7a3f9cf` and the tip) and a byte-identical MPP driver file. 396-commit local range |
 | 6.18 rewrite KUnit fixture repair, 2026-11-23 | `rk3588-rewrite-6.18@94b3d97d6a12da018d6b97c554ce90e34549ab51` on `v6.18.64@fd7cfd39c8859` | Review-fix tip `a6fa1f545507`; adds four commits confined to the KUnit regions plus one KUnit-only guarded field and helper in the RGA plan path (fixture repairs, KUnit-owned direct-emitter allocations, five cases removed). 470-commit local range |
 | Mainline rewrite KUnit fixture repair, 2026-11-23 | `rk3588-rewrite-mainline@1bcfb8514376e8a37b3916709d927e56aed84781` on `v7.4-rc3@aebb72744764` | Review-fix tip `b153bd919515`; the same four commits and a byte-identical rewrite C/Kconfig/ABI/UAPI checkpoint. 394-commit local range |
 | 6.18 rewrite driver-review fixes, 2026-11-22 | `rk3588-rewrite-6.18@a6fa1f5455071773c98eaf136233f2865bf26636` on `v6.18.64@fd7cfd39c8859` | Rebased tip `9f59bfd5f3b7`; adds twenty review commits (`rockchip_iommu_restore()` after reset, single completion owner, owned register words, frame-wait on close/reset, RGA2E envelope, suspend parking, hard-CCU shutdown stage, RGA2 line-only acknowledge, zeroed USERPTR shadows). Commit messages carry the kernel `Assisted-by:` trailer |
@@ -251,17 +253,33 @@ owns the public verdict.
 | Mainline rewrite, 2026-08-06 | `rk3588-rewrite-mainline@7a6d4cb075a67` on `v7.2-rc6@075b74841bd0` | prior backups `9e503f6b16df` and `5bae68d8381c` |
 | Upstream-style RGA3 comparison | `rk3588-rewrite-mainline@180ee72a9a80` | detailed in §9 |
 
-The two 2026-11-23 KUnit fixture-repair snapshots have byte-identical tracked
-MPP/RGA rewrite sources, Kconfig, ABI ledgers, and UAPI. Their MPP source
-SHA-256 is
+The two 2026-11-24 shared-constructor snapshots have a byte-identical MPP
+driver file, SHA-256
+`4131702dbc085f2f9f6a2156c52b8d6e15229330c21e377c10834e593cb9e5c5`; the RGA
+file is unchanged from 2026-11-23, SHA-256
+`4e1304446262fb52066f64f5914c584dcc1ff2fa2c9249d59fdf9ffabd5433f0`. The exact
+source manifest is unchanged at 111 MPP + 152 RGA = 263 cases, ownership
+passes at 2,326 signals/tree, and KUnit fixture debt passes at 310/tree. The
+6.18 tip was executed in a KVM guest with four CPUs: all 263 cases pass with
+lockdep and debug objects and the raw-lock nesting checker off, with a quiet
+console and lockdep alive at the end, and the same with generic KASAN; with
+the checker on every case passes and the one known `Invalid wait context`
+report is printed. No package,
+board boot, or hardware result exists for them; the
+[KVM gate and shared-constructor finding](../findings/2026-11-24-rewrite-kunit-kvm-gate-and-shared-hw-fixture-constructor.md)
+owns the detail.
+
+The two 2026-11-23 KUnit fixture-repair snapshots also have byte-identical
+tracked MPP/RGA rewrite sources, Kconfig, ABI ledgers, and UAPI. Their MPP
+source SHA-256 is
 `07d4a76b0b2a6c43683389cafd7aa3e5f109130aeb15a296176f74f6e93858de`; the RGA
 source SHA-256 is
 `4e1304446262fb52066f64f5914c584dcc1ff2fa2c9249d59fdf9ffabd5433f0`. The exact
-source manifest is 111 MPP + 152 RGA = 263 cases, ownership passes at 2,326
-signals/tree, and KUnit fixture debt passes at 310/tree. Both KUnit suites
-were executed at these tips under QEMU arm64 `virt` emulation, and on 6.18 all
-263 cases pass with lockdep and debug objects and separately with KASAN and
-kmemleak; the lockdep run carries one unfixed `Invalid wait context` report
+source manifest was 111 MPP + 152 RGA = 263 cases, ownership passed at 2,326
+signals/tree, and KUnit fixture debt passed at 310/tree. Both KUnit suites
+were executed at those tips under QEMU arm64 `virt` emulation, and on 6.18 all
+263 cases passed with lockdep and debug objects and separately with KASAN and
+kmemleak; the lockdep run carried one unfixed `Invalid wait context` report
 from production lock nesting. No package, board boot, or hardware result exists for them; the
 [first-execution finding](../findings/2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md)
 owns the detail.

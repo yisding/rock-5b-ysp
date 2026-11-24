@@ -18,14 +18,30 @@ The priority is **ownership before convention**:
 4. postpone broad file moves, naming cleanup, and test rationalization until
    the ownership graph has stopped changing.
 
-> **Tip update — 2026-11-23:** the maintained tips are now
+> **Tip update — 2026-11-24:** the maintained tips are now
+> `rk3588-rewrite-6.18@c7aab336874b70bf311746755a771f80d0cf8da4` on `v6.18.64`
+> and `rk3588-rewrite-mainline@8dd8071bbab6b126d26f50e2b7161ab6f0eaf1cf` on
+> `v7.4-rc3`. Two new commits per line move probe's device-independent
+> hardware-object initialisation into `rk_mpp_hw_state_init(hw, coordinator)`
+> and build every MPP KUnit hardware fixture through it. Driver behaviour and
+> the ownership model below are unchanged. The source manifest stays at 111
+> MPP plus 152 RGA cases, the ownership audit still passes at 2,326
+> signals/tree, and fixture debt is 310/tree; the baselines are re-pinned, and
+> the only content change is six ownership rows whose owning function is now
+> `rk_mpp_hw_state_init` instead of `rk_mpp_hw_probe`. Both suites pass in a
+> KVM guest on 6.18 (263/263, lockdep alive at the end); nothing was packaged
+> or booted on the board, and the commits are not yet on the `linux-rock5b`
+> fork. See the
+> [KVM gate and shared-constructor finding](../../findings/2026-11-24-rewrite-kunit-kvm-gate-and-shared-hw-fixture-constructor.md).
+>
+> **Tip update — 2026-11-23:** the maintained tips moved to
 > `rk3588-rewrite-6.18@94b3d97d6a12da018d6b97c554ce90e34549ab51` on `v6.18.64`
 > and `rk3588-rewrite-mainline@1bcfb8514376e8a37b3916709d927e56aed84781` on
-> `v7.4-rc3`. The four new commits per line touch only the KUnit regions plus
+> `v7.4-rc3`. The four commits per line touched only the KUnit regions plus
 > one KUnit-only guarded field and helper in the RGA plan path, so the
-> ownership model below is unchanged. The source manifest is now 111 MPP plus
-> 152 RGA cases, the ownership audit still passes at 2,326 signals/tree, and
-> fixture debt is 310/tree. Both suites pass under QEMU emulation on 6.18
+> ownership model below was unchanged. The source manifest became 111 MPP plus
+> 152 RGA cases, the ownership audit still passed at 2,326 signals/tree, and
+> fixture debt was 310/tree. Both suites passed under QEMU emulation on 6.18
 > (263/263); nothing was packaged or booted. See the
 > [first-execution finding](../../findings/2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md).
 >

@@ -1,6 +1,6 @@
 # Rewrite ownership inventory; new signals fail, resolved signals are allowed.
-# source-head	1bcfb8514376e8a37b3916709d927e56aed84781
-# source-head	94b3d97d6a12da018d6b97c554ce90e34549ab51
+# source-head	8dd8071bbab6b126d26f50e2b7161ab6f0eaf1cf
+# source-head	c7aab336874b70bf311746755a771f80d0cf8da4
 # category	source	function	ordinal	normalized source signal
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	enum rk_mpp_debug_event_type { RK_MPP_DEBUG_REQUEST_FAIL, RK_MPP_DEBUG_SELECT_FAIL, RK_MPP_DEBUG_TRANSLATE_FAIL, RK_MPP_DEBUG_RCB_FAIL, RK_MPP_DEBUG_SUBMIT_FAIL, RK_MPP_DEBUG_POLL_FAIL, RK_MPP_DEBUG_QUEUED, RK_MPP_DEBUG_DISPATCH, RK_MPP_DEBUG_STARTED, RK_MPP_DEBUG_IRQ, RK_MPP_DEBUG_DONE, RK_MPP_DEBUG_TIMEOUT, RK_MPP_DEBUG_IOMMU_FAULT, RK_MPP_DEBUG_ABORT, RK_MPP_DEBUG_SPURIOUS_IRQ, };
 debug-event-schema	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	<file-scope>	1	struct rk_mpp_debug_event { u64 seq; u64 timestamp_ns; u64 data; u32 session_id; u32 job_id; u32 client_type; u32 irq_status; s32 core_id; s32 result; u8 type; char hw_name[20]; char dev_name[32]; };
@@ -1084,10 +1084,10 @@ mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_m
 mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_init_cluster_locked	1	WARN_ON_ONCE(cluster != &srv->clusters[srv->cluster_count - 1]);
 mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_init_cluster_locked	1	if (WARN_ON_ONCE(hw->cluster || !list_empty(&hw->cluster_link))) return -EEXIST;
 mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_init_cluster_locked	1	srv->cluster_count--;
-mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_probe	1	INIT_LIST_HEAD(&hw->cluster_link);
 mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_probe	1	WARN_ON_ONCE(hw->cluster && !rk_mpp_cluster_contains_published_view_locked(&rk_mpp_srv, hw->cluster));
 mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_recover_active	1	if (!iommu_fault && !ccu_stop_ret && !reset_ret && ccu_recovery.reusable && recovery.reusable) { rk_mpp_cluster_prepare_resend_chain(READ_ONCE(ccu->cluster), ccu);
 mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_shutdown_hard_ccu	1	cluster = READ_ONCE(ccu->cluster);
+mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_state_init	1	INIT_LIST_HEAD(&hw->cluster_link);
 mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_drain_ccu_done_jobs	1	struct rk_mpp_cluster *cluster = READ_ONCE(ccu->cluster);
 mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_force_stop_ccu	1	cluster = READ_ONCE(ccu->cluster);
 mpp-cluster-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_release_link_table	1	struct rk_mpp_cluster *cluster = ccu ? READ_ONCE(ccu->cluster) : NULL;
@@ -1204,7 +1204,7 @@ mpp-cluster-running-list-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c
 mpp-cluster-running-list-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_cluster_remove_ccu_job	1	list_del_init(&job->rkvdec_ccu_node);
 mpp-cluster-running-list-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_cluster_remove_ccu_job	1	rk_mpp_job_resources(job)->rkvdec_ccu_listed = false;
 mpp-cluster-running-list-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_cluster_transfer_power_lease	1	to = list_first_entry_or_null(&ccu->rkvdec_ccu_jobs, struct rk_mpp_job, rkvdec_ccu_node);
-mpp-cluster-running-list-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_probe	1	INIT_LIST_HEAD(&hw->rkvdec_ccu_jobs);
+mpp-cluster-running-list-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_state_init	1	INIT_LIST_HEAD(&hw->rkvdec_ccu_jobs);
 mpp-cluster-running-list-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_job_has_live_leases	1	return rk_mpp_job_resources(job)->rkvdec_ccu_started || rk_mpp_job_resources(job)->rkvdec_ccu_listed || rk_mpp_job_resources(job)->rkvdec_ccu_powered || READ_ONCE(rk_mpp_job_resources(job)->rkvdec_ccu_power_lease);
 mpp-cluster-running-list-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_release_link_table	1	rk_mpp_job_resources(job)->rkvdec_ccu_listed = false;
 mpp-cluster-runtime-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_cluster_add_ccu_job	1	ret = rk_mpp_cluster_validate_job(cluster, job);
@@ -1264,7 +1264,7 @@ mpp-cluster-state-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_
 mpp-cluster-state-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_clusters_destroy	1	} srv->cluster_count = 0;
 mpp-cluster-state-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_init_cluster_locked	1	cluster->node = NULL;
 mpp-cluster-state-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_init_cluster_locked	1	srv->cluster_count--;
-mpp-cluster-state-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_probe	1	INIT_LIST_HEAD(&hw->cluster_link);
+mpp-cluster-state-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_state_init	1	INIT_LIST_HEAD(&hw->cluster_link);
 mpp-cluster-topology-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_cluster_register_member_locked	1	rk_mpp_cluster_rebuild_locked(cluster);
 mpp-cluster-topology-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_cluster_unregister_member_locked	1	rk_mpp_cluster_rebuild_locked(cluster);
 mpp-cluster-topology-entry	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_debug_state_show	1	seq_printf(s, "%pOF %s %u %u %u %u %u\n", cluster->node, coordinator, cluster->member_count, cluster->core_count, cluster->member_type, !!cluster->reset_domain, rk_mpp_cluster_dma_group_count_locked(cluster));
@@ -1326,7 +1326,6 @@ mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite
 mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_get_for_map	1	list_for_each_entry(hw, &srv->hw_list, link) { if (!rk_mpp_hw_usable(hw) || !hw->match->contributes_support || hw->match->type != session->client_type || hw->dev != dev) continue;
 mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_handle_reset_failure	1	if (ccu_failure) { list_for_each_entry(dependent, &srv->hw_list, link) { if (dependent->ccu_node != hw->dev->of_node || READ_ONCE(dependent->recovery_failed)) continue;
 mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_init_reset_domain	1	struct device_node *identity = hw->ccu_node ?: hw->dev->of_node;
-mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_probe	1	INIT_LIST_HEAD(&hw->rkvdec_ccu_jobs);
 mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_probe	1	dev_info(dev, "bound %s core %d hw_id %#x irq %d regs %d clocks %d%s%s\n", match->name, hw->core_id, hw->hw_id, hw->irq, hw->num_regs, hw->num_clks, hw->ccu_node ? " ccu-gated" : "", rk_mpp_rkvdec2_soft_ccu_enabled(hw) ? " soft-ccu" : rk_mpp_rkvdec2_hard_ccu_enabled(hw) ? " hard-ccu" : "");
 mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_probe	1	hw->ccu_node = of_parse_phandle(dev->of_node, "rockchip,ccu", 0);
 mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_probe	1	if (hw->ccu_node) { ret = devm_add_action_or_reset(dev, rk_mpp_of_node_put, hw->ccu_node);
@@ -1342,6 +1341,7 @@ mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite
 mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_read_rkvdec_ccu_mode	1	if (of_property_read_u32(hw->ccu_node, "rockchip,ccu-mode", &requested)) requested = mode;
 mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_recover_active	1	if (iommu_fault && hw->iommu_domain && !refresh_ret && idle_recovery.reusable) schedule_work(&hw->srv->sched_work);
 mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_remove	1	if (hw->match->contributes_support && hw->ccu_node) { ccu = rk_mpp_hw_get_active_ccu_if(hw, NULL, 0);
+mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_state_init	1	INIT_LIST_HEAD(&hw->rkvdec_ccu_jobs);
 mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_terminal_isolate	1	if ((!hw->dma_group && power_off) || (hw->dma_group && !dma_ret)) { WRITE_ONCE(hw->terminally_stopped, true);
 mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_iommu_find_fault_hw	1	list_for_each_entry(hw, fault_hws, fault_link) { if (hw->iommu_domain != domain) continue;
 mpp-cluster-topology-input-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_iommu_register_fault_handler	1	hw->iommu_domain = iommu_get_domain_for_dev(hw->dev);
@@ -1556,7 +1556,7 @@ mpp-power-backend-op	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_
 mpp-power-backend-op	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_terminal_drain_power	1	ret = pm_runtime_put_sync_suspend(hw->dev);
 mpp-power-count-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_power_off	1	if (atomic_dec_if_positive(&hw->power_count) < 0) return;
 mpp-power-count-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_power_on	1	atomic_inc(&hw->power_count);
-mpp-power-count-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_probe	1	atomic_set(&hw->power_count, 0);
+mpp-power-count-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_state_init	1	atomic_set(&hw->power_count, 0);
 mpp-power-count-write	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_terminal_drain_power	1	while (atomic_dec_if_positive(&hw->power_count) >= 0) { raw_spin_lock_irqsave(&hw->regs_lock, flags);
 mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_cluster_power_lease_acquire	1	err_power_off: i = lease->power_lease_core_count;
 mpp-power-field	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_cluster_power_lease_acquire	1	if (READ_ONCE(rk_mpp_job_resources(job)->rkvdec_ccu_power_lease)) return 0;
@@ -1907,7 +1907,7 @@ mpp-reset-domain-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c
 mpp-reset-domain-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_cluster_reset_valid_locked	1	if (cluster != request->cluster || READ_ONCE(cluster->coordinator) != request->ccu || READ_ONCE(cluster->reset_domain) != domain || READ_ONCE(request->ccu->reset_domain) != domain || list_empty(&request->ccu->reset_domain_link)) return -EXDEV;
 mpp-reset-domain-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_debug_state_show	1	seq_printf(s, "%pOF %s %u %u %u %u %u\n", cluster->node, coordinator, cluster->member_count, cluster->core_count, cluster->member_type, !!cluster->reset_domain, rk_mpp_cluster_dma_group_count_locked(cluster));
 mpp-reset-domain-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_debug_state_show	1	} seq_puts(s, "\n# clusters: node coordinator members cores core_type reset_domain dma_groups\n");
-mpp-reset-domain-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_probe	1	INIT_LIST_HEAD(&hw->reset_domain_link);
+mpp-reset-domain-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_hw_state_init	1	INIT_LIST_HEAD(&hw->reset_domain_link);
 mpp-reset-domain-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_domain_assert	1	struct rk_mpp_reset_domain *domain = READ_ONCE(hw->reset_domain);
 mpp-reset-domain-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_domain_begin	1	if (READ_ONCE(hw->reset_domain) != domain || list_empty(&hw->reset_domain_link)) { domain->reset_domain_refusal_count++;
 mpp-reset-domain-binding-access	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_domain_begin	1	struct rk_mpp_reset_domain *domain = READ_ONCE(hw->reset_domain);

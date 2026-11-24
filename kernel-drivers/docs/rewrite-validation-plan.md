@@ -21,22 +21,45 @@ and definition of done.
 > counts into this plan; follow the status row into the dated finding and
 > correlated run artifacts.
 
-> **Current source boundary (2026-11-23):** four commits per line moved the
+> **Current source boundary (2026-11-24):** two commits per line moved the
+> tips to `rk3588-rewrite-6.18@c7aab336874b70bf311746755a771f80d0cf8da4` (still
+> `v6.18.64`) and
+> `rk3588-rewrite-mainline@8dd8071bbab6b126d26f50e2b7161ab6f0eaf1cf` (still
+> `v7.4-rc3`). One moves probe's device-independent hardware-object
+> initialisation into `rk_mpp_hw_state_init()` without changing behaviour; the
+> other builds every MPP KUnit hardware fixture through that constructor.
+> Production behaviour is unchanged, so the 2026-11-22 block below still
+> describes what the recovery and lifecycle rungs must prove. The manifest
+> (111 MPP plus 152 RGA), ownership (2,326 signals/tree), and fixture debt
+> (310/tree) are unchanged. The suites now run in a KVM guest with four CPUs
+> as the default `kunit-run` profile of the build gate: on 6.18 all 263 cases
+> pass with lockdep and debug objects, a quiet console, and lockdep alive at
+> the end, and the same with generic KASAN. Because fixtures now share the
+> driver's lock classes, lockdep found two fixtures that took the
+> coordinator's `ccu_recovery_lock` under a core's `run_lock`, the reverse of
+> the driver's order; both are fixed. That is not the booted rung: a KVM guest
+> is not the board, no package exists, no hardware path ran, and the
+> exact-manifest plus fatal-free-interval gate on the debug kernel is open.
+> Those runs have the raw-lock nesting checker off, as the debug kernel does;
+> with it on, every case passes and the `Invalid wait context` report
+> described in the next block is still printed. The commits are local; the
+> `linux-rock5b` fork holds the 2026-11-23 tips. The
+> [KVM gate and shared-constructor finding](../../findings/2026-11-24-rewrite-kunit-kvm-gate-and-shared-hw-fixture-constructor.md)
+> owns the detail.
+>
+> **Source boundary 2026-11-23:** four commits per line moved the
 > tips to `rk3588-rewrite-6.18@94b3d97d6a12da018d6b97c554ce90e34549ab51` (still
 > `v6.18.64`) and
 > `rk3588-rewrite-mainline@1bcfb8514376e8a37b3916709d927e56aed84781` (still
-> `v7.4-rc3`). They touch only the KUnit regions plus one KUnit-only guarded
-> field and helper in the RGA plan path; production behaviour is unchanged, so
-> the 2026-11-22 block below still describes what the recovery and lifecycle
-> rungs must prove. The exact source manifest is 111 MPP plus 152 RGA cases
-> after five low-value cases were removed, ownership passes at 2,326
-> signals/tree, and fixture debt passes at 310/tree. Both suites were executed
+> `v7.4-rc3`). They touched only the KUnit regions plus one KUnit-only guarded
+> field and helper in the RGA plan path. The exact source manifest became
+> 111 MPP plus 152 RGA cases
+> after five low-value cases were removed, ownership passed at 2,326
+> signals/tree, and fixture debt passed at 310/tree. Both suites were executed
 > for the first time, under QEMU arm64 `virt` emulation: on 6.18 all 263 cases
-> pass with lockdep and debug objects, and separately with KASAN and kmemleak.
-> That is not the booted rung: no package exists, nothing ran on the board,
-> and the exact-manifest plus fatal-free-interval gate on the debug kernel is
-> open. One report in the QEMU lockdep run is not a fixture defect and does not
-> block that gate, because the debug kernel disables the checker on purpose:
+> passed with lockdep and debug objects, and separately with KASAN and kmemleak.
+> One report in that lockdep run is not a fixture defect and does not
+> block the board gate, because the debug kernel disables the checker on purpose:
 > with `PROVE_RAW_LOCK_NESTING`, which a stock `kunit.py` kernel cannot turn
 > off on arm64, lockdep
 > reports `BUG: Invalid wait context` because production code takes the

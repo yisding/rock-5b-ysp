@@ -43,9 +43,10 @@ and defect surface:
   2026-07-29/30 stall class was unserialized MMIO reaching gated registers;
   hard handlers are the one context no mutex can reach);
 - the checker's one-shot report costs all lockdep coverage after it. That is
-  why the debug kernel disables it, and it is also why an unfiltered
-  [`rewrite-kunit-qemu.sh`](../tests/rewrite-kunit-qemu.sh) run currently has
-  no lockdep verdict past MPP case 58; and
+  why the debug kernel disables it, and why
+  [`rewrite-kunit-qemu.sh`](../tests/rewrite-kunit-qemu.sh) builds the same
+  way by default and leaves the checker on only when asked
+  (`KUNIT_QEMU_RAW_NESTING=1`); and
 - shorter interrupts-off windows for everything else on the SoC.
 
 ## Which handlers are true hard-IRQ
@@ -151,11 +152,28 @@ fence signalling is not reachable from the hard path.
    debug-event pair and record p50/p99 for `mpi_enc_h264_slice` and
    `mpi_enc_h265_slice`, so the as-built trade has a number and later phases
    have a regression baseline.
-3. The debug kernel's checker-disable stays until Phase 4. QEMU is the
-   iteration tool: a stock `kunit.py` kernel has the checker on, one run takes
-   about a minute warm, and each run still surfaces only the first report.
+3. The debug kernel's checker-disable stays until Phase 4. The KVM guest is
+   the iteration tool: `KUNIT_QEMU_RAW_NESTING=1
+   rewrite-kunit-qemu.sh <tree>` runs the committed tip with the checker on
+   in well under a minute warm, and each run still surfaces only the first
+   report.
 
 Exit gate: violation inventory reproduced by tooling; slice baseline recorded.
+
+### Preparation done 2026-11-24
+
+Recorded in the
+[KVM gate and shared constructor finding](../../findings/2026-11-24-rewrite-kunit-kvm-gate-and-shared-hw-fixture-constructor.md).
+
+- Every MPP hardware fixture is built by `rk_mpp_hw_state_init()`, the
+  function probe uses, through `rk_mpp_kunit_alloc_hw()`. Phase 1 adds
+  `regs_lock`-owned state and a new lock order; both now reach every fixture
+  from one place. The RGA fixtures are not converted; do that before Phase 3.
+- `rewrite-build-gate.sh` runs both suites in a KVM guest by default
+  (`kunit-run` profile), with the checker off.
+- The starting state is measured: at `rk3588-rewrite-6.18@c7aab336874b` a
+  checker-on run passes every case, prints the one `Invalid wait context`
+  report at `rk_mpp_irq_register_lease_kunit`, and exits 3.
 
 ### Phase 0 progress recorded 2026-07-30 (audited at `aae815f145b27`)
 
@@ -199,7 +217,7 @@ its owner.
    Nothing may keep the old order, or lockdep reports an inversion instead.
    A scan of the reviewed source found no function that takes `regs_lock`
    while it holds `hw->lock` today; cross-function nesting was not traced, so
-   lockdep under QEMU is the check.
+   lockdep in the guest is the check.
 4. **AFBC debug record.** `rk_mpp_debug_record_active()` needs the active
    job's identity. Either record from the mirrored generation without the
    job and session ids, or move the record after the dispatcher drops
@@ -221,8 +239,8 @@ KUnit, which is the proof for this phase:
 - Add a case for the mirror: a status recorded for a generation that was then
   claimed, restored, or replaced by a retry successor is not delivered.
 
-Exit gate: an unfiltered `rewrite-kunit-qemu.sh` run exits 0 for the MPP suite
-on both lines, with lockdep still enabled at the end; the manifest and both
+Exit gate: a `KUNIT_QEMU_RAW_NESTING=1 rewrite-kunit-qemu.sh` run exits 0 for
+the MPP suite on both lines, with lockdep still enabled at the end; the manifest and both
 source audits are regenerated in the same change; decode conformance on the
 board is unchanged.
 
@@ -272,8 +290,8 @@ so a fixture cannot show the violation by calling it. Call it with a
 test-local raw spinlock held, which imposes the hard-context wait-type limit;
 the case reports before the phase and passes after.
 
-Exit gate: no `spinlock_t` reachable from the RGA hard handler; an unfiltered
-`rewrite-kunit-qemu.sh` run exits 0 for both suites; librga suite, demo
+Exit gate: no `spinlock_t` reachable from the RGA hard handler; a
+`KUNIT_QEMU_RAW_NESTING=1 rewrite-kunit-qemu.sh` run exits 0 for both suites; librga suite, demo
 matrix, and the shared-IRQ cases green on the board.
 
 ## Phase 4 — enforce and retire the stopgap
@@ -286,7 +304,7 @@ matrix, and the shared-IRQ cases green on the board.
   per-boot proof that the contract holds. A checker report fails the gate
   immediately instead of silently blinding lockdep.
 - Full conformance matrix and soak on a checker-enabled boot; slice numbers
-  recorded beside the baseline. Real interrupts are the part QEMU cannot
+  recorded beside the baseline. Real interrupts are the part the guest cannot
   exercise, so this boot is the only proof of the true hard-IRQ paths.
 
 Exit gate: green full matrix with lockdep alive end-to-end on a
@@ -295,7 +313,7 @@ checker-enabled kernel.
 ## Order rationale and commit strategy
 
 Phase 1 first because it is confined to MPP, changes ownership of state the
-code already guards twice, and is fully checkable under QEMU before any board
+code already guards twice, and is fully checkable in the KVM guest before any board
 time is spent. Phase 2 is evidence only and rides the first board boot that
 carries Phase 1. Phase 3 last among the code changes because claim and ack
 correctness on a shared level line is safety-critical and gets the review

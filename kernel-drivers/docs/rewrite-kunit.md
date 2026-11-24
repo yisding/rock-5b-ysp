@@ -141,6 +141,25 @@ established before calling the function under test. In particular:
   work/timer objects before any path can observe them;
 - connect jobs, hardware objects, cores, sessions, and imports exactly as
   probe, open, or submission would;
+- build every MPP `struct rk_mpp_hw` fixture with `rk_mpp_kunit_alloc_hw()` or
+  `rk_mpp_kunit_hw_init()`, never by hand. Both call
+  `rk_mpp_hw_state_init(hw, coordinator)`, the function probe uses for a
+  hardware object's reference count, completion, mutexes, spinlocks, lists,
+  and work items, and both register cancellation of the object's work items.
+  A member probe starts initialising is then initialised in every fixture. The
+  constructor does not set `hw->srv`, `hw->match`, or `hw->dev`; a case sets
+  those, its register windows, and any reference count other than probe's.
+  Because the object carries initialised work items, it belongs in
+  KUnit-managed memory, not on the stack;
+- take fixture locks in the driver's order. Lockdep gives each
+  `mutex_init()`/`spin_lock_init()` call site its own lock class, so
+  hand-initialised fixture locks were unrelated to one another and to the
+  driver's ordering rules, and a reversed order went unreported. Fixtures
+  built through the shared constructor use the driver's classes, including
+  the separate classes probe gives a coordinator, so lockdep compares every
+  case against every other. The coordinator's `ccu_recovery_lock` is taken
+  before a core's `run_lock`. The RGA fixtures still build `struct rk_rga_hw`
+  by hand and do not have this property;
 - mark reset-less fake hardware `terminally_stopped` when a case is not meant
   to exercise a real recovery backend;
 - pair `INIT_WORK_ONSTACK()` or `INIT_DELAYED_WORK_ONSTACK()` with the matching
@@ -207,9 +226,18 @@ rewrite sources, Kconfig, ABI ledgers, and MPP UAPI byte-for-byte and audits
 their KUnit signals in one invocation. `test-disabled` proves no KUnit-only
 dependency leaked into the production object; `memory` adds KASAN and
 fault-injection options; `race` adds KCSAN and lockdep. The optional mutation
-check proves the ABI constants remain compile-time-owned. These are **compile
-profiles**—success proves that the selected code builds warning-free, not that
-KUnit ran.
+check proves the ABI constants remain compile-time-owned. These four are
+**compile profiles**—success proves that the selected code builds
+warning-free, not that KUnit ran.
+
+A fifth profile, `kunit-run`, does execute the suites: it calls
+[`rewrite-kunit-qemu.sh`](../tests/rewrite-kunit-qemu.sh) on each tree, in the
+same per-branch build directory a by-hand run uses, as described under
+[Executing the suites in a KVM guest](#executing-the-suites-in-a-kvm-guest).
+Since 2026-11-24 the gate's default `REWRITE_BUILD_PROFILES` is
+`normal kunit-run` (it was `normal`), so a default gate run needs QEMU and
+read/write access to `/dev/kvm`. A fixture that has fallen behind the driver
+then fails the gate at the commit that broke it.
 
 Build the bootable KASAN/lockdep flavor with:
 
@@ -227,51 +255,90 @@ reinitialize the production MPP/RGA services. Install and recover through the
 configuration through the
 [kernel validation runbook](kernel-validation-runbook.md).
 
-## Executing the suites under QEMU
+## Executing the suites in a KVM guest
 
-[`rewrite-kunit-qemu.sh`](../tests/rewrite-kunit-qemu.sh) is the device-free
-way to execute both suites. It needs no board, package, or reboot:
+[`rewrite-kunit-qemu.sh`](../tests/rewrite-kunit-qemu.sh) executes both suites
+in a virtual arm64 `virt` machine. It needs no package, no reboot of the
+board, and no root:
 
 ```bash
 bash kernel-drivers/tests/rewrite-kunit-qemu.sh <kernel-tree>
 KUNIT_QEMU_KASAN=1 \
   bash kernel-drivers/tests/rewrite-kunit-qemu.sh <kernel-tree>
+KUNIT_QEMU_RAW_NESTING=1 \
+  bash kernel-drivers/tests/rewrite-kunit-qemu.sh <kernel-tree>
+bash kernel-drivers/tests/rewrite-kunit-qemu.sh --install-qemu
 ```
 
-The script gives the tree's own `tools/testing/kunit/kunit.py` a minimal
-kunitconfig, builds that kernel out of tree, and boots it on QEMU's arm64
-`virt` machine. The configuration selects both rewrite drivers and both suites,
-the Rockchip and VSI IOMMU providers, `PROVE_LOCKING`, `DEBUG_ATOMIC_SLEEP`,
+The script exports the committed `HEAD` of `<kernel-tree>` into a scratch
+source tree, gives that tree's own `tools/testing/kunit/kunit.py` a minimal
+kunitconfig, builds the kernel out of tree, and boots it under QEMU with KVM.
+The configuration selects both rewrite drivers and both suites, the Rockchip
+and VSI IOMMU providers, `PROVE_LOCKING`, `DEBUG_ATOMIC_SLEEP`,
 `DEBUG_OBJECTS` with work, timer, and free tracking, and `DEBUG_LIST`, and
-leaves the vendor MPP/RGA drivers off. `KUNIT_QEMU_KASAN=1` adds generic KASAN
-as a separate and much slower build. Trailing arguments are passed to
+leaves the vendor MPP/RGA drivers off. Trailing arguments are passed to
 `kunit.py` as filter globs.
 
-- `<kernel-tree>` must be a clean rewrite tree: Kbuild refuses a tree that
-  holds in-tree build output, so export `HEAD` with `git archive` first.
-- `qemu-system-aarch64` must be on `PATH`. Without root, unpack the
-  distribution packages with `apt download` and `dpkg -x`, add their `bin` and
-  library directories to `PATH` and `LD_LIBRARY_PATH`, and pass the firmware
-  directory in `KUNIT_QEMU_DATA_DIR`.
-- Build output and `console.log` go to `KUNIT_QEMU_BUILD_DIR`, by default
-  `../rock-5b/build/rewrite-kunit-qemu`. The compiler cache is the shared
-  `~/Code/.ccache`.
-- The exit status is `kunit.py`'s, non-zero when any case fails. A kernel
-  warning, lockdep report, or sanitizer report does not fail a case, so the
-  script scans the console afterwards and exits `3` when a passing run
-  contains one.
+- **Source.** `<kernel-tree>` is a git checkout of a rewrite line. What runs
+  is its committed `HEAD`: uncommitted changes are ignored and the checkout is
+  not touched. The export uses a private index and a persistent scratch tree,
+  so an unchanged file keeps its timestamp and the rebuild is incremental. A
+  checkout that holds in-tree build output needs no manual export.
+- **Acceleration.** `KUNIT_QEMU_ACCEL` is `kvm` (default) or `tcg`. `kvm`
+  needs read/write access to `/dev/kvm` (membership of the `kvm` group) and
+  fails rather than fall back: `kunit.py` lists KVM first and falls back
+  silently, so the script also fails when the console lacks
+  `KVM: hypervisor services detected`. `tcg` is software emulation.
+- **CPU pinning.** Under `kvm` the guest is pinned to the host's
+  largest-capacity CPU cluster, the four Cortex-A76 cores (host CPUs 4–7) on
+  this board, and gets one guest CPU per pinned core. KVM does not support a
+  guest CPU migrating between unlike cores of a big.LITTLE SoC, so the pin is
+  not optional here. Only the guest is pinned; the kernel builds on every
+  core. `KUNIT_QEMU_SMP` overrides the guest CPU count, which is 2 under
+  `tcg`.
+- **Lockdep configuration.** By default the script builds the way the debug
+  kernel does: it applies the same
+  [locknest prompt patch](../patches/debug-kernel/0002-lockdep-make-PROVE_RAW_LOCK_NESTING-prompt-uncondit.patch)
+  to the exported tree and turns `PROVE_RAW_LOCK_NESTING` off, so lockdep
+  stays alive for the whole run and a pass means lockdep saw every case.
+  `KUNIT_QEMU_RAW_NESTING=1` leaves the checker on; that is the mode the
+  [minimal hard-IRQ plan](rewrite-minimal-hard-irq-plan.md) uses for its exit
+  gates.
+- **KASAN.** `KUNIT_QEMU_KASAN=1` adds generic KASAN as a separate, slower
+  build.
+- **QEMU.** `qemu-system-aarch64` is taken from `PATH`, or from the unpacked
+  copy under `KUNIT_QEMU_ROOT` (default
+  `../rock-5b/build/qemu-userland/root`). `--install-qemu` creates that copy
+  without root: it downloads the distribution packages with `apt download`
+  and unpacks them with `dpkg -x`.
+- **Output.** Everything goes to `KUNIT_QEMU_BUILD_DIR`, by default
+  `../rock-5b/build/rewrite-kunit-qemu/<label>`, where the label is
+  `KUNIT_QEMU_LABEL` or the branch name. The exported source, one output
+  directory per instrumentation variant, and the console log
+  (`console-nest<0|1>-kasan<0|1>.log`) live there. The compiler cache is the
+  shared `~/Code/.ccache`.
+- **Exit status.** `0` when every case passes and the console is quiet;
+  `kunit.py`'s status when a case fails; `3` when every case passes but the
+  console holds a kernel warning, lockdep report, or sanitizer report; `4`
+  when lockdep was turned off during the run.
+
+The build gate's `kunit-run` profile calls this script with its defaults; see
+[Build and boot path](#build-and-boot-path). Do not run two instances for the
+same branch at once: they share one exported source tree.
 
 A clean run shows that every registered case passes on that source and that
-the console stays quiet under the selected instrumentation. It is emulation
-evidence and does not satisfy the compound gate:
+the console stays quiet under the selected instrumentation, with lockdep
+still enabled at the end. KVM adds speed and real concurrency on four cores
+and nothing else: it is still a `virt` machine, not the board, and a clean
+run does not satisfy the compound gate:
 
-- no RK3588 device probes on the `virt` machine, so the production services
-  the suites must coexist with on the board are absent, and the cases touch
-  only their own fixtures;
+- no RK3588 device, interrupt, or IOMMU exists on the `virt` machine, so the
+  production services the suites must coexist with on the board are absent,
+  and the cases touch only their own fixtures;
 - the kernel is not the `rewrite-debug` package and does not carry its full
-  instrumentation set; in particular the script does not enable or scan
-  kmemleak, and the 2026-11-23 kmemleak verdict came from a separate untracked
-  init on the KASAN kernel;
+  instrumentation set; in particular the script has no kmemleak mode, and the
+  2026-11-23 kmemleak verdict came from a separate untracked init on the
+  KASAN kernel;
 - the run does not compare case names against `rewrite-kunit-manifest.tsv`,
   and its console scan is a short fixed pattern list, not
   `SUITE_DMESG_FATAL_RE`; and
@@ -420,9 +487,42 @@ plus a real two-thread fence/abort race. Its named ordered 90/152 manifest and
 source/config/package-bound evidence gate owned result attribution. See the
 [successor attribution and audit](../../findings/2026-07-27-rewrite-reset-import-fixture-lockdep.md).
 
-As of 2026-11-23 the maintained tips are 6.18
+As of 2026-11-24 the maintained tips are 6.18
+`c7aab336874b70bf311746755a771f80d0cf8da4` on `v6.18.64` and mainline
+`8dd8071bbab6b126d26f50e2b7161ab6f0eaf1cf` on `v7.4-rc3`, with the same exact
+111/152 manifest (263 cases) and fixture debt of 310 signals/tree. Two commits
+on each line follow the 2026-11-23 tips. The first moves probe's
+device-independent hardware-object initialisation into
+`rk_mpp_hw_state_init(hw, coordinator)`, with the same statements in the same
+order, so driver behaviour is unchanged. The second builds all 94 MPP
+`struct rk_mpp_hw` fixture objects through it with `rk_mpp_kunit_alloc_hw()`
+and `rk_mpp_kunit_hw_init()`. With fixtures sharing the driver's lock classes,
+lockdep reported `possible circular locking dependency` on the first run:
+`rk_mpp_activation_recovered_terminal_kunit` and
+`rk_mpp_activation_observed_terminal_kunit` took the coordinator's
+`ccu_recovery_lock` while holding a core's `run_lock`, the reverse of the
+driver's order. Both cases were fixed; it was a fixture defect only. The RGA
+fixtures are not converted. The commits are local: the `linux-rock5b` fork
+still holds the 2026-11-23 tips.
+
+The 6.18 tip was executed in a KVM guest with four CPUs through
+`rewrite-kunit-qemu.sh`, not on the board. With lockdep and debug objects and
+the raw-lock nesting checker off (the script's default, matching the debug
+kernel) all 263 cases pass, the console is quiet, and lockdep is still alive
+at the end; adding generic KASAN gives the same result. Suite time in the
+guest is about 0.6 s, or 1.3 s with KASAN. With the checker on
+(`KUNIT_QEMU_RAW_NESTING=1`) every case passes and the console holds the one
+known `Invalid wait context` report described below, so that run exits `3`.
+kmemleak and KCSAN were not run. No rewrite kernel from these tips was booted
+on the board, no package exists, no hardware path ran, and the compound board
+gate — the exact manifest plus a fatal-free boot interval on the debug kernel
+— is still open. The
+[KVM gate and shared-constructor finding](../../findings/2026-11-24-rewrite-kunit-kvm-gate-and-shared-hw-fixture-constructor.md)
+owns these facts.
+
+On 2026-11-23 the maintained tips were 6.18
 `94b3d97d6a12da018d6b97c554ce90e34549ab51` on `v6.18.64` and mainline
-`1bcfb8514376e8a37b3916709d927e56aed84781` on `v7.4-rc3`, with an exact
+`1bcfb8514376e8a37b3916709d927e56aed84781` on `v7.4-rc3`, with the exact
 111/152 manifest (263 cases) and fixture debt of 310 signals/tree. Four
 commits on each line, confined to the KUnit regions plus one KUnit-only
 guarded field and helper in the RGA plan path, repaired the fixtures that
@@ -431,19 +531,18 @@ direct-emitter fixture allocations KUnit-owned (kmemleak went from 101 objects
 to none), and removed the five cases named above. No production behaviour
 changed.
 
-Both suites were executed at these tips under QEMU arm64 `virt` (TCG) with a
-minimal `kunit.py` kernel, not on the board. On 6.18 all 263 cases pass with
-`PROVE_LOCKING`, `DEBUG_OBJECTS`, and `DEBUG_ATOMIC_SLEEP`, and separately with
-generic KASAN plus kmemleak: no KASAN report and an empty kmemleak scan. The
-lockdep run is not report-free: it contains the one lockdep report described
-below. The mainline tip gives the same 263 passes and the same single report
-in the lockdep configuration; KASAN and kmemleak were not rerun there. Before
-the repairs the 2026-11-22 tip gave 251/268 with four oopses.
-This is emulation evidence only. No package was built, nothing was booted, no hardware was
-involved, and the compound board gate — the exact manifest plus a fatal-free
-boot interval on the debug kernel — is still open.
+Both suites were executed at those tips under QEMU arm64 `virt` emulation
+(TCG) with a minimal `kunit.py` kernel, not on the board. On 6.18 all 263
+cases passed with `PROVE_LOCKING`, `DEBUG_OBJECTS`, and `DEBUG_ATOMIC_SLEEP`,
+and separately with generic KASAN plus kmemleak: no KASAN report and an empty
+kmemleak scan. The lockdep run was not report-free: it contained the one
+lockdep report described below. The mainline tip gave the same 263 passes and
+the same single report in the lockdep configuration; KASAN and kmemleak were
+not rerun there. Before the repairs the 2026-11-22 tip gave 251/268 with four
+oopses. That was emulation evidence only: no package was built, nothing was
+booted, and no hardware was involved.
 
-One report appears in the QEMU lockdep run and is not a fixture defect: with
+One report appeared in that lockdep run and is not a fixture defect: with
 `PROVE_RAW_LOCK_NESTING`, which a stock `kunit.py` kernel cannot turn off on
 arm64, lockdep
 reports `BUG: Invalid wait context` because production code takes the
@@ -452,8 +551,11 @@ reports `BUG: Invalid wait context` because production code takes the
 `rk_mpp_hw_take_irq_job()`). It first
 fires at MPP case `rk_mpp_irq_register_lease_kunit` and switches lockdep off
 for the rest of the boot, so an unfiltered `rewrite-kunit-qemu.sh` run at
-these tips passes every case and still exits `3`. It does not block the board
-gate: the debug kernel disables that checker on purpose, and the
+the 2026-11-23 tips passed every case and still exited `3`. The nesting is
+unchanged at the 2026-11-24 tips. Since 2026-11-24 the script applies the
+debug kernel's locknest prompt patch and turns the checker off by default, so
+the report appears only with `KUNIT_QEMU_RAW_NESTING=1`. It does not block
+the board gate: the debug kernel disables that checker on purpose, and the
 [minimal hard-IRQ plan](rewrite-minimal-hard-irq-plan.md) owns the cleanup that
 re-enables it. The
 [first-execution finding](../../findings/2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md)

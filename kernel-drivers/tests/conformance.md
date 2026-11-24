@@ -109,10 +109,22 @@ It fails on dirty kernel worktrees by default, proves an ordinary
 suites in qualification profiles, and treats compiler warnings as failures.
 The 6.18 run reuses that tree's `.config` when present, so it also covers the
 BTF helper path used by the current dev config; mainline falls back to
-`defconfig` unless a `.config` exists. The default `normal` profile is the
-strict provider/rewrite/DTB build gate. `REWRITE_BUILD_PROFILES` can add a
-production-shape test-disabled profile and compile-only sanitizer profiles:
+`defconfig` unless a `.config` exists. The default profile set is
+`normal kunit-run` (it was `normal` before 2026-11-24). `normal` is the
+strict provider/rewrite/DTB build gate. `REWRITE_BUILD_PROFILES` selects the
+set, and can add a production-shape test-disabled profile and compile-only
+sanitizer profiles:
 
+- `kunit-run`: executes both KUnit suites in a KVM guest by calling
+  [`rewrite-kunit-qemu.sh`](rewrite-kunit-qemu.sh) on the tree, and requires
+  every case to pass with a quiet console and lockdep still alive. It is not
+  an object build: it builds a whole minimal kernel in the persistent
+  directory `../rock-5b/build/rewrite-kunit-qemu/<branch>`, shared with
+  by-hand runs of the script, and it needs
+  QEMU and read/write access to `/dev/kvm`. `KUNIT_QEMU_*` variables pass
+  through. A default gate run therefore needs both; set
+  `REWRITE_BUILD_PROFILES=normal` for the compile-only gate. See
+  [the KUnit guide](../docs/rewrite-kunit.md#executing-the-suites-in-a-kvm-guest).
 - `test-disabled`: builds the same targets with both rewrite KUnit suites off.
 - `memory`: enables KASAN, fault-injection options used by the fail-nth
   ioctl unwind tests, and the debug-object lifecycle family mirrored from
@@ -124,7 +136,9 @@ KASAN/KCSAN instrumentation inflates KUnit stack frames; the normal profile keep
 the existing stricter warning behavior. These profiles prove the provider/rewrite
 objects and Rock 5B DTB compile with the relevant instrumentation on both kernel
 lines, but they are not
-a substitute for booted KASAN/KCSAN runtime evidence.
+a substitute for booted KASAN/KCSAN runtime evidence. Likewise a `kunit-run`
+pass is a KVM-guest result on a `virt` machine, not the booted compound KUnit
+gate.
 
 For exact Phase 3I heads 6.18 `395644689db8f` and mainline
 `38768c5cff419`, focused KUnit-enabled MPP objects and all eight warning-fatal
@@ -170,9 +184,19 @@ zero new and zero absent after the baselines were re-pinned to those heads. On
 those heads at 310 KUnit signals, 2,326 ownership signals, and 118 writer
 signals. On those heads all four profiles (`normal`, `test-disabled`,
 `memory`, `race`) passed warning-free on both lines, eight builds in all. Both
-suites were also executed at those tips under QEMU, which is not a profile of
-this gate; see the
-[first-execution finding](../../findings/2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md). The
+suites were also executed at those tips under QEMU emulation, which was not
+then a profile of this gate; see the
+[first-execution finding](../../findings/2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md). On
+2026-11-24 two commits per line (one behaviour-neutral MPP constructor
+refactor, one KUnit fixture change) moved the tips to 6.18 `c7aab336874b` and
+mainline `8dd8071bbab6`; the baselines are re-pinned to those heads at the
+same 310 KUnit signals, 2,326 ownership signals, and 118 writer signals. On
+those heads the gate's default profiles passed on both lines: `normal`
+warning-free, and `kunit-run` with 263/263 in a KVM guest with four CPUs, a
+quiet console, and lockdep alive at the end. The `test-disabled`, `memory` and
+`race` profiles are 2026-11-23 evidence. Run by hand through
+`rewrite-kunit-qemu.sh`, the 6.18 head also passes with generic KASAN; see the
+[KVM gate and shared-constructor finding](../../findings/2026-11-24-rewrite-kunit-kvm-gate-and-shared-hw-fixture-constructor.md). The
 deliberate ABI-size-mutation result remains older-tip evidence and must not be
 attributed to these tips. Detail of the 2026-11-22 run is in the
 [rebase and review finding](../../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md#gates). Every profile runs the checked KUnit source-debt audit first and
@@ -1019,7 +1043,7 @@ logs.
 | `run-conformance.sh` | same device and dependency access as the selected catalog rows. `--target` selects BSP, forward-port, or rewrite drivers; `--configuration` independently selects production, KASAN, or KCSAN. The standard set is system-info, ABI, MPP, librga, GStreamer, and FFmpeg on every target. Rewrite adds KUnit and counter gates automatically. `--include` adds compatible focused tests, `--only` narrows by ID, `--plan` is board-free, and `--validate` checks catalog, parser, builder, comparator, and audit wiring. |
 | `rewrite-kunit-log-check.sh` | runtime mode reads `/sys/kernel/debug/kunit/{rk_mpp_rewrite,rockchip-rga-rewrite}/results`, requires exactly the manifest's 111 + 152 cases with no fail/skip, extracts and scans the complete boot KUnit interval with the shared fatal regex, requires live lockdep, and optionally writes the correlated `KUNIT_REPORT` artifact set; `--selftest` is device-free. |
 | `rewrite-kunit-source-audit.py` | device-free lexical audit of both embedded KUnit regions; the checked TSV baselines existing singleton, FD/raw-allocation, stack-async, manual-list, and fatal-before-cleanup signals, while any new signal or cross-tree mismatch fails. `rewrite-build-gate.sh` runs it before every profile. |
-| `rewrite-kunit-qemu.sh` | no device access and no root; needs `qemu-system-aarch64` on `PATH` and a clean rewrite kernel tree (a `git archive` export). It builds a minimal kernel with the tree's own `kunit.py` and runs both suites on QEMU arm64 `virt` with lockdep, debug objects, atomic-sleep, and list debugging; `KUNIT_QEMU_KASAN=1` adds generic KASAN as a separate slower build. Output goes to `KUNIT_QEMU_BUILD_DIR` (default `../rock-5b/build/rewrite-kunit-qemu`). It exits with `kunit.py`'s status, or `3` when a passing run's console contains a kernel report. Emulation only: no RK3588 device probes, and a pass does not replace the booted compound KUnit gate. See [the KUnit guide](../docs/rewrite-kunit.md#executing-the-suites-under-qemu). |
+| `rewrite-kunit-qemu.sh` | no device access and no root; needs read/write access to `/dev/kvm` (the `kvm` group) by default and `qemu-system-aarch64` on `PATH` or unpacked under `../rock-5b/build/qemu-userland` (`--install-qemu` does that without root). The argument is a git checkout of a rewrite line; the script exports its committed `HEAD` into a persistent scratch tree, so uncommitted changes are ignored and the checkout is not touched. It builds a minimal kernel with the tree's own `kunit.py` and runs both suites on an arm64 `virt` guest under KVM, pinned to the largest-capacity CPU cluster (the A76 cores 4–7, four guest CPUs), with lockdep, debug objects, atomic-sleep, and list debugging. By default it builds like the debug kernel (locknest prompt patch applied, `PROVE_RAW_LOCK_NESTING` off) so lockdep stays alive for the whole run; `KUNIT_QEMU_RAW_NESTING=1` leaves the checker on, `KUNIT_QEMU_KASAN=1` adds generic KASAN as a separate slower build, and `KUNIT_QEMU_ACCEL=tcg` selects software emulation (`kvm` fails rather than fall back). Output goes to `KUNIT_QEMU_BUILD_DIR` (default `../rock-5b/build/rewrite-kunit-qemu/<label>`). Exit status: `0` clean; `kunit.py`'s status when a case fails; `3` when every case passes but the console contains a kernel report; `4` when lockdep was turned off during the run. `rewrite-build-gate.sh` calls it as the default `kunit-run` profile. A `virt` guest only: no RK3588 device probes, and a pass does not replace the booted compound KUnit gate. See [the KUnit guide](../docs/rewrite-kunit.md#executing-the-suites-in-a-kvm-guest). |
 | `rewrite-ownership-source-audit.py` | device-free, source-pinned inventory of the production ownership seams targeted by the refactor: reset/cluster/DMA ownership; IRQ/register leases; typed activation and RGA task-execution references and slot/claim/retry/quarantine transfers; MPP builder/seal/const-backend contracts; immutable RGA task-plan publication; activation storage, closure, reason, outcome, resource, reclaim, and dispatch schemas; power/IOMMU transitions; lifecycle/outcome publication; and the corresponding RGA active/IRQ/timeout, execution-map, command, watchdog, sole task-advance, outcome, terminal, and start owners. Hard contracts reject schema/type/enum/priority drift, mutable MPP backend images, raw-task RGA emitters, unauthorized field writers, duplicate terminal tails, non-central `DONE` publication, incomplete resource drain or retry handoff, unsafe reclaim order, unpinned backend dispatch, obsolete helpers, an unpinned source HEAD, and cross-tree drift even if the TSV is regenerated. `rewrite-build-gate.sh` runs it before every profile. The 2026-11-22 review-fix heads pass at exactly 2,326 signals/tree with zero drift; that pass added two reviewed accessors to the script's hard-coded owner allowlists, which `--update-baseline` cannot change. |
 | `rewrite-writer-inventory.py` | device-free, source-pinned writer inventory for protected state on top of the ownership audit: every production mention of the MPP/RGA active/timeout/IRQ slot references, activation slot/resource terminal-state writes (including RGA `WRITE_ONCE` forms via function scoping), generation-cookie writes including the `_seq` allocator, RKVDEC dispatch-lease writes, reset-control API calls, and `publish_and_start()` call sites. Generation coverage includes the `activation_generation_seq` allocator and AV1 AFBC armed/status cookies; RGA terminal-state coverage is scoped to execution-lifecycle function names; slot-ref categories inventory every production mention (reads included). New signals fail; resolved signals are allowed; an unpinned current HEAD fails like the sibling audit. Doorbell MMIO remains guarded by the ownership audit's `start-doorbell-write` allowlist instead of a duplicate rule here. `--self-test` generates its baseline from a pristine scratch mirror so the head-pin guard cannot mask detection, then requires the injected synthetic dispatch-lease writer to be named in the failing diff — no kernel build. `rewrite-build-gate.sh` audit modes run it against both trees. |
 | `suite-common-selftest.sh` | device-free good/fatal/ring-wrap/unavailable fixtures for the common before/after dmesg gate, plus strict multi-step case execution and nonempty artifact metadata checks used by the suite wrappers. |
