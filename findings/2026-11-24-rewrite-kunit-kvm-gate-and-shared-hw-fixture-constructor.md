@@ -144,8 +144,9 @@ The third row is the state the hard-IRQ plan starts from.
 The MPP driver file is byte-identical between the two tips, SHA-256
 `4131702dbc085f2f9f6a2156c52b8d6e15229330c21e377c10834e593cb9e5c5`. The RGA
 file is unchanged from 2026-11-23. The first commit builds warning-free on
-its own. These commits are local to the two branches; the `linux-rock5b` fork
-still holds the 2026-11-23 tips.
+its own. Both branches were fast-forwarded on the `linux-rock5b` fork the same
+day (`94b3d97d6a12..c7aab336874b` and `1bcfb8514376..8dd8071bbab6`), confirmed
+with `git ls-remote` after the push.
 
 The manifest is unchanged at 111 MPP + 152 RGA = 263. Fixture debt stays at
 310 signals/tree, because that audit counts raw allocations, manual list

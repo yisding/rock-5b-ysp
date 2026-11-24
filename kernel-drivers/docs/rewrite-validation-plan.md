@@ -42,8 +42,8 @@ and definition of done.
 > exact-manifest plus fatal-free-interval gate on the debug kernel is open.
 > Those runs have the raw-lock nesting checker off, as the debug kernel does;
 > with it on, every case passes and the `Invalid wait context` report
-> described in the next block is still printed. The commits are local; the
-> `linux-rock5b` fork holds the 2026-11-23 tips. The
+> described in the next block is still printed. Both branches were
+> fast-forwarded to these tips on the `linux-rock5b` fork the same day. The
 > [KVM gate and shared-constructor finding](../../findings/2026-11-24-rewrite-kunit-kvm-gate-and-shared-hw-fixture-constructor.md)
 > owns the detail.
 >

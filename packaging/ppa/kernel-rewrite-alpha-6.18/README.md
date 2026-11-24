@@ -60,7 +60,7 @@ The branch has since moved. On 2026-11-22 it was rebased to `v6.18.64` and took
 twenty driver-review fix commits (then tip `a6fa1f545507`), and on 2026-11-23 it took
 four KUnit-only fixture commits (then tip `94b3d97d6a12`), and on 2026-11-24 it took
 a behaviour-neutral MPP constructor refactor and a KUnit fixture commit
-(branch tip `c7aab336874b`, local only). No
+(branch tip `c7aab336874b`). No
 package has been built from any of those tips, so this package does not contain those
 changes; see the [rebase and review finding](../../../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md),
 the [KUnit first-execution finding](../../../findings/2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md),

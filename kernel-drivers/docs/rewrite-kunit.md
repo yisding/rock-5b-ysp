@@ -502,8 +502,8 @@ lockdep reported `possible circular locking dependency` on the first run:
 `rk_mpp_activation_observed_terminal_kunit` took the coordinator's
 `ccu_recovery_lock` while holding a core's `run_lock`, the reverse of the
 driver's order. Both cases were fixed; it was a fixture defect only. The RGA
-fixtures are not converted. The commits are local: the `linux-rock5b` fork
-still holds the 2026-11-23 tips.
+fixtures are not converted. Both branches were fast-forwarded to these tips on
+the `linux-rock5b` fork the same day.
 
 The 6.18 tip was executed in a KVM guest with four CPUs through
 `rewrite-kunit-qemu.sh`, not on the board. With lockdep and debug objects and
