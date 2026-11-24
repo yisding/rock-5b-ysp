@@ -227,9 +227,10 @@ verdict.
 
 Both driver files are byte-identical between the two tips: MPP SHA-256
 `07d4a76b0b2a6c43683389cafd7aa3e5f109130aeb15a296176f74f6e93858de`, RGA
-`4e1304446262fb52066f64f5914c584dcc1ff2fa2c9249d59fdf9ffabd5433f0`. The
-commits are local to the two branches named in the header and were not pushed
-to the `linux-rock5b` fork.
+`4e1304446262fb52066f64f5914c584dcc1ff2fa2c9249d59fdf9ffabd5433f0`. On
+2026-11-24 both branches were fast-forwarded on the `linux-rock5b` fork
+(`a6fa1f545507..94b3d97d6a12` and `b153bd919515..1bcfb8514376`), confirmed
+with `git ls-remote` after the push.
 
 ## Evidence and reproduction
 
