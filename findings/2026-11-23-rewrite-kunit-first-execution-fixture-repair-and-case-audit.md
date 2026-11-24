@@ -13,6 +13,17 @@
 > package and no hardware result. The compound board gate is still open, and
 > one lockdep report from production locking is recorded here and not fixed.
 
+> **Corrected 2026-11-24.** This finding first said the debug kernel has
+> `PROVE_RAW_LOCK_NESTING` and that the report below therefore blocks the board
+> gate. Both were wrong. The debug kernel turns that checker off on purpose
+> (`ysp-debug-instrumentation.conf.sh`, with
+> `zz-rock5b-debug-locknest-prompt.patch`), so the report does not occur on a
+> qualification boot and does not block the gate. The nesting is the known,
+> deferred item owned by the
+> [minimal hard-IRQ plan](../kernel-drivers/docs/rewrite-minimal-hard-irq-plan.md),
+> and the 2026-11-22 review was right to treat it as deferred. The section
+> below is rewritten accordingly.
+
 ## Result
 
 The [2026-11-22 review](2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md)
@@ -187,7 +198,7 @@ recorded as wrong.
 ### The lockdep report that is not a fixture defect
 
 With `PROVE_RAW_LOCK_NESTING`, which arm64 forces on with `PROVE_LOCKING` and
-which the debug kernel therefore has, lockdep prints
+which the QEMU kernel therefore has, lockdep prints
 `BUG: Invalid wait context` at `rk_mpp_irq_register_lease_kunit` and again at
 `rk_mpp_iommu_fault_generation_kunit`:
 
@@ -201,14 +212,24 @@ kunit_try_catch is trying to lock:
 `rk_mpp_hw_irq_register_lease_snapshot_locked()` and `rk_mpp_hw_take_irq_job()`
 take the `spinlock_t` `hw->lock` while holding the raw `regs_lock`. Both are
 driver functions on the interrupt paths, and the fixtures only call them the
-way the driver does. The 2026-11-22 review rejected this nesting as a deferred
-`PREEMPT_RT` limitation that no shipped configuration reaches. That was wrong
-for the qualification configuration: the first report sets `debug_locks` to
-zero, so every case after `rk_mpp_irq_register_lease_kunit` (MPP 58 in the new
-manifest), and everything else in that boot, runs without lockdep. The compound board gate requires lockdep to stay enabled, so
-it cannot go green until the nesting is resolved or the gate's contract
-changes. No fix was attempted here; it is a locking-design decision in
-production code.
+way the driver does.
+
+This is not new and does not block the board gate. The checker models
+`PREEMPT_RT` wait-type nesting, which the drivers deliberately do not satisfy
+yet. The debug kernel disables it for exactly that reason: its first report
+sets `debug_locks` to zero and costs the rest of the boot's deadlock coverage.
+The [minimal hard-IRQ plan](../kernel-drivers/docs/rewrite-minimal-hard-irq-plan.md) owns the cleanup and
+ends by re-enabling the checker. The 2026-11-22 review rejected the nesting as
+that documented, deferred limitation, and that was correct.
+
+What the QEMU run adds is narrower. A stock `kunit.py` kernel cannot turn the
+checker off, because arm64 hides the prompt, so an unfiltered run reports at
+`rk_mpp_irq_register_lease_kunit` (MPP 58 in the new manifest) and every case
+after it runs without lockdep. The plan's inventory was taken at
+`600d6e2fb6a49` and lists the status OR under `hw->lock` in the hard
+handlers. The two sites reported here are later code: the register-lease
+snapshot and the thread-side IRQ claim. They belong in that inventory. No fix
+was attempted here.
 
 To get lockdep coverage of the rest, the suites were rerun in three filtered
 parts that keep the first reporting case out of two of them. 105 MPP cases and
@@ -269,8 +290,10 @@ with `git ls-remote` after the push.
   touch hardware even on the board, so this run says nothing about the
   drivers' hardware paths.
 - The board gate is a compound contract: exact manifest, plus a fatal-free
-  boot interval on the debug kernel with lockdep still enabled. The lockdep
-  report above means that contract cannot currently be met.
+  boot interval on the debug kernel with lockdep still enabled. The debug
+  kernel disables the raw-lock nesting checker, so the report above does not
+  stand in the way of that contract. It does mean a QEMU run has no lockdep
+  verdict for anything after its first report unless the run is filtered.
 - KASAN and kmemleak results are for the 6.18 tip only. The mainline tip has
   the byte-identical driver files and passed the lockdep configuration; see
   [Mainline run](#mainline-run).
@@ -290,7 +313,8 @@ else. KASAN and kmemleak were not rerun on mainline.
 
 ## Verification gate
 
-Resolve or explicitly accept the `hw->lock`-inside-`regs_lock` nesting first.
-Then build a package composite for each tip, boot the 6.18 one under KASAN and
+Build a package composite for each tip, boot the 6.18 one under KASAN and
 lockdep on the board, and require the 263-case manifest with a fatal-free
-interval and lockdep still enabled at the end.
+interval and lockdep still enabled at the end. The raw-lock nesting cleanup is
+a separate track with its own gate in the
+[minimal hard-IRQ plan](../kernel-drivers/docs/rewrite-minimal-hard-irq-plan.md).

@@ -443,18 +443,19 @@ This is emulation evidence only. No package was built, nothing was booted, no ha
 involved, and the compound board gate — the exact manifest plus a fatal-free
 boot interval on the debug kernel — is still open.
 
-One obstacle to that gate was observed in the QEMU lockdep run and is not
-fixed: with `PROVE_RAW_LOCK_NESTING`, which the debug kernel enables, lockdep
+One report appears in the QEMU lockdep run and is not a fixture defect: with
+`PROVE_RAW_LOCK_NESTING`, which a stock `kunit.py` kernel cannot turn off on
+arm64, lockdep
 reports `BUG: Invalid wait context` because production code takes the
 `spinlock_t` `hw->lock` inside the raw `regs_lock`
 (`rk_mpp_hw_irq_register_lease_snapshot_locked()`,
 `rk_mpp_hw_take_irq_job()`). It first
 fires at MPP case `rk_mpp_irq_register_lease_kunit` and switches lockdep off
 for the rest of the boot, so an unfiltered `rewrite-kunit-qemu.sh` run at
-these tips passes every case and still exits `3`. That is a driver locking
-issue, not a fixture one;
-the 2026-11-22 review had rejected it as a deferred PREEMPT_RT-only
-limitation. The
+these tips passes every case and still exits `3`. It does not block the board
+gate: the debug kernel disables that checker on purpose, and the
+[minimal hard-IRQ plan](rewrite-minimal-hard-irq-plan.md) owns the cleanup that
+re-enables it. The
 [first-execution finding](../../findings/2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md)
 owns the failures, the repairs, and the case audit.
 

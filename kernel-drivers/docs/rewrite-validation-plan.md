@@ -35,15 +35,18 @@ and definition of done.
 > pass with lockdep and debug objects, and separately with KASAN and kmemleak.
 > That is not the booted rung: no package exists, nothing ran on the board,
 > and the exact-manifest plus fatal-free-interval gate on the debug kernel is
-> open. One driver locking issue, reported in the QEMU lockdep run, stands in
-> its way and is not fixed:
-> with `PROVE_RAW_LOCK_NESTING`, which the debug kernel enables, lockdep
+> open. One report in the QEMU lockdep run is not a fixture defect and does not
+> block that gate, because the debug kernel disables the checker on purpose:
+> with `PROVE_RAW_LOCK_NESTING`, which a stock `kunit.py` kernel cannot turn
+> off on arm64, lockdep
 > reports `BUG: Invalid wait context` because production code takes the
 > `spinlock_t` `hw->lock` inside the raw `regs_lock`
 > (`rk_mpp_hw_irq_register_lease_snapshot_locked()`,
 > `rk_mpp_hw_take_irq_job()`),
 > which first fires at MPP case `rk_mpp_irq_register_lease_kunit` and switches
-> lockdep off for the rest of the boot. The
+> lockdep off for the rest of that run. The
+> [minimal hard-IRQ plan](rewrite-minimal-hard-irq-plan.md) owns the cleanup.
+> The
 > [first-execution finding](../../findings/2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md)
 > owns the detail.
 >
