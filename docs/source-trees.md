@@ -195,6 +195,8 @@ owns the public verdict.
 
 | Snapshot | Pin and base | Historical relationships |
 |----------|--------------|--------------------------|
+| 6.18 rewrite KUnit fixture repair, 2026-11-23 | `rk3588-rewrite-6.18@94b3d97d6a12da018d6b97c554ce90e34549ab51` on `v6.18.64@fd7cfd39c8859` | Review-fix tip `a6fa1f545507`; adds four commits confined to the KUnit regions plus one KUnit-only guarded field and helper in the RGA plan path (fixture repairs, KUnit-owned direct-emitter allocations, five cases removed). 470-commit local range |
+| Mainline rewrite KUnit fixture repair, 2026-11-23 | `rk3588-rewrite-mainline@1bcfb8514376e8a37b3916709d927e56aed84781` on `v7.4-rc3@aebb72744764` | Review-fix tip `b153bd919515`; the same four commits and a byte-identical rewrite C/Kconfig/ABI/UAPI checkpoint. 394-commit local range |
 | 6.18 rewrite driver-review fixes, 2026-11-22 | `rk3588-rewrite-6.18@a6fa1f5455071773c98eaf136233f2865bf26636` on `v6.18.64@fd7cfd39c8859` | Rebased tip `9f59bfd5f3b7`; adds twenty review commits (`rockchip_iommu_restore()` after reset, single completion owner, owned register words, frame-wait on close/reset, RGA2E envelope, suspend parking, hard-CCU shutdown stage, RGA2 line-only acknowledge, zeroed USERPTR shadows). Commit messages carry the kernel `Assisted-by:` trailer |
 | Mainline rewrite driver-review fixes, 2026-11-22 | `rk3588-rewrite-mainline@b153bd9195151906c1b7910962536ba0bdd4d800` on `v7.4-rc3@aebb72744764` | Rebased tip `7d2bd0a3f72f`; the same twenty commits and a byte-identical rewrite C/Kconfig/ABI/UAPI checkpoint. The two provider commits differ from 6.18 by context and one forward declaration |
 | 6.18 rewrite rebased to 6.18.64, 2026-11-22 | `rk3588-rewrite-6.18@9f59bfd5f3b7e18940aa8dcf6b68f82309964b94` on `v6.18.64@fd7cfd39c8859` | Prior tip `7c38fc4ffaba`, kept as `ysp-backup/rk3588-rewrite-6.18-before-6.18.64-20261122`; 445 commits replayed (through `63596abcb3c9`) with one `rk_iommu_enable()` conflict, plus the VSI three-argument `attach_dev` compile fix as the tip commit. The pin is that commit's id after the trailer reword recorded in the finding |
@@ -249,19 +251,34 @@ owns the public verdict.
 | Mainline rewrite, 2026-08-06 | `rk3588-rewrite-mainline@7a6d4cb075a67` on `v7.2-rc6@075b74841bd0` | prior backups `9e503f6b16df` and `5bae68d8381c` |
 | Upstream-style RGA3 comparison | `rk3588-rewrite-mainline@180ee72a9a80` | detailed in §9 |
 
-The two 2026-11-22 review-fix snapshots have byte-identical tracked MPP/RGA
+The two 2026-11-23 KUnit fixture-repair snapshots have byte-identical tracked
+MPP/RGA rewrite sources, Kconfig, ABI ledgers, and UAPI. Their MPP source
+SHA-256 is
+`07d4a76b0b2a6c43683389cafd7aa3e5f109130aeb15a296176f74f6e93858de`; the RGA
+source SHA-256 is
+`4e1304446262fb52066f64f5914c584dcc1ff2fa2c9249d59fdf9ffabd5433f0`. The exact
+source manifest is 111 MPP + 152 RGA = 263 cases, ownership passes at 2,326
+signals/tree, and KUnit fixture debt passes at 310/tree. Both KUnit suites
+were executed at these tips under QEMU arm64 `virt` emulation, and on 6.18 all
+263 cases pass with lockdep and debug objects and separately with KASAN and
+kmemleak; the lockdep run carries one unfixed `Invalid wait context` report
+from production lock nesting. No package, board boot, or hardware result exists for them; the
+[first-execution finding](../findings/2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md)
+owns the detail.
+
+The two 2026-11-22 review-fix snapshots also have byte-identical tracked MPP/RGA
 rewrite sources, Kconfig, ABI ledgers, and UAPI. Their MPP source SHA-256 is
 `dd41cdd67da5b60e66e12d63b28886dd45f27f3ab599abf6385c565b47ac3f6e`; the RGA
 source SHA-256 is
-`de3af8980707bb1be4e70dedc97c266a4b01af893f74e9df2215e7743a1cc436`. The exact
-source manifest is 112 MPP + 156 RGA = 268 cases, ownership passes at 2,326
-signals/tree, and KUnit fixture debt passes at 313/tree. Both tips pass a
+`de3af8980707bb1be4e70dedc97c266a4b01af893f74e9df2215e7743a1cc436`. Their exact
+source manifest was 112 MPP + 156 RGA = 268 cases, ownership passed at 2,326
+signals/tree, and KUnit fixture debt passed at 313/tree. Both tips pass a
 warning-free `W=1` build and the gate's `normal` profile; the `test-disabled`,
 `memory`, and `race` profiles and the ABI-mutation gate were not rerun on
 them. Strict checkpatch reports no code-style finding on the twenty commits;
 what it says about the `Assisted-by:` trailer differs between the two lines.
 This table pins branch tips and does not record what the `linux-rock5b` fork
-holds. No runtime result exists; the
+holds. No runtime result exists for those two tips; the
 [rebase and review finding](../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md)
 owns the detail.
 
@@ -295,7 +312,7 @@ The Debian composite trees remain reconstructible:
 | `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958` | `v7.2-rc3@a13c140cc289` + Armbian build checkout `5cbc1c59c` / snapshot `2657f01c9b9a`, then the mainline rewrite |
 
 The 7.3-rc2 composite is the current mainline package pin and carries the
-2026-09-13 rewrite tip, not the 2026-11-22 one: no composite has been built for
+2026-09-13 rewrite tip, not a 2026-11-22 or 2026-11-23 one: no composite has been built for
 the `v6.18.64` or `v7.4-rc3` tips. The other two are
 historical, predate the later reconciliation, and are package reconstruction
 pins rather than validation evidence. None of the three carries a compile,

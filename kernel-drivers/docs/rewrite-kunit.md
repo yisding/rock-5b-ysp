@@ -2,7 +2,7 @@
 
 The rewrite drivers use KUnit as a built-in boot gate for logic and state
 transitions that can be exercised without RK3588 hardware. The YSP result is
-green only when the named **112 MPP + 156 RGA case manifest** matches without
+green only when the named **111 MPP + 152 RGA case manifest** matches without
 duplicates, omissions, failures, or skips **and** the same kernel-log interval
 is free of sanitizer reports, warnings, lockdep findings, refcount failures,
 and media/IOMMU faults. The report also binds the run to the kernel release,
@@ -39,8 +39,8 @@ Each suite is compiled in the same translation unit as its driver:
 
 | Suite | Source | Kconfig symbol | Registered cases |
 |-------|--------|----------------|-----------------:|
-| `rk_mpp_rewrite` | `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c` | `CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST` | 112 |
-| `rockchip-rga-rewrite` | `drivers/video/rockchip/rga-rewrite/rga_rewrite.c` | `CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST` | 156 |
+| `rk_mpp_rewrite` | `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c` | `CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST` | 111 |
+| `rockchip-rga-rewrite` | `drivers/video/rockchip/rga-rewrite/rga_rewrite.c` | `CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST` | 152 |
 
 The test blocks are guarded with `IS_ENABLED()` and registered with
 `kunit_test_suite()`. Keeping the cases beside the implementation lets them
@@ -106,15 +106,25 @@ hardware throughput:
 | RGA | 149–152 | RGA3 overlap-copy rotate emission, the RGA2 validator-chain exclusions, the RGA2 internal-MMU sgt/layout/emit cases, and the rejection event ring |
 
 The case regions are approximate. They were last aligned at the 105/152
-manifest, and cases added since land mid-list, so later ordinals shift:
-`rewrite-kunit-manifest.tsv` is the authority for order. The 2026-11-22 review
-fixes added `rk_mpp_job_write_regs_owned_words_kunit` (MPP 35),
-`rk_mpp_session_poll_irq_nonblock_last_kunit` (MPP 98),
-`rk_mpp_hw_abort_defers_to_frame_kunit` (MPP 101),
-`rk_rga2_line_irq_ack_kunit` (RGA 7),
-`rk_rga2_envelope_backend_mask_kunit` (RGA 67),
-`rk_rga_queue_on_suspended_hw_kunit` (RGA 86), and
-`rk_rga_userptr_shadow_zeroed_kunit` (RGA 92).
+manifest, and cases added or removed since change the middle of the list, so
+later ordinals shift: `rewrite-kunit-manifest.tsv` is the authority for order.
+The 2026-11-22 review fixes added `rk_mpp_job_write_regs_owned_words_kunit`
+(MPP 34), `rk_mpp_session_poll_irq_nonblock_last_kunit` (MPP 97),
+`rk_mpp_hw_abort_defers_to_frame_kunit` (MPP 100),
+`rk_rga2_line_irq_ack_kunit` (RGA 5),
+`rk_rga2_envelope_backend_mask_kunit` (RGA 63),
+`rk_rga_queue_on_suspended_hw_kunit` (RGA 82), and
+`rk_rga_userptr_shadow_zeroed_kunit` (RGA 88); those ordinals are the ones in
+the current 111/152 manifest.
+
+The 2026-11-23 case-by-case audit removed five low-value cases: MPP
+`rk_mpp_support_cmds_kunit` (was MPP 4), and RGA `rk_rga_fill_hw_type_kunit`
+(was RGA 4), `rk_rga2_fill_dst_offset_emit_kunit` (was RGA 5; its one unique
+assertion moved into `rk_rga2_rectangle_task_emit_kunit`),
+`rk_rga_request_remove_free_kunit` (was RGA 45), and `rk_rga_irq_flags_kunit`
+(was RGA 53). Every ordinal after a removed case moved down. The
+[first-execution finding](../../findings/2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md)
+records the audit.
 
 These are white-box cases. They call production functions with controlled fake
 objects and assert outputs, state transitions, ownership, and error behavior.
@@ -137,6 +147,11 @@ established before calling the function under test. In particular:
   destroy helper before the test returns;
 - prefer KUnit-managed allocation and cleanup actions for objects that can
   escape the immediate assertion path;
+- give every fixture job that will be released a service (`session->srv`) and
+  an initialised activation;
+- let the running test own direct-emitter RGA fixture plans, so their
+  allocations are released with the test (before 2026-11-23 they left 101
+  kmemleak objects per run);
 - initialize error outputs before testing validation failures; and
 - update stale expected register values or allocator behavior when the
   documented ABI changes—do not weaken a production validator merely to keep
@@ -212,6 +227,59 @@ reinitialize the production MPP/RGA services. Install and recover through the
 configuration through the
 [kernel validation runbook](kernel-validation-runbook.md).
 
+## Executing the suites under QEMU
+
+[`rewrite-kunit-qemu.sh`](../tests/rewrite-kunit-qemu.sh) is the device-free
+way to execute both suites. It needs no board, package, or reboot:
+
+```bash
+bash kernel-drivers/tests/rewrite-kunit-qemu.sh <kernel-tree>
+KUNIT_QEMU_KASAN=1 \
+  bash kernel-drivers/tests/rewrite-kunit-qemu.sh <kernel-tree>
+```
+
+The script gives the tree's own `tools/testing/kunit/kunit.py` a minimal
+kunitconfig, builds that kernel out of tree, and boots it on QEMU's arm64
+`virt` machine. The configuration selects both rewrite drivers and both suites,
+the Rockchip and VSI IOMMU providers, `PROVE_LOCKING`, `DEBUG_ATOMIC_SLEEP`,
+`DEBUG_OBJECTS` with work, timer, and free tracking, and `DEBUG_LIST`, and
+leaves the vendor MPP/RGA drivers off. `KUNIT_QEMU_KASAN=1` adds generic KASAN
+as a separate and much slower build. Trailing arguments are passed to
+`kunit.py` as filter globs.
+
+- `<kernel-tree>` must be a clean rewrite tree: Kbuild refuses a tree that
+  holds in-tree build output, so export `HEAD` with `git archive` first.
+- `qemu-system-aarch64` must be on `PATH`. Without root, unpack the
+  distribution packages with `apt download` and `dpkg -x`, add their `bin` and
+  library directories to `PATH` and `LD_LIBRARY_PATH`, and pass the firmware
+  directory in `KUNIT_QEMU_DATA_DIR`.
+- Build output and `console.log` go to `KUNIT_QEMU_BUILD_DIR`, by default
+  `../rock-5b/build/rewrite-kunit-qemu`. The compiler cache is the shared
+  `~/Code/.ccache`.
+- The exit status is `kunit.py`'s, non-zero when any case fails. A kernel
+  warning, lockdep report, or sanitizer report does not fail a case, so the
+  script scans the console afterwards and exits `3` when a passing run
+  contains one.
+
+A clean run shows that every registered case passes on that source and that
+the console stays quiet under the selected instrumentation. It is emulation
+evidence and does not satisfy the compound gate:
+
+- no RK3588 device probes on the `virt` machine, so the production services
+  the suites must coexist with on the board are absent, and the cases touch
+  only their own fixtures;
+- the kernel is not the `rewrite-debug` package and does not carry its full
+  instrumentation set; in particular the script does not enable or scan
+  kmemleak, and the 2026-11-23 kmemleak verdict came from a separate untracked
+  init on the KASAN kernel;
+- the run does not compare case names against `rewrite-kunit-manifest.tsv`,
+  and its console scan is a short fixed pattern list, not
+  `SUITE_DMESG_FATAL_RE`; and
+- nothing binds the result to an installed package or a board boot interval.
+
+Use it to find fixture failures before spending a package build and a board
+boot on them. The compound boot gate below is still required.
+
 ## Reading the boot result
 
 With debugfs mounted, KUnit exposes the most recent result for each suite:
@@ -235,7 +303,7 @@ For each suite it requires:
 
 | Field | Required value |
 |-------|----------------|
-| Inner KTAP plan | exactly 112 MPP or 156 RGA |
+| Inner KTAP plan | exactly 111 MPP or 152 RGA |
 | Observed case results | exactly the planned count |
 | Failed cases | 0 |
 | Skipped cases | 0 |
@@ -352,7 +420,45 @@ plus a real two-thread fence/abort race. Its named ordered 90/152 manifest and
 source/config/package-bound evidence gate owned result attribution. See the
 [successor attribution and audit](../../findings/2026-07-27-rewrite-reset-import-fixture-lockdep.md).
 
-As of 2026-11-22 the maintained tips are 6.18
+As of 2026-11-23 the maintained tips are 6.18
+`94b3d97d6a12da018d6b97c554ce90e34549ab51` on `v6.18.64` and mainline
+`1bcfb8514376e8a37b3916709d927e56aed84781` on `v7.4-rc3`, with an exact
+111/152 manifest (263 cases) and fixture debt of 310 signals/tree. Four
+commits on each line, confined to the KUnit regions plus one KUnit-only
+guarded field and helper in the RGA plan path, repaired the fixtures that
+failed when the suites were executed for the first time, made the RGA
+direct-emitter fixture allocations KUnit-owned (kmemleak went from 101 objects
+to none), and removed the five cases named above. No production behaviour
+changed.
+
+Both suites were executed at these tips under QEMU arm64 `virt` (TCG) with a
+minimal `kunit.py` kernel, not on the board. On 6.18 all 263 cases pass with
+`PROVE_LOCKING`, `DEBUG_OBJECTS`, and `DEBUG_ATOMIC_SLEEP`, and separately with
+generic KASAN plus kmemleak: no KASAN report and an empty kmemleak scan. The
+lockdep run is not report-free: it contains the one lockdep report described
+below. The mainline tip gives the same 263 passes and the same single report
+in the lockdep configuration; KASAN and kmemleak were not rerun there. Before
+the repairs the 2026-11-22 tip gave 251/268 with four oopses.
+This is emulation evidence only. No package was built, nothing was booted, no hardware was
+involved, and the compound board gate — the exact manifest plus a fatal-free
+boot interval on the debug kernel — is still open.
+
+One obstacle to that gate was observed in the QEMU lockdep run and is not
+fixed: with `PROVE_RAW_LOCK_NESTING`, which the debug kernel enables, lockdep
+reports `BUG: Invalid wait context` because production code takes the
+`spinlock_t` `hw->lock` inside the raw `regs_lock`
+(`rk_mpp_hw_irq_register_lease_snapshot_locked()`,
+`rk_mpp_hw_take_irq_job()`). It first
+fires at MPP case `rk_mpp_irq_register_lease_kunit` and switches lockdep off
+for the rest of the boot, so an unfiltered `rewrite-kunit-qemu.sh` run at
+these tips passes every case and still exits `3`. That is a driver locking
+issue, not a fixture one;
+the 2026-11-22 review had rejected it as a deferred PREEMPT_RT-only
+limitation. The
+[first-execution finding](../../findings/2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md)
+owns the failures, the repairs, and the case audit.
+
+On 2026-11-22 the maintained tips were 6.18
 `a6fa1f5455071773c98eaf136233f2865bf26636` on `v6.18.64` and mainline
 `b153bd9195151906c1b7910962536ba0bdd4d800` on `v7.4-rc3`, with an exact
 112/156 manifest and fixture debt of 313 signals/tree. The driver-review
@@ -363,11 +469,11 @@ initialises `hw->regs_lock` in `rk_mpp_cluster_recovery_result_kunit` and
 `rk_mpp_cluster_reset_group_kunit`, which the review expected to turn lockdep
 off for the whole boot, and another extends
 `rk_mpp_hw_abort_ccu_dependents_kunit` to the new hard-CCU shutdown stage. All
-of it is compiled only: the suites have not run on these tips, under QEMU or
-on the board. The review also read every fixture and predicts, without having
-run them, that several still fail on the first boot. The
-[rebase and review finding](../../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md#reported-but-not-changed) lists them; settle
-those before attributing a failed boot gate to driver behaviour.
+of it was compiled only on that date: the suites had not run on those tips,
+under QEMU or on the board. The review also read every fixture and predicted,
+without having run them, that several would still fail on the first boot. The
+[rebase and review finding](../../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md#reported-but-not-changed) lists them; the
+2026-11-23 execution above is what settled which ones did.
 
 The Phase 4/5 tips were 6.18
 `149a9ecd38f78daec7a2c6f8c6010e55ea8ad252` on `v6.18.42` and mainline

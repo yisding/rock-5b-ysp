@@ -57,9 +57,11 @@ conflict at any step. The prior tip is preserved at
 `ysp-backup/rk3588-rewrite-6.18-before-6.18.51-20260913`.
 
 The branch has since moved. On 2026-11-22 it was rebased to `v6.18.64` and took
-twenty driver-review fix commits (branch tip `a6fa1f545507`). No
-package has been built from that tip, so this package does not contain those
-fixes; see the [rebase and review finding](../../../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md).
+twenty driver-review fix commits (then tip `a6fa1f545507`), and on 2026-11-23 it took
+four KUnit-only fixture commits (branch tip `94b3d97d6a12`). No
+package has been built from either tip, so this package does not contain those
+changes; see the [rebase and review finding](../../../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md)
+and the [KUnit first-execution finding](../../../findings/2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md).
 
 ## Build
 

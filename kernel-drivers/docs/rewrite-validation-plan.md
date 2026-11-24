@@ -9,7 +9,7 @@ qualification verdict and next proof belong to
 and definition of done.
 
 > **Framing.** The targeted userspace surface is code-complete and has MPP
-> **112 KUnit cases** plus RGA **156 KUnit cases** (**268 total**). Exact green
+> **111 KUnit cases** plus RGA **152 KUnit cases** (**263 total**). Exact green
 > booted KTAP is the first qualification rung, not the finish line. These tests
 > are primarily **logic/lifecycle evidence**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
@@ -21,7 +21,33 @@ and definition of done.
 > counts into this plan; follow the status row into the dated finding and
 > correlated run artifacts.
 
-> **Current source boundary (2026-11-22):** both lines were rebased
+> **Current source boundary (2026-11-23):** four commits per line moved the
+> tips to `rk3588-rewrite-6.18@94b3d97d6a12da018d6b97c554ce90e34549ab51` (still
+> `v6.18.64`) and
+> `rk3588-rewrite-mainline@1bcfb8514376e8a37b3916709d927e56aed84781` (still
+> `v7.4-rc3`). They touch only the KUnit regions plus one KUnit-only guarded
+> field and helper in the RGA plan path; production behaviour is unchanged, so
+> the 2026-11-22 block below still describes what the recovery and lifecycle
+> rungs must prove. The exact source manifest is 111 MPP plus 152 RGA cases
+> after five low-value cases were removed, ownership passes at 2,326
+> signals/tree, and fixture debt passes at 310/tree. Both suites were executed
+> for the first time, under QEMU arm64 `virt` emulation: on 6.18 all 263 cases
+> pass with lockdep and debug objects, and separately with KASAN and kmemleak.
+> That is not the booted rung: no package exists, nothing ran on the board,
+> and the exact-manifest plus fatal-free-interval gate on the debug kernel is
+> open. One driver locking issue, reported in the QEMU lockdep run, stands in
+> its way and is not fixed:
+> with `PROVE_RAW_LOCK_NESTING`, which the debug kernel enables, lockdep
+> reports `BUG: Invalid wait context` because production code takes the
+> `spinlock_t` `hw->lock` inside the raw `regs_lock`
+> (`rk_mpp_hw_irq_register_lease_snapshot_locked()`,
+> `rk_mpp_hw_take_irq_job()`),
+> which first fires at MPP case `rk_mpp_irq_register_lease_kunit` and switches
+> lockdep off for the rest of the boot. The
+> [first-execution finding](../../findings/2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md)
+> owns the detail.
+>
+> **Source boundary 2026-11-22:** both lines were rebased
 > (`rk3588-rewrite-6.18@a6fa1f5455071773c98eaf136233f2865bf26636` on
 > `v6.18.64`, `rk3588-rewrite-mainline@b153bd9195151906c1b7910962536ba0bdd4d800`
 > on `v7.4-rc3`) and carry twenty fix commits from a full driver review. The
@@ -33,9 +59,9 @@ and definition of done.
 > RGA2E geometry envelope, RGA work parks across system sleep, a hard-CCU
 > shutdown stops the coordinator chain before any core retires a job, and an
 > RGA2 line-only interrupt acknowledges only the line flags. The exact
-> source manifest is 112 MPP plus 156 RGA cases, ownership passes at 2,326
-> signals/tree, and fixture debt passes at 313/tree. A `W=1` build and the
-> `normal` profile pass on both lines; the other profiles were not rerun, KUnit
+> source manifest was 112 MPP plus 156 RGA cases, ownership passed at 2,326
+> signals/tree, and fixture debt passed at 313/tree. A `W=1` build and the
+> `normal` profile passed on both lines; the other profiles were not rerun, KUnit
 > was not executed, and nothing was booted. The
 > [rebase and review finding](../../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md)
 > owns the detail and the measurements the new restore path needs.
@@ -724,7 +750,7 @@ booted sanitizer/fault-injection evidence.
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 268 KUnit cases green **under KASAN** (112 MPP + 156 RGA), persisted from the
+1. 263 KUnit cases green **under KASAN** (111 MPP + 152 RGA), persisted from the
    booted suites by `tests/rewrite-kunit-log-check.sh`; hardware-in-the-loop
    kselftests added (the KUnit cases themselves never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —

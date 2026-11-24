@@ -576,7 +576,7 @@ BSP-derived RGA                   rewrite RGA
 | MPP code/build lines | 18,442 at the forward-port comparison pin, including AV1, compatibility headers, and legacy-SoC helpers | 25,594 C lines at the Phase 4/5 snapshot, including the embedded KUnit block, activation refactor, sealed builder, and VPU981 AV1 backend |
 | RGA code/build lines | 21,160 at the forward-port comparison pin | 27,277 C lines at the Phase 4/5 snapshot, including the embedded KUnit block, task-execution owner, acquire set, and immutable plans |
 | ABI ledger | External project documentation and vendor headers | 395-line MPP and 345-line RGA in-tree `ABI.rst` files |
-| In-driver KUnit | None comparable | Exact source manifest: 112 MPP + 156 RGA cases |
+| In-driver KUnit | None comparable | Exact source manifest: 111 MPP + 152 RGA cases |
 | Primary verification style | Board conformance, sanitizer builds, hostile reproducers, production runs | KUnit/build profiles first, then the same board suites and differential artifacts |
 
 The modular BSP layout is easier to browse file by file. The rewrite keeps an
@@ -626,7 +626,7 @@ and [refactor case study](rewrite-driver-architecture/07-ownership-refactor-case
 | Session/job plus activation/task-execution ownership makes asynchronous lifetime and close/remove order locally auditable. | Refcount, lock, generation, work-cancel, and quarantine state machines add substantial implementation complexity. |
 | Fail-closed ABI, address-provenance, topology, hardware-ID, and reset checks reduce silent unsafe behavior. | Strict rejection can expose compatibility gaps only when real userspace reaches them. |
 | Exact active-slot claims and generation-aware recovery directly address bug classes seen in the BSP architecture. | Clearer architecture has not prevented rewrite-specific recovery, fixture, DT-resource, and shared-IRQ defects. |
-| 268 named KUnit cases, ownership source audits, and explicit ABI ledgers make assumptions executable and reviewable. | Large single-file drivers and embedded tests are a review/merge burden; KUnit cannot prove real register recipes, IRQ wiring, or DMA reset behavior. |
+| 263 named KUnit cases, ownership source audits, and explicit ABI ledgers make assumptions executable and reviewable. | Large single-file drivers and embedded tests are a review/merge burden; KUnit cannot prove real register recipes, IRQ wiring, or DMA reset behavior. |
 | Sealed MPP images, immutable RGA plans, and singular retirement owners mechanically reject several missed-twin classes. | No successful current-tip media-hardware, production-performance, fuzz, or soak record yet. |
 | Better long-term candidate if hardware parity is demonstrated. | Higher immediate qualification risk. |
 

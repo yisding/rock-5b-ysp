@@ -18,12 +18,23 @@ The priority is **ownership before convention**:
 4. postpone broad file moves, naming cleanup, and test rationalization until
    the ownership graph has stopped changing.
 
-> **Tip update — 2026-11-22:** the maintained tips have since moved to
+> **Tip update — 2026-11-23:** the maintained tips are now
+> `rk3588-rewrite-6.18@94b3d97d6a12da018d6b97c554ce90e34549ab51` on `v6.18.64`
+> and `rk3588-rewrite-mainline@1bcfb8514376e8a37b3916709d927e56aed84781` on
+> `v7.4-rc3`. The four new commits per line touch only the KUnit regions plus
+> one KUnit-only guarded field and helper in the RGA plan path, so the
+> ownership model below is unchanged. The source manifest is now 111 MPP plus
+> 152 RGA cases, the ownership audit still passes at 2,326 signals/tree, and
+> fixture debt is 310/tree. Both suites pass under QEMU emulation on 6.18
+> (263/263); nothing was packaged or booted. See the
+> [first-execution finding](../../findings/2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md).
+>
+> **Tip update — 2026-11-22:** the maintained tips moved to
 > `rk3588-rewrite-6.18@a6fa1f5455071773c98eaf136233f2865bf26636` on `v6.18.64`
 > and `rk3588-rewrite-mainline@b153bd9195151906c1b7910962536ba0bdd4d800` on
 > `v7.4-rc3`, through two rebases and twenty driver-review fix commits. The
-> ownership model below is unchanged. The source manifest is now 112 MPP plus
-> 156 RGA cases, the ownership audit passes at 2,326 signals/tree, and fixture
+> ownership model below is unchanged. The source manifest was then 112 MPP plus
+> 156 RGA cases, the ownership audit passed at 2,326 signals/tree, and fixture
 > debt at 313/tree; only the `normal` build profile was rerun. See the
 > [rebase and review finding](../../findings/2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md).
 >
@@ -1191,7 +1202,7 @@ Preserve these invariants:
 ### Exact-tip checkpoint before Phase 6
 
 Before code motion or another ownership change, package, install, and boot the
-exact current tips. Require all 268 KUnit cases, a fatal-free lockdep
+exact current tips. Require all 263 KUnit cases, a fatal-free lockdep
 interval, terminal-reason and old-generation event permutations, acquisition
 failpoints, fallback/copyback, retirement/quarantine balance, and the byte-exact
 MPP/RGA artifact differential. Record source/package identity, counters, logs,

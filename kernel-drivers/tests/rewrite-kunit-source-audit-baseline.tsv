@@ -146,8 +146,6 @@ fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_request_reconfig_resources_kunit	1	acquire:request = kzalloc_obj(*request, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, old_dst);
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_request_reconfig_resources_kunit	1	acquire:request = kzalloc_obj(*request, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, old_src);
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_request_reconfig_resources_kunit	1	acquire:request = kzalloc_obj(*request, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, request);
-fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_request_remove_free_kunit	1	acquire:request = kzalloc_obj(*request, GFP_KERNEL); -> fatal:KUNIT_ASSERT_EQ(test, idr_alloc(&session.requests, request, 7, 8,
-fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_request_remove_free_kunit	1	acquire:request = kzalloc_obj(*request, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, request);
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_request_submit_async_acquire_kunit	1	acquire:request = kzalloc_obj(*request, GFP_KERNEL); -> fatal:KUNIT_ASSERT_EQ(test,
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_request_submit_async_acquire_kunit	2	acquire:request = kzalloc_obj(*request, GFP_KERNEL); -> fatal:KUNIT_ASSERT_EQ(test,
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_request_submit_async_acquire_kunit	3	acquire:request = kzalloc_obj(*request, GFP_KERNEL); -> fatal:KUNIT_ASSERT_EQ(test,
@@ -309,6 +307,5 @@ raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_request_c
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_request_reconfig_fences_kunit	1	request = kzalloc_obj(*request, GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_request_reconfig_gauss_kunit	1	request = kzalloc_obj(*request, GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_request_reconfig_resources_kunit	1	request = kzalloc_obj(*request, GFP_KERNEL);
-raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_request_remove_free_kunit	1	request = kzalloc_obj(*request, GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_request_submit_async_acquire_kunit	1	request = kzalloc_obj(*request, GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_session_dispatch_close_handoff_kunit	1	job = kzalloc_obj(*job, GFP_KERNEL);

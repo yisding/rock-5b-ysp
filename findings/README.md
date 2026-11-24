@@ -203,10 +203,11 @@ The `/dev/rga` driver — session lifetime, userptr/dma-buf imports, and the 10-
 - [`2026-07-20`](2026-07-20-rga2-unmapped-page-table-dma-sync.md) — RGA2 syncs page-table memory through an unmapped DMA address
 - [`2026-07-17`](2026-07-17-rga-session-close-uaf.md) — RGA session-close force-free ignores refcounts; a leaked test handle exposed it as a kernel Oops
 
-### Clean-room rewrite drivers (54)
+### Clean-room rewrite drivers (55)
 
 The from-scratch MPP/RGA replacement: reviews, soft-CCU wedges, and reset/lifecycle races.
 
+- [`2026-11-23`](2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md) — Rewrite KUnit suites executed for the first time: seventeen fixture failures repaired and five cases removed
 - [`2026-11-22`](2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md) — Rewrite lines rebased to Linux 6.18.64 and 7.4-rc3 with twenty driver-review fix commits
 - [`2026-08-25`](2026-08-25-rewrite-hardware-sim-seams-and-arbitration-inventory.md) — Rewrite hardware-simulation seams and arbitration-case inventory for the bug-resistance plan
 - [`2026-08-11`](2026-08-11-rewrite-phases-4-5-task-execution-and-sealed-emission.md) — Rewrite Phases 4 and 5 complete task-execution ownership and sealed emission
@@ -369,6 +370,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md`](2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md) — Rewrite KUnit suites executed for the first time: seventeen fixture failures repaired and five cases removed
 - [`2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md`](2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md) — Rewrite lines rebased to Linux 6.18.64 and 7.4-rc3 with twenty driver-review fix commits
 - [`2026-11-22-forward-port-6-18-64-rebase-and-driver-review.md`](2026-11-22-forward-port-6-18-64-rebase-and-driver-review.md) — Forward-port rebased to Linux 6.18.64 with ten driver-review fixes
 - [`2026-09-13-kernel-lines-updated-to-latest-upstreams.md`](2026-09-13-kernel-lines-updated-to-latest-upstreams.md) — All four ROCK 5B kernel lines updated to their latest upstreams
