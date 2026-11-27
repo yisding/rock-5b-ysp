@@ -190,10 +190,19 @@ day `linux-image-ysp-rockchip64`
 running `6.18.51-ysp-rockchip64` (booted 2026-11-19). This is boot evidence
 only; no conformance, gray256 or USERPTR result has been recorded for it.
 
+## Update 2026-11-27: the 6.18.64 package is installed and booted
+
+The binaries from build `34003009` Published, and the board upgraded from
+6.18.51 to `6.18.64+rk3588av1fwport20261122-0ubuntu1~rk1` from the PPA at
+10:23 PST on 2026-11-22. It booted `6.18.64-ysp-rockchip64` a minute later
+and stayed up for the five days to 2026-11-27. That boot's kernel log has no
+oops or panic and no MPP, RGA or IOMMU fault. `0098`–`0107` now have boot
+evidence; the boundary below still holds for everything else.
+
 ## Boundary
 
-- Nothing in `0098`–`0107`, and nothing on the 6.18.64 base, has been
-  installed or booted. The compat fix needs a 32-bit libmpp client to exercise
+- Apart from the 2026-11-27 boot evidence above, `0098`–`0107` and the
+  6.18.64 base have no runtime result. The compat fix needs a 32-bit libmpp client to exercise
   it, and the timeout fix needs a hung task.
 - The review was code reading only. PLAUSIBLE items were not reproduced, and
   "no high-severity finding" covers what six readers traced, not a proof.

@@ -42,9 +42,11 @@ A Launchpad API query then returned source publication
 completed `Successfully built` at 17:07 UTC, and the source publication is now
 `Published`. At 17:15 UTC the image, DTB, and headers binaries were not yet
 published at this version, so 6.18.51 remained the archive's install
-candidate. Binary publication, installation, boot, and runtime behaviour are
-unverified at this entry; [W05](../../../status.md#watch-w05) owns later
-observations.
+candidate. The binaries Published later that day: the board upgraded to this
+exact version from the PPA at 10:23 PST on 2026-11-22 and has booted it since
+(`6.18.64-ysp-rockchip64`, checked 2026-11-27). That is boot evidence only;
+runtime behaviour is unverified. [W05](../../../status.md#watch-w05) and
+[W16](../../../status.md#watch-w16) own later observations.
 
 **Correction to the 2026-09-13 entry below.** The 6.18.51 package it describes
 has been installed and booted on the board since 2026-11-03, so its "not
