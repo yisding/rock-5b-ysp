@@ -19,11 +19,54 @@ MPP_LIBDIR=${MPP_LIBDIR:-}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-mpp-suite"}
 MPP_GENERATED_INPUT_CACHE=${MPP_GENERATED_INPUT_CACHE:-"$CONFORMANCE_ROOT/assets/mpp-generated"}
 
-# Default the media inputs to the tracked conformance assets when present,
-# so the canonical runner invocation exercises the real matrix instead of
+# Default the media inputs to the standard conformance assets, so the
+# canonical runner invocation exercises the real matrix instead of
 # silently recording missing-env (2026-07-24 harness-gap fix).  Explicit
-# env always wins; a missing asset leaves the var unset and the case
-# records missing-env as before.
+# env always wins.  A missing standard asset is generated in software
+# (MPP_GENERATE_STANDARD_INPUTS=1, the default); before 2026-11-27 a
+# missing asset instead dropped its cases from the required set, so a
+# wiped workspace produced a two-case MPP "pass".  Generation that fails
+# leaves the input unset, and its still-required cases record missing-env.
+MPP_GENERATE_STANDARD_INPUTS=${MPP_GENERATE_STANDARD_INPUTS:-1}
+
+generate_standard_input()
+{
+	local path=$1
+	shift
+
+	[ -s "$path" ] && return 0
+	[ "$MPP_GENERATE_STANDARD_INPUTS" = "1" ] || return 0
+	command -v ffmpeg >/dev/null 2>&1 || {
+		echo "mpp-suite: no ffmpeg to generate $path" >&2
+		return 0
+	}
+	mkdir -p "$(dirname "$path")"
+	if ! ffmpeg -nostdin -hide_banner -loglevel error -y "$@" "$path.tmp" ||
+		[ ! -s "$path.tmp" ]; then
+		echo "mpp-suite: failed to generate $path" >&2
+		rm -f "$path.tmp"
+		return 0
+	fi
+	mv "$path.tmp" "$path"
+}
+
+if [ -z "${MPP_H264_INPUT:-}" ]; then
+	generate_standard_input "$CONFORMANCE_ROOT/assets/test_h264.h264" \
+		-f lavfi -i testsrc2=size=640x480:rate=30:duration=5 \
+		-c:v libx264 -pix_fmt yuv420p -g 15 -f h264
+fi
+if [ -z "${MPP_H265_INPUT:-}" ]; then
+	generate_standard_input "$CONFORMANCE_ROOT/assets/test_h265.h265" \
+		-f lavfi -i testsrc2=size=640x480:rate=30:duration=5 \
+		-c:v libx265 -pix_fmt yuv420p -x265-params log-level=none \
+		-g 15 -f hevc
+fi
+if [ -z "${MPP_ENC_INPUT:-}" ] && [ -z "${MPP_NV12_INPUT:-}" ]; then
+	generate_standard_input "$CONFORMANCE_ROOT/assets/raw_nv12_1280x720.yuv" \
+		-f lavfi -i testsrc2=size=1280x720:rate=30 -frames:v 120 \
+		-pix_fmt nv12 -f rawvideo
+fi
+
 [ -z "${MPP_H264_INPUT:-}" ] && [ -f "$CONFORMANCE_ROOT/assets/test_h264.h264" ] &&
 	MPP_H264_INPUT="$CONFORMANCE_ROOT/assets/test_h264.h264"
 [ -z "${MPP_H265_INPUT:-}" ] && [ -f "$CONFORMANCE_ROOT/assets/test_h265.h265" ] &&
@@ -66,18 +109,18 @@ if [ -z "${MPP_REQUIRED_CASES+x}" ]; then
 	# runs the standard official-MPP matrix instead of only the info
 	# probe (2026-07-24 harness-gap fix).  MPP_REQUIRED_CASES still
 	# overrides everything.
-	if [ -n "${MPP_H264_INPUT:-}" ]; then
+	if [ -n "${MPP_H264_INPUT:-}" ] || [ "$MPP_GENERATE_STANDARD_INPUTS" = "1" ]; then
 		required_cases_default="$required_cases_default mpi_dec_h264 mpi_dec_mt_h264"
 	fi
-	if [ -n "${MPP_H265_INPUT:-}" ]; then
+	if [ -n "${MPP_H265_INPUT:-}" ] || [ "$MPP_GENERATE_STANDARD_INPUTS" = "1" ]; then
 		required_cases_default="$required_cases_default mpi_dec_h265 mpi_dec_multi_h265"
 	fi
 	if [ -n "${MPP_VP9_INPUT:-}" ] || [ "$MPP_GENERATE_VP9_INPUT" = "1" ]; then
 		required_cases_default="$required_cases_default mpi_dec_vp9"
 	fi
-	if [ -n "${MPP_ENC_INPUT:-${MPP_NV12_INPUT:-}}" ]; then
+	if [ -n "${MPP_ENC_INPUT:-${MPP_NV12_INPUT:-}}" ] || [ "$MPP_GENERATE_STANDARD_INPUTS" = "1" ]; then
 		required_cases_default="$required_cases_default mpi_enc_h264 mpi_enc_h265 mpi_enc_h264_slice mpi_enc_h265_slice mpi_enc_mt_h265"
-		if [ -n "${MPP_H264_INPUT:-}" ]; then
+		if [ -n "${MPP_H264_INPUT:-}" ] || [ "$MPP_GENERATE_STANDARD_INPUTS" = "1" ]; then
 			required_cases_default="$required_cases_default mpi_rc2_h264"
 		fi
 	fi
@@ -1028,7 +1071,10 @@ if ! suite_dmesg_finish "$OUT"; then
 	failed=1
 fi
 tail -n 500 "$OUT/dmesg-after.txt" > "$OUT/dmesg-tail.txt" 2>/dev/null || true
-suite_reown_to_invoking_user "$OUT" "$MPP_GENERATED_INPUT_CACHE"
+suite_reown_to_invoking_user "$OUT" "$MPP_GENERATED_INPUT_CACHE" \
+	"$CONFORMANCE_ROOT/assets/test_h264.h264" \
+	"$CONFORMANCE_ROOT/assets/test_h265.h265" \
+	"$CONFORMANCE_ROOT/assets/raw_nv12_1280x720.yuv"
 
 echo "$OUT"
 
