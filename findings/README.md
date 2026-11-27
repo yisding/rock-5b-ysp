@@ -150,10 +150,11 @@ RK3588 platform behaviour outside the media path.
 - [`2026-07-26`](2026-07-26-dwc-pcie-pmu-bus-notifier-lockdep-false-positive.md) — DWC PCIe PMU nests distinct same-class bus notifier locks and disables lockdep
 - [`2026-07-25`](2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md) — RK3588 per-die voltage binning: the BSP selects voltage from eFuse, mainline ships only the worst-die column
 
-### Kernel forward port: MPP and codec drivers (23)
+### Kernel forward port: MPP and codec drivers (24)
 
 Vendor MPP/rkvenc/rkvdec forward-ported to 6.18 — defects, audits, and whole-tip validation runs.
 
+- [`2026-11-27`](2026-11-27-forward-port-6-18-64-production-conformance-run.md) — Forward-port 6.18.64 production conformance passes except the known H.264 encode corruption
 - [`2026-11-22`](2026-11-22-forward-port-6-18-64-rebase-and-driver-review.md) — Forward-port rebased to Linux 6.18.64 with ten driver-review fixes
 - [`2026-08-16`](2026-08-16-forward-port-rkvenc-intermittent-encode-corruption.md) — Forward-port RKVENC emits intermittently corrupt H.264/HEVC frames with clean kernel logs
 - [`2026-08-08`](2026-08-08-forward-port-rga-mpp-ownership-audit-fixes.md) — Forward-port 0095–0096 close RGA/MPP ownership and fault-admission gaps
@@ -371,6 +372,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-11-27-forward-port-6-18-64-production-conformance-run.md`](2026-11-27-forward-port-6-18-64-production-conformance-run.md) — Forward-port 6.18.64 production conformance passes except the known H.264 encode corruption
 - [`2026-11-24-rewrite-kunit-kvm-gate-and-shared-hw-fixture-constructor.md`](2026-11-24-rewrite-kunit-kvm-gate-and-shared-hw-fixture-constructor.md) — Rewrite KUnit suites run under KVM in the build gate, and MPP hardware fixtures share probe's constructor
 - [`2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md`](2026-11-23-rewrite-kunit-first-execution-fixture-repair-and-case-audit.md) — Rewrite KUnit suites executed for the first time: seventeen fixture failures repaired and five cases removed
 - [`2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md`](2026-11-22-rewrite-6-18-64-7-4-rc3-rebase-and-driver-review.md) — Rewrite lines rebased to Linux 6.18.64 and 7.4-rc3 with twenty driver-review fix commits
