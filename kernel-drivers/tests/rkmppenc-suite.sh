@@ -92,7 +92,7 @@ run_generator()
 	local log="$OUT/generate-$label.log"
 	shift
 
-	timeout "$RKMPPENC_TIMEOUT" "$RKMPPENC_GENERATOR" -hide_banner -y \
+	timeout "$RKMPPENC_TIMEOUT" "$RKMPPENC_GENERATOR" -hide_banner -nostdin -y \
 		-loglevel warning "$@" > "$log" 2>&1
 }
 
