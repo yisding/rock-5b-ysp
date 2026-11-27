@@ -38,6 +38,16 @@ SUITE_LOCKDEP_FILE=${SUITE_LOCKDEP_FILE:-/proc/lockdep_stats}
 # either "WARNING:" or "lockdep", so its non-static-key, validator-off, and
 # DEBUG_LOCKS signatures are explicit too.  run-root-gates.sh learned the
 # \bBUG: lesson first.
+# Because the scan ignores case, "WARNING:" also matches lowercase
+# "warning:" text the kernel prints for userspace behaviour, which is not a
+# kernel warning. SUITE_DMESG_BENIGN_RE names those exact lines; a fatal
+# match that also matches it is dropped. Keep each alternative specific to
+# one message so it can never hide a real report. First entry (2026-11-27):
+# net/wireless/wext-core.c prints "warning: `<comm>' uses wireless
+# extensions ..." when a desktop process (here a browser thread pool) asks
+# the Wi-Fi driver for statistics; it failed the forward-port 6.18.64
+# GStreamer suite on a clean run.
+SUITE_DMESG_BENIGN_RE=${SUITE_DMESG_BENIGN_RE:-"^\\[[ 0-9.]+\\] warning: \`[^']*' uses wireless extensions which will stop working for Wi-Fi 7 hardware; use nl80211\$"}
 SUITE_DMESG_FATAL_RE=${SUITE_DMESG_FATAL_RE:-'KASAN|KCSAN|UBSAN|KFENCE|\bBUG:|kernel BUG|\bOops|Unable to handle kernel|use-after-free|slab-out-of-bounds|out-of-bounds|general protection fault|hung task|blocked for more than|RCU stall|lockdep|DEBUG_LOCKS|trying to register non-static key|turning off the locking correctness validator|WARNING:|DMA-API.*(error|WARNING)|refcount_t:|list_[a-z_]* corruption|scheduling while atomic|sleeping function called|Page fault at|iommu[^[:alnum:]]*(intr|read|write)?[^[:alnum:]]*(fault|panic|oops)|bus error|rga[^[:alnum:]]*(fault|panic)|mpp[^[:alnum:]]*(fault|panic)'}
 
 # Wedge-localization markers (2026-07-29): the board can hard-lock with no
@@ -268,7 +278,8 @@ suite_dmesg_scan_snapshots()
 			status=unavailable
 			: > "$fatal"
 		else
-			grep -aiE "$SUITE_DMESG_FATAL_RE" "$new" > "$fatal" || :
+			grep -aiE "$SUITE_DMESG_FATAL_RE" "$new" |
+				{ grep -avE "$SUITE_DMESG_BENIGN_RE" || :; } > "$fatal" || :
 			if [ -s "$fatal" ]; then
 				status=fatal
 			fi
@@ -293,6 +304,7 @@ suite_dmesg_scan_snapshots()
 		printf "fatal_lines\t%s\n" "$fatal_lines"
 		printf "lockdep_state\t%s\n" "$lockdep_state"
 		printf "fatal_regex\t%s\n" "$SUITE_DMESG_FATAL_RE"
+		printf "benign_regex\t%s\n" "$SUITE_DMESG_BENIGN_RE"
 	} > "$report"
 
 	case "$status" in

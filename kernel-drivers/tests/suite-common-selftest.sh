@@ -54,6 +54,29 @@ fi
 grep -q $'^status\tfatal$' "$fatal/dmesg-scan.tsv"
 grep -q 'use-after-free' "$fatal/dmesg-fatal.txt"
 
+benign="$TMP_ROOT/benign"
+write_clean_snapshots "$benign"
+printf "[37995.854358] warning: \`ThreadPoolForeg' uses wireless extensions which will stop working for Wi-Fi 7 hardware; use nl80211\n" \
+	>> "$benign/dmesg-after.txt"
+SUITE_DMESG_SCAN=1 SUITE_REQUIRE_DMESG=1 \
+	suite_dmesg_scan_snapshots "$benign"
+grep -q $'^status\tclean$' "$benign/dmesg-scan.tsv"
+
+benign_plus_fatal="$TMP_ROOT/benign-plus-fatal"
+write_clean_snapshots "$benign_plus_fatal"
+printf "[37995.854358] warning: \`ThreadPoolForeg' uses wireless extensions which will stop working for Wi-Fi 7 hardware; use nl80211\n[37996.000000] WARNING: CPU: 2 PID: 1 at drivers/video/rockchip/mpp/mpp_common.c:1 mpp_task_finish\n" \
+	>> "$benign_plus_fatal/dmesg-after.txt"
+if SUITE_DMESG_SCAN=1 SUITE_REQUIRE_DMESG=1 \
+	suite_dmesg_scan_snapshots "$benign_plus_fatal"; then
+	echo "kernel WARNING next to a benign line unexpectedly passed" >&2
+	exit 1
+fi
+grep -q 'mpp_task_finish' "$benign_plus_fatal/dmesg-fatal.txt"
+if grep -q 'wireless extensions' "$benign_plus_fatal/dmesg-fatal.txt"; then
+	echo "benign wext line was not filtered" >&2
+	exit 1
+fi
+
 wrapped="$TMP_ROOT/wrapped"
 mkdir -p "$wrapped"
 printf "[0.000000] evicted boot line\n" > "$wrapped/dmesg-before.txt"
