@@ -10,7 +10,9 @@
 > `arch/arm64/boot/dts/rockchip/rk3588-base.dtsi` `rkvenc0:` (~:1538) in
 > `../rock-5b/kernel/linux-6.18-rkvenc` @ `d9cbcf21cda1c`
 > Date: 2026-08-16
-> Trust: MEASURED, BOARD-REPRODUCED, SOURCE-INSPECTED, BOOT-VERIFIED, PARTIAL
+> Trust: MEASURED, BOARD-REPRODUCED, SOURCE-INSPECTED, BOOT-VERIFIED, PARTIAL.
+> The cache-maintenance mechanism is MEASURED on 6.18.64 (2026-11-27); no fix
+> is applied
 
 ## Result
 
@@ -176,6 +178,51 @@ Cheap discriminating tests, any one of which would settle it:
 The corresponding fix belongs in userspace (sync whenever the buffer is
 actually cached). A kernel-side per-task `DMA_TO_DEVICE` sync would also mask
 it, at a per-frame flush cost. Neither is applied.
+
+## Mechanism measured: unsynced cached input frames (2026-11-27)
+
+Trust for this section: MEASURED, BOARD-REPRODUCED on
+`6.18.64-ysp-rockchip64` (`0001`–`0107`), FFmpeg `ffmpeg-rockchip-81`
+`463f542c32`, MPP `a8b19653`. Not reproduced on any other kernel.
+
+`kernel-drivers/tests/rkvenc-encode-loop.sh` ran the fixed-QP encode above
+twelve times in each of three input modes. All three allocate from the same
+cached `/dev/dma_heap/system`: MPP tries every `*-uncached` heap first, and
+none exists on this kernel (`strace` of `openat`). The `device1` mode differs
+from `device0` only in asking FFmpeg for cacheable buffers, which adds exactly
+one `DMA_BUF_IOCTL_SYNC` start and end per uploaded frame (240 sync ioctls
+against 120 for 60 frames).
+
+| Codec | Mode | Distinct bitstreams | Runs below 35 dB | PSNR average range |
+|-------|------|--------------------:|-----------------:|--------------------|
+| H.264 | `plain` (as the conformance case) | 12 / 12 | 10 | 24.2–39.7 dB |
+| H.264 | `device0` (`cacheable=0`) | 12 / 12 | 11 | 24.3–37.9 dB |
+| H.264 | `device1` (`cacheable=1`) | **1 / 12** | **0** | **48.53 dB every run** |
+| HEVC | `plain` | 12 / 12 | 10 | 25.0–36.7 dB |
+| HEVC | `device0` | 12 / 12 | 8 | 24.6–40.4 dB |
+| HEVC | `device1` | **1 / 12** | **0** | **46.22 dB every run** |
+
+Flushing the CPU's writes to each input frame before the encoder reads it
+turns a nondeterministic, mostly failing encode into a byte-identical one
+well above the gate, on both codecs. So the corruption is the encoder reading
+input frames whose newest contents are still in the CPU cache. The
+`device0`/`device1` pair rules out the change of code path as the cause.
+
+Still open:
+
+- **Why the rewrite measured ~47 dB.** Its `rk_mpp_import_fd()` also returns a
+  reused import without a sync, and the rewrite runs used the same cached
+  heaps and userspace. Something in that path keeps frames coherent, or those
+  runs did not reuse buffers the same way. Not investigated.
+- **Where the bug originated.** On the vendor BSP kernel MPP would get an
+  uncached heap and need no flush; that kernel has not been measured.
+- **The fix.** The narrowest one is in FFmpeg: sync around every CPU upload
+  regardless of the cacheable flag it requested, since the allocator can
+  hand back cached memory anyway. A kernel-side per-task `DMA_TO_DEVICE` sync
+  on the import-cache hit would cover every client at a per-frame cost.
+  Neither is applied; `cacheable=1` is a working stopgap for FFmpeg users.
+- Artifacts: `~/Code/tmp/rkvenc-heap/loop12-h264` and `loop12-hevc` (local,
+  disposable).
 
 ## Verification gate
 

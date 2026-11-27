@@ -37,9 +37,11 @@ HEVC twin, `system_ffmpeg_encode_hevc_options`, passed in the same run at
 average 41.81 dB (minimum 31.53). A clean kernel log, one codec failing while
 the other passes, and chroma well below luma all match the
 [RKVENC encode-corruption finding](2026-08-16-forward-port-rkvenc-intermittent-encode-corruption.md).
-So the defect survives the 6.18.64 rebase and `0098`–`0107`. One run says
-nothing about its rate: that finding needed a twelve-iteration loop, and even
-its worst boot passed 2 of 12.
+So the defect survives the 6.18.64 rebase and `0098`–`0107`. A twelve-run
+loop later the same day measured its rate and cause: 10 of 12 H.264 and
+10 of 12 HEVC encodes failed, and all 12 became byte-identical and clean once
+FFmpeg synced each input frame. That result lives in the RKVENC finding's
+"Mechanism measured" section.
 
 ### Getting a valid run took three harness fixes
 
